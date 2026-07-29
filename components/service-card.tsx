@@ -34,7 +34,7 @@ export function ServiceCard({ service }: { service: PublicService }) {
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50">
       <div className="relative aspect-[16/10] overflow-hidden">
         <Image
-          src={service.image || "/placeholder.svg"}
+          src="/services/lavage-premium.png"
           alt={service.name}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
