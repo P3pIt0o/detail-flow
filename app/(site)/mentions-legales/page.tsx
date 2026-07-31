@@ -17,9 +17,12 @@ export default async function MentionsLegalesPage() {
   // Sur la vitrine racine (aucun tenant), repli sur la configuration DetailFlow.
   const tenant = await getCurrentTenant()
 
-  const editorName = tenant?.name || legalConfig.companyName
-  const phone = tenant?.phone || siteConfig.contact.phone
-  const email = tenant?.email || siteConfig.contact.email
+  // Pour un tenant : uniquement SES coordonnées (jamais de repli sur DetailFlow,
+  // sinon fuite d'infos entre entreprises). Le repli config ne vaut que pour la
+  // vitrine racine (aucun tenant résolu).
+  const editorName = tenant ? tenant.name : legalConfig.companyName
+  const phone = tenant ? tenant.phone : siteConfig.contact.phone
+  const email = tenant ? tenant.email : siteConfig.contact.email
   const address = tenant
     ? [tenant.address, [tenant.postalCode, tenant.city].filter(Boolean).join(" ")]
         .filter((part) => part && part.trim())
