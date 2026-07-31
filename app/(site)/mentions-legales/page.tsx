@@ -3,6 +3,7 @@ import { siteConfig, getFullAddress } from "@/config/site"
 import { legalConfig } from "@/config/legal"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
+import { getCurrentTenant } from "@/lib/tenant"
 
 export const metadata: Metadata = {
   title: "Mentions légales",
@@ -11,34 +12,66 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 }
 
-export default function MentionsLegalesPage() {
+export default async function MentionsLegalesPage() {
+  // ISOLATION : les informations éditeur proviennent de l'entreprise résolue.
+  // Sur la vitrine racine (aucun tenant), repli sur la configuration DetailFlow.
+  const tenant = await getCurrentTenant()
+
+  const editorName = tenant?.name || legalConfig.companyName
+  const phone = tenant?.phone || siteConfig.contact.phone
+  const email = tenant?.email || siteConfig.contact.email
+  const address = tenant
+    ? [tenant.address, [tenant.postalCode, tenant.city].filter(Boolean).join(" ")]
+        .filter((part) => part && part.trim())
+        .join(", ") || null
+    : getFullAddress()
+  const website = tenant?.websiteUrl || null
+
   return (
     <>
       <PageHeader title="Mentions légales" description={`Dernière mise à jour : ${legalConfig.lastUpdated}`} />
       <LegalContent>
         <h2>Éditeur du site</h2>
         <p>
-          <strong>{legalConfig.companyName}</strong>
-          <br />
-          {legalConfig.legalForm}
-          <br />
-          Siège social : {legalConfig.headquarters}
-          <br />
-          SIRET : {legalConfig.siret}
-          <br />
-          TVA intracommunautaire : {legalConfig.vat}
+          <strong>{editorName}</strong>
+          {!tenant && (
+            <>
+              <br />
+              {legalConfig.legalForm}
+              <br />
+              Siège social : {legalConfig.headquarters}
+              <br />
+              SIRET : {legalConfig.siret}
+              <br />
+              TVA intracommunautaire : {legalConfig.vat}
+            </>
+          )}
         </p>
-
-        <h2>Directeur de la publication</h2>
-        <p>{legalConfig.publicationDirector}</p>
 
         <h2>Contact</h2>
         <p>
-          Téléphone : {siteConfig.contact.phone}
-          <br />
-          Email : {siteConfig.contact.email}
-          <br />
-          Adresse : {getFullAddress()}
+          {phone && (
+            <>
+              Téléphone : {phone}
+              <br />
+            </>
+          )}
+          {email && (
+            <>
+              Email : {email}
+              <br />
+            </>
+          )}
+          {address && <>Adresse : {address}</>}
+          {website && (
+            <>
+              <br />
+              Site web :{" "}
+              <a href={website} target="_blank" rel="noopener noreferrer">
+                {website}
+              </a>
+            </>
+          )}
         </p>
 
         <h2>Hébergement</h2>
@@ -60,8 +93,8 @@ export default function MentionsLegalesPage() {
 
         <h2>Responsabilité</h2>
         <p>
-          {siteConfig.brand.name} s&apos;efforce d&apos;assurer l&apos;exactitude des informations diffusées sur ce
-          site mais ne saurait être tenu responsable des erreurs ou omissions éventuelles.
+          {editorName} s&apos;efforce d&apos;assurer l&apos;exactitude des informations diffusées sur ce site mais ne
+          saurait être tenu responsable des erreurs ou omissions éventuelles.
         </p>
       </LegalContent>
     </>

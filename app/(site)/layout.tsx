@@ -45,8 +45,22 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const brandName = tenant?.name
   const logoSrc = tenant?.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
 
+  // Couleurs de marque du tenant : surcharge des variables de thème UNIQUEMENT
+  // si l'entreprise en a défini. Sinon aucune variable n'est injectée → la
+  // vitrine racine (detailflow.fr) et les tenants sans couleur gardent le thème
+  // par défaut de globals.css. Les hex sont des valeurs CSS valides pour ces vars.
+  const brandStyle: React.CSSProperties = {}
+  if (tenant?.brandPrimary) {
+    ;(brandStyle as Record<string, string>)["--primary"] = tenant.brandPrimary
+    ;(brandStyle as Record<string, string>)["--ring"] = tenant.brandPrimary
+  }
+  if (tenant?.brandSecondary) {
+    ;(brandStyle as Record<string, string>)["--secondary"] = tenant.brandSecondary
+  }
+  const hasBrandColors = Boolean(tenant?.brandPrimary || tenant?.brandSecondary)
+
   return (
-    <>
+    <div style={hasBrandColors ? brandStyle : undefined}>
       <StructuredData />
       <a
         href="#contenu"
@@ -58,6 +72,6 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <main id="contenu">{children}</main>
       <Footer brandName={brandName} logoSrc={logoSrc} tenantSlug={tenant?.slug ?? null} />
       <WhatsAppButton />
-    </>
+    </div>
   )
 }

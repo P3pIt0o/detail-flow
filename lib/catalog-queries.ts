@@ -35,6 +35,6 @@ export async function getPublicServices() {
     image:
       service.image ||
       defaultServiceImages[service.slug] ||
-      "/placeholder.svg",
+      "/services/default.png",
   }))
 }

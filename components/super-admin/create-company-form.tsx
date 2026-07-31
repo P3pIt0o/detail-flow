@@ -60,6 +60,26 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
+/** Bouton "tout copier" : livre l'ensemble des accès en un seul bloc partageable. */
+function CopyRecapButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        const ok = await copyToClipboard(value)
+        if (!ok) return
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1800)
+      }}
+      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
+    >
+      {copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
+      {copied ? "Récapitulatif copié" : "Copier le récapitulatif complet"}
+    </button>
+  )
+}
+
 function RecapRow({ label, value, href }: { label: string; value: string; href?: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -100,6 +120,17 @@ export function CreateCompanyForm({ rootDomain }: { rootDomain: string | null })
     const r = state.result
     const publicUrl = tenantPublicUrl(r.slug, rootDomain ?? undefined)
     const adminUrl = rootDomain ? `https://${r.slug}.${rootDomain}/admin` : `/admin?tenant=${r.slug}`
+    // Bloc de livraison prêt à transmettre au client en un seul copier-coller.
+    const shareBlock = [
+      "Votre espace DetailFlow est prêt.",
+      "",
+      `Site public : ${publicUrl}`,
+      `Administration : ${adminUrl}`,
+      `Identifiant : ${r.ownerEmail}`,
+      ...(r.ownerCreated && r.tempPassword
+        ? [`Mot de passe temporaire : ${r.tempPassword}`, "(à changer après la première connexion)"]
+        : []),
+    ].join("\n")
     return (
       <div className="flex flex-col gap-6 rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-3">
@@ -132,6 +163,8 @@ export function CreateCompanyForm({ rootDomain }: { rootDomain: string | null })
             changer après sa première connexion.
           </p>
         )}
+
+        <CopyRecapButton value={shareBlock} />
 
         <div className="flex gap-3">
           <Link href="/super-admin" className={buttonVariants({ variant: "secondary" })}>

@@ -17,7 +17,7 @@ export type PublicService = {
   durationMin: number
 }
 
-const FALLBACK_IMAGE = "/services/lavage-premium.png"
+const FALLBACK_IMAGE = "/services/default.png"
 
 function formatDuration(min: number): string {
   // Repli sûr : durée absente / invalide → valeur métier par défaut (60 min).
