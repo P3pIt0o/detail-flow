@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Phone, Mail, MapPin } from "lucide-react"
 import { siteConfig, getFullAddress } from "@/config/site"
+import { withTenant } from "@/lib/tenant-link"
 import { Logo } from "./logo"
 import { socialIconMap } from "@/components/icons/social-icons"
 
@@ -8,9 +9,11 @@ type FooterProps = {
   /** Branding du tenant courant, transmis au logo et au copyright. */
   brandName?: string
   logoSrc?: string
+  /** Slug du tenant courant : conserve ?tenant= sur les liens internes (aperçu). */
+  tenantSlug?: string | null
 }
 
-export function Footer({ brandName, logoSrc }: FooterProps = {}) {
+export function Footer({ brandName, logoSrc, tenantSlug = null }: FooterProps = {}) {
   const year = new Date().getFullYear()
   const socials = Object.entries(siteConfig.social).filter(([, url]) => Boolean(url))
   const displayName = brandName || siteConfig.brand.name
@@ -51,7 +54,7 @@ export function Footer({ brandName, logoSrc }: FooterProps = {}) {
             <ul className="mt-4 space-y-3">
               {siteConfig.nav.map((item) => (
                 <li key={item.href}>
-                  <Link href={item.href} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  <Link href={withTenant(item.href, tenantSlug)} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                     {item.label}
                   </Link>
                 </li>
@@ -65,7 +68,7 @@ export function Footer({ brandName, logoSrc }: FooterProps = {}) {
             <ul className="mt-4 space-y-3">
               {siteConfig.legalNav.map((item) => (
                 <li key={item.href}>
-                  <Link href={item.href} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  <Link href={withTenant(item.href, tenantSlug)} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                     {item.label}
                   </Link>
                 </li>

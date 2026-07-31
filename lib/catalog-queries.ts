@@ -63,7 +63,7 @@ function getDefaultServiceImage(service: {
   return (
     defaultServiceImages[normalizedSlug] ||
     defaultServiceImages[normalizedName] ||
-    "/placeholder.svg"
+    "/services/default.png"
   )
 }
 

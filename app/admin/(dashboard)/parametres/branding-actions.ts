@@ -22,12 +22,34 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 Mo
  * `companies.logoUrl`. Il est servi publiquement (site vitrine) via la route
  * /api/company-logo?company={slug}.
  */
+/** Valide un code couleur hexadécimal (#rgb ou #rrggbb). Renvoie null sinon. */
+function normalizeHex(value: string | null): string | null {
+  const v = (value ?? "").trim()
+  if (!v) return null
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v.toLowerCase() : null
+}
+
 export async function saveCompanySite(formData: FormData): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
 
   const cgvRaw = (formData.get("cgv") as string | null) ?? ""
   const removeLogo = formData.get("removeLogo") === "1"
   const file = formData.get("logo") as File | null
+
+  // Couleurs de marque : hex valides uniquement, sinon null (repli sur le thème
+  // par défaut). Champ absent (undefined) → on conserve la valeur existante.
+  const hasPrimary = formData.has("brandPrimary")
+  const hasSecondary = formData.has("brandSecondary")
+  const brandPrimary = hasPrimary ? normalizeHex(formData.get("brandPrimary") as string) : tenant.brandPrimary ?? null
+  const brandSecondary = hasSecondary
+    ? normalizeHex(formData.get("brandSecondary") as string)
+    : tenant.brandSecondary ?? null
+  if (hasPrimary && (formData.get("brandPrimary") as string)?.trim() && !brandPrimary) {
+    return { ok: false, error: "Couleur principale invalide (format attendu : #2563eb)." }
+  }
+  if (hasSecondary && (formData.get("brandSecondary") as string)?.trim() && !brandSecondary) {
+    return { ok: false, error: "Couleur secondaire invalide (format attendu : #1e293b)." }
+  }
 
   // Pathname actuel (peut être null) ; sert de base et pour le nettoyage Blob.
   let logoPathname: string | null = tenant.logoUrl ?? null
@@ -61,6 +83,8 @@ export async function saveCompanySite(formData: FormData): Promise<ActionResult>
     .set({
       logoUrl: logoPathname,
       cgv: cgvRaw.trim() || null,
+      brandPrimary,
+      brandSecondary,
       updatedAt: new Date(),
     })
     .where(eq(companies.id, tenant.id))

@@ -9,10 +9,12 @@
 
 import Image from "next/image"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowRight, Star, ShieldCheck } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { about } from "@/config/content"
+import { withTenant } from "@/lib/tenant-link"
 
 const container = {
   hidden: {},
@@ -24,6 +26,7 @@ const item = {
 }
 
 export function Hero() {
+  const tenant = useSearchParams().get("tenant")
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-hidden">
       {/* Arrière-plan */}
@@ -57,14 +60,14 @@ export function Hero() {
 
           <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href={siteConfig.cta.href}
+              href={withTenant(siteConfig.cta.href, tenant)}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-8 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50"
             >
               {siteConfig.cta.label}
               <ArrowRight className="size-5" aria-hidden="true" />
             </Link>
             <Link
-              href="/prestations"
+              href={withTenant("/prestations", tenant)}
               className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-card/50 px-8 text-base font-semibold text-foreground backdrop-blur transition-colors hover:border-primary/50"
             >
               Voir les prestations
