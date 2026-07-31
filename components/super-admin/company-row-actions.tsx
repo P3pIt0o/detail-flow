@@ -14,6 +14,7 @@ import {
   extendBetaAction,
   setStatusAction,
   removeDemoDataAction,
+  endBetaAction,
 } from "@/app/super-admin/actions"
 
 /**
@@ -56,6 +57,13 @@ export function CompanyRowActions({ companyId, status }: { companyId: number; st
           {status === "BETA" && (
             <DropdownMenuItem onClick={() => run(() => extendBetaAction(companyId, 30))}>
               Prolonger la beta (+30 j)
+            </DropdownMenuItem>
+          )}
+          {status === "BETA" && (
+            <DropdownMenuItem
+              onClick={() => run(() => endBetaAction(companyId), "Terminer la beta maintenant ? Les nouvelles réservations seront désactivées.")}
+            >
+              Terminer la beta
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

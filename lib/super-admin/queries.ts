@@ -38,17 +38,20 @@ export async function listCompanies(): Promise<CompanyRow[]> {
       bookingMode: companies.bookingMode,
       createdAt: companies.createdAt,
       ownerEmail: companies.email,
+      // Corrélation qualifiée explicitement (`"companies"."id"`) : les tables
+      // internes (company_members, bookings, session) possèdent toutes une
+      // colonne `id`, donc un `id` non qualifié serait ambigu / mal résolu.
       memberCount: sql<number>`(
-        SELECT COUNT(*) FROM ${companyMembers} m WHERE m."companyId" = ${companies.id}
+        SELECT COUNT(*) FROM ${companyMembers} m WHERE m."companyId" = "companies"."id"
       )`,
       bookingCount: sql<number>`(
-        SELECT COUNT(*) FROM ${bookings} b WHERE b."companyId" = ${companies.id}
+        SELECT COUNT(*) FROM ${bookings} b WHERE b."companyId" = "companies"."id"
       )`,
       // Activation : le propriétaire (ou tout membre) possède-t-il une session ?
       ownerActivated: sql<boolean>`EXISTS (
         SELECT 1 FROM ${session} s
         JOIN ${companyMembers} m ON m."userId" = s."userId"
-        WHERE m."companyId" = ${companies.id}
+        WHERE m."companyId" = "companies"."id"
       )`,
     })
     .from(companies)
