@@ -32,6 +32,10 @@ function normalizeHex(value: string | null): string | null {
 export async function saveCompanySite(formData: FormData): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
 
+  // Chaque champ n'est mis à jour QUE s'il est présent dans le formulaire. Ainsi
+  // l'onglet "Apparence" (couleurs seules) ne peut pas effacer les CGV/logo, et
+  // l'onglet "Site public" ne peut pas effacer les couleurs.
+  const hasCgv = formData.has("cgv")
   const cgvRaw = (formData.get("cgv") as string | null) ?? ""
   const removeLogo = formData.get("removeLogo") === "1"
   const file = formData.get("logo") as File | null
@@ -82,7 +86,7 @@ export async function saveCompanySite(formData: FormData): Promise<ActionResult>
     .update(companies)
     .set({
       logoUrl: logoPathname,
-      cgv: cgvRaw.trim() || null,
+      ...(hasCgv ? { cgv: cgvRaw.trim() || null } : {}),
       brandPrimary,
       brandSecondary,
       updatedAt: new Date(),

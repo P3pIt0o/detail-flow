@@ -5,6 +5,7 @@ import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
 import { SiteBranding } from "@/components/admin/settings/site-branding"
+import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { TravelSettings } from "@/components/admin/settings/travel-settings"
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
 import { HoursSettings } from "@/components/admin/settings/hours-settings"
@@ -34,17 +35,41 @@ export default async function ParametresPage() {
       </div>
 
       <Tabs defaultValue="business" className="w-full">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="business">Entreprise</TabsTrigger>
-          <TabsTrigger value="site">Site public</TabsTrigger>
-          <TabsTrigger value="travel">Déplacement</TabsTrigger>
-          <TabsTrigger value="hours">Horaires</TabsTrigger>
-          <TabsTrigger value="timeoff">Congés</TabsTrigger>
-          <TabsTrigger value="planning">Planning &amp; acompte</TabsTrigger>
-          <TabsTrigger value="invoicing">Facturation</TabsTrigger>
-          <TabsTrigger value="security">Sécurité</TabsTrigger>
-          <TabsTrigger value="data">Mes données</TabsTrigger>
-        </TabsList>
+        {/* Barre d'onglets : une seule ligne, défilement horizontal sur mobile. */}
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+          <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 p-1">
+            <TabsTrigger value="business" className="flex-none px-3 py-1.5">
+              Entreprise
+            </TabsTrigger>
+            <TabsTrigger value="site" className="flex-none px-3 py-1.5">
+              Site public
+            </TabsTrigger>
+            <TabsTrigger value="appearance" className="flex-none px-3 py-1.5">
+              Apparence
+            </TabsTrigger>
+            <TabsTrigger value="travel" className="flex-none px-3 py-1.5">
+              Déplacement
+            </TabsTrigger>
+            <TabsTrigger value="hours" className="flex-none px-3 py-1.5">
+              Horaires
+            </TabsTrigger>
+            <TabsTrigger value="timeoff" className="flex-none px-3 py-1.5">
+              Congés
+            </TabsTrigger>
+            <TabsTrigger value="planning" className="flex-none px-3 py-1.5">
+              Planning &amp; acompte
+            </TabsTrigger>
+            <TabsTrigger value="invoicing" className="flex-none px-3 py-1.5">
+              Facturation
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex-none px-3 py-1.5">
+              Sécurité
+            </TabsTrigger>
+            <TabsTrigger value="data" className="flex-none px-3 py-1.5">
+              Mes données
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="business" className="mt-6">
           <BusinessContact
@@ -54,9 +79,10 @@ export default async function ParametresPage() {
           />
         </TabsContent>
         <TabsContent value="site" className="mt-6">
-          <SiteBranding
-            logoPathname={tenant.logoUrl ?? null}
-            cgv={tenant.cgv ?? ""}
+          <SiteBranding logoPathname={tenant.logoUrl ?? null} cgv={tenant.cgv ?? ""} />
+        </TabsContent>
+        <TabsContent value="appearance" className="mt-6">
+          <AppearanceSettings
             brandPrimary={tenant.brandPrimary ?? null}
             brandSecondary={tenant.brandSecondary ?? null}
           />

@@ -373,6 +373,52 @@ export async function seedDemoCompany(companyId: number): Promise<void> {
 }
 
 /**
+ * Réinitialise le mot de passe temporaire du propriétaire d'une entreprise.
+ * Génère un nouveau mot de passe, met à jour le hash Better Auth du compte
+ * `credential`, et renvoie le mot de passe en clair (à afficher UNE seule fois).
+ * Scopé par `companyId` : on ne cible que le membre OWNER de cette entreprise.
+ */
+export async function resetOwnerPassword(
+  companyId: number,
+): Promise<{ tempPassword: string; ownerEmail: string }> {
+  // 1) Trouver le propriétaire (OWNER) de l'entreprise.
+  const [owner] = await db
+    .select({ userId: companyMembers.userId, email: userTable.email })
+    .from(companyMembers)
+    .innerJoin(userTable, eq(userTable.id, companyMembers.userId))
+    .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "OWNER")))
+    .limit(1)
+
+  if (!owner) throw new Error("Aucun propriétaire rattaché à cette entreprise.")
+
+  // 2) Générer + hacher le nouveau mot de passe (même algo que l'inscription).
+  const tempPassword = generateTempPassword()
+  const ctx = await auth.$context
+  const hashed = await ctx.password.hash(tempPassword)
+
+  // 3) Mettre à jour le compte credential existant, ou le créer s'il manque.
+  const [existingAccount] = await db
+    .select({ id: accountTable.id })
+    .from(accountTable)
+    .where(and(eq(accountTable.userId, owner.userId), eq(accountTable.providerId, "credential")))
+    .limit(1)
+
+  if (existingAccount) {
+    await db.update(accountTable).set({ password: hashed }).where(eq(accountTable.id, existingAccount.id))
+  } else {
+    await db.insert(accountTable).values({
+      id: randomUUID(),
+      accountId: owner.userId,
+      providerId: "credential",
+      userId: owner.userId,
+      password: hashed,
+    })
+  }
+
+  return { tempPassword, ownerEmail: owner.email }
+}
+
+/**
  * Supprime UNIQUEMENT les données fictives (`isDemoData=true`) d'une entreprise.
  * Conserve branding, prestations, tarifs, horaires, réglages et le compte owner.
  * Renvoie le nombre de réservations de démo supprimées.
