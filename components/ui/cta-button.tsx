@@ -1,6 +1,10 @@
+"use client"
+
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { withTenant } from "@/lib/tenant-link"
 
 /**
  * Bouton d'action principal réutilisable, rendu comme un lien Next.js.
@@ -44,6 +48,11 @@ export function CtaButton({
 
   const classes = cn(base, variants[variant], sizes[size], className)
 
+  // Conserve le ?tenant= courant sur les liens internes (aperçu v0). Sans effet
+  // sur les liens externes (tel:, https:) ni sur les sous-domaines en prod.
+  const tenant = useSearchParams().get("tenant")
+  const resolvedHref = external ? href : withTenant(href, tenant)
+
   const content = (
     <>
       {children}
@@ -62,7 +71,7 @@ export function CtaButton({
   }
 
   return (
-    <Link href={href} className={classes}>
+    <Link href={resolvedHref} className={classes}>
       {content}
     </Link>
   )

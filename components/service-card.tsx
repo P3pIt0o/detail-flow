@@ -1,7 +1,11 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Clock, ArrowRight } from "lucide-react"
 import { siteConfig } from "@/config/site"
+import { withTenant } from "@/lib/tenant-link"
 
 export type PublicService = {
   id: number
@@ -13,9 +17,13 @@ export type PublicService = {
   durationMin: number
 }
 
+const FALLBACK_IMAGE = "/services/lavage-premium.png"
+
 function formatDuration(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
+  // Repli sûr : durée absente / invalide → valeur métier par défaut (60 min).
+  const safe = Number.isFinite(min) && min > 0 ? Math.round(min) : 60
+  const h = Math.floor(safe / 60)
+  const m = safe % 60
 
   if (h === 0) return `${m} min`
   if (m === 0) return `${h}h`
@@ -23,6 +31,9 @@ function formatDuration(min: number): string {
 }
 
 function formatPrice(cents: number): string {
+  // Ne jamais transmettre NaN/undefined/null à Intl.NumberFormat.
+  // Prix absent ou nul → "Sur devis" (logique produit).
+  if (!Number.isFinite(cents) || cents <= 0) return "Sur devis"
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
@@ -30,11 +41,14 @@ function formatPrice(cents: number): string {
 }
 
 export function ServiceCard({ service }: { service: PublicService }) {
+  const tenant = useSearchParams().get("tenant")
+  const priceLabel = formatPrice(service.basePriceCents)
+
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50">
       <div className="relative aspect-[16/10] overflow-hidden">
         <Image
-          src={service.image || "/placeholder.svg"}
+          src={service.image || FALLBACK_IMAGE}
           alt={service.name}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -55,10 +69,10 @@ export function ServiceCard({ service }: { service: PublicService }) {
 
         <div className="mt-auto flex items-end justify-between border-t border-border pt-4">
           <div>
-            <p className="text-xs text-muted-foreground">À partir de</p>
-            <p className="text-2xl font-bold text-foreground">
-              {formatPrice(service.basePriceCents)}
+            <p className="text-xs text-muted-foreground">
+              {priceLabel === "Sur devis" ? "Tarif" : "À partir de"}
             </p>
+            <p className="text-2xl font-bold text-foreground">{priceLabel}</p>
           </div>
 
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -68,7 +82,7 @@ export function ServiceCard({ service }: { service: PublicService }) {
         </div>
 
         <Link
-          href={siteConfig.cta.href}
+          href={withTenant(siteConfig.cta.href, tenant)}
           className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
         >
           Réserver cette prestation

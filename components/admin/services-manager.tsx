@@ -22,6 +22,7 @@ type Service = {
   name: string
   description: string | null
   categoryId: number | null
+  image: string | null
   basePriceCents: number
   durationMin: number
   visible: boolean

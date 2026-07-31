@@ -60,9 +60,16 @@ export async function saveService(input: {
   basePriceCents: number
   durationMin: number
   visible: boolean
+  image?: string | null
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
   if (!input.name.trim()) return { ok: false, error: "Le nom est requis." }
+
+  // Image : accepte uniquement un chemin public local (/...) ou une URL http(s).
+  // Sinon on stocke null (jamais de valeur invalide qui casserait l'affichage).
+  const rawImage = input.image?.trim()
+  const image =
+    rawImage && (rawImage.startsWith("/") || /^https?:\/\//i.test(rawImage)) ? rawImage : null
 
   const values = {
     name: input.name.trim(),
@@ -71,6 +78,7 @@ export async function saveService(input: {
     basePriceCents: Math.max(0, Math.round(input.basePriceCents)),
     durationMin: Math.max(0, Math.round(input.durationMin)),
     visible: input.visible,
+    image,
   }
 
   if (input.id) {

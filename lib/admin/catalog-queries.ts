@@ -21,6 +21,7 @@ export async function getAdminServices(companyId?: number) {
     name: s.name,
     description: s.description ?? "",
     categoryId: s.categoryId,
+    image: s.image,
     basePriceCents: s.basePriceCents,
     // Deux alias pour la même valeur : `durationMin` (formulaire prestation)
     // et `baseDurationMin` (grille tarifaire).

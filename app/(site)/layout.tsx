@@ -56,7 +56,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </a>
       <Navbar brandName={brandName} logoSrc={logoSrc} />
       <main id="contenu">{children}</main>
-      <Footer brandName={brandName} logoSrc={logoSrc} />
+      <Footer brandName={brandName} logoSrc={logoSrc} tenantSlug={tenant?.slug ?? null} />
       <WhatsAppButton />
     </>
   )
