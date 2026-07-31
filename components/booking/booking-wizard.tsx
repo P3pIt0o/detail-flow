@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { withTenant } from "@/lib/tenant-link"
 import { Check, ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { StepVehicles } from "./step-vehicles"
@@ -41,6 +42,10 @@ export function BookingWizard(props: Props) {
   const { services, categories, vehicleTypes, options, priceMap, depositType, depositValue, roundTrip, freeDistanceKm } =
     props
   const router = useRouter()
+  // Tenant courant (aperçu/local : via ?tenant=). Doit être conservé lors de la
+  // redirection vers la page de confirmation, sinon celle-ci ne retrouve pas la
+  // réservation (mauvais tenant) et renvoie une 404.
+  const tenant = useSearchParams().get("tenant")
 
   const [step, setStep] = useState(0)
   const [vehicles, setVehicles] = useState<VehicleSelection[]>([
@@ -104,7 +109,7 @@ export function BookingWizard(props: Props) {
       })
 
       if (res.ok) {
-        router.push(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`)
+        router.push(withTenant(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`, tenant))
       } else {
         setError(res.error)
         // Créneau pris : renvoyer l'utilisateur à l'étape date.
