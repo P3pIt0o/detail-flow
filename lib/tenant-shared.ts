@@ -73,22 +73,26 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
- * Construit l'URL publique d'une entreprise à partir de son slug et du domaine
- * racine. En l'absence de domaine racine (aperçu/local), retombe sur `?tenant=`.
+ * Construit l'URL publique COMPLÈTE d'une entreprise à partir de son slug et du
+ * domaine racine. Le routing multi-tenant se fait par `?tenant=` sur le domaine
+ * racine (et non par sous-domaine) : on renvoie donc toujours une URL absolue
+ * `https://<root>/?tenant=<slug>`. En l'absence de domaine racine (aperçu/local),
+ * on retombe sur un chemin relatif.
  */
 export function tenantPublicUrl(slug: string, rootDomain?: string): string {
   const root = (rootDomain || "").trim()
-  if (root) return `https://${slug}.${root}`
+  if (root) return `https://${root}/?tenant=${slug}`
   return `/?tenant=${slug}`
 }
 
 /**
- * Construit l'URL d'administration d'une entreprise. En l'absence de domaine
- * racine (aperçu/local), retombe sur `/admin?tenant=`.
+ * Construit l'URL d'administration COMPLÈTE d'une entreprise
+ * (`https://<root>/admin?tenant=<slug>`). En l'absence de domaine racine
+ * (aperçu/local), retombe sur un chemin relatif.
  */
 export function tenantAdminUrl(slug: string, rootDomain?: string): string {
   const root = (rootDomain || "").trim()
-  if (root) return `https://${slug}.${root}/admin`
+  if (root) return `https://${root}/admin?tenant=${slug}`
   return `/admin?tenant=${slug}`
 }
 

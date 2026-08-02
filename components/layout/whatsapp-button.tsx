@@ -3,12 +3,13 @@
 /**
  * Bouton flottant WhatsApp.
  * Apparaît après un léger défilement pour ne pas gêner le hero.
- * Le numéro et le message proviennent de la configuration centrale.
+ * Le numéro provient des paramètres du tenant courant (jamais de données
+ * statiques) : il est transmis en prop depuis le layout. Sans numéro, le
+ * bouton ne s'affiche pas.
  */
 
 import { useState, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { getWhatsAppUrl, siteConfig } from "@/config/site"
 
 function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -18,7 +19,14 @@ function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-export function WhatsAppButton() {
+type WhatsAppButtonProps = {
+  /** Numéro du tenant (format libre) ; nettoyé en digits pour wa.me. */
+  phone?: string | null
+  /** Message pré-rempli optionnel. */
+  message?: string
+}
+
+export function WhatsAppButton({ phone, message }: WhatsAppButtonProps = {}) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -28,14 +36,16 @@ export function WhatsAppButton() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
-  // N'affiche rien si aucun numéro WhatsApp n'est configuré.
-  if (!siteConfig.contact.whatsapp) return null
+  // N'affiche rien si le tenant n'a pas renseigné de numéro.
+  const digits = (phone ?? "").replace(/[^\d]/g, "")
+  if (!digits) return null
+  const href = message ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : `https://wa.me/${digits}`
 
   return (
     <AnimatePresence>
       {visible && (
         <motion.a
-          href={getWhatsAppUrl()}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Nous contacter sur WhatsApp"

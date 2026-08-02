@@ -2,7 +2,7 @@ import "server-only"
 import { cache } from "react"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { settings } from "@/lib/db/schema"
+import { settings, businessHours } from "@/lib/db/schema"
 import { getCurrentTenant, type Tenant } from "@/lib/tenant"
 
 /**
@@ -86,4 +86,53 @@ export const getPublicContact = cache(async (): Promise<PublicContact> => {
   const tenant = await getCurrentTenant()
   if (!tenant) return EMPTY
   return buildForTenant(tenant)
+})
+
+/** Horaire public d'un jour, prêt pour l'affichage vitrine. */
+export type PublicHours = {
+  /** 0 = dimanche ... 6 = samedi. */
+  day: number
+  label: string
+  open: boolean
+  from: string | null
+  to: string | null
+}
+
+const DAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
+// Affichage du lundi au dimanche.
+const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+/**
+ * Horaires d'ouverture RÉELS du tenant courant (table `business_hours`,
+ * renseignée par l'onglet « Horaires » de l'administration). Aucune donnée
+ * statique : hors contexte tenant ou sans horaires configurés → tableau vide
+ * (l'appelant masque alors la section). Mémoïsé par requête.
+ */
+export const getPublicHours = cache(async (): Promise<PublicHours[]> => {
+  const tenant = await getCurrentTenant()
+  if (!tenant) return []
+
+  const rows = await db
+    .select({
+      dayOfWeek: businessHours.dayOfWeek,
+      isOpen: businessHours.isOpen,
+      openTime: businessHours.openTime,
+      closeTime: businessHours.closeTime,
+    })
+    .from(businessHours)
+    .where(eq(businessHours.companyId, tenant.id))
+
+  if (!rows.length) return []
+
+  const byDay = new Map(rows.map((r) => [r.dayOfWeek, r]))
+  return DISPLAY_ORDER.map((day) => {
+    const r = byDay.get(day)
+    return {
+      day,
+      label: DAY_LABELS[day],
+      open: r ? r.isOpen : false,
+      from: r?.openTime ?? null,
+      to: r?.closeTime ?? null,
+    }
+  })
 })
