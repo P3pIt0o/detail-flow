@@ -5,6 +5,7 @@ import { withTenant } from "@/lib/tenant-link"
 import type { PublicContact } from "@/lib/public-contact"
 import { Logo } from "./logo"
 import { socialIconMap } from "@/components/icons/social-icons"
+import { ReportProblemButton } from "@/components/report-problem-button"
 
 type FooterProps = {
   /** Branding du tenant courant, transmis au logo et au copyright. */
@@ -113,7 +114,7 @@ export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }
           <p>
             &copy; {year} {displayName}. Tous droits réservés.
           </p>
-          <p>Detailing automobile premium</p>
+          <ReportProblemButton className="rounded-md border-none px-0 py-0 text-sm text-muted-foreground hover:bg-transparent hover:text-foreground" />
         </div>
       </div>
     </footer>

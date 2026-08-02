@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { ReportProblemButton } from "@/components/report-problem-button"
 
 /**
  * 404 GLOBALE — doit rester entièrement statique et prérenderisable.
@@ -27,6 +28,9 @@ export default function NotFound() {
           Retour à l&apos;accueil
           <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden />
         </Link>
+      </div>
+      <div className="mt-6">
+        <ReportProblemButton />
       </div>
     </div>
   )
