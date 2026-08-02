@@ -4,7 +4,7 @@ import { notFound } from "next/navigation"
 import { CheckCircle2, Calendar, MapPin, Clock, Info } from "lucide-react"
 import { getBookingByReference } from "@/lib/booking/queries"
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
-import { siteConfig } from "@/config/site"
+import { getPublicContact } from "@/lib/public-contact"
 
 export const metadata: Metadata = {
   title: "Réservation confirmée",
@@ -24,6 +24,7 @@ export default async function ConfirmationPage({
   const data = await getBookingByReference(ref)
   if (!data) notFound()
 
+  const contact = await getPublicContact()
   const { booking, items } = data
   const awaitingDeposit = booking.status === "pending_deposit" && booking.depositCents > 0
 
@@ -129,12 +130,14 @@ export default async function ConfirmationPage({
           >
             Retour à l'accueil
           </Link>
-          <a
-            href={`tel:${siteConfig.contact.phone.replace(/\s/g, "")}`}
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Une question ? Appelez-nous
-          </a>
+          {contact.phone && (
+            <a
+              href={`tel:${contact.phoneRaw ?? contact.phone}`}
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Une question ? Appelez-nous
+            </a>
+          )}
         </div>
       </div>
     </section>

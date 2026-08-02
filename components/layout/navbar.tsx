@@ -21,9 +21,12 @@ type NavbarProps = {
   /** Branding du tenant courant, transmis au logo. */
   brandName?: string
   logoSrc?: string
+  /** Téléphone réel du tenant (affiché uniquement s'il est renseigné). */
+  phone?: string | null
+  phoneRaw?: string | null
 }
 
-export function Navbar({ brandName, logoSrc }: NavbarProps = {}) {
+export function Navbar({ brandName, logoSrc, phone, phoneRaw }: NavbarProps = {}) {
   const pathname = usePathname()
   const tenant = useSearchParams().get("tenant")
   const [scrolled, setScrolled] = useState(false)
@@ -91,13 +94,15 @@ export function Navbar({ brandName, logoSrc }: NavbarProps = {}) {
 
         {/* Actions — bureau */}
         <div className="hidden items-center gap-3 lg:flex">
-          <a
-            href={`tel:${siteConfig.contact.phoneRaw}`}
-            className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Phone className="size-4" aria-hidden="true" />
-            {siteConfig.contact.phone}
-          </a>
+          {phone && (
+            <a
+              href={`tel:${phoneRaw ?? phone}`}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Phone className="size-4" aria-hidden="true" />
+              {phone}
+            </a>
+          )}
           <Link
             href={withTenant(siteConfig.cta.href, tenant)}
             className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40"
@@ -146,13 +151,15 @@ export function Navbar({ brandName, logoSrc }: NavbarProps = {}) {
                 )
               })}
               <li className="mt-3 flex flex-col gap-2">
-                <a
-                  href={`tel:${siteConfig.contact.phoneRaw}`}
-                  className="flex items-center justify-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground"
-                >
-                  <Phone className="size-4" aria-hidden="true" />
-                  {siteConfig.contact.phone}
-                </a>
+                {phone && (
+                  <a
+                    href={`tel:${phoneRaw ?? phone}`}
+                    className="flex items-center justify-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground"
+                  >
+                    <Phone className="size-4" aria-hidden="true" />
+                    {phone}
+                  </a>
+                )}
                 <Link
                   href={withTenant(siteConfig.cta.href, tenant)}
                   className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25"

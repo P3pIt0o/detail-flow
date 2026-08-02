@@ -27,9 +27,16 @@ export const legalConfig = {
   headquarters: "12 rue des Artisans, 75011 Paris, France",
   /** Hébergeur du site */
   host: {
-    name: "Vercel Inc.",
-    address: "440 N Barranca Ave #4133, Covina, CA 91723, USA",
-    website: "https://vercel.com",
+    name: "Infomaniak",
+    address: "Rue Eugène-Marziano 25, 1227 Les Acacias, Genève, Suisse",
+    website: "https://www.infomaniak.com",
+  },
+  /** Concepteur / développement du site */
+  developer: {
+    name: "SiteAlpha",
+    address: "14 rue Boulevard Carl-Vogt, 1205 Genève, Suisse",
+    contact: "support@detailflow.fr",
+    website: "",
   },
   /** Date de dernière mise à jour des documents légaux */
   lastUpdated: "01/01/2026",

@@ -1,33 +1,22 @@
 import type React from "react"
-import { siteConfig } from "@/config/site"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { WhatsAppButton } from "@/components/layout/whatsapp-button"
 import { getCurrentTenant } from "@/lib/tenant"
+import { getPublicContact, type PublicContact } from "@/lib/public-contact"
 
 // Données structurées Schema.org (LocalBusiness) pour un SEO local optimal.
-// Uniquement sur les pages publiques (pas dans l'espace pro).
-function StructuredData() {
+// Uniquement sur les pages publiques, et UNIQUEMENT à partir des coordonnées
+// réelles du tenant (aucune donnée statique).
+function StructuredData({ name, contact }: { name: string; contact: PublicContact }) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "AutoWash",
-    name: siteConfig.brand.name,
-    description: siteConfig.seo.description,
-    url: siteConfig.seo.url,
-    telephone: siteConfig.contact.phoneRaw,
-    email: siteConfig.contact.email,
-    image: `${siteConfig.seo.url}${siteConfig.seo.ogImage}`,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: siteConfig.contact.address.street,
-      postalCode: siteConfig.contact.address.zip,
-      addressLocality: siteConfig.contact.address.city,
-      addressCountry: siteConfig.contact.address.country,
-    },
-    openingHours: siteConfig.hours
-      .filter((h) => h.open)
-      .map((h) => `${["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][h.day]} ${h.from}-${h.to}`),
-    sameAs: Object.values(siteConfig.social).filter(Boolean),
+    name,
+    ...(contact.phoneRaw ? { telephone: contact.phoneRaw } : {}),
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.website ? { url: contact.website } : {}),
+    ...(contact.address ? { address: contact.address } : {}),
   }
   return (
     <script
@@ -45,6 +34,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const brandName = tenant?.name
   const logoSrc = tenant?.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
 
+  // Coordonnées publiques réelles du tenant (jamais de données statiques).
+  const contact = await getPublicContact()
+
   // Couleurs de marque du tenant : surcharge des variables de thème UNIQUEMENT
   // si l'entreprise en a défini. Sinon aucune variable n'est injectée → la
   // vitrine racine (detailflow.fr) et les tenants sans couleur gardent le thème
@@ -61,16 +53,21 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   return (
     <div style={hasBrandColors ? brandStyle : undefined}>
-      <StructuredData />
+      {contact.name && <StructuredData name={contact.name} contact={contact} />}
       <a
         href="#contenu"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
       >
         Aller au contenu
       </a>
-      <Navbar brandName={brandName} logoSrc={logoSrc} />
+      <Navbar brandName={brandName} logoSrc={logoSrc} phone={contact.phone} phoneRaw={contact.phoneRaw} />
       <main id="contenu">{children}</main>
-      <Footer brandName={brandName} logoSrc={logoSrc} tenantSlug={tenant?.slug ?? null} />
+      <Footer
+        brandName={brandName}
+        logoSrc={logoSrc}
+        tenantSlug={tenant?.slug ?? null}
+        contact={contact}
+      />
       <WhatsAppButton />
     </div>
   )

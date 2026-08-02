@@ -1,34 +1,30 @@
 import type { Metadata } from "next"
-import { siteConfig, getFullAddress } from "@/config/site"
 import { legalConfig } from "@/config/legal"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 import { getCurrentTenant } from "@/lib/tenant"
+import { getPublicContact } from "@/lib/public-contact"
 
 export const metadata: Metadata = {
   title: "Mentions légales",
-  description: `Mentions légales du site ${siteConfig.brand.name}.`,
+  description: "Mentions légales du site.",
   alternates: { canonical: "/mentions-legales" },
   robots: { index: false, follow: true },
 }
 
 export default async function MentionsLegalesPage() {
   // ISOLATION : les informations éditeur proviennent de l'entreprise résolue.
+  // Source de vérité = coordonnées enregistrées dans les paramètres du tenant
+  // (getPublicContact → table settings). Aucune donnée statique / de démo.
   // Sur la vitrine racine (aucun tenant), repli sur la configuration DetailFlow.
   const tenant = await getCurrentTenant()
+  const contact = await getPublicContact()
 
-  // Pour un tenant : uniquement SES coordonnées (jamais de repli sur DetailFlow,
-  // sinon fuite d'infos entre entreprises). Le repli config ne vaut que pour la
-  // vitrine racine (aucun tenant résolu).
-  const editorName = tenant ? tenant.name : legalConfig.companyName
-  const phone = tenant ? tenant.phone : siteConfig.contact.phone
-  const email = tenant ? tenant.email : siteConfig.contact.email
-  const address = tenant
-    ? [tenant.address, [tenant.postalCode, tenant.city].filter(Boolean).join(" ")]
-        .filter((part) => part && part.trim())
-        .join(", ") || null
-    : getFullAddress()
-  const website = tenant?.websiteUrl || null
+  const editorName = tenant ? contact.name ?? tenant.name : legalConfig.companyName
+  const phone = tenant ? contact.phone : null
+  const email = tenant ? contact.email : null
+  const address = tenant ? contact.address : null
+  const website = contact.website
 
   return (
     <>
@@ -86,6 +82,15 @@ export default async function MentionsLegalesPage() {
           <a href={legalConfig.host.website} target="_blank" rel="noopener noreferrer">
             {legalConfig.host.website}
           </a>
+        </p>
+
+        <h2>Conception et développement</h2>
+        <p>
+          Le site a été conçu et développé par <strong>{legalConfig.developer.name}</strong>
+          <br />
+          {legalConfig.developer.address}
+          <br />
+          Contact : <a href={`mailto:${legalConfig.developer.contact}`}>{legalConfig.developer.contact}</a>
         </p>
 
         <h2>Propriété intellectuelle</h2>

@@ -12,6 +12,7 @@ import { HoursSettings } from "@/components/admin/settings/hours-settings"
 import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
 import { InvoicingSettings } from "@/components/admin/settings/invoicing-settings"
 import { SecuritySettings } from "@/components/admin/settings/security-settings"
+import { SupportForm } from "@/components/admin/settings/support-form"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
@@ -67,6 +68,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="data" className="flex-none px-3 py-1.5">
               Mes données
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex-none px-3 py-1.5">
+              Support
             </TabsTrigger>
           </TabsList>
         </div>
@@ -135,6 +139,9 @@ export default async function ParametresPage() {
         </TabsContent>
         <TabsContent value="security" className="mt-6">
           <SecuritySettings />
+        </TabsContent>
+        <TabsContent value="support" className="mt-6">
+          <SupportForm />
         </TabsContent>
         <TabsContent value="data" className="mt-6">
           <div className="max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-6">

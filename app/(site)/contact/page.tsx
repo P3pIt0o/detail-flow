@@ -1,17 +1,20 @@
 import type { Metadata } from "next"
-import { siteConfig, getFullAddress, getWhatsAppUrl } from "@/config/site"
+import { siteConfig, getWhatsAppUrl } from "@/config/site"
 import { PageHeader } from "@/components/layout/page-header"
 import { ContactForm } from "@/components/contact-form"
 import { Reveal } from "@/components/ui/reveal"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
+import { getPublicContact } from "@/lib/public-contact"
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: `Contactez ${siteConfig.brand.name} pour toute demande d'information ou de réservation. Réponse rapide par téléphone, email ou WhatsApp.`,
+  description: "Contactez-nous pour toute demande d'information ou de réservation.",
   alternates: { canonical: "/contact" },
 }
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  // Coordonnées réelles du tenant (aucune donnée statique).
+  const contact = await getPublicContact()
   return (
     <>
       <PageHeader
@@ -26,18 +29,26 @@ export default function ContactPage() {
           <Reveal>
             <div className="space-y-8">
               <div className="space-y-4">
-                <ContactRow icon={Phone} label="Téléphone" href={`tel:${siteConfig.contact.phoneRaw}`}>
-                  {siteConfig.contact.phone}
-                </ContactRow>
-                <ContactRow icon={Mail} label="Email" href={`mailto:${siteConfig.contact.email}`}>
-                  {siteConfig.contact.email}
-                </ContactRow>
-                <ContactRow icon={MessageCircle} label="WhatsApp" href={getWhatsAppUrl()} external>
-                  Discuter sur WhatsApp
-                </ContactRow>
-                <ContactRow icon={MapPin} label="Adresse">
-                  {getFullAddress()}
-                </ContactRow>
+                {contact.phone && (
+                  <ContactRow icon={Phone} label="Téléphone" href={`tel:${contact.phoneRaw ?? contact.phone}`}>
+                    {contact.phone}
+                  </ContactRow>
+                )}
+                {contact.email && (
+                  <ContactRow icon={Mail} label="Email" href={`mailto:${contact.email}`}>
+                    {contact.email}
+                  </ContactRow>
+                )}
+                {siteConfig.contact.whatsapp && (
+                  <ContactRow icon={MessageCircle} label="WhatsApp" href={getWhatsAppUrl()} external>
+                    Discuter sur WhatsApp
+                  </ContactRow>
+                )}
+                {contact.address && (
+                  <ContactRow icon={MapPin} label="Adresse">
+                    {contact.address}
+                  </ContactRow>
+                )}
               </div>
 
               {/* Horaires */}

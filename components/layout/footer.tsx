@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { Phone, Mail, MapPin } from "lucide-react"
-import { siteConfig, getFullAddress } from "@/config/site"
+import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
+import type { PublicContact } from "@/lib/public-contact"
 import { Logo } from "./logo"
 import { socialIconMap } from "@/components/icons/social-icons"
 
@@ -11,9 +12,11 @@ type FooterProps = {
   logoSrc?: string
   /** Slug du tenant courant : conserve ?tenant= sur les liens internes (aperçu). */
   tenantSlug?: string | null
+  /** Coordonnées publiques réelles du tenant (jamais de données statiques). */
+  contact?: PublicContact | null
 }
 
-export function Footer({ brandName, logoSrc, tenantSlug = null }: FooterProps = {}) {
+export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }: FooterProps = {}) {
   const year = new Date().getFullYear()
   const socials = Object.entries(siteConfig.social).filter(([, url]) => Boolean(url))
   const displayName = brandName || siteConfig.brand.name
@@ -76,26 +79,32 @@ export function Footer({ brandName, logoSrc, tenantSlug = null }: FooterProps = 
             </ul>
           </nav>
 
-          {/* Contact */}
+          {/* Contact — coordonnées réelles du tenant uniquement */}
           <div>
             <h2 className="text-sm font-semibold text-foreground">Contact</h2>
             <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-              <li>
-                <a href={`tel:${siteConfig.contact.phoneRaw}`} className="flex items-start gap-2 transition-colors hover:text-foreground">
-                  <Phone className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                  {siteConfig.contact.phone}
-                </a>
-              </li>
-              <li>
-                <a href={`mailto:${siteConfig.contact.email}`} className="flex items-start gap-2 transition-colors hover:text-foreground">
-                  <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                  {siteConfig.contact.email}
-                </a>
-              </li>
-              <li className="flex items-start gap-2">
-                <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                {getFullAddress()}
-              </li>
+              {contact?.phone && (
+                <li>
+                  <a href={`tel:${contact.phoneRaw ?? contact.phone}`} className="flex items-start gap-2 transition-colors hover:text-foreground">
+                    <Phone className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                    {contact.phone}
+                  </a>
+                </li>
+              )}
+              {contact?.email && (
+                <li>
+                  <a href={`mailto:${contact.email}`} className="flex items-start gap-2 transition-colors hover:text-foreground">
+                    <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                    {contact.email}
+                  </a>
+                </li>
+              )}
+              {contact?.address && (
+                <li className="flex items-start gap-2">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  {contact.address}
+                </li>
+              )}
             </ul>
           </div>
         </div>
