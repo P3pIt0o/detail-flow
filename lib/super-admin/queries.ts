@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { companies, companyMembers, bookings, user as userTable } from "@/lib/db/schema"
+import { companies, companyMembers, bookings, user as userTable, betaLeads, session } from "@/lib/db/schema"
 import { and, count, desc, eq, sql } from "drizzle-orm"
 
 /* -------------------------------------------------------------------------- */
@@ -14,12 +14,15 @@ export type CompanyRow = {
   name: string
   slug: string
   status: string
+  betaStartedAt: Date | null
   betaEndsAt: Date | null
   bookingMode: string
   createdAt: Date
   ownerEmail: string | null
   memberCount: number
   bookingCount: number
+  /** true si le propriétaire s'est déjà connecté (une session existe). */
+  ownerActivated: boolean
 }
 
 /** Liste toutes les entreprises avec quelques compteurs utiles. */
@@ -30,15 +33,25 @@ export async function listCompanies(): Promise<CompanyRow[]> {
       name: companies.name,
       slug: companies.slug,
       status: companies.status,
+      betaStartedAt: companies.betaStartedAt,
       betaEndsAt: companies.betaEndsAt,
       bookingMode: companies.bookingMode,
       createdAt: companies.createdAt,
       ownerEmail: companies.email,
+      // Corrélation qualifiée explicitement (`"companies"."id"`) : les tables
+      // internes (company_members, bookings, session) possèdent toutes une
+      // colonne `id`, donc un `id` non qualifié serait ambigu / mal résolu.
       memberCount: sql<number>`(
-        SELECT COUNT(*) FROM ${companyMembers} m WHERE m."companyId" = ${companies.id}
+        SELECT COUNT(*) FROM ${companyMembers} m WHERE m."companyId" = "companies"."id"
       )`,
       bookingCount: sql<number>`(
-        SELECT COUNT(*) FROM ${bookings} b WHERE b."companyId" = ${companies.id}
+        SELECT COUNT(*) FROM ${bookings} b WHERE b."companyId" = "companies"."id"
+      )`,
+      // Activation : le propriétaire (ou tout membre) possède-t-il une session ?
+      ownerActivated: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${session} s
+        JOIN ${companyMembers} m ON m."userId" = s."userId"
+        WHERE m."companyId" = "companies"."id"
       )`,
     })
     .from(companies)
@@ -48,7 +61,38 @@ export async function listCompanies(): Promise<CompanyRow[]> {
     ...r,
     memberCount: Number(r.memberCount),
     bookingCount: Number(r.bookingCount),
+    ownerActivated: Boolean(r.ownerActivated),
   }))
+}
+
+export type BetaLeadRow = {
+  id: number
+  businessName: string
+  contactName: string
+  email: string
+  phone: string | null
+  city: string | null
+  message: string | null
+  status: string
+  createdAt: Date
+}
+
+/** Liste les demandes du Programme Beta (formulaire public), plus récentes d'abord. */
+export async function listBetaLeads(): Promise<BetaLeadRow[]> {
+  return db
+    .select({
+      id: betaLeads.id,
+      businessName: betaLeads.businessName,
+      contactName: betaLeads.contactName,
+      email: betaLeads.email,
+      phone: betaLeads.phone,
+      city: betaLeads.city,
+      message: betaLeads.message,
+      status: betaLeads.status,
+      createdAt: betaLeads.createdAt,
+    })
+    .from(betaLeads)
+    .orderBy(desc(betaLeads.createdAt))
 }
 
 export type PlatformStats = {

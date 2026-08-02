@@ -3,9 +3,14 @@
 import { revalidatePath } from "next/cache"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { companies } from "@/lib/db/schema"
+import { companies, betaLeads } from "@/lib/db/schema"
 import { requireSuperAdmin } from "@/lib/admin"
-import { provisionCompany, removeDemoData, type ProvisionResult } from "@/lib/company/provision"
+import {
+  provisionCompany,
+  removeDemoData,
+  resetOwnerPassword,
+  type ProvisionResult,
+} from "@/lib/company/provision"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions de super-administration. TOUTES commencent par requireSuperAdmin().*/
@@ -112,6 +117,102 @@ export async function removeDemoDataAction(companyId: number): Promise<ActionSta
     revalidatePath("/super-admin")
     revalidatePath("/super-admin/companies")
     return { ok: true, message: `${removed} réservation(s) de démonstration supprimée(s).` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/** Termine immédiatement la bêta : date de fin = maintenant, réservations coupées. */
+export async function endBetaAction(companyId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    await db
+      .update(companies)
+      .set({ status: "BETA", betaEndsAt: new Date(), bookingMode: "DISABLED", updatedAt: new Date() })
+      .where(eq(companies.id, companyId))
+    revalidatePath("/super-admin")
+    return { ok: true, message: "Programme beta terminé (nouvelles réservations désactivées)." }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Mot de passe temporaire du propriétaire                                    */
+/* -------------------------------------------------------------------------- */
+
+export type ResetPasswordState =
+  | { ok: true; tempPassword: string; ownerEmail: string }
+  | { ok: false; error: string }
+
+/** Réinitialise / régénère le mot de passe temporaire du propriétaire. */
+export async function resetOwnerPasswordAction(companyId: number): Promise<ResetPasswordState> {
+  await requireSuperAdmin()
+  try {
+    const { tempPassword, ownerEmail } = await resetOwnerPassword(companyId)
+    revalidatePath("/super-admin")
+    return { ok: true, tempPassword, ownerEmail }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Demandes du Programme Beta (beta_leads)                                    */
+/* -------------------------------------------------------------------------- */
+
+export type AcceptLeadState =
+  | { ok: true; result: ProvisionResult }
+  | { ok: false; error: string }
+
+/**
+ * Accepte une demande beta : provisionne une entreprise complète (company +
+ * tenant + compte administrateur) à partir des informations du prospect, puis
+ * marque la demande comme convertie. Le slug est dérivé du nom d'entreprise.
+ */
+export async function acceptBetaLeadAction(leadId: number): Promise<AcceptLeadState> {
+  await requireSuperAdmin()
+  try {
+    const [lead] = await db.select().from(betaLeads).where(eq(betaLeads.id, leadId)).limit(1)
+    if (!lead) return { ok: false, error: "Demande introuvable." }
+    if (lead.status === "converted") return { ok: false, error: "Cette demande a déjà été convertie." }
+
+    const result = await provisionCompany({
+      name: lead.businessName,
+      slug: lead.businessName, // normalisé + validé dans provisionCompany
+      ownerName: lead.contactName,
+      ownerEmail: lead.email,
+      city: lead.city ?? undefined,
+      withDemo: false,
+    })
+
+    await db.update(betaLeads).set({ status: "converted" }).where(eq(betaLeads.id, leadId))
+    revalidatePath("/super-admin")
+    return { ok: true, result }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/** Refuse une demande beta (statut → declined). */
+export async function declineBetaLeadAction(leadId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    await db.update(betaLeads).set({ status: "declined" }).where(eq(betaLeads.id, leadId))
+    revalidatePath("/super-admin")
+    return { ok: true, message: "Demande refusée." }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/** Repasse une demande refusée en attente (statut → new). */
+export async function reopenBetaLeadAction(leadId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    await db.update(betaLeads).set({ status: "new" }).where(eq(betaLeads.id, leadId))
+    revalidatePath("/super-admin")
+    return { ok: true, message: "Demande remise en attente." }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
   }

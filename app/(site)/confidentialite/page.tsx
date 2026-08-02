@@ -1,17 +1,25 @@
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 import { legalConfig } from "@/config/legal"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
+import { getCurrentTenant } from "@/lib/tenant"
+import { getPublicContact } from "@/lib/public-contact"
 
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
-  description: `Politique de confidentialité et gestion des données personnelles de ${siteConfig.brand.name}.`,
+  description: "Politique de confidentialité et gestion des données personnelles.",
   alternates: { canonical: "/confidentialite" },
   robots: { index: false, follow: true },
 }
 
-export default function ConfidentialitePage() {
+export default async function ConfidentialitePage() {
+  // Coordonnées réelles du tenant (aucune donnée statique). Repli sur la config
+  // DetailFlow uniquement sur la vitrine racine (aucun tenant).
+  const tenant = await getCurrentTenant()
+  const contact = await getPublicContact()
+  const companyName = tenant ? contact.name ?? tenant.name : legalConfig.companyName
+  const email = tenant ? contact.email : null
+
   return (
     <>
       <PageHeader
@@ -20,7 +28,7 @@ export default function ConfidentialitePage() {
       />
       <LegalContent>
         <p>
-          {legalConfig.companyName} accorde une grande importance à la protection de vos données personnelles,
+          {companyName} accorde une grande importance à la protection de vos données personnelles,
           conformément au Règlement Général sur la Protection des Données (RGPD).
         </p>
 
@@ -51,8 +59,15 @@ export default function ConfidentialitePage() {
         <h2>Vos droits</h2>
         <p>
           Vous disposez d&apos;un droit d&apos;accès, de rectification, d&apos;effacement et d&apos;opposition sur vos
-          données. Pour l&apos;exercer, contactez-nous à{" "}
-          <a href={`mailto:${siteConfig.contact.email}`}>{siteConfig.contact.email}</a>.
+          données.
+          {email ? (
+            <>
+              {" "}
+              Pour l&apos;exercer, contactez-nous à <a href={`mailto:${email}`}>{email}</a>.
+            </>
+          ) : (
+            " Pour l'exercer, contactez-nous par les moyens indiqués sur la page Contact."
+          )}
         </p>
 
         <h2>Cookies</h2>

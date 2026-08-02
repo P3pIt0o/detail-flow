@@ -1,12 +1,11 @@
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 import { getCurrentTenant } from "@/lib/tenant"
 
 export const metadata: Metadata = {
   title: "Conditions Générales de Vente",
-  description: `Conditions générales de vente de ${siteConfig.brand.name}.`,
+  description: "Conditions générales de vente.",
   alternates: { canonical: "/cgv" },
   robots: { index: false, follow: true },
 }

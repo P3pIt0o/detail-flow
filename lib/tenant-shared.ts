@@ -82,6 +82,16 @@ export function tenantPublicUrl(slug: string, rootDomain?: string): string {
   return `/?tenant=${slug}`
 }
 
+/**
+ * Construit l'URL d'administration d'une entreprise. En l'absence de domaine
+ * racine (aperçu/local), retombe sur `/admin?tenant=`.
+ */
+export function tenantAdminUrl(slug: string, rootDomain?: string): string {
+  const root = (rootDomain || "").trim()
+  if (root) return `https://${slug}.${root}/admin`
+  return `/admin?tenant=${slug}`
+}
+
 export type HostResolution =
   | { kind: "root" } // domaine principal DetailFlow (vitrine)
   | { kind: "tenant"; slug: string } // sous-domaine d'une entreprise
@@ -130,6 +140,12 @@ export function resolveHost(
   }
 
   if (cleanHost === root || cleanHost === `www.${root}`) {
+    // Sur le domaine racine, ?tenant=<slug> sélectionne EXPLICITEMENT la vitrine
+    // d'une entreprise. Cela rend fonctionnelles les URLs publiques du type
+    // https://detailflow.fr/?tenant=slug (et conserve le tenant sur toute la
+    // navigation, via withTenant). Sans ?tenant=, c'est la vitrine DetailFlow.
+    const q = (queryTenant || "").toLowerCase().trim()
+    if (q) return { kind: "tenant", slug: q }
     return { kind: "root" }
   }
 
