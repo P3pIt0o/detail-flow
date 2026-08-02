@@ -11,9 +11,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowRight, Star, ShieldCheck } from "lucide-react"
-import { siteConfig } from "@/config/site"
-import { about } from "@/config/content"
+import { ArrowRight, ShieldCheck } from "lucide-react"
 import { withTenant } from "@/lib/tenant-link"
 
 const container = {
@@ -25,7 +23,12 @@ const item = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
 }
 
-export function Hero() {
+type HeroProps = {
+  /** Nom commercial du tenant courant, affiché dans le badge. Fallback neutre si absent. */
+  brandName?: string | null
+}
+
+export function Hero({ brandName }: HeroProps) {
   const tenant = useSearchParams().get("tenant")
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-hidden">
@@ -43,7 +46,7 @@ export function Hero() {
             className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-sm text-muted-foreground backdrop-blur"
           >
             <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-            {siteConfig.brand.tagline}
+            {brandName || "Detailing automobile"}
           </motion.span>
 
           <motion.h1
@@ -60,10 +63,10 @@ export function Hero() {
 
           <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              href={withTenant(siteConfig.cta.href, tenant)}
+              href={withTenant("/reservation", tenant)}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-8 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 hover:shadow-primary/50"
             >
-              {siteConfig.cta.label}
+              Réserver
               <ArrowRight className="size-5" aria-hidden="true" />
             </Link>
             <Link
@@ -72,24 +75,6 @@ export function Hero() {
             >
               Voir les prestations
             </Link>
-          </motion.div>
-
-          {/* Indicateurs de confiance */}
-          <motion.div variants={item} className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4">
-            <div className="flex items-center gap-2">
-              <div className="flex" aria-hidden="true">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="size-4 fill-primary text-primary" />
-                ))}
-              </div>
-              <span className="text-sm text-muted-foreground">
-                <strong className="text-foreground">{about.stats[2].value}</strong> de note moyenne
-              </span>
-            </div>
-            <div className="h-8 w-px bg-border" />
-            <span className="text-sm text-muted-foreground">
-              <strong className="text-foreground">{about.stats[0].value}</strong> véhicules traités
-            </span>
           </motion.div>
         </motion.div>
       </div>
