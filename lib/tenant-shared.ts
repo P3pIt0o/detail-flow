@@ -73,25 +73,38 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * Normalise un domaine racine pour l'affichage des accès dans le Super Admin :
+ * retire le protocole et les slashes superflus, puis garantit le préfixe `www.`
+ * (le site public et l'admin vivent sur `https://www.<domaine>`). Le routing
+ * multi-tenant se fait ensuite par `?tenant=`, jamais par sous-domaine.
+ */
+function normalizeRootHost(rootDomain?: string): string {
+  let root = (rootDomain || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "")
+  if (!root) return ""
+  if (!root.startsWith("www.")) root = `www.${root}`
+  return root
+}
+
+/**
  * Construit l'URL publique COMPLÈTE d'une entreprise à partir de son slug et du
  * domaine racine. Le routing multi-tenant se fait par `?tenant=` sur le domaine
  * racine (et non par sous-domaine) : on renvoie donc toujours une URL absolue
- * `https://<root>/?tenant=<slug>`. En l'absence de domaine racine (aperçu/local),
- * on retombe sur un chemin relatif.
+ * `https://www.<root>/?tenant=<slug>`. En l'absence de domaine racine
+ * (aperçu/local), on retombe sur un chemin relatif.
  */
 export function tenantPublicUrl(slug: string, rootDomain?: string): string {
-  const root = (rootDomain || "").trim()
+  const root = normalizeRootHost(rootDomain)
   if (root) return `https://${root}/?tenant=${slug}`
   return `/?tenant=${slug}`
 }
 
 /**
  * Construit l'URL d'administration COMPLÈTE d'une entreprise
- * (`https://<root>/admin?tenant=<slug>`). En l'absence de domaine racine
+ * (`https://www.<root>/admin?tenant=<slug>`). En l'absence de domaine racine
  * (aperçu/local), retombe sur un chemin relatif.
  */
 export function tenantAdminUrl(slug: string, rootDomain?: string): string {
-  const root = (rootDomain || "").trim()
+  const root = normalizeRootHost(rootDomain)
   if (root) return `https://${root}/admin?tenant=${slug}`
   return `/admin?tenant=${slug}`
 }
