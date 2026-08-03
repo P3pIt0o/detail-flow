@@ -50,17 +50,18 @@ export function Hero({ brandName }: HeroProps) {
           </motion.span>
 
           <motion.h1
-            variants={item}
-            className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-6xl lg:text-7xl"
-          >
-            Redonnez vie à votre <span className="text-primary">véhicule</span>
-          </motion.h1>
+  variants={item}
+  className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-6xl lg:text-7xl"
+>
+  Prenez soin de votre <span className="text-primary">véhicule</span>
+</motion.h1>
 
-          <motion.p variants={item} className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Detailing automobile haut de gamme : lavage premium, rénovation carrosserie et protection céramique.
-            Un service minutieux, à l&apos;atelier ou à domicile.
-          </motion.p>
-
+<motion.p
+  variants={item}
+  className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground"
+>
+  Des prestations de detailing réalisées avec passion et exigence. Réservez facilement en ligne et profitez d&apos service professionnel adapté à vos besoins.
+</motion.p>
           <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href={withTenant("/reservation", tenant)}
