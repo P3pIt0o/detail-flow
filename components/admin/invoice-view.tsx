@@ -77,6 +77,29 @@ export function InvoiceView({
     })
   }
 
+  function markAsPaid() {
+    setError(null)
+    setNotice(null)
+    // Enregistre le solde restant comme paiement : réutilise exactement le même
+    // chemin que l'ajout de paiement, qui bascule la facture en « Payée » quand
+    // le solde atteint 0 (et alimente donc le CA des factures payées).
+    startBusy(async () => {
+      const res = await addInvoicePayment({
+        invoiceId: invoice.id,
+        amountCents: invoice.balanceCents,
+        method: "transfer",
+        paidAt: new Date().toISOString().slice(0, 10),
+        note: "Marquée comme payée",
+      })
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setNotice("Facture marquée comme payée.")
+      router.refresh()
+    })
+  }
+
   function sendEmail() {
     setError(null)
     setNotice(null)
@@ -136,6 +159,12 @@ export function InvoiceView({
             <Button variant="outline" onClick={sendEmail} disabled={busy}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
               Envoyer par email
+            </Button>
+          )}
+          {!isCancelled && invoice.status !== "draft" && invoice.balanceCents > 0 && (
+            <Button onClick={markAsPaid} disabled={busy}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-2 h-4 w-4" />}
+              Marquer comme payée
             </Button>
           )}
         </div>
