@@ -34,14 +34,41 @@ type SendArgs = {
   attachments?: EmailAttachment[]
 }
 
-/** Construit l'adresse "from" en respectant EMAIL_FROM si fourni. */
+/** Nettoie un nom d'expéditeur (retire caractères interdits dans un en-tête). */
+function sanitizeName(name?: string): string {
+  return (name ?? "").replace(/[<>\r\n"]/g, "").trim()
+}
+
+/** Extrait l'adresse email d'une valeur "Nom <email@domaine>" ou "email@domaine". */
+function extractAddress(value: string): string | null {
+  const angle = value.match(/<([^>]+)>/)
+  const raw = (angle ? angle[1] : value).trim()
+  return /\S+@\S+\.\S+/.test(raw) ? raw : null
+}
+
+/**
+ * Construit l'adresse "from".
+ *
+ * Point 19 : le NOM affiché doit toujours être celui de l'entreprise du tenant
+ * (`fromName`) quand il est fourni — même lorsque `EMAIL_FROM` est configuré.
+ * On réutilise alors uniquement l'ADRESSE vérifiée d'`EMAIL_FROM` et on lui
+ * applique le nom du tenant. Sans `fromName`, on garde `EMAIL_FROM` tel quel.
+ */
 function resolveFrom(fromName?: string): string {
   const configured = process.env.EMAIL_FROM
-  if (configured) return configured
-  if (fromName) {
-    // On garde le domaine de test Resend mais on personnalise le nom affiché.
-    const safeName = fromName.replace(/[<>\r\n"]/g, "").trim()
-    if (safeName) return `${safeName} <onboarding@resend.dev>`
+  const safeName = sanitizeName(fromName)
+
+  if (configured) {
+    if (safeName) {
+      const address = extractAddress(configured)
+      if (address) return `${safeName} <${address}>`
+    }
+    return configured
+  }
+
+  if (safeName) {
+    // Pas de domaine vérifié : on garde l'expéditeur de test Resend.
+    return `${safeName} <onboarding@resend.dev>`
   }
   return DEFAULT_FROM
 }

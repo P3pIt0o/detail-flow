@@ -1,7 +1,7 @@
 import "server-only"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { bookings, bookingItems, settings as settingsTable } from "@/lib/db/schema"
+import { bookings, bookingItems, companies, settings as settingsTable } from "@/lib/db/schema"
 import { sendEmail } from "./send"
 import {
   clientConfirmationEmail,
@@ -35,6 +35,17 @@ async function loadBookingEmailData(
     .limit(1)
   const s = settingsRows[0]
 
+  // Nom de l'entreprise du tenant : priorité au nom commercial des réglages,
+  // sinon au nom légal de la société (point 19 — jamais un nom générique si
+  // une identité tenant existe).
+  const companyRows = await db
+    .select({ name: companies.name })
+    .from(companies)
+    .where(eq(companies.id, booking.companyId))
+    .limit(1)
+  const businessName =
+    s?.businessName?.trim() || companyRows[0]?.name?.trim() || "Votre professionnel"
+
   const data: BookingEmailData = {
     reference: booking.reference,
     customerName: booking.customerName,
@@ -55,7 +66,7 @@ async function loadBookingEmailData(
     depositCents: booking.depositCents,
     depositMethods: s?.depositMethods ?? null,
     depositInstructions: s?.depositInstructions ?? null,
-    businessName: s?.businessName?.trim() || "Votre professionnel",
+    businessName,
     businessEmail: s?.businessEmail ?? null,
     businessPhone: s?.businessPhone ?? null,
   }

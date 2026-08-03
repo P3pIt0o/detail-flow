@@ -143,9 +143,7 @@ export const siteConfig = {
   nav: [
     { label: "Accueil", href: "/" },
     { label: "Prestations", href: "/prestations" },
-    { label: "Galerie", href: "/galerie" },
     { label: "Avis", href: "/avis" },
-    { label: "À propos", href: "/a-propos" },
     { label: "Contact", href: "/contact" },
   ] satisfies NavItem[],
 
