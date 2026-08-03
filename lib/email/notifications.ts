@@ -53,6 +53,8 @@ async function loadBookingEmailData(
     travelFeeCents: booking.travelFeeCents,
     totalCents: booking.totalCents,
     depositCents: booking.depositCents,
+    depositMethods: s?.depositMethods ?? null,
+    depositInstructions: s?.depositInstructions ?? null,
     businessName: s?.businessName?.trim() || "Votre professionnel",
     businessEmail: s?.businessEmail ?? null,
     businessPhone: s?.businessPhone ?? null,

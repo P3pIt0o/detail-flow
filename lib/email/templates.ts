@@ -1,4 +1,5 @@
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
+import { parseDepositMethods } from "@/lib/booking/types"
 
 /**
  * Gabarits HTML des emails transactionnels.
@@ -26,6 +27,9 @@ export type BookingEmailData = {
   travelFeeCents: number
   totalCents: number
   depositCents: number
+  /** Moyens de paiement de l'acompte (CSV de slugs) + instructions libres. */
+  depositMethods?: string | null
+  depositInstructions?: string | null
   businessName: string
   businessEmail?: string | null
   businessPhone?: string | null
@@ -119,11 +123,25 @@ function bookingSummary(b: BookingEmailData): string {
 /* -------------------------- Confirmation client -------------------------- */
 
 export function clientConfirmationEmail(b: BookingEmailData) {
+  const methods = parseDepositMethods(b.depositMethods)
+  const methodsLine = methods.length
+    ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+         Moyens de paiement acceptés : <strong style="color:${INK};">${esc(methods.join(" · "))}</strong>.
+       </p>`
+    : ""
+  const instructionsBlock = b.depositInstructions?.trim()
+    ? `<div style="background:${BG};border-radius:10px;padding:14px 18px;margin:8px 0 4px;">
+         <div style="font-size:13px;color:${MUTED};margin-bottom:6px;">Instructions de paiement</div>
+         <div style="font-size:14px;line-height:1.6;color:${INK};white-space:pre-line;">${esc(b.depositInstructions.trim())}</div>
+       </div>`
+    : ""
   const depositNote =
     b.depositCents > 0
       ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 4px;">
            Un acompte de <strong style="color:${INK};">${formatPrice(b.depositCents)}</strong> est demandé pour confirmer définitivement votre créneau.
-         </p>`
+         </p>
+         ${methodsLine}
+         ${instructionsBlock}`
       : ""
 
   return {

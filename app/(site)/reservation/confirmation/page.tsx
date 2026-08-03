@@ -3,6 +3,8 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { CheckCircle2, Calendar, MapPin, Clock, Info } from "lucide-react"
 import { getBookingByReference } from "@/lib/booking/queries"
+import { getFullSettings } from "@/lib/invoice/queries"
+import { parseDepositMethods } from "@/lib/booking/types"
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
 import { getPublicContact } from "@/lib/public-contact"
 
@@ -27,6 +29,11 @@ export default async function ConfirmationPage({
   const contact = await getPublicContact()
   const { booking, items } = data
   const awaitingDeposit = booking.status === "pending_deposit" && booking.depositCents > 0
+
+  // Instructions d'acompte propres au TENANT de la réservation (jamais statiques).
+  const settings = awaitingDeposit ? await getFullSettings(booking.companyId) : null
+  const depositMethods = parseDepositMethods(settings?.depositMethods)
+  const depositInstructions = settings?.depositInstructions?.trim() || ""
 
   return (
     <section className="min-h-[70vh] bg-background py-16">
@@ -55,9 +62,21 @@ export default async function ConfirmationPage({
                 Acompte de {formatPrice(booking.depositCents)} à régler pour confirmer
               </p>
               <p className="mt-1 text-muted-foreground">
-                Votre créneau est réservé provisoirement. Réglez l'acompte via les instructions envoyées par email
-                (virement ou Wero). Le rendez-vous sera confirmé dès réception.
+                Votre créneau est réservé provisoirement. Le rendez-vous sera confirmé dès réception de
+                l&apos;acompte. Un email récapitulatif vous a également été envoyé.
               </p>
+              {depositMethods.length > 0 && (
+                <p className="mt-2 text-muted-foreground">
+                  Moyens de paiement acceptés :{" "}
+                  <span className="font-medium text-foreground">{depositMethods.join(" · ")}</span>
+                </p>
+              )}
+              {depositInstructions && (
+                <div className="mt-3 rounded-lg border border-border bg-background p-3">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Instructions de paiement</p>
+                  <p className="whitespace-pre-line text-sm text-foreground">{depositInstructions}</p>
+                </div>
+              )}
             </div>
           </div>
         )}
