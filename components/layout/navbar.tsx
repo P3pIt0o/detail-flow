@@ -63,7 +63,7 @@ export function Navbar({ brandName, logoSrc, phone, phoneRaw }: NavbarProps = {}
       )}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Navigation principale">
-        <Logo brandName={brandName} logoSrc={logoSrc} />
+        <Logo brandName={brandName} logoSrc={logoSrc} href={withTenant("/", tenant)} />
 
         {/* Liens — bureau */}
         <ul className="hidden items-center gap-1 lg:flex">

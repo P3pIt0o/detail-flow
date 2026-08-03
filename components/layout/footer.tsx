@@ -28,7 +28,7 @@ export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           {/* Marque */}
           <div className="lg:col-span-1">
-            <Logo brandName={brandName} logoSrc={logoSrc} />
+            <Logo brandName={brandName} logoSrc={logoSrc} href={withTenant("/", tenantSlug)} />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{siteConfig.brand.tagline}</p>
             {socials.length > 0 && (
               <div className="mt-6 flex gap-3">
