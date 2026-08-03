@@ -44,20 +44,51 @@ export async function geocodeAddress(address: string): Promise<Coords | null> {
  * Renvoie null si introuvable. Restreint aux pays fr,ch.
  */
 async function geocode(address: string): Promise<Coords | null> {
+  const cleanAddress = address.trim()
+
   const url =
-    `${GEO_SEARCH}?q=${encodeURIComponent(address)}` +
-    `&format=json&limit=1&countrycodes=fr,ch&addressdetails=0`
+    `${GEO_SEARCH}?q=${encodeURIComponent(cleanAddress)}` +
+    `&format=jsonv2&limit=3&countrycodes=fr,ch,be,lu&addressdetails=1&accept-language=fr`
+
   try {
-    const res = await fetch(url, { headers: GEO_HEADERS, next: { revalidate: 86400 } })
-    if (!res.ok) return null
-    const data = (await res.json()) as Array<{ lat?: string; lon?: string }>
-    const first = data?.[0]
-    if (!first?.lat || !first?.lon) return null
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "DetailFlow/1.0 (support@detailflow.fr)",
+        Accept: "application/json",
+        "Accept-Language": "fr",
+      },
+      cache: "no-store",
+    })
+
+    if (!res.ok) {
+      console.error("Nominatim error:", res.status, await res.text())
+      return null
+    }
+
+    const data = (await res.json()) as Array<{
+      lat?: string
+      lon?: string
+      display_name?: string
+    }>
+
+    const first = data[0]
+
+    if (!first?.lat || !first?.lon) {
+      console.error("Address not found by Nominatim:", cleanAddress)
+      return null
+    }
+
     const lat = Number.parseFloat(first.lat)
     const lng = Number.parseFloat(first.lon)
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.error("Invalid coordinates returned:", first)
+      return null
+    }
+
     return { lat, lng }
-  } catch {
+  } catch (error) {
+    console.error("Nominatim request failed:", error)
     return null
   }
 }
