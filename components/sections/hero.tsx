@@ -60,7 +60,7 @@ export function Hero({ brandName }: HeroProps) {
   variants={item}
   className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground"
 >
-  Des prestations de detailing réalisées avec passion et exigence. Réservez facilement en ligne et profitez d&apos service professionnel adapté à vos besoins.
+  Des prestations de detailing réalisées avec passion et exigence. Réservez facilement en ligne et profitez d’un service professionnel adapté à vos besoins.
 </motion.p>
           <motion.div variants={item} className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
