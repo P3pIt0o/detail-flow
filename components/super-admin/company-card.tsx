@@ -104,7 +104,7 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
             {pending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
             Réinitialiser le mot de passe
           </button>
-          <CompanyRowActions companyId={company.id} status={company.status} />
+          <CompanyRowActions companyId={company.id} companyName={company.name} status={company.status} />
         </div>
       </div>
 

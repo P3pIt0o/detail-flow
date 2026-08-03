@@ -1,6 +1,7 @@
 import "server-only"
 import { randomUUID, randomBytes } from "crypto"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray, count } from "drizzle-orm"
+import { del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import {
@@ -8,6 +9,7 @@ import {
   companyMembers,
   settings as settingsTable,
   businessHours,
+  timeOff,
   vehicleTypes,
   serviceCategories,
   services,
@@ -15,6 +17,11 @@ import {
   options,
   bookings,
   bookingItems,
+  bookingItemOptions,
+  invoices,
+  invoiceItems,
+  invoicePayments,
+  invoiceEvents,
   user as userTable,
   account as accountTable,
 } from "@/lib/db/schema"
@@ -441,4 +448,166 @@ export async function removeDemoData(companyId: number): Promise<number> {
     .where(and(eq(bookings.companyId, companyId), eq(bookings.isDemoData, true)))
 
   return demoBookings.length
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Suppression DÉFINITIVE et complète d'une entreprise (super-admin)          */
+/* -------------------------------------------------------------------------- */
+
+export type DeleteCompanyResult = {
+  companyId: number
+  slug: string
+  name: string
+  /** Nombre d'utilisateurs supprimés (membres rattachés à cette seule entreprise). */
+  deletedUsers: number
+  /** Nombre de fichiers Blob supprimés (logos, favicons, PDF de factures, images). */
+  deletedBlobs: number
+}
+
+/**
+ * Supprime IRRÉVERSIBLEMENT une entreprise et TOUTES ses données liées, sans
+ * laisser d'orphelin en base ni de fichier résiduel dans le Blob.
+ *
+ * Ordre : petits-enfants (sans FK) → enfants directs (companyId) → entreprise,
+ * le tout dans UNE transaction (rollback complet en cas d'erreur). Les
+ * utilisateurs membres UNIQUEMENT de cette entreprise (et non super-admins)
+ * sont supprimés (cascade DB sur `account` et `session`). Les fichiers Blob
+ * sont supprimés après le commit (best-effort, sans bloquer la suppression).
+ *
+ * Le slug de l'entreprise disparaît : l'URL du tenant renvoie donc un 404.
+ */
+export async function deleteCompanyCompletely(companyId: number): Promise<DeleteCompanyResult> {
+  // 1) Charger l'entreprise + ses pathnames Blob privés.
+  const [company] = await db
+    .select({
+      id: companies.id,
+      slug: companies.slug,
+      name: companies.name,
+      logoUrl: companies.logoUrl,
+      faviconUrl: companies.faviconUrl,
+    })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1)
+  if (!company) throw new Error("Entreprise introuvable.")
+
+  // 2) Collecter tous les identifiants enfants + cibles Blob AVANT suppression.
+  const [companyBookings, companyInvoices, companyServices, companyVehicleTypes, members, settingsRow] =
+    await Promise.all([
+      db.select({ id: bookings.id }).from(bookings).where(eq(bookings.companyId, companyId)),
+      db
+        .select({ id: invoices.id, issuerLogoPathname: invoices.issuerLogoPathname, pdfPathname: invoices.pdfPathname })
+        .from(invoices)
+        .where(eq(invoices.companyId, companyId)),
+      db.select({ id: services.id, image: services.image }).from(services).where(eq(services.companyId, companyId)),
+      db.select({ id: vehicleTypes.id }).from(vehicleTypes).where(eq(vehicleTypes.companyId, companyId)),
+      db.select({ userId: companyMembers.userId }).from(companyMembers).where(eq(companyMembers.companyId, companyId)),
+      db
+        .select({ invoiceLogoPathname: settingsTable.invoiceLogoPathname })
+        .from(settingsTable)
+        .where(eq(settingsTable.companyId, companyId))
+        .limit(1),
+    ])
+
+  const bookingIds = companyBookings.map((b) => b.id)
+  const invoiceIds = companyInvoices.map((i) => i.id)
+  const serviceIds = companyServices.map((s) => s.id)
+  const vehicleTypeIds = companyVehicleTypes.map((v) => v.id)
+  const memberUserIds = members.map((m) => m.userId)
+
+  // Identifiants des lignes de réservation (pour supprimer leurs options).
+  let bookingItemIds: number[] = []
+  if (bookingIds.length) {
+    const items = await db
+      .select({ id: bookingItems.id })
+      .from(bookingItems)
+      .where(inArray(bookingItems.bookingId, bookingIds))
+    bookingItemIds = items.map((i) => i.id)
+  }
+
+  // 3) Suppression transactionnelle (petits-enfants → enfants → entreprise).
+  const deletedUsers = await db.transaction(async (tx) => {
+    // 3a) Petits-enfants sans contrainte FK (sinon orphelins).
+    if (bookingItemIds.length) {
+      await tx.delete(bookingItemOptions).where(inArray(bookingItemOptions.bookingItemId, bookingItemIds))
+    }
+    if (bookingIds.length) {
+      await tx.delete(bookingItems).where(inArray(bookingItems.bookingId, bookingIds))
+    }
+    if (invoiceIds.length) {
+      await tx.delete(invoiceItems).where(inArray(invoiceItems.invoiceId, invoiceIds))
+      await tx.delete(invoicePayments).where(inArray(invoicePayments.invoiceId, invoiceIds))
+      await tx.delete(invoiceEvents).where(inArray(invoiceEvents.invoiceId, invoiceIds))
+    }
+    if (serviceIds.length) {
+      await tx.delete(servicePrices).where(inArray(servicePrices.serviceId, serviceIds))
+    }
+    if (vehicleTypeIds.length) {
+      await tx.delete(servicePrices).where(inArray(servicePrices.vehicleTypeId, vehicleTypeIds))
+    }
+
+    // 3b) Enfants directs (scopés companyId).
+    await tx.delete(bookings).where(eq(bookings.companyId, companyId))
+    await tx.delete(invoices).where(eq(invoices.companyId, companyId))
+    await tx.delete(services).where(eq(services.companyId, companyId))
+    await tx.delete(options).where(eq(options.companyId, companyId))
+    await tx.delete(serviceCategories).where(eq(serviceCategories.companyId, companyId))
+    await tx.delete(vehicleTypes).where(eq(vehicleTypes.companyId, companyId))
+    await tx.delete(businessHours).where(eq(businessHours.companyId, companyId))
+    await tx.delete(timeOff).where(eq(timeOff.companyId, companyId))
+    await tx.delete(settingsTable).where(eq(settingsTable.companyId, companyId))
+    await tx.delete(companyMembers).where(eq(companyMembers.companyId, companyId))
+
+    // 3c) L'entreprise elle-même (le slug/tenant disparaît → URL en 404).
+    await tx.delete(companies).where(eq(companies.id, companyId))
+
+    // 3d) Utilisateurs rattachés UNIQUEMENT à cette entreprise et non super-admins.
+    //     (account + session sont supprimés par cascade DB sur user.id.)
+    let removed = 0
+    for (const uid of memberUserIds) {
+      const [remaining] = await tx
+        .select({ n: count() })
+        .from(companyMembers)
+        .where(eq(companyMembers.userId, uid))
+      if ((remaining?.n ?? 0) > 0) continue // encore membre d'une autre entreprise
+
+      const [u] = await tx
+        .select({ superAdmin: userTable.superAdmin })
+        .from(userTable)
+        .where(eq(userTable.id, uid))
+        .limit(1)
+      if (!u || u.superAdmin) continue // ne jamais supprimer un super-admin
+
+      await tx.delete(userTable).where(eq(userTable.id, uid))
+      removed++
+    }
+    return removed
+  })
+
+  // 4) Suppression des fichiers Blob (après commit, best-effort).
+  const privatePathnames = [
+    company.logoUrl,
+    company.faviconUrl,
+    settingsRow[0]?.invoiceLogoPathname,
+    ...companyInvoices.flatMap((i) => [i.issuerLogoPathname, i.pdfPathname]),
+  ].filter((p): p is string => Boolean(p))
+
+  // Images de prestations : Blob PUBLIC (URL http). On ignore les valeurs non-Blob.
+  const publicUrls = companyServices
+    .map((s) => s.image)
+    .filter((img): img is string => Boolean(img) && /^https?:\/\//.test(img ?? ""))
+
+  const blobTargets = Array.from(new Set([...privatePathnames, ...publicUrls]))
+  let deletedBlobs = 0
+  for (const target of blobTargets) {
+    try {
+      await del(target)
+      deletedBlobs++
+    } catch (e) {
+      // Un échec de suppression Blob ne doit pas casser la suppression (déjà commitée).
+      console.log("[v0] Échec suppression Blob:", target, e instanceof Error ? e.message : e)
+    }
+  }
+
+  return { companyId: company.id, slug: company.slug, name: company.name, deletedUsers, deletedBlobs }
 }
