@@ -6,14 +6,20 @@
  *  2. Calcule la distance routière réelle (aller simple).
  *  3. Applique la distance gratuite, le prix/km et l'aller-retour.
  *
- *  Fournisseur par défaut : Géoplateforme (IGN / gouvernement français).
- *  Gratuit, sans clé API, adapté aux adresses françaises.
- *    - Géocodage : https://data.geopf.fr/geocodage/search
- *    - Itinéraire : https://data.geopf.fr/navigation/itineraire
+ *  Fournisseur de géocodage : Nominatim (OpenStreetMap). Gratuit, sans clé API,
+ *  et surtout COUVRE LA FRANCE ET LA SUISSE (et les adresses transfrontalières).
+ *  On restreint aux pays fr,ch pour éviter les faux positifs. L'ancien
+ *  fournisseur IGN (Géoplateforme) ne couvrait que la France : une adresse
+ *  suisse y était mal géocodée vers une rue française homonyme (ex. « Rue de
+ *  Zürich, Strasbourg »), d'où des distances fausses ou des refus.
  *
- *  Pour couvrir d'autres pays ou passer sur un autre fournisseur (Google
- *  Maps, Mapbox…), il suffit de remplacer geocode()/routeDistanceKm().
- *  L'interface publique de ce module (computeTravel) ne change pas.
+ *  Fournisseur d'itinéraire : OSRM (router.project-osrm.org). Distance routière
+ *  RÉELLE, couvrant la France, la Suisse et les trajets transfrontaliers.
+ *  Repli Haversine (à vol d'oiseau × 1,3) uniquement si OSRM est injoignable,
+ *  pour ne jamais bloquer une réservation par une panne réseau ponctuelle.
+ *
+ *  La devise et toute la logique tarifaire (km offerts, prix/km en EUR,
+ *  aller-retour, distance max) restent INCHANGÉES.
  * ============================================================================
  */
 
@@ -21,8 +27,10 @@ import "server-only"
 import type { Settings } from "./queries"
 import type { TravelResult } from "./types"
 
-const GEO_SEARCH = "https://data.geopf.fr/geocodage/search"
-const GEO_ROUTE = "https://data.geopf.fr/navigation/itineraire"
+const GEO_SEARCH = "https://nominatim.openstreetmap.org/search"
+const OSRM_ROUTE = "https://router.project-osrm.org/route/v1/driving"
+// Nominatim exige un User-Agent identifiant l'application.
+const GEO_HEADERS = { "User-Agent": "DetailFlow/1.0 (+https://detailflow.fr)" }
 
 type Coords = { lat: number; lng: number }
 
@@ -31,41 +39,59 @@ export async function geocodeAddress(address: string): Promise<Coords | null> {
   return geocode(address)
 }
 
-/** Géocode une adresse en coordonnées. Renvoie null si introuvable. */
+/**
+ * Géocode une adresse (France + Suisse + transfrontalier) via Nominatim.
+ * Renvoie null si introuvable. Restreint aux pays fr,ch.
+ */
 async function geocode(address: string): Promise<Coords | null> {
-  const url = `${GEO_SEARCH}?q=${encodeURIComponent(address)}&limit=1`
+  const url =
+    `${GEO_SEARCH}?q=${encodeURIComponent(address)}` +
+    `&format=json&limit=1&countrycodes=fr,ch&addressdetails=0`
   try {
-    const res = await fetch(url, { next: { revalidate: 86400 } })
+    const res = await fetch(url, { headers: GEO_HEADERS, next: { revalidate: 86400 } })
     if (!res.ok) return null
-    const data = (await res.json()) as {
-      features?: Array<{ geometry?: { coordinates?: [number, number] } }>
-    }
-    const coords = data.features?.[0]?.geometry?.coordinates
-    if (!coords) return null
-    // GeoJSON = [longitude, latitude]
-    return { lat: coords[1], lng: coords[0] }
+    const data = (await res.json()) as Array<{ lat?: string; lon?: string }>
+    const first = data?.[0]
+    if (!first?.lat || !first?.lon) return null
+    const lat = Number.parseFloat(first.lat)
+    const lng = Number.parseFloat(first.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+    return { lat, lng }
   } catch {
     return null
   }
 }
 
-/** Distance routière (km, aller simple) entre deux points. null si échec. */
+/** Distance à vol d'oiseau (km) — repli si le routeur est injoignable. */
+function haversineKm(from: Coords, to: Coords): number {
+  const R = 6371
+  const dLat = ((to.lat - from.lat) * Math.PI) / 180
+  const dLng = ((to.lng - from.lng) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((from.lat * Math.PI) / 180) * Math.cos((to.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+/**
+ * Distance routière RÉELLE (km, aller simple) entre deux points via OSRM.
+ * Couvre FR, CH et transfrontalier. Repli Haversine × 1,3 si OSRM échoue
+ * (jamais null : on ne bloque pas une réservation sur une panne réseau).
+ */
 async function routeDistanceKm(from: Coords, to: Coords): Promise<number | null> {
-  const url =
-    `${GEO_ROUTE}?resource=bdtopo-osrm` +
-    `&start=${from.lng},${from.lat}&end=${to.lng},${to.lat}` +
-    `&profile=car&optimization=fastest&geometryFormat=geojson`
+  const url = `${OSRM_ROUTE}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } })
-    if (!res.ok) return null
-    const data = (await res.json()) as { distance?: number; distanceUnit?: string }
-    if (typeof data.distance !== "number") return null
-    // La distance est renvoyée en mètres par défaut.
-    const meters = data.distanceUnit === "kilometer" ? data.distance * 1000 : data.distance
-    return meters / 1000
+    if (res.ok) {
+      const data = (await res.json()) as { code?: string; routes?: Array<{ distance?: number }> }
+      const meters = data.code === "Ok" ? data.routes?.[0]?.distance : undefined
+      if (typeof meters === "number") return meters / 1000
+    }
   } catch {
-    return null
+    // ignore → repli ci-dessous
   }
+  // Repli : distance à vol d'oiseau majorée d'un facteur route (~1,3).
+  return haversineKm(from, to) * 1.3
 }
 
 /** Résout les coordonnées du point de départ (pro). */

@@ -9,6 +9,7 @@ import {
   provisionCompany,
   removeDemoData,
   resetOwnerPassword,
+  deleteCompanyCompletely,
   type ProvisionResult,
 } from "@/lib/company/provision"
 
@@ -132,6 +133,47 @@ export async function endBetaAction(companyId: number): Promise<ActionState> {
       .where(eq(companies.id, companyId))
     revalidatePath("/super-admin")
     return { ok: true, message: "Programme beta terminé (nouvelles réservations désactivées)." }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Suppression DÉFINITIVE d'une entreprise (irréversible)                     */
+/* -------------------------------------------------------------------------- */
+
+export type DeleteCompanyState =
+  | { ok: true; message: string }
+  | { ok: false; error: string }
+
+/**
+ * Supprime définitivement une entreprise et toutes ses données.
+ *
+ * Double confirmation côté SERVEUR (jamais uniquement par l'UI) : le nom saisi
+ * par le super-admin doit correspondre EXACTEMENT au nom de l'entreprise.
+ * Réservé au super-admin (requireSuperAdmin).
+ */
+export async function deleteCompanyAction(companyId: number, confirmName: string): Promise<DeleteCompanyState> {
+  await requireSuperAdmin()
+  try {
+    const [company] = await db
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .limit(1)
+    if (!company) return { ok: false, error: "Entreprise introuvable (déjà supprimée ?)." }
+
+    if (confirmName.trim() !== company.name.trim()) {
+      return { ok: false, error: "Le nom saisi ne correspond pas exactement au nom de l'entreprise." }
+    }
+
+    const result = await deleteCompanyCompletely(companyId)
+    revalidatePath("/super-admin")
+    revalidatePath("/super-admin/companies")
+    return {
+      ok: true,
+      message: `Entreprise « ${result.name} » supprimée définitivement — ${result.deletedUsers} utilisateur(s) et ${result.deletedBlobs} fichier(s) supprimés.`,
+    }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
   }

@@ -3,13 +3,15 @@
 /**
  * Server Action de traitement du formulaire de contact.
  *
- * PHASE 1 : validation + journalisation côté serveur (aucun email envoyé).
- * PHASE 4 : brancher ici l'envoi d'email (Resend/Nodemailer) et/ou
- *           l'enregistrement en base (table ContactMessage du schéma Prisma).
- *
- * La validation se fait côté serveur pour la sécurité (ne jamais faire
- * confiance aux données client).
+ * Envoie réellement le message à l'adresse de l'entreprise du TENANT courant
+ * (jamais une adresse statique DetailFlow), avec `replyTo` = email du visiteur.
+ * La résolution du tenant se fait côté serveur ; aucune confiance aux données
+ * client. Validation serveur systématique.
  */
+
+import { getPublicContact } from "@/lib/public-contact"
+import { getCurrentTenant } from "@/lib/tenant"
+import { sendEmail } from "@/lib/email/send"
 
 export type ContactFormState = {
   status: "idle" | "success" | "error"
@@ -45,10 +47,40 @@ export async function submitContactForm(
   }
 
   try {
-    // PHASE 4 — Exemple d'intégration future :
-    // await sendEmail({ to: siteConfig.contact.email, subject: `Contact — ${name}`, ... })
-    // await prisma.contactMessage.create({ data: { name, email, phone, message } })
-    console.log("[v0] Nouveau message de contact:", { name, email, phone })
+    // Destinataire = email de l'entreprise du tenant courant (jamais statique).
+    const [tenant, contact] = await Promise.all([getCurrentTenant(), getPublicContact()])
+    if (!contact.email) {
+      return {
+        status: "error",
+        message: "Le formulaire n'est pas disponible pour le moment. Merci de nous contacter par téléphone.",
+      }
+    }
+
+    const businessName = tenant?.name ?? "votre entreprise"
+    const safePhone = phone || "non renseigné"
+    const html = `
+      <h2>Nouveau message depuis le site</h2>
+      <p><strong>Nom :</strong> ${escapeHtml(name)}</p>
+      <p><strong>Email :</strong> ${escapeHtml(email)}</p>
+      <p><strong>Téléphone :</strong> ${escapeHtml(safePhone)}</p>
+      <p><strong>Message :</strong></p>
+      <p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>
+    `
+
+    const result = await sendEmail({
+      to: contact.email,
+      subject: `Nouveau message de contact — ${name}`,
+      html,
+      fromName: businessName,
+      replyTo: email,
+    })
+
+    if (!result.ok && !result.skipped) {
+      return {
+        status: "error",
+        message: "Une erreur est survenue. Merci de réessayer ou de nous appeler directement.",
+      }
+    }
 
     return {
       status: "success",
@@ -61,4 +93,14 @@ export async function submitContactForm(
       message: "Une erreur est survenue. Merci de réessayer ou de nous appeler directement.",
     }
   }
+}
+
+/** Échappe le HTML pour éviter toute injection dans l'email. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
 }

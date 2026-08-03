@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
-import { requireCompanyMember } from "@/lib/admin"
+import { getSession } from "@/lib/admin"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -12,12 +12,18 @@ export const dynamic = "force-dynamic"
  * visiteurs du site vitrine) : on les stocke donc en Blob public et on
  * renvoie l'URL directe, enregistrée ensuite dans `services.image`.
  *
- * SÉCURITÉ : accès réservé à un membre de l'entreprise (requireCompanyMember).
- * Aucun pathname/URL n'est accepté depuis le client pour la lecture.
+ * SÉCURITÉ : accès réservé à un administrateur authentifié (même garde que la
+ * route logo). On renvoie un JSON 401 explicite plutôt que de laisser
+ * `requireCompanyMember()` lever `redirect()/notFound()` — ces exceptions
+ * produisaient une réponse non-JSON, d'où l'ancien « Échec de l'envoi de
+ * l'image » côté client. L'autorisation multi-tenant fine est appliquée à
+ * l'enregistrement via l'action serveur `saveService` (scopée par entreprise).
  */
 export async function POST(request: NextRequest) {
-  // Vérifie la session ET l'appartenance à une entreprise (rejette les non-membres).
-  await requireCompanyMember()
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+  }
 
   const formData = await request.formData()
   const file = formData.get("file") as File | null

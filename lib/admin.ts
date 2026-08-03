@@ -5,7 +5,7 @@ import { user, companyMembers } from "@/lib/db/schema"
 import { and, count, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { redirect, notFound } from "next/navigation"
-import { resolveRequestTenant, type Tenant } from "@/lib/tenant"
+import { resolveRequestTenant, getTenantFromMembership, type Tenant } from "@/lib/tenant"
 
 /**
  * Authentification + autorisation multi-tenant du dashboard.
@@ -73,16 +73,37 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
     notFound()
   }
 
-  const [membership] = await db
+  let effectiveTenant = tenant
+  let [membership] = await db
     .select({ role: companyMembers.role })
     .from(companyMembers)
     .where(
       and(
         eq(companyMembers.userId, session.user.id),
-        eq(companyMembers.companyId, tenant.id),
+        eq(companyMembers.companyId, effectiveTenant.id),
       ),
     )
     .limit(1)
+
+  // Repli d'isolation : si l'utilisateur n'est pas membre de l'entreprise
+  // résolue par l'hôte / ?tenant= (ex. lien reçu par email atterrissant sur un
+  // mauvais contexte tenant), on bascule sur SA propre entreprise. Cela évite
+  // le « Non autorisé » pour un propriétaire légitime, sans jamais accorder
+  // l'accès à une entreprise dont il n'est pas membre.
+  if (!membership && !superAdmin) {
+    const own = await getTenantFromMembership()
+    if (own && own.id !== effectiveTenant.id) {
+      const [ownMembership] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, session.user.id), eq(companyMembers.companyId, own.id)))
+        .limit(1)
+      if (ownMembership) {
+        effectiveTenant = own
+        membership = ownMembership
+      }
+    }
+  }
 
   // Ni membre de cette entreprise, ni super-admin → 404 neutre (ne révèle rien).
   if (!membership && !superAdmin) notFound()
@@ -97,7 +118,7 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
       email: session.user.email,
       name: session.user.name,
     },
-    tenant,
+    tenant: effectiveTenant,
     role,
     isSuperAdmin: superAdmin,
   }
@@ -133,22 +154,39 @@ export async function getCompanyMemberContext(): Promise<MemberContext | null> {
   if (!tenant) return null
 
   const superAdmin = await isSuperAdmin(session.user.id)
-  const [membership] = await db
+  let effectiveTenant = tenant
+  let [membership] = await db
     .select({ role: companyMembers.role })
     .from(companyMembers)
     .where(
       and(
         eq(companyMembers.userId, session.user.id),
-        eq(companyMembers.companyId, tenant.id),
+        eq(companyMembers.companyId, effectiveTenant.id),
       ),
     )
     .limit(1)
+
+  // Même repli d'isolation que requireCompanyMember (voir commentaire ci-dessus).
+  if (!membership && !superAdmin) {
+    const own = await getTenantFromMembership()
+    if (own && own.id !== effectiveTenant.id) {
+      const [ownMembership] = await db
+        .select({ role: companyMembers.role })
+        .from(companyMembers)
+        .where(and(eq(companyMembers.userId, session.user.id), eq(companyMembers.companyId, own.id)))
+        .limit(1)
+      if (ownMembership) {
+        effectiveTenant = own
+        membership = ownMembership
+      }
+    }
+  }
 
   if (!membership && !superAdmin) return null
 
   return {
     user: { id: session.user.id, email: session.user.email, name: session.user.name },
-    tenant,
+    tenant: effectiveTenant,
     role: (membership?.role as Role) ?? "OWNER",
     isSuperAdmin: superAdmin,
   }

@@ -291,6 +291,11 @@ export const settings = pgTable(
     // Acompte : "none" | "fixed" | "percent"
     depositType: text("depositType").notNull().default("none"),
     depositValue: integer("depositValue").notNull().default(0),
+    // Moyens de paiement acceptés pour l'acompte (slugs séparés par des virgules,
+    // ex. "transfer,wero"). Aucun fournisseur n'est imposé.
+    depositMethods: text("depositMethods"),
+    // Instructions de paiement affichées au client (IBAN, n° Wero, lien, etc.).
+    depositInstructions: text("depositInstructions"),
     // Mode vacances : quand activé, la prise de réservation en ligne est suspendue.
     vacationMode: boolean("vacationMode").notNull().default(false),
     vacationMessage: text("vacationMessage"),

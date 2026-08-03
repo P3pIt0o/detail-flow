@@ -83,7 +83,11 @@ export default async function ParametresPage() {
           />
         </TabsContent>
         <TabsContent value="site" className="mt-6">
-          <SiteBranding logoPathname={tenant.logoUrl ?? null} cgv={tenant.cgv ?? ""} />
+          <SiteBranding
+            logoPathname={tenant.logoUrl ?? null}
+            cgv={tenant.cgv ?? ""}
+            socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+          />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings
@@ -115,6 +119,8 @@ export default async function ParametresPage() {
             minNoticeHours={settings.minNoticeHours}
             depositType={settings.depositType === "fixed" ? "fixed" : settings.depositType === "none" ? "none" : "percent"}
             depositValue={settings.depositValue}
+            depositMethods={(fullSettings?.depositMethods ?? "").split(",").filter(Boolean)}
+            depositInstructions={fullSettings?.depositInstructions ?? ""}
             vacationMode={settings.vacationMode}
             vacationMessage={settings.vacationMessage ?? ""}
           />
@@ -157,7 +163,7 @@ export default async function ParametresPage() {
               href="/admin/export"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
             >
-              Télécharger mes données (.zip)
+              Télécharger mes donn��es (.zip)
             </a>
           </div>
         </TabsContent>

@@ -15,11 +15,25 @@ type FooterProps = {
   tenantSlug?: string | null
   /** Coordonnées publiques réelles du tenant (jamais de données statiques). */
   contact?: PublicContact | null
+  /**
+   * Liens réseaux sociaux du tenant courant. Sur un site tenant, on utilise
+   * exclusivement ces liens (jamais les liens statiques DetailFlow). Sur le
+   * domaine racine (pas de tenant), on retombe sur siteConfig.social.
+   */
+  socialLinks?: Record<string, string> | null
 }
 
-export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }: FooterProps = {}) {
+export function Footer({
+  brandName,
+  logoSrc,
+  tenantSlug = null,
+  contact = null,
+  socialLinks = null,
+}: FooterProps = {}) {
   const year = new Date().getFullYear()
-  const socials = Object.entries(siteConfig.social).filter(([, url]) => Boolean(url))
+  // Site tenant → liens du tenant uniquement ; racine DetailFlow → liens statiques.
+  const socialSource = socialLinks ?? (tenantSlug ? {} : siteConfig.social)
+  const socials = Object.entries(socialSource).filter(([, url]) => Boolean(url))
   const displayName = brandName || siteConfig.brand.name
 
   return (
@@ -28,7 +42,7 @@ export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           {/* Marque */}
           <div className="lg:col-span-1">
-            <Logo brandName={brandName} logoSrc={logoSrc} />
+            <Logo brandName={brandName} logoSrc={logoSrc} href={withTenant("/", tenantSlug)} />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{siteConfig.brand.tagline}</p>
             {socials.length > 0 && (
               <div className="mt-6 flex gap-3">

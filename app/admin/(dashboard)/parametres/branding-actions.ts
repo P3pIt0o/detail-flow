@@ -6,6 +6,7 @@ import { put, del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { SOCIAL_KEYS } from "./social-config"
 
 export type ActionResult = { ok: boolean; error?: string; logoPathname?: string | null }
 
@@ -27,6 +28,52 @@ function normalizeHex(value: string | null): string | null {
   const v = (value ?? "").trim()
   if (!v) return null
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v.toLowerCase() : null
+}
+
+/** Normalise une URL de réseau social : ajoute https:// si absent, valide le format. */
+function normalizeSocialUrl(value: string | null): string | null {
+  const v = (value ?? "").trim()
+  if (!v) return null
+  const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`
+  try {
+    const u = new URL(withScheme)
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Enregistre les liens réseaux sociaux de l'entreprise (point 16).
+ * ISOLATION : toujours scopé à l'entreprise de l'admin connecté.
+ * Persisté dans `companies.socialLinks` (jsonb) et utilisé sur la vitrine du tenant.
+ */
+export async function saveSocialLinks(
+  input: Record<string, string>,
+): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+
+  const links: Record<string, string> = {}
+  for (const key of SOCIAL_KEYS) {
+    const normalized = normalizeSocialUrl(input[key] ?? null)
+    if (normalized) links[key] = normalized
+    else if ((input[key] ?? "").trim()) {
+      return { ok: false, error: `Lien ${key} invalide. Exemple : https://instagram.com/mon-compte` }
+    }
+  }
+
+  await db
+    .update(companies)
+    .set({
+      socialLinks: Object.keys(links).length ? links : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(companies.id, tenant.id))
+
+  revalidatePath("/admin/parametres")
+  revalidatePath("/", "layout")
+  return { ok: true }
 }
 
 export async function saveCompanySite(formData: FormData): Promise<ActionResult> {

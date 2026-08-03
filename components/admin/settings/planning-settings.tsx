@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { savePlanning, saveDeposit, saveVacationMode } from "@/app/admin/(dashboard)/parametres/actions"
+import { DEPOSIT_METHODS, DEPOSIT_METHOD_LABELS, type DepositMethod } from "@/lib/booking/types"
 
 type Props = {
   maxVehiclesPerDay: number
@@ -16,6 +17,8 @@ type Props = {
   minNoticeHours: number
   depositType: "none" | "fixed" | "percent"
   depositValue: number
+  depositMethods: string[]
+  depositInstructions: string
   vacationMode: boolean
   vacationMessage: string
 }
@@ -33,6 +36,12 @@ export function PlanningSettings(props: Props) {
       ? (props.depositValue / 100).toString()
       : props.depositValue.toString(),
   )
+  const [depositMethods, setDepositMethods] = useState<string[]>(props.depositMethods)
+  const [depositInstructions, setDepositInstructions] = useState(props.depositInstructions)
+
+  function toggleMethod(m: DepositMethod) {
+    setDepositMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))
+  }
 
   const [vacationMode, setVacationMode] = useState(props.vacationMode)
   const [vacationMessage, setVacationMessage] = useState(props.vacationMessage)
@@ -67,6 +76,8 @@ export function PlanningSettings(props: Props) {
       const r2 = await saveDeposit({
         depositType,
         depositValue: depositType === "fixed" ? Math.round(rawValue * 100) : Math.round(rawValue),
+        depositMethods,
+        depositInstructions,
       })
       const ok = r1.ok && r2.ok
       setMsg(
@@ -138,22 +149,28 @@ export function PlanningSettings(props: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="interval">Intervalle entre créneaux (min)</Label>
+            <Label htmlFor="interval">Pas des horaires proposés (min)</Label>
             <Input
               id="interval"
               type="number"
               value={interval}
               onChange={(e) => setInterval(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Fréquence des heures de début proposées au client. Ex. 30 → 9h00, 9h30, 10h00…
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="buffer">Battement entre RDV (min)</Label>
+            <Label htmlFor="buffer">Pause après chaque prestation (min)</Label>
             <Input
               id="buffer"
               type="number"
               value={buffer}
               onChange={(e) => setBuffer(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Temps libre réservé après un rendez-vous (rangement, trajet) avant le suivant.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notice">Préavis minimum (heures)</Label>
@@ -203,6 +220,47 @@ export function PlanningSettings(props: Props) {
             </div>
           )}
         </div>
+
+        {depositType !== "none" && (
+          <div className="space-y-4 border-t pt-5">
+            <div className="space-y-2">
+              <Label>Moyens de paiement acceptés</Label>
+              <p className="text-xs text-muted-foreground">
+                Cochez les moyens proposés au client pour régler l&apos;acompte.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {DEPOSIT_METHODS.map((m) => (
+                  <label
+                    key={m}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={depositMethods.includes(m)}
+                      onChange={() => toggleMethod(m)}
+                    />
+                    {DEPOSIT_METHOD_LABELS[m]}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="depositInstructions">Instructions de paiement</Label>
+              <p className="text-xs text-muted-foreground">
+                Ces informations seront affichées au client et incluses dans l&apos;email de
+                confirmation (IBAN, numéro Wero, lien de paiement, etc.).
+              </p>
+              <Textarea
+                id="depositInstructions"
+                rows={4}
+                placeholder={"IBAN : FR76 ...\nBénéficiaire : ...\nWero : 06 ...\nMerci d'indiquer votre référence de réservation."}
+                value={depositInstructions}
+                onChange={(e) => setDepositInstructions(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       <div className="flex items-center gap-3">

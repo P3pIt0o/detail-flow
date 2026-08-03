@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
+import { bookings, bookingItems, bookingItemOptions, invoices } from "@/lib/db/schema"
 import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm"
 import { requireCompanyId } from "@/lib/tenant"
 
@@ -43,16 +43,20 @@ export async function getDashboardStats(companyId?: number) {
       .select({ n: count() })
       .from(bookings)
       .where(and(eq(bookings.companyId, cid), eq(bookings.status, "pending_deposit"))),
-    // Chiffre d'affaires du mois (confirmées + terminées)
+    // Chiffre d'affaires du mois = total des FACTURES PAYÉES (montant FINAL de
+    // la facture : prestations/options ajoutées à la facturation incluses ;
+    // l'acompte n'est pas compté deux fois car on somme le total de la facture,
+    // pas booking + acompte). Recalculé depuis la facture, jamais depuis la
+    // réservation d'origine. Date retenue : date de prestation, sinon émission.
     db
-      .select({ total: sum(bookings.totalCents) })
-      .from(bookings)
+      .select({ total: sum(invoices.totalCents) })
+      .from(invoices)
       .where(
         and(
-          eq(bookings.companyId, cid),
-          gte(bookings.date, start),
-          lte(bookings.date, end),
-          inArray(bookings.status, REVENUE_STATUSES),
+          eq(invoices.companyId, cid),
+          eq(invoices.status, "paid"),
+          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) >= ${start}`,
+          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) <= ${end}`,
         ),
       ),
     // Nombre de réservations du mois
@@ -88,18 +92,23 @@ export async function getUpcomingBookings(limit = 6, companyId?: number) {
     .limit(limit)
 }
 
-/** Répartition du CA des 6 derniers mois (pour un graphique). */
+/**
+ * Répartition du CA par mois (graphique) — sur la même base que le tableau de
+ * bord : total des FACTURES PAYÉES, groupé par mois de prestation (sinon
+ * émission). Cohérent avec getDashboardStats.
+ */
 export async function getRevenueByMonth(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
+  const monthExpr = sql<string>`to_char(coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date), 'YYYY-MM')`
   const rows = await db
     .select({
-      month: sql<string>`to_char(${bookings.date}::date, 'YYYY-MM')`,
-      total: sum(bookings.totalCents),
+      month: monthExpr,
+      total: sum(invoices.totalCents),
     })
-    .from(bookings)
-    .where(and(eq(bookings.companyId, cid), inArray(bookings.status, REVENUE_STATUSES)))
-    .groupBy(sql`to_char(${bookings.date}::date, 'YYYY-MM')`)
-    .orderBy(sql`to_char(${bookings.date}::date, 'YYYY-MM')`)
+    .from(invoices)
+    .where(and(eq(invoices.companyId, cid), eq(invoices.status, "paid")))
+    .groupBy(monthExpr)
+    .orderBy(monthExpr)
   return rows.map((r) => ({ month: r.month, totalCents: Number(r.total ?? 0) }))
 }
 

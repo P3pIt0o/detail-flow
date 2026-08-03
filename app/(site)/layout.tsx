@@ -67,8 +67,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         logoSrc={logoSrc}
         tenantSlug={tenant?.slug ?? null}
         contact={contact}
+        socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
       />
-      <WhatsAppButton />
+      <WhatsAppButton phone={contact.phoneRaw} />
     </div>
   )
 }

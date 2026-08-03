@@ -13,6 +13,11 @@ type LogoProps = {
    * Chaque site n'affiche donc que SON propre logo, jamais celui d'un autre.
    */
   logoSrc?: string
+  /**
+   * Destination du lien. Doit conserver le contexte tenant (`?tenant=`) :
+   * les appelants passent `withTenant("/", tenant)`. Repli : "/".
+   */
+  href?: string
 }
 
 /**
@@ -21,13 +26,13 @@ type LogoProps = {
  * - Sinon si `siteConfig.brand.logo` est renseigné, l'affiche.
  * - Sinon, affiche le nom de la marque en texte stylé (secours élégant).
  */
-export function Logo({ className, brandName, logoSrc }: LogoProps) {
+export function Logo({ className, brandName, logoSrc, href = "/" }: LogoProps) {
   const { name: fallbackName, logo, tagline } = siteConfig.brand
   const name = brandName || fallbackName
   const src = logoSrc || logo
 
   return (
-    <Link href="/" className={cn("flex items-center gap-2", className)} aria-label={`${name} — accueil`}>
+    <Link href={href} className={cn("flex items-center gap-2", className)} aria-label={`${name} — accueil`}>
       {src ? (
         logoSrc ? (
           // Logo distant du tenant (Blob privé servi via route) : <img> simple

@@ -1,10 +1,9 @@
 import type { Metadata } from "next"
-import { siteConfig, getWhatsAppUrl } from "@/config/site"
 import { PageHeader } from "@/components/layout/page-header"
 import { ContactForm } from "@/components/contact-form"
 import { Reveal } from "@/components/ui/reveal"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
-import { getPublicContact } from "@/lib/public-contact"
+import { getPublicContact, getPublicHours } from "@/lib/public-contact"
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -13,8 +12,11 @@ export const metadata: Metadata = {
 }
 
 export default async function ContactPage() {
-  // Coordonnées réelles du tenant (aucune donnée statique).
-  const contact = await getPublicContact()
+  // Coordonnées + horaires réels du tenant (aucune donnée statique).
+  const [contact, hours] = await Promise.all([getPublicContact(), getPublicHours()])
+  const whatsappHref = contact.phoneRaw
+    ? `https://wa.me/${contact.phoneRaw.replace(/[^\d]/g, "")}`
+    : null
   return (
     <>
       <PageHeader
@@ -39,8 +41,8 @@ export default async function ContactPage() {
                     {contact.email}
                   </ContactRow>
                 )}
-                {siteConfig.contact.whatsapp && (
-                  <ContactRow icon={MessageCircle} label="WhatsApp" href={getWhatsAppUrl()} external>
+                {whatsappHref && (
+                  <ContactRow icon={MessageCircle} label="WhatsApp" href={whatsappHref} external>
                     Discuter sur WhatsApp
                   </ContactRow>
                 )}
@@ -51,23 +53,25 @@ export default async function ContactPage() {
                 )}
               </div>
 
-              {/* Horaires */}
-              <div className="rounded-2xl border border-border bg-card/40 p-6">
-                <div className="flex items-center gap-2 text-foreground">
-                  <Clock className="size-5 text-primary" aria-hidden="true" />
-                  <h2 className="font-semibold">Horaires d&apos;ouverture</h2>
+              {/* Horaires — réels du tenant uniquement */}
+              {hours.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card/40 p-6">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <Clock className="size-5 text-primary" aria-hidden="true" />
+                    <h2 className="font-semibold">Horaires d&apos;ouverture</h2>
+                  </div>
+                  <ul className="mt-4 space-y-2 text-sm">
+                    {hours.map((h) => (
+                      <li key={h.day} className="flex items-center justify-between">
+                        <span className="text-muted-foreground">{h.label}</span>
+                        <span className="text-foreground">
+                          {h.open && h.from && h.to ? `${h.from} – ${h.to}` : "Fermé"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="mt-4 space-y-2 text-sm">
-                  {siteConfig.hours.map((h) => (
-                    <li key={h.day} className="flex items-center justify-between">
-                      <span className="text-muted-foreground">{h.label}</span>
-                      <span className="text-foreground">
-                        {h.open ? `${h.from} – ${h.to}` : "Fermé"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              )}
             </div>
           </Reveal>
 

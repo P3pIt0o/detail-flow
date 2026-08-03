@@ -79,8 +79,9 @@ describe("isValidSlug / isReservedSlug", () => {
 })
 
 describe("tenantPublicUrl", () => {
-  it("construit un sous-domaine avec un domaine racine", () => {
-    expect(tenantPublicUrl("elite", ROOT)).toBe("https://elite.detailflow.fr")
+  it("construit une URL ?tenant= sur le domaine racine (www garanti)", () => {
+    expect(tenantPublicUrl("elite", ROOT)).toBe("https://www.detailflow.fr/?tenant=elite")
+    expect(tenantPublicUrl("elite", "www.detailflow.fr")).toBe("https://www.detailflow.fr/?tenant=elite")
   })
   it("retombe sur ?tenant= sans domaine racine", () => {
     expect(tenantPublicUrl("elite")).toBe("/?tenant=elite")

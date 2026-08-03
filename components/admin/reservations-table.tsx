@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BOOKING_STATUS_META, type BookingStatus } from "@/lib/booking/status"
@@ -28,6 +29,7 @@ const FILTERS: { value: BookingStatus | "all"; label: string }[] = [
 ]
 
 export function ReservationsTable({ rows }: { rows: Row[] }) {
+  const router = useRouter()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<BookingStatus | "all">("all")
 
@@ -92,9 +94,17 @@ export function ReservationsTable({ rows }: { rows: Row[] }) {
               </tr>
             ) : (
               filtered.map((r) => (
-                <tr key={r.id} className="transition-colors hover:bg-muted/40">
+                <tr
+                  key={r.id}
+                  onClick={() => router.push(`/admin/reservations/${r.id}`)}
+                  className="cursor-pointer transition-colors hover:bg-muted/40"
+                >
                   <td className="px-4 py-3">
-                    <Link href={`/admin/reservations/${r.id}`} className="block">
+                    <Link
+                      href={`/admin/reservations/${r.id}`}
+                      className="block"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <span className="font-medium text-foreground">{r.customerName}</span>
                       <span className="block text-xs text-muted-foreground sm:hidden">
                         {formatDateShort(r.date)} · {r.startTime}

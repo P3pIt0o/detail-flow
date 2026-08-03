@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { settings, businessHours, timeOff } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { geocodeAddress } from "@/lib/booking/travel"
+import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
 
 export type ActionResult = { ok: boolean; error?: string }
 
@@ -188,18 +189,29 @@ export async function savePlanning(input: {
 export async function saveDeposit(input: {
   depositType: "none" | "fixed" | "percent"
   depositValue: number
+  /** Slugs des moyens de paiement acceptés (ex. ["transfer","wero"]). */
+  depositMethods?: string[]
+  /** Instructions de paiement affichées au client (IBAN, n° Wero, lien…). */
+  depositInstructions?: string
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
   await ensureSettingsRow(tenant.id)
   if (input.depositType === "percent" && (input.depositValue < 0 || input.depositValue > 100)) {
     return { ok: false, error: "Le pourcentage doit être entre 0 et 100." }
   }
+  // Ne conserve que des slugs connus, dédupliqués, en CSV.
+  const methods = Array.from(
+    new Set((input.depositMethods ?? []).filter((m) => DEPOSIT_METHODS.includes(m as DepositMethod))),
+  ).join(",")
   await db
     .update(settings)
     .set({
       depositType: input.depositType,
       // Pour "fixed" la valeur est en centimes, pour "percent" c'est un %.
       depositValue: Math.max(0, Math.round(input.depositValue)),
+      depositMethods: input.depositType === "none" ? null : methods || null,
+      depositInstructions:
+        input.depositType === "none" ? null : input.depositInstructions?.trim() || null,
       updatedAt: new Date(),
     })
     .where(eq(settings.companyId, tenant.id))
