@@ -6,6 +6,7 @@ import { put, del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { SOCIAL_KEYS } from "./social-config"
 
 export type ActionResult = { ok: boolean; error?: string; logoPathname?: string | null }
 
@@ -28,10 +29,6 @@ function normalizeHex(value: string | null): string | null {
   if (!v) return null
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v.toLowerCase() : null
 }
-
-/** Clés de réseaux sociaux supportées (alignées sur socialIconMap du footer). */
-export const SOCIAL_KEYS = ["instagram", "facebook", "youtube", "linkedin", "tiktok"] as const
-export type SocialKey = (typeof SOCIAL_KEYS)[number]
 
 /** Normalise une URL de réseau social : ajoute https:// si absent, valide le format. */
 function normalizeSocialUrl(value: string | null): string | null {

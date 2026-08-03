@@ -4,7 +4,8 @@ import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Save, Upload, ImageIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { saveCompanySite, saveSocialLinks, SOCIAL_KEYS } from "@/app/admin/(dashboard)/parametres/branding-actions"
+import { saveCompanySite, saveSocialLinks } from "@/app/admin/(dashboard)/parametres/branding-actions"
+import { SOCIAL_KEYS } from "@/app/admin/(dashboard)/parametres/social-config"
 
 const SOCIAL_META: Record<(typeof SOCIAL_KEYS)[number], { label: string; placeholder: string }> = {
   instagram: { label: "Instagram", placeholder: "https://instagram.com/mon-compte" },
