@@ -149,22 +149,28 @@ export function PlanningSettings(props: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="interval">Intervalle entre créneaux (min)</Label>
+            <Label htmlFor="interval">Pas des horaires proposés (min)</Label>
             <Input
               id="interval"
               type="number"
               value={interval}
               onChange={(e) => setInterval(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Fréquence des heures de début proposées au client. Ex. 30 → 9h00, 9h30, 10h00…
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="buffer">Battement entre RDV (min)</Label>
+            <Label htmlFor="buffer">Pause après chaque prestation (min)</Label>
             <Input
               id="buffer"
               type="number"
               value={buffer}
               onChange={(e) => setBuffer(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Temps libre réservé après un rendez-vous (rangement, trajet) avant le suivant.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="notice">Préavis minimum (heures)</Label>

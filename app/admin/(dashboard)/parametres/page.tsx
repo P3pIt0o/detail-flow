@@ -83,7 +83,11 @@ export default async function ParametresPage() {
           />
         </TabsContent>
         <TabsContent value="site" className="mt-6">
-          <SiteBranding logoPathname={tenant.logoUrl ?? null} cgv={tenant.cgv ?? ""} />
+          <SiteBranding
+            logoPathname={tenant.logoUrl ?? null}
+            cgv={tenant.cgv ?? ""}
+            socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+          />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings

@@ -105,8 +105,12 @@ export function InvoicingSettings(props: Props) {
     <div className="space-y-6">
       {/* Logo */}
       <div className={cardClass}>
-        <h2 className="mb-1 text-base font-semibold text-foreground">Logo</h2>
-        <p className="mb-4 text-sm text-muted-foreground">Affiché en haut de vos factures PDF (PNG ou JPG, max 2 Mo).</p>
+        <h2 className="mb-1 text-base font-semibold text-foreground">Logo des factures</h2>
+        <p className="mb-4 text-sm text-muted-foreground text-pretty">
+          Affiché en haut de vos factures PDF (PNG ou JPG, max 2 Mo). Il est indépendant du logo du
+          site public (onglet « Site public ») : vous pouvez en utiliser un différent ici, ou
+          téléverser le même.
+        </p>
         <div className="flex items-center gap-4">
           <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-lg border border-border bg-background">
             {logoPathname ? (
@@ -158,7 +162,7 @@ export function InvoicingSettings(props: Props) {
         <h2 className="mb-4 text-base font-semibold text-foreground">Coordonnées légales</h2>
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Adresse de l'entreprise</label>
+            <label className={labelClass}>Adresse de facturation</label>
             <textarea
               value={companyAddress}
               onChange={(e) => setCompanyAddress(e.target.value)}
@@ -166,6 +170,10 @@ export function InvoicingSettings(props: Props) {
               placeholder="12 rue des Ateliers, 75000 Paris"
               className={inputClass}
             />
+            <p className="mt-1 text-xs text-muted-foreground text-pretty">
+              Adresse légale imprimée sur vos factures. Distincte de l&apos;adresse de départ
+              utilisée pour le calcul des frais de déplacement (onglet « Déplacement »).
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -260,10 +268,21 @@ export function InvoicingSettings(props: Props) {
 
       {/* Email d'envoi */}
       <div className={cardClass}>
-        <h2 className="mb-1 text-base font-semibold text-foreground">Email d'envoi</h2>
+        <h2 className="mb-1 text-base font-semibold text-foreground">
+          Email accompagnant la facture
+        </h2>
+        <p className="mb-2 text-sm text-muted-foreground text-pretty">
+          Texte de l&apos;email envoyé à votre client lorsque vous lui transmettez une facture par
+          email (la facture PDF est jointe automatiquement). Laissez vide pour utiliser le message
+          par défaut.
+        </p>
         <p className="mb-4 text-sm text-muted-foreground">
-          Variables disponibles : <code className="text-foreground">{"{{client}}"}</code>,{" "}
-          <code className="text-foreground">{"{{numero}}"}</code>, <code className="text-foreground">{"{{entreprise}}"}</code>.
+          Variables remplacées automatiquement :{" "}
+          <code className="text-foreground">{"{{client}}"}</code> (nom du client),{" "}
+          <code className="text-foreground">{"{{numero}}"}</code> (numéro de facture),{" "}
+          <code className="text-foreground">{"{{entreprise}}"}</code> (nom de votre entreprise).
+          <br />
+          Exemple d&apos;objet : <em>Facture {"{{numero}}"} — {"{{entreprise}}"}</em>.
         </p>
         <div className="space-y-4">
           <div>

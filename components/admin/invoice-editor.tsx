@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2, Save, FileCheck2, Loader2, AlertCircle, Car, User } from "lucide-react"
+import { Plus, Trash2, Save, FileCheck2, CircleCheck, Loader2, AlertCircle, Car, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatPrice } from "@/lib/format"
 import {
@@ -13,6 +13,7 @@ import {
 import {
   saveInvoiceDraft,
   issueInvoice,
+  addInvoicePayment,
   deleteDraftInvoice,
   type SaveDraftInput,
 } from "@/lib/invoice/actions"
@@ -163,6 +164,42 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
     })
   }
 
+  // Point 9 : émet la facture puis la solde immédiatement (statut « Payée »).
+  // Réutilise le même chemin serveur que l'ajout de paiement, qui bascule la
+  // facture en « Payée » quand le solde atteint 0 (et alimente le CA).
+  function issueAndMarkPaid() {
+    setError(null)
+    setNotice(null)
+    startIssue(async () => {
+      const saved = await saveInvoiceDraft(buildPayload())
+      if (!saved.ok) {
+        setError(saved.error)
+        return
+      }
+      const issued = await issueInvoice(invoice.id)
+      if (!issued.ok) {
+        setError(issued.error)
+        return
+      }
+      // Solde restant = total TTC − acompte déjà réglé.
+      const balanceCents = Math.max(0, totals.totalCents - totals.depositCents)
+      if (balanceCents > 0) {
+        const paid = await addInvoicePayment({
+          invoiceId: invoice.id,
+          amountCents: balanceCents,
+          method: "transfer",
+          paidAt: new Date().toISOString().slice(0, 10),
+          note: "Facture émise et marquée comme payée",
+        })
+        if (!paid.ok) {
+          setError(paid.error)
+          return
+        }
+      }
+      router.refresh()
+    })
+  }
+
   function remove() {
     if (!confirm("Supprimer définitivement ce brouillon ?")) return
     startTransition(async () => {
@@ -185,6 +222,10 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
           <Button variant="outline" size="sm" disabled={pending} onClick={() => save()}>
             {pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Enregistrer
+          </Button>
+          <Button size="sm" variant="secondary" disabled={issuing} onClick={issueAndMarkPaid}>
+            {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-1.5 h-4 w-4" />}
+            Émettre &amp; marquer payée
           </Button>
           <Button size="sm" disabled={issuing} onClick={issue}>
             {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileCheck2 className="mr-1.5 h-4 w-4" />}

@@ -15,11 +15,25 @@ type FooterProps = {
   tenantSlug?: string | null
   /** Coordonnées publiques réelles du tenant (jamais de données statiques). */
   contact?: PublicContact | null
+  /**
+   * Liens réseaux sociaux du tenant courant. Sur un site tenant, on utilise
+   * exclusivement ces liens (jamais les liens statiques DetailFlow). Sur le
+   * domaine racine (pas de tenant), on retombe sur siteConfig.social.
+   */
+  socialLinks?: Record<string, string> | null
 }
 
-export function Footer({ brandName, logoSrc, tenantSlug = null, contact = null }: FooterProps = {}) {
+export function Footer({
+  brandName,
+  logoSrc,
+  tenantSlug = null,
+  contact = null,
+  socialLinks = null,
+}: FooterProps = {}) {
   const year = new Date().getFullYear()
-  const socials = Object.entries(siteConfig.social).filter(([, url]) => Boolean(url))
+  // Site tenant → liens du tenant uniquement ; racine DetailFlow → liens statiques.
+  const socialSource = socialLinks ?? (tenantSlug ? {} : siteConfig.social)
+  const socials = Object.entries(socialSource).filter(([, url]) => Boolean(url))
   const displayName = brandName || siteConfig.brand.name
 
   return (

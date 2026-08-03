@@ -4,7 +4,15 @@ import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Save, Upload, ImageIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { saveCompanySite } from "@/app/admin/(dashboard)/parametres/branding-actions"
+import { saveCompanySite, saveSocialLinks, SOCIAL_KEYS } from "@/app/admin/(dashboard)/parametres/branding-actions"
+
+const SOCIAL_META: Record<(typeof SOCIAL_KEYS)[number], { label: string; placeholder: string }> = {
+  instagram: { label: "Instagram", placeholder: "https://instagram.com/mon-compte" },
+  facebook: { label: "Facebook", placeholder: "https://facebook.com/ma-page" },
+  youtube: { label: "YouTube", placeholder: "https://youtube.com/@ma-chaine" },
+  linkedin: { label: "LinkedIn", placeholder: "https://linkedin.com/company/mon-entreprise" },
+  tiktok: { label: "TikTok", placeholder: "https://tiktok.com/@mon-compte" },
+}
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
@@ -16,9 +24,11 @@ type Props = {
   logoPathname: string | null
   /** CGV actuelles de l'entreprise. */
   cgv: string
+  /** Liens réseaux sociaux actuels de l'entreprise. */
+  socialLinks?: Record<string, string> | null
 }
 
-export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv }: Props) {
+export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socialLinks }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
@@ -31,6 +41,28 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv }: Pro
   const [savedLogo, setSavedLogo] = useState<string | null>(initialLogo)
   const [removeLogo, setRemoveLogo] = useState(false)
   const [cgv, setCgv] = useState(initialCgv)
+
+  // Réseaux sociaux (point 16) : une entrée par plateforme supportée.
+  const [socials, setSocials] = useState<Record<string, string>>(() =>
+    Object.fromEntries(SOCIAL_KEYS.map((k) => [k, socialLinks?.[k] ?? ""])),
+  )
+  const [socialPending, startSocialTransition] = useTransition()
+  const [socialError, setSocialError] = useState<string | null>(null)
+  const [socialNotice, setSocialNotice] = useState<string | null>(null)
+
+  function saveSocials() {
+    setSocialError(null)
+    setSocialNotice(null)
+    startSocialTransition(async () => {
+      const res = await saveSocialLinks(socials)
+      if (!res.ok) {
+        setSocialError(res.error || "Erreur lors de l'enregistrement.")
+        return
+      }
+      setSocialNotice("Réseaux sociaux enregistrés.")
+      router.refresh()
+    })
+  }
 
   // Aperçu : fichier choisi (local) > logo enregistré (route admin) > vide.
   const previewSrc = localPreview
@@ -152,6 +184,51 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv }: Pro
           className={inputClass}
           placeholder={"Article 1 — Objet\n...\n\nArticle 2 — Prestations\n..."}
         />
+      </div>
+
+      {/* Réseaux sociaux (point 16) */}
+      <div className={cardClass}>
+        <h2 className="mb-1 text-base font-semibold text-foreground">Réseaux sociaux</h2>
+        <p className="mb-4 text-sm text-muted-foreground text-pretty">
+          Ajoutez les liens vers vos réseaux : ils s&apos;afficheront dans le pied de page de votre
+          site. Laissez vide pour masquer une plateforme.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {SOCIAL_KEYS.map((key) => (
+            <div key={key}>
+              <label htmlFor={`social-${key}`} className={labelClass}>
+                {SOCIAL_META[key].label}
+              </label>
+              <input
+                id={`social-${key}`}
+                type="url"
+                inputMode="url"
+                value={socials[key] ?? ""}
+                onChange={(e) => setSocials((prev) => ({ ...prev, [key]: e.target.value }))}
+                placeholder={SOCIAL_META[key].placeholder}
+                className={inputClass}
+              />
+            </div>
+          ))}
+        </div>
+        {socialError && (
+          <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            {socialError}
+          </div>
+        )}
+        {socialNotice && (
+          <div className="mt-4 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
+            {socialNotice}
+          </div>
+        )}
+        <Button onClick={saveSocials} disabled={socialPending} className="mt-4">
+          {socialPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          Enregistrer les réseaux sociaux
+        </Button>
       </div>
 
       {error && (
