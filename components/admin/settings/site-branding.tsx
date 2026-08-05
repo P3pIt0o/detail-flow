@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Save, Upload, ImageIcon, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { saveCompanySite, saveSocialLinks } from "@/app/admin/(dashboard)/parametres/branding-actions"
+import { saveCompanySite, saveSocialLinks, saveHeroContent } from "@/app/admin/(dashboard)/parametres/branding-actions"
 import { SOCIAL_KEYS } from "@/app/admin/(dashboard)/parametres/social-config"
 
 const SOCIAL_META: Record<(typeof SOCIAL_KEYS)[number], { label: string; placeholder: string }> = {
@@ -20,6 +20,14 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-foreground"
 const cardClass = "rounded-2xl border border-border bg-card p-5"
 
+type HeroValues = {
+  heroTitle: string
+  heroHighlight: string
+  heroSubtitle: string
+  heroCtaPrimary: string
+  heroCtaSecondary: string
+}
+
 type Props = {
   /** Pathname du logo actuellement enregistré (Blob privé), ou null. */
   logoPathname: string | null
@@ -27,9 +35,11 @@ type Props = {
   cgv: string
   /** Liens réseaux sociaux actuels de l'entreprise. */
   socialLinks?: Record<string, string> | null
+  /** Contenu actuel du Hero de la vitrine (valeurs vides = fallback neutre). */
+  hero: HeroValues
 }
 
-export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socialLinks }: Props) {
+export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socialLinks, hero }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
@@ -61,6 +71,26 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socia
         return
       }
       setSocialNotice("Réseaux sociaux enregistrés.")
+      router.refresh()
+    })
+  }
+
+  // Contenu éditable du Hero de la vitrine.
+  const [heroValues, setHeroValues] = useState<HeroValues>(hero)
+  const [heroPending, startHeroTransition] = useTransition()
+  const [heroError, setHeroError] = useState<string | null>(null)
+  const [heroNotice, setHeroNotice] = useState<string | null>(null)
+
+  function saveHero() {
+    setHeroError(null)
+    setHeroNotice(null)
+    startHeroTransition(async () => {
+      const res = await saveHeroContent(heroValues)
+      if (!res.ok) {
+        setHeroError(res.error || "Erreur lors de l'enregistrement.")
+        return
+      }
+      setHeroNotice("Textes de présentation enregistrés.")
       router.refresh()
     })
   }
@@ -121,6 +151,105 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socia
 
   return (
     <div className="space-y-6">
+      {/* Texte de présentation (Hero) */}
+      <div className={cardClass}>
+        <h2 className="mb-1 text-base font-semibold text-foreground">Texte de présentation</h2>
+        <p className="mb-4 text-sm text-muted-foreground text-pretty">
+          Titre et texte affichés en haut de votre site public. Laissez un champ vide pour utiliser
+          le texte par défaut.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="heroTitle" className={labelClass}>
+              Titre principal
+            </label>
+            <input
+              id="heroTitle"
+              type="text"
+              value={heroValues.heroTitle}
+              onChange={(e) => setHeroValues((p) => ({ ...p, heroTitle: e.target.value }))}
+              placeholder="Prenez soin de votre véhicule"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="heroHighlight" className={labelClass}>
+              Mot du titre à mettre en couleur <span className="text-muted-foreground">(optionnel)</span>
+            </label>
+            <input
+              id="heroHighlight"
+              type="text"
+              value={heroValues.heroHighlight}
+              onChange={(e) => setHeroValues((p) => ({ ...p, heroHighlight: e.target.value }))}
+              placeholder="véhicule"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Doit être un mot présent dans le titre ci-dessus pour être coloré.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="heroSubtitle" className={labelClass}>
+              Texte de présentation
+            </label>
+            <textarea
+              id="heroSubtitle"
+              value={heroValues.heroSubtitle}
+              onChange={(e) => setHeroValues((p) => ({ ...p, heroSubtitle: e.target.value }))}
+              rows={4}
+              placeholder="Des prestations réalisées avec passion et exigence. Réservez facilement en ligne…"
+              className={inputClass}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="heroCtaPrimary" className={labelClass}>
+                Bouton principal <span className="text-muted-foreground">(optionnel)</span>
+              </label>
+              <input
+                id="heroCtaPrimary"
+                type="text"
+                value={heroValues.heroCtaPrimary}
+                onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaPrimary: e.target.value }))}
+                placeholder="Réserver"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="heroCtaSecondary" className={labelClass}>
+                Bouton secondaire <span className="text-muted-foreground">(optionnel)</span>
+              </label>
+              <input
+                id="heroCtaSecondary"
+                type="text"
+                value={heroValues.heroCtaSecondary}
+                onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaSecondary: e.target.value }))}
+                placeholder="Voir les prestations"
+                className={inputClass}
+              />
+            </div>
+          </div>
+        </div>
+        {heroError && (
+          <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            {heroError}
+          </div>
+        )}
+        {heroNotice && (
+          <div className="mt-4 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
+            {heroNotice}
+          </div>
+        )}
+        <Button onClick={saveHero} disabled={heroPending} className="mt-4">
+          {heroPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          Enregistrer les textes
+        </Button>
+      </div>
+
       {/* Logo du site public */}
       <div className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo du site public</h2>

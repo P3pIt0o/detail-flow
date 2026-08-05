@@ -20,7 +20,7 @@ export default async function HomePage() {
   const contact = await getPublicContact()
   return (
     <>
-      <Hero brandName={contact.name} />
+      <Hero brandName={contact.name} hero={contact.hero} />
       <ServicesPreview />
       <Process />
       <CtaSection />

@@ -102,6 +102,13 @@ export const companies = pgTable("companies", {
   brandSecondary: text("brandSecondary"),
   websiteUrl: text("websiteUrl"),
   socialLinks: jsonb("socialLinks"),
+  // Contenu éditable du Hero de la vitrine (par entreprise). Null = fallback
+  // neutre affiché par le composant Hero (aucun texte commercial en dur en base).
+  heroTitle: text("heroTitle"),
+  heroHighlight: text("heroHighlight"),
+  heroSubtitle: text("heroSubtitle"),
+  heroCtaPrimary: text("heroCtaPrimary"),
+  heroCtaSecondary: text("heroCtaSecondary"),
   // Coordonnées
   email: text("email"),
   phone: text("phone"),
