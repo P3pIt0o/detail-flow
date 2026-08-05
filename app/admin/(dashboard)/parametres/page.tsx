@@ -5,6 +5,8 @@ import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
 import { SiteBranding } from "@/components/admin/settings/site-branding"
+import { GallerySettings } from "@/components/admin/settings/gallery-settings"
+import { listGalleryItems } from "./gallery-actions"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { TravelSettings } from "@/components/admin/settings/travel-settings"
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
@@ -19,11 +21,12 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage() {
   const { tenant } = await requireCompanyMember()
 
-  const [settings, hours, timeOff, fullSettings] = await Promise.all([
+  const [settings, hours, timeOff, fullSettings, galleryItems] = await Promise.all([
     getSettings(),
     getBusinessHours(),
     getTimeOff(),
     getFullSettings(),
+    listGalleryItems(),
   ])
 
   return (
@@ -44,6 +47,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="site" className="flex-none px-3 py-1.5">
               Site public
+            </TabsTrigger>
+            <TabsTrigger value="gallery" className="flex-none px-3 py-1.5">
+              Galerie
             </TabsTrigger>
             <TabsTrigger value="appearance" className="flex-none px-3 py-1.5">
               Apparence
@@ -95,6 +101,9 @@ export default async function ParametresPage() {
               heroCtaSecondary: tenant.heroCtaSecondary ?? "",
             }}
           />
+        </TabsContent>
+        <TabsContent value="gallery" className="mt-6">
+          <GallerySettings items={galleryItems} slug={tenant.slug} />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings

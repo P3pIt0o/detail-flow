@@ -190,6 +190,31 @@ export const clients = pgTable(
   }),
 )
 
+/**
+ * Galerie Avant / Après (réalisations) de l'entreprise. Chaque ligne stocke le
+ * pathname des deux images (Blob privé), servies au public via une route
+ * dédiée. Isolé par `companyId`, suppression en cascade avec l'entreprise.
+ */
+export const beforeAfterGallery = pgTable(
+  "beforeAfterGallery",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    beforeImageUrl: text("beforeImageUrl").notNull(),
+    afterImageUrl: text("afterImageUrl").notNull(),
+    title: text("title"),
+    description: text("description"),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("beforeAfterGallery_companyId_idx").on(t.companyId),
+  }),
+)
+
 /* -------------------------------------------------------------------------- */
 /*  Données de référence (par entreprise). Montants en CENTIMES (integer).     */
 /* -------------------------------------------------------------------------- */
