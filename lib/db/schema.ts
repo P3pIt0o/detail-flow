@@ -157,6 +157,32 @@ export const betaLeads = pgTable("beta_leads", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
 
+/**
+ * Clients enregistrés manuellement (carnet d'adresses de l'entreprise).
+ * Source de vérité durable des clients, indépendante des réservations. La page
+ * /admin/clients fusionne ces lignes avec les clients agrégés des réservations
+ * (dédoublonnage par email puis téléphone). Isolé par `companyId`.
+ */
+export const clients = pgTable(
+  "clients",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    address: text("address"),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("clients_companyId_idx").on(t.companyId),
+  }),
+)
+
 /* -------------------------------------------------------------------------- */
 /*  Données de référence (par entreprise). Montants en CENTIMES (integer).     */
 /* -------------------------------------------------------------------------- */

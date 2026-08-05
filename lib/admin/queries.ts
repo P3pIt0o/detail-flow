@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { bookings, bookingItems, bookingItemOptions, invoices } from "@/lib/db/schema"
+import { bookings, bookingItems, bookingItemOptions, invoices, clients } from "@/lib/db/schema"
 import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm"
 import { requireCompanyId } from "@/lib/tenant"
 
@@ -202,4 +202,127 @@ export async function getClients(companyId?: number) {
     ...r,
     totalSpentCents: Number(r.totalSpent ?? 0),
   }))
+}
+
+/** Client fusionné pour l'affichage : carnet d'adresses + agrégat réservations. */
+export type MergedClient = {
+  key: string
+  /** id dans la table `clients` si le client a une fiche manuelle, sinon null. */
+  clientId: number | null
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  notes: string | null
+  bookingsCount: number
+  totalSpentCents: number
+  lastDate: string | null
+  source: "manual" | "booking" | "both"
+}
+
+function normEmail(e?: string | null): string | null {
+  const v = (e ?? "").trim().toLowerCase()
+  return v || null
+}
+function normPhone(p?: string | null): string | null {
+  const v = (p ?? "").replace(/\D/g, "")
+  return v || null
+}
+
+/**
+ * Liste des clients de l'entreprise : fiches créées manuellement (table
+ * `clients`) FUSIONNÉES avec les clients agrégés des réservations.
+ * Dédoublonnage prioritaire sur l'email, sinon sur le téléphone.
+ */
+export async function getMergedClients(companyId?: number): Promise<MergedClient[]> {
+  const cid = companyId ?? (await requireCompanyId())
+  const [manual, aggregated] = await Promise.all([
+    db.select().from(clients).where(eq(clients.companyId, cid)).orderBy(desc(clients.createdAt)),
+    getClients(cid),
+  ])
+
+  const records: MergedClient[] = []
+  const byEmail = new Map<string, MergedClient>()
+  const byPhone = new Map<string, MergedClient>()
+
+  const findExisting = (email: string | null, phone: string | null): MergedClient | null => {
+    if (email && byEmail.has(email)) return byEmail.get(email)!
+    if (phone && byPhone.has(phone)) return byPhone.get(phone)!
+    return null
+  }
+  const indexRecord = (rec: MergedClient, email: string | null, phone: string | null): void => {
+    if (email && !byEmail.has(email)) byEmail.set(email, rec)
+    if (phone && !byPhone.has(phone)) byPhone.set(phone, rec)
+  }
+
+  // Fiches manuelles d'abord : source canonique des coordonnées (adresse/notes).
+  for (const m of manual) {
+    const email = normEmail(m.email)
+    const phone = normPhone(m.phone)
+    let rec = findExisting(email, phone)
+    if (!rec) {
+      rec = {
+        key: `client-${m.id}`,
+        clientId: m.id,
+        name: m.name,
+        email: m.email?.trim() || null,
+        phone: m.phone?.trim() || null,
+        address: m.address ?? null,
+        notes: m.notes ?? null,
+        bookingsCount: 0,
+        totalSpentCents: 0,
+        lastDate: null,
+        source: "manual",
+      }
+      records.push(rec)
+    } else {
+      rec.clientId = rec.clientId ?? m.id
+      rec.email = rec.email ?? (m.email?.trim() || null)
+      rec.phone = rec.phone ?? (m.phone?.trim() || null)
+      rec.address = rec.address ?? (m.address ?? null)
+      rec.notes = rec.notes ?? (m.notes ?? null)
+      rec.source = rec.source === "booking" ? "both" : rec.source
+    }
+    indexRecord(rec, email, phone)
+  }
+
+  // Agrégats des réservations : ajoutent les statistiques (nb résas, total, date).
+  for (const a of aggregated) {
+    const email = normEmail(a.email)
+    const phone = normPhone(a.phone)
+    let rec = findExisting(email, phone)
+    if (!rec) {
+      rec = {
+        key: email ? `email-${email}` : phone ? `phone-${phone}` : `booking-${a.email}`,
+        clientId: null,
+        name: a.name,
+        email: a.email?.trim() || null,
+        phone: a.phone?.trim() || null,
+        address: null,
+        notes: null,
+        bookingsCount: a.bookingsCount,
+        totalSpentCents: a.totalSpentCents,
+        lastDate: a.lastDate ?? null,
+        source: "booking",
+      }
+      records.push(rec)
+    } else {
+      rec.name = rec.name || a.name
+      rec.email = rec.email ?? (a.email?.trim() || null)
+      rec.phone = rec.phone ?? (a.phone?.trim() || null)
+      rec.bookingsCount += a.bookingsCount
+      rec.totalSpentCents += a.totalSpentCents
+      if (a.lastDate && (!rec.lastDate || a.lastDate > rec.lastDate)) rec.lastDate = a.lastDate
+      rec.source = rec.source === "manual" ? "both" : rec.source
+    }
+    indexRecord(rec, email, phone)
+  }
+
+  records.sort((a, b) => {
+    const la = a.lastDate ?? ""
+    const lb = b.lastDate ?? ""
+    if (la !== lb) return lb.localeCompare(la)
+    return a.name.localeCompare(b.name)
+  })
+  return records
 }
