@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input"
 import { formatPrice, formatDateShort } from "@/lib/format"
 
 type Client = {
-  email: string
+  key: string
   name: string
-  phone: string
+  email: string | null
+  phone: string | null
   bookingsCount: number
   totalSpentCents: number
-  lastDate: string
+  lastDate: string | null
+  source: "manual" | "booking" | "both"
 }
 
 export function ClientsTable({ clients }: { clients: Client[] }) {
@@ -22,8 +24,8 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
     return clients.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.includes(q),
+        (c.email ?? "").toLowerCase().includes(q) ||
+        (c.phone ?? "").includes(q),
     )
   }, [clients, query])
 
@@ -56,19 +58,32 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
               </tr>
             ) : (
               filtered.map((c) => (
-                <tr key={c.email} className="transition-colors hover:bg-muted/40">
+                <tr key={c.key} className="transition-colors hover:bg-muted/40">
                   <td className="px-4 py-3">
-                    <span className="font-medium text-foreground">{c.name}</span>
-                    <span className="block text-xs text-muted-foreground">{c.email}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{c.name}</span>
+                      {c.source !== "booking" && (
+                        <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          Fiche
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {c.email ?? "—"}
+                    </span>
                   </td>
                   <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                    <a href={`tel:${c.phone}`} className="hover:text-foreground">
-                      {c.phone}
-                    </a>
+                    {c.phone ? (
+                      <a href={`tel:${c.phone}`} className="hover:text-foreground">
+                        {c.phone}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center text-foreground">{c.bookingsCount}</td>
                   <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                    {formatDateShort(c.lastDate)}
+                    {c.lastDate ? formatDateShort(c.lastDate) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-foreground">
                     {formatPrice(c.totalSpentCents)}

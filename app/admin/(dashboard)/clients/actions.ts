@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { clients } from "@/lib/db/schema"
@@ -46,23 +46,22 @@ export async function createClientAction(
     }
   }
 
-  if (email) {
-    const existing = await db
-      .select({ id: clients.id })
-      .from(clients)
-      .where(
-        and(
-          eq(clients.companyId, companyId),
-          eq(clients.email, email),
-        ),
-      )
-      .limit(1)
+  // Anti-doublon dans l'entreprise : priorité à l'email, sinon le téléphone.
+  const existing = await db
+    .select({ email: clients.email, phone: clients.phone })
+    .from(clients)
+    .where(eq(clients.companyId, companyId))
 
-    if (existing.length > 0) {
-      return {
-        success: false,
-        message: "Un client avec cette adresse email existe déjà.",
-      }
+  const normPhone = phone.replace(/\D/g, "")
+  const duplicate = existing.find(
+    (c) =>
+      (email !== "" && (c.email ?? "").trim().toLowerCase() === email) ||
+      (normPhone !== "" && (c.phone ?? "").replace(/\D/g, "") === normPhone),
+  )
+  if (duplicate) {
+    return {
+      success: false,
+      message: "Un client avec cet email ou ce téléphone existe déjà.",
     }
   }
 
