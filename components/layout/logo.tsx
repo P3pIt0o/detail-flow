@@ -37,10 +37,22 @@ export function Logo({ className, brandName, logoSrc, href = "/" }: LogoProps) {
         logoSrc ? (
           // Logo distant du tenant (Blob privé servi via route) : <img> simple
           // pour éviter d'avoir à autoriser un domaine dans next.config.
+          // Taille responsive plus visible, proportions préservées (object-contain).
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src || "/placeholder.svg"} alt={name} className="h-9 w-auto object-contain" />
+          <img
+            src={src || "/placeholder.svg"}
+            alt={name}
+            className="h-12 w-auto max-w-[180px] object-contain sm:h-14 lg:h-16"
+          />
         ) : (
-          <Image src={src || "/placeholder.svg"} alt={name} width={140} height={36} className="h-9 w-auto" priority />
+          <Image
+            src={src || "/placeholder.svg"}
+            alt={name}
+            width={220}
+            height={64}
+            className="h-12 w-auto max-w-[180px] object-contain sm:h-14 lg:h-16"
+            priority
+          />
         )
       ) : (
         <span className="flex flex-col leading-none">

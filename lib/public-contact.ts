@@ -27,6 +27,14 @@ export type PublicContact = {
   address: string | null
   /** Site web éventuel de l'entreprise. */
   website: string | null
+  /** Contenu éditable du Hero (null = fallback neutre géré par le composant). */
+  hero: {
+    title: string | null
+    highlight: string | null
+    subtitle: string | null
+    ctaPrimary: string | null
+    ctaSecondary: string | null
+  }
 }
 
 const EMPTY: PublicContact = {
@@ -36,6 +44,7 @@ const EMPTY: PublicContact = {
   phoneRaw: null,
   address: null,
   website: null,
+  hero: { title: null, highlight: null, subtitle: null, ctaPrimary: null, ctaSecondary: null },
 }
 
 /** Construit les coordonnées publiques à partir d'un tenant + ses settings. */
@@ -73,6 +82,13 @@ async function buildForTenant(tenant: Tenant): Promise<PublicContact> {
     phoneRaw: phone ? phone.replace(/[^\d+]/g, "") : null,
     address,
     website: clean(tenant.websiteUrl),
+    hero: {
+      title: clean(tenant.heroTitle),
+      highlight: clean(tenant.heroHighlight),
+      subtitle: clean(tenant.heroSubtitle),
+      ctaPrimary: clean(tenant.heroCtaPrimary),
+      ctaSecondary: clean(tenant.heroCtaSecondary),
+    },
   }
 }
 

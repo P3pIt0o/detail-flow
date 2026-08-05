@@ -76,6 +76,43 @@ export async function saveSocialLinks(
   return { ok: true }
 }
 
+/**
+ * Enregistre le contenu éditable du Hero de la vitrine (titre, portion colorée,
+ * texte de présentation, libellés des boutons).
+ * ISOLATION : toujours scopé à l'entreprise de l'admin connecté. Un champ vide
+ * est stocké `null` → le composant Hero applique alors son fallback neutre.
+ */
+export async function saveHeroContent(input: {
+  heroTitle: string
+  heroHighlight: string
+  heroSubtitle: string
+  heroCtaPrimary: string
+  heroCtaSecondary: string
+}): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+
+  const clean = (v: string, max: number): string | null => {
+    const t = (v ?? "").trim()
+    return t ? t.slice(0, max) : null
+  }
+
+  await db
+    .update(companies)
+    .set({
+      heroTitle: clean(input.heroTitle, 120),
+      heroHighlight: clean(input.heroHighlight, 60),
+      heroSubtitle: clean(input.heroSubtitle, 400),
+      heroCtaPrimary: clean(input.heroCtaPrimary, 40),
+      heroCtaSecondary: clean(input.heroCtaSecondary, 40),
+      updatedAt: new Date(),
+    })
+    .where(eq(companies.id, tenant.id))
+
+  revalidatePath("/admin/parametres")
+  revalidatePath("/", "layout")
+  return { ok: true }
+}
+
 export async function saveCompanySite(formData: FormData): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
 

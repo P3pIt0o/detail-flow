@@ -87,6 +87,13 @@ export default async function ParametresPage() {
             logoPathname={tenant.logoUrl ?? null}
             cgv={tenant.cgv ?? ""}
             socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+            hero={{
+              heroTitle: tenant.heroTitle ?? "",
+              heroHighlight: tenant.heroHighlight ?? "",
+              heroSubtitle: tenant.heroSubtitle ?? "",
+              heroCtaPrimary: tenant.heroCtaPrimary ?? "",
+              heroCtaSecondary: tenant.heroCtaSecondary ?? "",
+            }}
           />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
