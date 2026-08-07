@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client"
-import { getSession } from "@/lib/admin"
+import { getCompanyMemberContext } from "@/lib/admin"
+import { serviceImagePrefix } from "@/lib/service-image"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -13,30 +14,38 @@ export const dynamic = "force-dynamic"
  * supprime la limite de corps (~4,5 Mo des fonctions / 1 Mo des Server
  * Actions). On ne fait ici que valider l'admin et contraindre le token.
  *
- * Les images de prestations sont du contenu PUBLIC (affiché à tous les
- * visiteurs) : on conserve donc `access: "public"` et on enregistre l'URL
- * directe dans `services.image` via l'action `saveService` (scopée entreprise).
+ * Le Blob store du projet est PRIVÉ : on émet donc un token `access: "private"`
+ * (comme la galerie), et on force le pathname sous le préfixe de l'entreprise
+ * courante pour empêcher d'écrire sous le namespace d'un autre tenant.
+ * L'image est servie ensuite via /api/service-image (isolée par tenant).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody
 
   try {
+    const ctx = await getCompanyMemberContext()
+    if (!ctx) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+    const prefix = serviceImagePrefix(ctx.tenant.id)
+
     const json = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
-        const session = await getSession()
-        if (!session?.user) {
-          throw new Error("Non autorisé")
+      onBeforeGenerateToken: async (pathname) => {
+        // Le pathname est choisi côté client ; on REVÉRIFIE qu'il reste sous le
+        // préfixe de l'entreprise connectée (défense en profondeur).
+        if (!pathname.startsWith(prefix)) {
+          throw new Error("Chemin d'image non autorisé.")
         }
         return {
-          access: "public",
+          access: "private",
           addRandomSuffix: true,
-          allowedContentTypes: ["image/jpeg", "image/png", "image/webp"],
-          maximumSizeInBytes: 8 * 1024 * 1024, // 8 Mo
+          allowedContentTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
+          maximumSizeInBytes: 6 * 1024 * 1024, // 6 Mo
         }
       },
-      // Rien à faire à la complétion : l'URL est renvoyée au client par upload().
+      // Rien à faire à la complétion : le pathname est renvoyé au client par upload().
       onUploadCompleted: async () => {},
     })
     return NextResponse.json(json)

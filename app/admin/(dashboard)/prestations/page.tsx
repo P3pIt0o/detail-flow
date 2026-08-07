@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { requireAdmin } from "@/lib/admin"
+import { requireCompanyMember } from "@/lib/admin"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getAdminServices,
@@ -15,7 +15,7 @@ import { PriceMatrixEditor } from "@/components/admin/price-matrix-editor"
 export const metadata: Metadata = { title: "Prestations" }
 
 export default async function PrestationsAdminPage() {
-  await requireAdmin()
+  const { tenant } = await requireCompanyMember()
 
   const [services, vehicleTypes, options, prices] = await Promise.all([
     getAdminServices(),
@@ -42,7 +42,7 @@ export default async function PrestationsAdminPage() {
         </TabsList>
 
         <TabsContent value="services" className="mt-6">
-          <ServicesManager services={services} />
+          <ServicesManager services={services} companyId={tenant.id} slug={tenant.slug} />
         </TabsContent>
         <TabsContent value="matrix" className="mt-6">
           <PriceMatrixEditor services={services} vehicleTypes={vehicleTypes} prices={prices} />

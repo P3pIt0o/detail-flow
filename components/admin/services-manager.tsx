@@ -18,9 +18,10 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { formatPrice, formatDuration } from "@/lib/format"
 import { saveService, deleteService } from "@/app/admin/(dashboard)/prestations/actions"
+import { resolveServiceImageSrc, serviceImagePrefix } from "@/lib/service-image"
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // 8 Mo
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // 6 Mo
 
 type Service = {
   id: number
@@ -33,7 +34,15 @@ type Service = {
   visible: boolean
 }
 
-export function ServicesManager({ services }: { services: Service[] }) {
+export function ServicesManager({
+  services,
+  companyId,
+  slug,
+}: {
+  services: Service[]
+  companyId: number
+  slug: string
+}) {
   const [editing, setEditing] = useState<Service | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -89,7 +98,14 @@ export function ServicesManager({ services }: { services: Service[] }) {
         )}
       </div>
 
-      <ServiceDialog key={editing?.id ?? "new"} open={open} onOpenChange={setOpen} service={editing} />
+      <ServiceDialog
+        key={editing?.id ?? "new"}
+        open={open}
+        onOpenChange={setOpen}
+        service={editing}
+        companyId={companyId}
+        slug={slug}
+      />
     </div>
   )
 }
@@ -117,9 +133,13 @@ function DeleteButton({ id, name }: { id: number; name: string }) {
 function ImageField({
   value,
   onChange,
+  companyId,
+  slug,
 }: {
   value: string | null
   onChange: (v: string | null) => void
+  companyId: number
+  slug: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -132,19 +152,22 @@ function ImageField({
       return
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setUploadError("Image trop lourde (max 8 Mo).")
+      setUploadError("Image trop lourde (max 6 Mo).")
       return
     }
     setUploading(true)
     try {
-      // Upload DIRECT navigateur → Blob public : le binaire ne passe pas par
-      // le serveur, donc aucune limite de corps de requête.
+      // Upload DIRECT navigateur → Blob PRIVÉ (le binaire ne passe pas par le
+      // serveur : aucune limite de corps). Le pathname est préfixé par
+      // l'entreprise ; on stocke le PATHNAME (pas l'URL), servi via
+      // /api/service-image comme la galerie.
       const ext = file.name.split(".").pop()?.toLowerCase() || "png"
-      const result = await upload(`service-image/service-${Date.now()}.${ext}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/admin/service-image",
-      })
-      onChange(result.url)
+      const result = await upload(
+        `${serviceImagePrefix(companyId)}service-${Date.now()}.${ext}`,
+        file,
+        { access: "private", handleUploadUrl: "/api/admin/service-image" },
+      )
+      onChange(result.pathname)
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Échec de l'envoi de l'image.")
     } finally {
@@ -152,17 +175,21 @@ function ImageField({
     }
   }
 
+  // Aperçu : un pathname Blob privé est affiché via la route sécurisée.
+  const previewSrc = resolveServiceImageSrc(value, slug) || "/services/default.png"
+
   return (
     <div className="space-y-1.5">
       <Label>Image de la prestation</Label>
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
           <Image
-            src={value || "/services/default.png"}
+            src={previewSrc}
             alt="Aperçu de la prestation"
             fill
             className="object-cover"
             sizes="96px"
+            unoptimized={previewSrc.startsWith("/api/service-image")}
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -217,10 +244,14 @@ function ServiceDialog({
   open,
   onOpenChange,
   service,
+  companyId,
+  slug,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   service: Service | null
+  companyId: number
+  slug: string
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -272,7 +303,7 @@ function ServiceDialog({
               rows={2}
             />
           </div>
-          <ImageField value={image} onChange={setImage} />
+          <ImageField value={image} onChange={setImage} companyId={companyId} slug={slug} />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="price">Prix de base (€)</Label>
