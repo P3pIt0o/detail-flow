@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { and, asc, eq } from "drizzle-orm"
-import { put, del } from "@vercel/blob"
+import { del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { beforeAfterGallery } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
@@ -17,9 +17,6 @@ export type GalleryItem = {
   description: string | null
   sortOrder: number
 }
-
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // 6 Mo par image
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
 
 /**
  * Réalisations Avant / Après de l'entreprise connectée.
@@ -42,122 +39,145 @@ export async function listGalleryItems(): Promise<GalleryItem[]> {
   }))
 }
 
-/** Valide puis téléverse une image dans le Blob privé. Renvoie le pathname. */
-async function uploadImage(file: File, companyId: number, kind: "before" | "after"): Promise<string> {
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error("Format non supporté (JPG, PNG ou WEBP uniquement).")
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Image trop lourde (max 6 Mo).")
-  }
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
-  const blob = await put(`gallery/company-${companyId}-${kind}-${Date.now()}.${ext}`, file, {
-    access: "private",
-    addRandomSuffix: true,
-  })
-  return blob.pathname
+export type GalleryInput = {
+  /** Pathname du Blob privé déjà téléversé côté navigateur (upload client). */
+  beforePath: string
+  afterPath: string
+  title?: string | null
+  description?: string | null
 }
 
 /**
- * Crée une réalisation. Les deux images sont obligatoires. Les URLs ne sont
- * enregistrées QUE si les deux téléversements réussissent (sinon rollback Blob).
+ * Vérifie que le pathname appartient bien au préfixe Blob de l'entreprise.
+ * Défense en profondeur : le token d'upload contraint déjà ce préfixe, on
+ * revalide côté action avant d'écrire en base.
  */
-export async function createGalleryItem(formData: FormData): Promise<GalleryActionResult> {
-  const { tenant } = await requireCompanyMember()
-  const before = formData.get("before") as File | null
-  const after = formData.get("after") as File | null
-  const title = ((formData.get("title") as string | null) ?? "").trim() || null
-  const description = ((formData.get("description") as string | null) ?? "").trim() || null
-
-  if (!before || before.size === 0 || !after || after.size === 0) {
-    return { ok: false, error: "Les photos Avant et Après sont obligatoires." }
+function assertOwnedPath(pathname: string, companyId: number): void {
+  if (!pathname || !pathname.startsWith(`gallery/company-${companyId}-`)) {
+    throw new Error("Image invalide.")
   }
+}
 
-  let beforePath: string | null = null
-  let afterPath: string | null = null
+/**
+ * Crée une réalisation à partir des images DÉJÀ téléversées (upload client
+ * Blob) : seuls leurs pathnames transitent par la Server Action, ce qui évite
+ * la limite de corps de 1 Mo. En cas d'échec, les blobs orphelins sont
+ * supprimés (rollback).
+ */
+export async function createGalleryItem(input: GalleryInput): Promise<GalleryActionResult> {
   try {
-    beforePath = await uploadImage(before, tenant.id, "before")
-    afterPath = await uploadImage(after, tenant.id, "after")
+    const { tenant } = await requireCompanyMember()
+    const beforePath = (input.beforePath ?? "").trim()
+    const afterPath = (input.afterPath ?? "").trim()
+    const title = (input.title ?? "").trim() || null
+    const description = (input.description ?? "").trim() || null
+
+    if (!beforePath || !afterPath) {
+      return { ok: false, error: "Les photos Avant et Après sont obligatoires." }
+    }
+    assertOwnedPath(beforePath, tenant.id)
+    assertOwnedPath(afterPath, tenant.id)
+
+    try {
+      const existing = await db
+        .select({ id: beforeAfterGallery.id })
+        .from(beforeAfterGallery)
+        .where(eq(beforeAfterGallery.companyId, tenant.id))
+
+      await db.insert(beforeAfterGallery).values({
+        companyId: tenant.id,
+        beforeImageUrl: beforePath,
+        afterImageUrl: afterPath,
+        title,
+        description,
+        sortOrder: existing.length,
+      })
+    } catch (dbError) {
+      // Échec en base : on supprime les blobs orphelins qui viennent d'être
+      // téléversés pour ne pas laisser de fichiers inutiles.
+      await del(beforePath).catch(() => {})
+      await del(afterPath).catch(() => {})
+      throw dbError
+    }
+
+    revalidatePath("/admin/parametres")
+    revalidatePath("/", "layout")
+    return { ok: true }
   } catch (e) {
-    // Rollback : supprime ce qui a pu être téléversé avant l'échec.
-    if (beforePath) await del(beforePath).catch(() => {})
-    if (afterPath) await del(afterPath).catch(() => {})
-    return { ok: false, error: e instanceof Error ? e.message : "Échec du téléversement." }
+    console.log("[v0] createGalleryItem error:", e instanceof Error ? e.message : e)
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur lors de l'enregistrement." }
   }
+}
 
-  // Ordre = fin de liste par défaut.
-  const existing = await db
-    .select({ id: beforeAfterGallery.id })
-    .from(beforeAfterGallery)
-    .where(eq(beforeAfterGallery.companyId, tenant.id))
-
-  await db.insert(beforeAfterGallery).values({
-    companyId: tenant.id,
-    beforeImageUrl: beforePath,
-    afterImageUrl: afterPath,
-    title,
-    description,
-    sortOrder: existing.length,
-  })
-
-  revalidatePath("/admin/parametres")
-  revalidatePath("/", "layout")
-  return { ok: true }
+export type GalleryUpdateInput = {
+  id: number
+  /** Nouveau pathname téléversé, ou null/undefined pour conserver l'actuel. */
+  beforePath?: string | null
+  afterPath?: string | null
+  title?: string | null
+  description?: string | null
 }
 
 /**
  * Modifie une réalisation. Les images ne sont remplacées que si de nouveaux
- * fichiers valides sont fournis ; sinon les anciennes sont CONSERVÉES.
+ * pathnames (upload client) sont fournis ; sinon les anciennes sont CONSERVÉES.
+ * Les anciennes images ne sont supprimées QU'APRÈS la réussite complète de la
+ * mise à jour en base (exigence : ne rien perdre si l'enregistrement échoue).
  * ISOLATION : le WHERE inclut toujours le companyId du tenant connecté.
  */
-export async function updateGalleryItem(formData: FormData): Promise<GalleryActionResult> {
-  const { tenant } = await requireCompanyMember()
-  const id = Number(formData.get("id"))
-  if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Réalisation introuvable." }
-
-  const [current] = await db
-    .select()
-    .from(beforeAfterGallery)
-    .where(and(eq(beforeAfterGallery.id, id), eq(beforeAfterGallery.companyId, tenant.id)))
-    .limit(1)
-  if (!current) return { ok: false, error: "Réalisation introuvable." }
-
-  const before = formData.get("before") as File | null
-  const after = formData.get("after") as File | null
-  const title = ((formData.get("title") as string | null) ?? "").trim() || null
-  const description = ((formData.get("description") as string | null) ?? "").trim() || null
-
-  let beforePath = current.beforeImageUrl
-  let afterPath = current.afterImageUrl
-  const uploadedForRollback: string[] = []
-
+export async function updateGalleryItem(input: GalleryUpdateInput): Promise<GalleryActionResult> {
   try {
-    if (before && before.size > 0) {
-      beforePath = await uploadImage(before, tenant.id, "before")
-      uploadedForRollback.push(beforePath)
+    const { tenant } = await requireCompanyMember()
+    const id = Number(input.id)
+    if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Réalisation introuvable." }
+
+    const [current] = await db
+      .select()
+      .from(beforeAfterGallery)
+      .where(and(eq(beforeAfterGallery.id, id), eq(beforeAfterGallery.companyId, tenant.id)))
+      .limit(1)
+    if (!current) return { ok: false, error: "Réalisation introuvable." }
+
+    const newBefore = (input.beforePath ?? "").trim()
+    const newAfter = (input.afterPath ?? "").trim()
+    const title = (input.title ?? "").trim() || null
+    const description = (input.description ?? "").trim() || null
+
+    let beforePath = current.beforeImageUrl
+    let afterPath = current.afterImageUrl
+    if (newBefore) {
+      assertOwnedPath(newBefore, tenant.id)
+      beforePath = newBefore
     }
-    if (after && after.size > 0) {
-      afterPath = await uploadImage(after, tenant.id, "after")
-      uploadedForRollback.push(afterPath)
+    if (newAfter) {
+      assertOwnedPath(newAfter, tenant.id)
+      afterPath = newAfter
     }
+
+    try {
+      await db
+        .update(beforeAfterGallery)
+        .set({ beforeImageUrl: beforePath, afterImageUrl: afterPath, title, description, updatedAt: new Date() })
+        .where(and(eq(beforeAfterGallery.id, id), eq(beforeAfterGallery.companyId, tenant.id)))
+    } catch (dbError) {
+      // Échec en base : on supprime les nouveaux uploads orphelins et on
+      // CONSERVE les anciennes images (non touchées).
+      if (beforePath !== current.beforeImageUrl) await del(beforePath).catch(() => {})
+      if (afterPath !== current.afterImageUrl) await del(afterPath).catch(() => {})
+      throw dbError
+    }
+
+    // Base à jour : nettoyage best-effort des anciennes images remplacées.
+    if (beforePath !== current.beforeImageUrl) await del(current.beforeImageUrl).catch(() => {})
+    if (afterPath !== current.afterImageUrl) await del(current.afterImageUrl).catch(() => {})
+
+    revalidatePath("/admin/parametres")
+    revalidatePath("/", "layout")
+    return { ok: true }
   } catch (e) {
-    // Échec : on supprime les nouveaux uploads et on conserve l'existant.
-    for (const p of uploadedForRollback) await del(p).catch(() => {})
-    return { ok: false, error: e instanceof Error ? e.message : "Échec du téléversement." }
+    console.log("[v0] updateGalleryItem error:", e instanceof Error ? e.message : e)
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur lors de l'enregistrement." }
   }
-
-  await db
-    .update(beforeAfterGallery)
-    .set({ beforeImageUrl: beforePath, afterImageUrl: afterPath, title, description, updatedAt: new Date() })
-    .where(and(eq(beforeAfterGallery.id, id), eq(beforeAfterGallery.companyId, tenant.id)))
-
-  // Nettoyage best-effort des anciennes images remplacées.
-  if (beforePath !== current.beforeImageUrl) await del(current.beforeImageUrl).catch(() => {})
-  if (afterPath !== current.afterImageUrl) await del(current.afterImageUrl).catch(() => {})
-
-  revalidatePath("/admin/parametres")
-  revalidatePath("/", "layout")
-  return { ok: true }
 }
 
 /** Supprime une réalisation (et ses images du Blob). Scopé au tenant. */
