@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { upload } from "@vercel/blob/client"
 import { Loader2, Save, Upload, Trash2, Plus, ArrowUp, ArrowDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,19 +19,43 @@ const labelClass = "mb-1.5 block text-sm font-medium text-foreground"
 const cardClass = "rounded-2xl border border-border bg-card p-5"
 
 const ACCEPT = "image/jpeg,image/png,image/webp"
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // 6 Mo par image
 
 type Props = {
   /** Réalisations actuelles du tenant, déjà triées par ordre d'affichage. */
   items: GalleryItem[]
   /** Slug du tenant pour construire les URLs d'aperçu (route publique isolée). */
   slug: string
+  /** Id numérique du tenant : préfixe des chemins Blob (isolation upload). */
+  companyId: number
 }
 
 function imgUrl(slug: string, pathname: string): string {
   return `/api/gallery-image?company=${encodeURIComponent(slug)}&p=${encodeURIComponent(pathname)}`
 }
 
-export function GallerySettings({ items, slug }: Props) {
+/**
+ * Téléverse une image DIRECTEMENT du navigateur vers le Blob privé (upload
+ * client). Le binaire ne transite donc jamais par une Server Action, ce qui
+ * évite la limite de corps de 1 Mo de Next.js. Renvoie le pathname stocké.
+ */
+async function uploadImage(file: File, kind: "before" | "after", companyId: number): Promise<string> {
+  if (!ALLOWED_TYPES.has(file.type)) {
+    throw new Error("Format non supporté (JPG, PNG ou WEBP uniquement).")
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error("Image trop lourde (max 6 Mo).")
+  }
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
+  const result = await upload(`gallery/company-${companyId}-${kind}-${Date.now()}.${ext}`, file, {
+    access: "private",
+    handleUploadUrl: "/api/gallery-upload",
+  })
+  return result.pathname
+}
+
+export function GallerySettings({ items, slug, companyId }: Props) {
   const router = useRouter()
 
   return (
@@ -41,7 +66,7 @@ export function GallerySettings({ items, slug }: Props) {
           Présentez vos réalisations sur votre site public avec un comparateur Avant / Après. Formats acceptés : JPG,
           PNG, WEBP (max 6 Mo par image).
         </p>
-        <AddForm slug={slug} onDone={() => router.refresh()} />
+        <AddForm slug={slug} companyId={companyId} onDone={() => router.refresh()} />
       </div>
 
       {items.length > 0 && (
@@ -51,6 +76,7 @@ export function GallerySettings({ items, slug }: Props) {
               key={item.id}
               item={item}
               slug={slug}
+              companyId={companyId}
               isFirst={index === 0}
               isLast={index === items.length - 1}
               orderedIds={items.map((i) => i.id)}
@@ -65,16 +91,20 @@ export function GallerySettings({ items, slug }: Props) {
 
 /* --------------------------- Ajout d'une réalisation --------------------------- */
 
-function AddForm({ slug, onDone }: { slug: string; onDone: () => void }) {
+function AddForm({ slug, companyId, onDone }: { slug: string; companyId: number; onDone: () => void }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const [beforeFile, setBeforeFile] = useState<File | null>(null)
+  const [afterFile, setAfterFile] = useState<File | null>(null)
   const [beforePreview, setBeforePreview] = useState<string | null>(null)
   const [afterPreview, setAfterPreview] = useState<string | null>(null)
 
   function reset() {
     formRef.current?.reset()
+    setBeforeFile(null)
+    setAfterFile(null)
     setBeforePreview(null)
     setAfterPreview(null)
     setError(null)
@@ -82,15 +112,33 @@ function AddForm({ slug, onDone }: { slug: string; onDone: () => void }) {
 
   function submit(formData: FormData) {
     setError(null)
+    const title = ((formData.get("title") as string | null) ?? "").trim()
+    const description = ((formData.get("description") as string | null) ?? "").trim()
+
+    if (!beforeFile || !afterFile) {
+      setError("Les photos Avant et Après sont obligatoires.")
+      return
+    }
+
     startTransition(async () => {
-      const res = await createGalleryItem(formData)
-      if (!res.ok) {
-        setError(res.error || "Erreur lors de l'enregistrement.")
-        return
+      try {
+        // 1) Upload direct navigateur → Blob (les deux images).
+        const [beforePath, afterPath] = await Promise.all([
+          uploadImage(beforeFile, "before", companyId),
+          uploadImage(afterFile, "after", companyId),
+        ])
+        // 2) On n'envoie QUE les pathnames à la Server Action.
+        const res = await createGalleryItem({ beforePath, afterPath, title, description })
+        if (!res.ok) {
+          setError(res.error || "Erreur lors de l'enregistrement.")
+          return
+        }
+        reset()
+        setOpen(false)
+        onDone()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Échec du téléversement.")
       }
-      reset()
-      setOpen(false)
-      onDone()
     })
   }
 
@@ -107,12 +155,21 @@ function AddForm({ slug, onDone }: { slug: string; onDone: () => void }) {
     <form ref={formRef} action={submit} className="space-y-4 rounded-xl border border-border p-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <ImagePicker
-          name="before"
           label="Photo Avant"
           preview={beforePreview}
-          onPick={setBeforePreview}
+          onPick={(f) => {
+            setBeforeFile(f)
+            setBeforePreview(f ? URL.createObjectURL(f) : null)
+          }}
         />
-        <ImagePicker name="after" label="Photo Après" preview={afterPreview} onPick={setAfterPreview} />
+        <ImagePicker
+          label="Photo Après"
+          preview={afterPreview}
+          onPick={(f) => {
+            setAfterFile(f)
+            setAfterPreview(f ? URL.createObjectURL(f) : null)
+          }}
+        />
       </div>
       <div>
         <label htmlFor="add-title" className={labelClass}>
@@ -149,6 +206,7 @@ function AddForm({ slug, onDone }: { slug: string; onDone: () => void }) {
 function ItemRow({
   item,
   slug,
+  companyId,
   isFirst,
   isLast,
   orderedIds,
@@ -156,6 +214,7 @@ function ItemRow({
 }: {
   item: GalleryItem
   slug: string
+  companyId: number
   isFirst: boolean
   isLast: boolean
   orderedIds: number[]
@@ -165,6 +224,8 @@ function ItemRow({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const [beforeFile, setBeforeFile] = useState<File | null>(null)
+  const [afterFile, setAfterFile] = useState<File | null>(null)
   const [beforePreview, setBeforePreview] = useState<string | null>(null)
   const [afterPreview, setAfterPreview] = useState<string | null>(null)
 
@@ -191,16 +252,31 @@ function ItemRow({
 
   function submitEdit(formData: FormData) {
     setError(null)
+    const title = ((formData.get("title") as string | null) ?? "").trim()
+    const description = ((formData.get("description") as string | null) ?? "").trim()
+
     startTransition(async () => {
-      const res = await updateGalleryItem(formData)
-      if (!res.ok) {
-        setError(res.error || "Erreur lors de l'enregistrement.")
-        return
+      try {
+        // Upload uniquement des images réellement remplacées.
+        let beforePath: string | null = null
+        let afterPath: string | null = null
+        if (beforeFile) beforePath = await uploadImage(beforeFile, "before", companyId)
+        if (afterFile) afterPath = await uploadImage(afterFile, "after", companyId)
+
+        const res = await updateGalleryItem({ id: item.id, beforePath, afterPath, title, description })
+        if (!res.ok) {
+          setError(res.error || "Erreur lors de l'enregistrement.")
+          return
+        }
+        setEditing(false)
+        setBeforeFile(null)
+        setAfterFile(null)
+        setBeforePreview(null)
+        setAfterPreview(null)
+        onDone()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Échec du téléversement.")
       }
-      setEditing(false)
-      setBeforePreview(null)
-      setAfterPreview(null)
-      onDone()
     })
   }
 
@@ -246,13 +322,26 @@ function ItemRow({
 
       {editing && (
         <form ref={formRef} action={submitEdit} className="mt-4 space-y-4 rounded-xl border border-border p-4">
-          <input type="hidden" name="id" value={item.id} />
           <p className="text-sm text-muted-foreground">
             Laissez un champ image vide pour conserver la photo actuelle.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <ImagePicker name="before" label="Nouvelle photo Avant" preview={beforePreview} onPick={setBeforePreview} />
-            <ImagePicker name="after" label="Nouvelle photo Après" preview={afterPreview} onPick={setAfterPreview} />
+            <ImagePicker
+              label="Nouvelle photo Avant"
+              preview={beforePreview}
+              onPick={(f) => {
+                setBeforeFile(f)
+                setBeforePreview(f ? URL.createObjectURL(f) : null)
+              }}
+            />
+            <ImagePicker
+              label="Nouvelle photo Après"
+              preview={afterPreview}
+              onPick={(f) => {
+                setAfterFile(f)
+                setAfterPreview(f ? URL.createObjectURL(f) : null)
+              }}
+            />
           </div>
           <div>
             <label htmlFor={`edit-title-${item.id}`} className={labelClass}>Titre</label>
@@ -286,15 +375,13 @@ function ItemRow({
 /* --------------------------- Sélecteur d'image --------------------------- */
 
 function ImagePicker({
-  name,
   label,
   preview,
   onPick,
 }: {
-  name: string
   label: string
   preview: string | null
-  onPick: (url: string | null) => void
+  onPick: (file: File | null) => void
 }) {
   const ref = useRef<HTMLInputElement>(null)
   return (
@@ -316,13 +403,9 @@ function ImagePicker({
         <input
           ref={ref}
           type="file"
-          name={name}
           accept={ACCEPT}
           className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            onPick(f ? URL.createObjectURL(f) : null)
-          }}
+          onChange={(e) => onPick(e.target.files?.[0] ?? null)}
         />
       </div>
     </div>

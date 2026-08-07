@@ -1,9 +1,11 @@
 import "server-only"
 
 import { and, asc, eq } from "drizzle-orm"
+import { notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { services } from "@/lib/db/schema"
-import { requireCompanyId } from "@/lib/tenant"
+import { resolveRequestTenant } from "@/lib/tenant"
+import { resolveServiceImageSrc } from "@/lib/service-image"
 
 const defaultServiceImages: Record<string, string> = {
   "lavage-premium": "/services/lavage-premium.png",
@@ -72,14 +74,17 @@ function getDefaultServiceImage(service: {
  * Retourne uniquement les prestations visibles de l'entreprise courante.
  */
 export async function getPublicServices() {
-  const companyId = await requireCompanyId()
+  // Même résolution que requireCompanyId (hôte, sinon appartenance), mais on
+  // garde le tenant complet pour disposer du `slug` (URL de la route image).
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
 
   const rows = await db
     .select()
     .from(services)
     .where(
       and(
-        eq(services.companyId, companyId),
+        eq(services.companyId, tenant.id),
         eq(services.visible, true),
       ),
     )
@@ -93,11 +98,12 @@ export async function getPublicServices() {
       savedImage !== "/placeholder.svg" &&
       savedImage !== "placeholder.svg"
 
-    return {
-      ...service,
-      image: hasRealImage
-        ? savedImage
-        : getDefaultServiceImage(service),
-    }
+    // Image réelle : un pathname Blob privé est servi via /api/service-image
+    // (isolé tenant) ; une URL http(s) ou un chemin `/…` reste inchangé.
+    const image = hasRealImage
+      ? (resolveServiceImageSrc(savedImage, tenant.slug) ?? getDefaultServiceImage(service))
+      : getDefaultServiceImage(service)
+
+    return { ...service, image }
   })
 }
