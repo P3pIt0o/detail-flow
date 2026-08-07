@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from "react"
 import Image from "next/image"
+import { upload } from "@vercel/blob/client"
 import { Pencil, Plus, Trash2, EyeOff, Upload, Loader2 } from "lucide-react"
 import {
   Dialog,
@@ -17,6 +18,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { formatPrice, formatDuration } from "@/lib/format"
 import { saveService, deleteService } from "@/app/admin/(dashboard)/prestations/actions"
+
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // 8 Mo
 
 type Service = {
   id: number
@@ -123,23 +127,26 @@ function ImageField({
 
   async function handleFile(file: File) {
     setUploadError(null)
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Le fichier doit être une image.")
+    if (!ALLOWED_TYPES.has(file.type)) {
+      setUploadError("Format non supporté (JPG, PNG ou WEBP uniquement).")
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setUploadError("Image trop lourde (max 8 Mo).")
       return
     }
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append("file", file)
-      const res = await fetch("/api/admin/service-image", { method: "POST", body: fd })
-      const data = (await res.json()) as { url?: string; error?: string }
-      if (!res.ok || !data.url) {
-        setUploadError(data.error || "Échec de l'envoi de l'image.")
-        return
-      }
-      onChange(data.url)
-    } catch {
-      setUploadError("Échec de l'envoi de l'image.")
+      // Upload DIRECT navigateur → Blob public : le binaire ne passe pas par
+      // le serveur, donc aucune limite de corps de requête.
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png"
+      const result = await upload(`service-image/service-${Date.now()}.${ext}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/admin/service-image",
+      })
+      onChange(result.url)
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Échec de l'envoi de l'image.")
     } finally {
       setUploading(false)
     }

@@ -103,7 +103,7 @@ export default async function ParametresPage() {
           />
         </TabsContent>
         <TabsContent value="gallery" className="mt-6">
-          <GallerySettings items={galleryItems} slug={tenant.slug} />
+          <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings
