@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
-import { del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { services, vehicleTypes, options, servicePrices } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
-import { isPrivateServiceImage, serviceImagePrefix } from "@/lib/service-image"
 
 export type ActionResult = { ok: boolean; error?: string }
 
@@ -25,9 +23,6 @@ function slugify(name: string): string {
 
 function revalidate() {
   revalidatePath("/admin/prestations")
-  // Vitrine publique du tenant : accueil (affiche les 3 premières prestations)
-  // et page /prestations. `layout` couvre toutes les routes du groupe (site).
-  revalidatePath("/", "layout")
   revalidatePath("/prestations")
   revalidatePath("/reservation")
 }
@@ -70,17 +65,11 @@ export async function saveService(input: {
   const { tenant } = await requireCompanyMember()
   if (!input.name.trim()) return { ok: false, error: "Le nom est requis." }
 
-  // Image acceptée : chemin local (/…), URL http(s) héritée, OU pathname Blob
-  // PRIVÉ appartenant à CETTE entreprise (préfixe `service-image/company-<id>-`).
-  // Toute autre valeur est ignorée (stockée null) pour ne jamais enregistrer un
-  // pathname pointant vers le namespace d'un autre tenant.
+  // Image : accepte uniquement un chemin public local (/...) ou une URL http(s).
+  // Sinon on stocke null (jamais de valeur invalide qui casserait l'affichage).
   const rawImage = input.image?.trim()
-  const prefix = serviceImagePrefix(tenant.id)
   const image =
-    rawImage &&
-    (rawImage.startsWith("/") || /^https?:\/\//i.test(rawImage) || rawImage.startsWith(prefix))
-      ? rawImage
-      : null
+    rawImage && (rawImage.startsWith("/") || /^https?:\/\//i.test(rawImage)) ? rawImage : null
 
   const values = {
     name: input.name.trim(),
@@ -93,27 +82,11 @@ export async function saveService(input: {
   }
 
   if (input.id) {
-    // On lit l'ancienne image (scopée entreprise) AVANT l'update, pour pouvoir
-    // supprimer l'ancien blob privé UNIQUEMENT après un enregistrement réussi.
-    const [existing] = await db
-      .select({ image: services.image })
-      .from(services)
-      .where(and(eq(services.id, input.id), eq(services.companyId, tenant.id)))
-      .limit(1)
-    if (!existing) return { ok: false, error: "Prestation introuvable." }
-
     // Update scopé entreprise : impossible de modifier la prestation d'un autre tenant.
     await db
       .update(services)
       .set(values)
       .where(and(eq(services.id, input.id), eq(services.companyId, tenant.id)))
-
-    // Nettoyage best-effort de l'ancien blob privé s'il a été remplacé. On ne
-    // supprime que si l'ancien pathname appartient bien au préfixe du tenant.
-    const old = existing.image?.trim()
-    if (old && old !== image && isPrivateServiceImage(old) && old.startsWith(prefix)) {
-      await del(old).catch(() => {})
-    }
   } else {
     await db.insert(services).values({ ...values, companyId: tenant.id, slug: slugify(input.name) })
   }
@@ -123,22 +96,10 @@ export async function saveService(input: {
 
 export async function deleteService(id: number): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
-  // Vérifie l'appartenance avant de toucher aux tarifs enfants + récupère
-  // l'image pour nettoyer le blob privé après suppression.
-  const [row] = await db
-    .select({ id: services.id, image: services.image })
-    .from(services)
-    .where(and(eq(services.id, id), eq(services.companyId, tenant.id)))
-    .limit(1)
-  if (!row) return { ok: false, error: "Prestation introuvable." }
+  // Vérifie l'appartenance avant de toucher aux tarifs enfants.
+  if (!(await serviceBelongsToCompany(id, tenant.id))) return { ok: false, error: "Prestation introuvable." }
   await db.delete(servicePrices).where(eq(servicePrices.serviceId, id))
   await db.delete(services).where(and(eq(services.id, id), eq(services.companyId, tenant.id)))
-
-  // Nettoyage best-effort du blob privé de la prestation supprimée (scopé tenant).
-  const img = row.image?.trim()
-  if (img && isPrivateServiceImage(img) && img.startsWith(serviceImagePrefix(tenant.id))) {
-    await del(img).catch(() => {})
-  }
   revalidate()
   return { ok: true }
 }
