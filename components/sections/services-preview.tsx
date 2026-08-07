@@ -4,19 +4,14 @@ import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 import { getPublicServices } from "@/lib/catalog-queries"
 
-const previewImages = [
-  "/services/lavage-premium.png",
-  "/services/interieur-complet.png",
-  "/services/protection-ceramique.png",
-]
-
 export async function ServicesPreview() {
   const services = await getPublicServices()
 
-  const list = services.slice(0, 3).map((service, index) => ({
-    ...service,
-    image: previewImages[index] || "/services/lavage-premium.png",
-  }))
+  // On conserve l'image réelle de chaque prestation (pathname Blob privé résolu,
+  // URL héritée, ou image par défaut) telle que renvoyée par getPublicServices.
+  // Auparavant elle était écrasée par des fichiers statiques, ce qui masquait
+  // toute image téléversée par le tenant sur la page d'accueil.
+  const list = services.slice(0, 3)
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">

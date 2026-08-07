@@ -25,6 +25,9 @@ function slugify(name: string): string {
 
 function revalidate() {
   revalidatePath("/admin/prestations")
+  // Vitrine publique du tenant : accueil (affiche les 3 premières prestations)
+  // et page /prestations. `layout` couvre toutes les routes du groupe (site).
+  revalidatePath("/", "layout")
   revalidatePath("/prestations")
   revalidatePath("/reservation")
 }
