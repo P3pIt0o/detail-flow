@@ -70,7 +70,7 @@ export async function createReview(input: ReviewInput): Promise<ReviewActionResu
     const text = (input.text ?? "").trim()
     const vehicle = (input.vehicle ?? "").trim() || null
     if (!authorName) return { ok: false, error: "Le nom du client est obligatoire." }
-    if (!text) return { ok: false, error: "Le texte de l'avis est obligatoire." }
+    // Le commentaire est facultatif : seule la note reste obligatoire.
 
     const existing = await db
       .select({ id: reviews.id })
@@ -118,7 +118,7 @@ export async function updateReview(input: ReviewUpdateInput): Promise<ReviewActi
     const text = (input.text ?? "").trim()
     const vehicle = (input.vehicle ?? "").trim() || null
     if (!authorName) return { ok: false, error: "Le nom du client est obligatoire." }
-    if (!text) return { ok: false, error: "Le texte de l'avis est obligatoire." }
+    // Le commentaire est facultatif : seule la note reste obligatoire.
 
     const [current] = await db
       .select({ id: reviews.id })
