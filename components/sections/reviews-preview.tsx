@@ -2,14 +2,17 @@
  * Aperçu des avis clients sur la page d'accueil.
  */
 
-import { reviews } from "@/config/content"
+import { getPublicReviews } from "@/lib/catalog-queries"
 import { SectionHeading } from "@/components/ui/section-heading"
 import { ReviewCard } from "@/components/review-card"
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 
-export function ReviewsPreview() {
+export async function ReviewsPreview() {
+  // Avis visibles du tenant courant (DB). Section masquée si aucun avis.
+  const reviews = await getPublicReviews()
   const list = reviews.slice(0, 3)
+  if (list.length === 0) return null
 
   return (
     <section className="border-y border-border bg-card/30">
