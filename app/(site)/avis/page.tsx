@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { reviews } from "@/config/content"
+import { getPublicReviews } from "@/lib/catalog-queries"
 import { PageHeader } from "@/components/layout/page-header"
 import { ReviewCard } from "@/components/review-card"
 import { StarRating } from "@/components/ui/star-rating"
@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/avis" },
 }
 
-export default function AvisPage() {
+export default async function AvisPage() {
+  // Avis visibles du tenant courant (DB).
+  const reviews = await getPublicReviews()
   // Moyenne calculée à partir des avis (arrondie à une décimale).
   const average =
     reviews.length > 0 ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10 : 0

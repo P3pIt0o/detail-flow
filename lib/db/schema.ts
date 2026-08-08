@@ -215,6 +215,32 @@ export const beforeAfterGallery = pgTable(
   }),
 )
 
+/**
+ * Avis clients de l'entreprise. Texte pur (aucune image / Blob). Chaque ligne
+ * est isolée par `companyId` ; seule la colonne `visible` détermine l'affichage
+ * sur la vitrine publique du tenant. Suppression en cascade avec l'entreprise.
+ */
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    authorName: text("authorName").notNull(),
+    vehicle: text("vehicle"),
+    rating: integer("rating").notNull().default(5),
+    text: text("text").notNull(),
+    visible: boolean("visible").notNull().default(true),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("reviews_companyId_idx").on(t.companyId),
+  }),
+)
+
 /* -------------------------------------------------------------------------- */
 /*  Données de référence (par entreprise). Montants en CENTIMES (integer).     */
 /* -------------------------------------------------------------------------- */
