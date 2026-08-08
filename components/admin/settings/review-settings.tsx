@@ -93,7 +93,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
     const visible = formData.get("visible") === "on"
 
     if (!authorName) return setError("Le nom du client est obligatoire.")
-    if (!text) return setError("Le texte de l'avis est obligatoire.")
+    // Commentaire facultatif.
 
     startTransition(async () => {
       const res = await createReview({ authorName, vehicle, rating, text, visible })
@@ -138,7 +138,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <label htmlFor="add-text" className={labelClass}>
-          Avis
+          Avis <span className="text-muted-foreground">(facultatif)</span>
         </label>
         <textarea id="add-text" name="text" rows={3} className={inputClass} placeholder="Le message du client…" />
       </div>
@@ -205,7 +205,7 @@ function ReviewRow({ item, onDone }: { item: AdminReview; onDone: () => void }) 
     const text = ((formData.get("text") as string | null) ?? "").trim()
 
     if (!authorName) return setError("Le nom du client est obligatoire.")
-    if (!text) return setError("Le texte de l'avis est obligatoire.")
+    // Commentaire facultatif.
 
     startTransition(async () => {
       const res = await updateReview({ id: item.id, authorName, vehicle, rating, text })
@@ -234,7 +234,7 @@ function ReviewRow({ item, onDone }: { item: AdminReview; onDone: () => void }) 
               <Star key={i} className={cn("size-4", i < item.rating ? "fill-primary text-primary" : "fill-muted text-muted")} />
             ))}
           </div>
-          <p className="mt-2 text-sm text-muted-foreground text-pretty">{item.text}</p>
+          {item.text?.trim() && <p className="mt-2 text-sm text-muted-foreground text-pretty">{item.text}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={toggle} disabled={pending}>
@@ -274,7 +274,7 @@ function ReviewRow({ item, onDone }: { item: AdminReview; onDone: () => void }) 
           </div>
           <div>
             <label htmlFor={`edit-text-${item.id}`} className={labelClass}>
-              Avis
+              Avis <span className="text-muted-foreground">(facultatif)</span>
             </label>
             <textarea id={`edit-text-${item.id}`} name="text" rows={3} defaultValue={item.text} className={inputClass} />
           </div>

@@ -70,7 +70,13 @@ export function lineTotals(
   return { priceCents: base.priceCents + optCents, durationMin: base.durationMin + optMin }
 }
 
-/** Un véhicule est complet quand service + type sont choisis. */
+/** Un véhicule est complet quand service + type sont choisis et que la marque
+ * et le modèle (obligatoires) sont renseignés. */
 export function isVehicleComplete(v: VehicleSelection): boolean {
-  return v.serviceId != null && v.vehicleTypeId != null
+  return (
+    v.serviceId != null &&
+    v.vehicleTypeId != null &&
+    !!v.brand?.trim() &&
+    !!v.model?.trim()
+  )
 }
