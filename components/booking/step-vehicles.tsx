@@ -166,17 +166,7 @@ export function StepVehicles({
                   />
                   {!v.model?.trim() && <p className="mt-1 text-xs text-destructive">Champ obligatoire</p>}
                 </div>
-                <div>
-                  <input
-                    type="text"
-                    value={v.plate ?? ""}
-                    onChange={(e) => update(v.uid, { plate: e.target.value.toUpperCase() })}
-                    placeholder="Immatriculation"
-                    aria-label={`Immatriculation du véhicule ${index + 1}`}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm uppercase text-card-foreground placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
+        
             </fieldset>
 
             {/* Options */}
