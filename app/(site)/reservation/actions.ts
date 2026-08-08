@@ -80,6 +80,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
 
   // 1. Validation de base des entrées.
   if (!selections?.length) return { ok: false, error: "Aucune prestation sélectionnée.", code: "invalid" }
+  // Marque et modèle du véhicule obligatoires (contrôle serveur indépendant de l'UI).
+  for (const s of selections) {
+    if (!s.brand?.trim() || !s.model?.trim()) {
+      return { ok: false, error: "Champ obligatoire", code: "invalid" }
+    }
+  }
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Date invalide.", code: "invalid" }
   if (!startTime || !/^\d{2}:\d{2}$/.test(startTime)) return { ok: false, error: "Créneau invalide.", code: "invalid" }
   if (!customer?.name?.trim()) return { ok: false, error: "Nom requis.", code: "invalid" }

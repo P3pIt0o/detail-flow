@@ -134,36 +134,48 @@ export function StepVehicles({
               </div>
             </fieldset>
 
-            {/* Détails du véhicule (facultatif) */}
+            {/* Détails du véhicule — marque et modèle obligatoires */}
             <fieldset className="mb-5">
-              <legend className="mb-2 text-sm font-medium text-card-foreground">
-                Détails du véhicule <span className="text-muted-foreground">(facultatif)</span>
-              </legend>
+              <legend className="mb-2 text-sm font-medium text-card-foreground">Détails du véhicule</legend>
               <div className="grid gap-2 sm:grid-cols-3">
-                <input
-                  type="text"
-                  value={v.brand ?? ""}
-                  onChange={(e) => update(v.uid, { brand: e.target.value })}
-                  placeholder="Marque"
-                  aria-label={`Marque du véhicule ${index + 1}`}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-                <input
-                  type="text"
-                  value={v.model ?? ""}
-                  onChange={(e) => update(v.uid, { model: e.target.value })}
-                  placeholder="Modèle"
-                  aria-label={`Modèle du véhicule ${index + 1}`}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-                <input
-                  type="text"
-                  value={v.plate ?? ""}
-                  onChange={(e) => update(v.uid, { plate: e.target.value.toUpperCase() })}
-                  placeholder="Immatriculation"
-                  aria-label={`Immatriculation du véhicule ${index + 1}`}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm uppercase text-card-foreground placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
+                <div>
+                  <input
+                    type="text"
+                    required
+                    value={v.brand ?? ""}
+                    onChange={(e) => update(v.uid, { brand: e.target.value })}
+                    placeholder="Marque *"
+                    aria-label={`Marque du véhicule ${index + 1}`}
+                    aria-required="true"
+                    aria-invalid={!v.brand?.trim()}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  />
+                  {!v.brand?.trim() && <p className="mt-1 text-xs text-destructive">Champ obligatoire</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    required
+                    value={v.model ?? ""}
+                    onChange={(e) => update(v.uid, { model: e.target.value })}
+                    placeholder="Modèle *"
+                    aria-label={`Modèle du véhicule ${index + 1}`}
+                    aria-required="true"
+                    aria-invalid={!v.model?.trim()}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  />
+                  {!v.model?.trim() && <p className="mt-1 text-xs text-destructive">Champ obligatoire</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    value={v.plate ?? ""}
+                    onChange={(e) => update(v.uid, { plate: e.target.value.toUpperCase() })}
+                    placeholder="Immatriculation"
+                    aria-label={`Immatriculation du véhicule ${index + 1}`}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm uppercase text-card-foreground placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
               </div>
             </fieldset>
 
