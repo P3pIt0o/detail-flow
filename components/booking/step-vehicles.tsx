@@ -311,7 +311,7 @@ export function StepVehicles({
         )
       })}
 
-      <button
+            <button
         type="button"
         onClick={addVehicle}
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card/50 py-4 text-sm font-medium text-card-foreground transition-colors hover:border-primary hover:text-primary"
@@ -321,4 +321,4 @@ export function StepVehicles({
       </button>
     </div>
   )
-                                                      }
+}                                                      }
