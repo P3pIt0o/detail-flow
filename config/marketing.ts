@@ -88,6 +88,23 @@ export const marketing = {
     ],
   },
 
+  /**
+   * Section "Déjà testé sur le terrain" (remplace les témoignages).
+   *
+   * RÈGLE STRICTE : `count` doit rester `null` et `companies` doit rester un
+   * tableau vide tant que l'utilisateur n'a pas fourni le chiffre exact et/ou
+   * les logos/noms réels des entreprises partenaires bêta, avec confirmation
+   * explicite de celles pouvant être citées publiquement (`consent: true`).
+   * Ne JAMAIS inventer de nombre, de nom d'entreprise ou de témoignage ici.
+   */
+  betaPartners: {
+    label: "Déjà testé sur le terrain",
+    fallbackNote: "Actuellement testé par des professionnels du detailing.",
+    // Nombre réel d'entreprises en bêta — à renseigner par l'utilisateur.
+    count: null as number | null,
+    companies: [] as Array<{ name: string; logo: string; url?: string; consent: boolean }>,
+  },
+
   beta: {
     badge: "Places limitées",
     title: "Rejoignez le programme Beta DetailFlow",

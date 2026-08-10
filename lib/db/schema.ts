@@ -102,6 +102,10 @@ export const companies = pgTable("companies", {
   brandSecondary: text("brandSecondary"),
   websiteUrl: text("websiteUrl"),
   socialLinks: jsonb("socialLinks"),
+  // Contenu éditable des sections du site public (par entreprise), structure
+  // générique typée (voir lib/site-content.ts). Null / champs absents = repli
+  // sur les valeurs par défaut neutres. Évite une colonne par texte de section.
+  siteContent: jsonb("siteContent"),
   // Contenu éditable du Hero de la vitrine (par entreprise). Null = fallback
   // neutre affiché par le composant Hero (aucun texte commercial en dur en base).
   heroTitle: text("heroTitle"),

@@ -4,6 +4,7 @@ import { Footer } from "@/components/layout/footer"
 import { WhatsAppButton } from "@/components/layout/whatsapp-button"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact, type PublicContact } from "@/lib/public-contact"
+import { resolveSiteContent } from "@/lib/site-content"
 
 // Données structurées Schema.org (LocalBusiness) pour un SEO local optimal.
 // Uniquement sur les pages publiques, et UNIQUEMENT à partir des coordonnées
@@ -51,6 +52,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   }
   const hasBrandColors = Boolean(tenant?.brandPrimary || tenant?.brandSecondary)
 
+  // Contenu personnalisable du pied de page (texte + slogan). Repli sur le
+  // comportement par défaut du composant Footer si le tenant n'a rien renseigné.
+  const footerContent = resolveSiteContent(tenant?.siteContent).footer
+
   return (
     <div style={hasBrandColors ? brandStyle : undefined}>
       {contact.name && <StructuredData name={contact.name} contact={contact} />}
@@ -68,6 +73,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         tenantSlug={tenant?.slug ?? null}
         contact={contact}
         socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
+        footerText={footerContent.text || undefined}
+        footerTagline={footerContent.tagline || undefined}
       />
       <WhatsAppButton phone={contact.phoneRaw} />
     </div>

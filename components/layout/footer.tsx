@@ -21,6 +21,10 @@ type FooterProps = {
    * domaine racine (pas de tenant), on retombe sur siteConfig.social.
    */
   socialLinks?: Record<string, string> | null
+  /** Court texte de présentation personnalisable (Paramètres > Site public). */
+  footerText?: string
+  /** Slogan personnalisable, affiché à la place du slogan par défaut si renseigné. */
+  footerTagline?: string
 }
 
 export function Footer({
@@ -29,6 +33,8 @@ export function Footer({
   tenantSlug = null,
   contact = null,
   socialLinks = null,
+  footerText,
+  footerTagline,
 }: FooterProps = {}) {
   const year = new Date().getFullYear()
   // Site tenant → liens du tenant uniquement ; racine DetailFlow → liens statiques.
@@ -43,7 +49,12 @@ export function Footer({
           {/* Marque */}
           <div className="lg:col-span-1">
             <Logo brandName={brandName} logoSrc={logoSrc} href={withTenant("/", tenantSlug)} />
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{siteConfig.brand.tagline}</p>
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+              {footerTagline || siteConfig.brand.tagline}
+            </p>
+            {footerText && (
+              <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{footerText}</p>
+            )}
             {socials.length > 0 && (
               <div className="mt-6 flex gap-3">
                 {socials.map(([key, url]) => {
