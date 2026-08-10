@@ -13,7 +13,7 @@
  *   redevient cliquable que lorsqu'elle est réellement visible.
  */
 
-import { useRef, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { motion, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion"
 import { DetailFlowPanel } from "./detailflow-panel"
 import { useDepthFactor } from "./use-depth-factor"
@@ -44,11 +44,14 @@ function StageTextSlot({
   const yFade = mapOutput(fade, 16, 0)
   const y = useTransform(progress, yFade.input, yFade.output)
   const pointerEvents = useTransform(opacity, (v) => (v > 0.5 ? "auto" : "none"))
+  // La scène la plus visible passe devant pendant le chevauchement du crossfade,
+  // pour qu'on ne lise jamais deux textes superposés à parts égales.
+  const zIndex = useTransform(opacity, (v) => (v > 0.5 ? 1 : 0))
 
   return (
     <motion.div
       className={className ?? "absolute inset-0 flex items-center px-4 sm:px-6 lg:px-0"}
-      style={{ opacity, y, pointerEvents }}
+      style={{ opacity, y, pointerEvents, zIndex }}
     >
       <div className="mx-auto w-full max-w-xl">{children}</div>
     </motion.div>
@@ -56,6 +59,11 @@ function StageTextSlot({
 }
 
 export function ScrollStage() {
+  // `useReducedMotion` renvoie `null` côté serveur puis se résout après le
+  // montage : on ne bascule sur le rendu statique qu'une fois monté côté
+  // client, pour que le HTML initial (SSR) et le premier rendu client
+  // correspondent toujours (évite un mismatch d'hydratation React).
+  const [mounted, setMounted] = useState(false)
   const reducedMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
   const depth = useDepthFactor()
@@ -63,7 +71,11 @@ export function ScrollStage() {
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
   const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 24, mass: 0.4 })
 
-  if (reducedMotion) {
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (mounted && reducedMotion) {
     return <StaticMarketingContent />
   }
 

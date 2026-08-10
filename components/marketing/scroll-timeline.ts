@@ -60,7 +60,7 @@ export const STAGE_BOUNDARIES: number[] = [0, ...STAGE_KEYS.map((key) => STAGE_R
  * Utilisé pour que les changements de contenu du panneau persistant et des
  * scènes soient toujours des fondus animés, jamais des remplacements bruts.
  */
-export function fadeRange(range: readonly [number, number], fade = 0.035) {
+export function fadeRange(range: readonly [number, number], fade = 0.018) {
   const [start, end] = range
   const margin = Math.min(fade, (end - start) / 2)
   const input: number[] = []
