@@ -5,7 +5,7 @@ import { user, companyMembers } from "@/lib/db/schema"
 import { and, count, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { redirect, notFound } from "next/navigation"
-import { resolveRequestTenant, getTenantFromMembership, type Tenant } from "@/lib/tenant"
+import { getCurrentTenant, getTenantFromMembership, type Tenant } from "@/lib/tenant"
 
 /**
  * Authentification + autorisation multi-tenant du dashboard.
@@ -62,9 +62,11 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
 
   const superAdmin = await isSuperAdmin(session.user.id)
 
-  // Tenant depuis l'hôte (sous-domaine / ?tenant=), sinon repli sur
-  // l'appartenance de l'utilisateur (accès admin depuis le domaine racine).
-  const tenant = await resolveRequestTenant()
+  // Tenant EXPLICITE depuis l'hôte (sous-domaine / ?tenant=). S'il est présent,
+  // l'accès est strictement limité à cette entreprise : jamais de bascule
+  // silencieuse vers une autre (sécurité multi-tenant).
+  const explicitTenant = await getCurrentTenant()
+  const tenant = explicitTenant ?? (await getTenantFromMembership())
 
   // Aucun tenant : un super-admin sans entreprise est renvoyé vers la console
   // plateforme ; sinon 404 neutre.
@@ -73,8 +75,8 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
     notFound()
   }
 
-  let effectiveTenant = tenant
-  let [membership] = await db
+  const effectiveTenant = tenant
+  const [membership] = await db
     .select({ role: companyMembers.role })
     .from(companyMembers)
     .where(
@@ -85,27 +87,9 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
     )
     .limit(1)
 
-  // Repli d'isolation : si l'utilisateur n'est pas membre de l'entreprise
-  // résolue par l'hôte / ?tenant= (ex. lien reçu par email atterrissant sur un
-  // mauvais contexte tenant), on bascule sur SA propre entreprise. Cela évite
-  // le « Non autorisé » pour un propriétaire légitime, sans jamais accorder
-  // l'accès à une entreprise dont il n'est pas membre.
-  if (!membership && !superAdmin) {
-    const own = await getTenantFromMembership()
-    if (own && own.id !== effectiveTenant.id) {
-      const [ownMembership] = await db
-        .select({ role: companyMembers.role })
-        .from(companyMembers)
-        .where(and(eq(companyMembers.userId, session.user.id), eq(companyMembers.companyId, own.id)))
-        .limit(1)
-      if (ownMembership) {
-        effectiveTenant = own
-        membership = ownMembership
-      }
-    }
-  }
-
   // Ni membre de cette entreprise, ni super-admin → 404 neutre (ne révèle rien).
+  // Aucun repli vers une autre entreprise : un tenant explicite dont
+  // l'utilisateur n'est pas membre doit toujours être refusé.
   if (!membership && !superAdmin) notFound()
 
   const role: Role = (membership?.role as Role) ?? "OWNER" // super-admin => OWNER virtuel
@@ -149,13 +133,15 @@ export async function getCompanyMemberContext(): Promise<MemberContext | null> {
   const session = await getSession()
   if (!session?.user) return null
 
-  // Tenant depuis l'hôte, sinon repli sur l'appartenance (domaine racine).
-  const tenant = await resolveRequestTenant()
+  // Tenant EXPLICITE depuis l'hôte, sinon repli sur l'appartenance (domaine
+  // racine). Aucune bascule silencieuse si un tenant explicite est refusé.
+  const explicitTenant = await getCurrentTenant()
+  const tenant = explicitTenant ?? (await getTenantFromMembership())
   if (!tenant) return null
 
   const superAdmin = await isSuperAdmin(session.user.id)
-  let effectiveTenant = tenant
-  let [membership] = await db
+  const effectiveTenant = tenant
+  const [membership] = await db
     .select({ role: companyMembers.role })
     .from(companyMembers)
     .where(
@@ -165,22 +151,6 @@ export async function getCompanyMemberContext(): Promise<MemberContext | null> {
       ),
     )
     .limit(1)
-
-  // Même repli d'isolation que requireCompanyMember (voir commentaire ci-dessus).
-  if (!membership && !superAdmin) {
-    const own = await getTenantFromMembership()
-    if (own && own.id !== effectiveTenant.id) {
-      const [ownMembership] = await db
-        .select({ role: companyMembers.role })
-        .from(companyMembers)
-        .where(and(eq(companyMembers.userId, session.user.id), eq(companyMembers.companyId, own.id)))
-        .limit(1)
-      if (ownMembership) {
-        effectiveTenant = own
-        membership = ownMembership
-      }
-    }
-  }
 
   if (!membership && !superAdmin) return null
 

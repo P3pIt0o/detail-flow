@@ -3,7 +3,7 @@ import { getDashboardStats, getUpcomingBookings, getRevenueByMonth } from "@/lib
 import { formatPrice, formatDateShort } from "@/lib/format"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { RevenueChart } from "@/components/admin/revenue-chart"
-import { CalendarDays, Clock, Euro, Users } from "lucide-react"
+import { CalendarDays, Clock, Euro, Users, PackageMinus, TrendingUp } from "lucide-react"
 
 export default async function DashboardPage() {
   const [stats, upcoming, revenue] = await Promise.all([
@@ -55,6 +55,31 @@ export default async function DashboardPage() {
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
         ))}
+      </div>
+
+      {/* CA / Charges produits / Résultat estimé — même période (mois en cours) */}
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Euro className="size-4" aria-hidden="true" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">{formatPrice(stats.monthRevenueCents)}</p>
+          <p className="text-xs text-muted-foreground">Chiffre d&apos;affaires (mois)</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
+            <PackageMinus className="size-4" aria-hidden="true" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">{formatPrice(stats.monthProductsCents)}</p>
+          <p className="text-xs text-muted-foreground">Charges produits / consommables</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <TrendingUp className="size-4" aria-hidden="true" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">{formatPrice(stats.monthResultCents)}</p>
+          <p className="text-xs text-muted-foreground">Résultat estimé</p>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-5">
