@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { SOCIAL_KEYS } from "./social-config"
+import type { SiteContent } from "@/lib/site-content"
 
 export type ActionResult = { ok: boolean; error?: string; logoPathname?: string | null }
 
@@ -104,6 +105,83 @@ export async function saveHeroContent(input: {
       heroSubtitle: clean(input.heroSubtitle, 400),
       heroCtaPrimary: clean(input.heroCtaPrimary, 40),
       heroCtaSecondary: clean(input.heroCtaSecondary, 40),
+      updatedAt: new Date(),
+    })
+    .where(eq(companies.id, tenant.id))
+
+  revalidatePath("/admin/parametres")
+  revalidatePath("/", "layout")
+  return { ok: true }
+}
+
+/**
+ * Enregistre le contenu éditable des sections statiques du site public
+ * (Présentation, Pourquoi nous choisir, intro Prestations, intro Galerie,
+ * intro Avis, Contact/CTA, Pied de page). Structure générique jsonb, voir
+ * lib/site-content.ts. Les modules Avis/Prestations/Galerie eux-mêmes ne
+ * sont pas touchés — uniquement leurs titres/textes d'intro et leur switch
+ * d'activation.
+ *
+ * ISOLATION : toujours scopé à l'entreprise de l'admin connecté. Le contenu
+ * est stocké tel quel (fusionné avec les défauts uniquement à la lecture),
+ * ce qui préserve la rétrocompatibilité : un tenant qui n'a jamais rien
+ * configuré garde `siteContent = null` et affiche les textes par défaut.
+ */
+export async function saveSiteContent(content: SiteContent): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+
+  const str = (v: unknown, max: number): string | undefined => {
+    if (typeof v !== "string") return undefined
+    const t = v.trim()
+    return t ? t.slice(0, max) : ""
+  }
+  const bool = (v: unknown, fallback: boolean): boolean => (typeof v === "boolean" ? v : fallback)
+
+  const clean: SiteContent = {
+    about: {
+      title: str(content.about?.title, 100),
+      text: str(content.about?.text, 800),
+      buttonLabel: str(content.about?.buttonLabel, 40),
+      buttonHref: str(content.about?.buttonHref, 200),
+    },
+    whyUs: {
+      enabled: bool(content.whyUs?.enabled, true),
+      title: str(content.whyUs?.title, 100),
+      subtitle: str(content.whyUs?.subtitle, 150),
+      points: Array.isArray(content.whyUs?.points)
+        ? content.whyUs!.points!.map((p) => (typeof p === "string" ? p.trim().slice(0, 200) : "")).filter(Boolean)
+        : undefined,
+    },
+    services: {
+      title: str(content.services?.title, 100),
+      intro: str(content.services?.intro, 400),
+    },
+    gallery: {
+      enabled: bool(content.gallery?.enabled, true),
+      title: str(content.gallery?.title, 100),
+      intro: str(content.gallery?.intro, 400),
+    },
+    reviews: {
+      enabled: bool(content.reviews?.enabled, true),
+      title: str(content.reviews?.title, 100),
+      intro: str(content.reviews?.intro, 400),
+    },
+    contact: {
+      enabled: bool(content.contact?.enabled, true),
+      title: str(content.contact?.title, 150),
+      text: str(content.contact?.text, 400),
+      buttonLabel: str(content.contact?.buttonLabel, 40),
+    },
+    footer: {
+      text: str(content.footer?.text, 300),
+      tagline: str(content.footer?.tagline, 100),
+    },
+  }
+
+  await db
+    .update(companies)
+    .set({
+      siteContent: clean,
       updatedAt: new Date(),
     })
     .where(eq(companies.id, tenant.id))

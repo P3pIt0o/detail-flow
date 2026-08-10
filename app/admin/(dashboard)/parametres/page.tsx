@@ -5,6 +5,8 @@ import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
 import { SiteBranding } from "@/components/admin/settings/site-branding"
+import { PublicSiteContent } from "@/components/admin/settings/public-site-content"
+import { resolveSiteContent } from "@/lib/site-content"
 import { GallerySettings } from "@/components/admin/settings/gallery-settings"
 import { listGalleryItems } from "./gallery-actions"
 import { ReviewSettings } from "@/components/admin/settings/review-settings"
@@ -107,6 +109,10 @@ export default async function ParametresPage() {
               heroCtaSecondary: tenant.heroCtaSecondary ?? "",
             }}
           />
+          <div className="mt-6">
+            <h2 className="mb-1 text-base font-semibold text-foreground">Autres sections du site</h2>
+            <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+          </div>
         </TabsContent>
         <TabsContent value="gallery" className="mt-6">
           <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
