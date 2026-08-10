@@ -388,6 +388,25 @@ export function ownerInvitationEmail(opts: {
   }
 }
 
+/* --------------------------- Modification RDV --------------------------- */
+
+export function bookingUpdatedEmail(b: BookingEmailData) {
+  return {
+    subject: `Votre rendez-vous ${b.reference} a été modifié`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Votre rendez-vous a été modifié",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Bonjour ${esc(b.customerName)}, votre rendez-vous a été mis à jour. Voici le nouveau récapitulatif :
+        </p>
+        ${bookingSummary(b)}`,
+    }),
+  }
+}
+
 /* ----------------------------- Rappel RDV ----------------------------- */
 
 export function reminderEmail(b: BookingEmailData) {

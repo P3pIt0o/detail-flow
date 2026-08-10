@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { bookings, bookingItems, bookingItemOptions, invoices, clients } from "@/lib/db/schema"
+import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases } from "@/lib/db/schema"
 import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm"
 import { requireCompanyId } from "@/lib/tenant"
 
@@ -30,7 +30,7 @@ export async function getDashboardStats(companyId?: number) {
   const today = todayISO()
   const { start, end } = monthRange()
 
-  const [upcoming, pending, monthRevenue, monthCount, totalClients] = await Promise.all([
+  const [upcoming, pending, monthRevenue, monthCount, totalClients, monthProducts] = await Promise.all([
     // Réservations à venir (confirmées, à partir d'aujourd'hui)
     db
       .select({ n: count() })
@@ -69,14 +69,33 @@ export async function getDashboardStats(companyId?: number) {
       .select({ n: sql<number>`count(distinct ${bookings.customerEmail})` })
       .from(bookings)
       .where(eq(bookings.companyId, cid)),
+    // Achats de produits/consommables du mois (même période que le CA).
+    // Montant par achat = priceCents * quantity (ex. 20€ x 3 = 60€ de charges).
+    db
+      .select({ total: sum(sql`${productPurchases.priceCents} * ${productPurchases.quantity}`) })
+      .from(productPurchases)
+      .where(
+        and(
+          eq(productPurchases.companyId, cid),
+          gte(productPurchases.purchaseDate, start),
+          lte(productPurchases.purchaseDate, end),
+        ),
+      ),
   ])
+
+  const monthRevenueCents = Number(monthRevenue[0]?.total ?? 0)
+  const monthProductsCents = Number(monthProducts[0]?.total ?? 0)
 
   return {
     upcomingCount: upcoming[0]?.n ?? 0,
     pendingCount: pending[0]?.n ?? 0,
-    monthRevenueCents: Number(monthRevenue[0]?.total ?? 0),
+    monthRevenueCents,
     monthBookingsCount: monthCount[0]?.n ?? 0,
     totalClients: Number(totalClients[0]?.n ?? 0),
+    // Charges produits/consommables + résultat estimé (CA - achats). Ne modifie
+    // pas le calcul du CA lui-même, qui reste basé sur les factures payées.
+    monthProductsCents,
+    monthResultCents: monthRevenueCents - monthProductsCents,
   }
 }
 
@@ -325,4 +344,14 @@ export async function getMergedClients(companyId?: number): Promise<MergedClient
     return a.name.localeCompare(b.name)
   })
   return records
+}
+
+/** Achats de produits/consommables de l'entreprise, du plus récent au plus ancien. */
+export async function getProductPurchases(companyId?: number) {
+  const cid = companyId ?? (await requireCompanyId())
+  return db
+    .select()
+    .from(productPurchases)
+    .where(eq(productPurchases.companyId, cid))
+    .orderBy(desc(productPurchases.purchaseDate), desc(productPurchases.id))
 }

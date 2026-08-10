@@ -11,6 +11,7 @@ import {
   Ban,
   History,
   Copy,
+  TriangleAlert,
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { formatPrice, formatDateLong } from "@/lib/format"
@@ -31,11 +32,13 @@ export function InvoiceView({
   items,
   payments,
   events,
+  tenantCountry,
 }: {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
   payments: InvoicePaymentRow[]
   events: InvoiceEventRow[]
+  tenantCountry?: string | null
 }) {
   const router = useRouter()
   const [busy, startBusy] = useTransition()
@@ -169,6 +172,18 @@ export function InvoiceView({
           )}
         </div>
       </div>
+
+      {/* Avertissement non bloquant : SIRET manquant sur une entreprise française.
+          N'empêche jamais l'émission, l'envoi ni le paiement de la facture. */}
+      {!isCancelled && tenantCountry === "FR" && !invoice.issuerSiret && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Informations légales de l&apos;entreprise incomplètes (SIRET manquant). Complétez-les dans les
+            paramètres de facturation pour garantir la conformité de cette facture.
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">

@@ -23,38 +23,39 @@ export function BetaPartners() {
       <p className="text-sm font-semibold uppercase tracking-wide text-primary">{label}</p>
 
       {citable.length > 0 ? (
-        <ul className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {citable.map((company) => (
-            <li
-              key={company.name}
-              className="flex h-16 w-40 items-center justify-center rounded-lg border border-border bg-card/60 px-4 py-2 grayscale transition-all hover:grayscale-0"
-            >
-              {company.url ? (
-                <a
-                  href={company.url}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="flex h-full w-full items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Image
-                    src={company.logo}
-                    alt={company.name}
-                    width={160}
-                    height={64}
-                    className="max-h-10 w-auto object-contain"
-                  />
-                </a>
-              ) : (
-                <Image
-                  src={company.logo}
-                  alt={company.name}
-                  width={160}
-                  height={64}
-                  className="max-h-10 w-auto object-contain"
-                />
-              )}
-            </li>
-          ))}
+        <ul className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-8">
+          {citable.map((company) => {
+            const logo = (
+              <Image
+                src={company.logo || "/placeholder.svg"}
+                alt={`Logo ${company.name}`}
+                width={128}
+                height={128}
+                className="h-full w-full rounded-full object-cover"
+              />
+            )
+            return (
+              <li key={company.name} className="flex flex-col items-center gap-3">
+                <div className="size-24 overflow-hidden rounded-full ring-1 ring-border/70 shadow-lg transition-transform duration-300 hover:scale-105 sm:size-28">
+                  {company.url ? (
+                    <a
+                      href={company.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="block h-full w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {logo}
+                    </a>
+                  ) : (
+                    logo
+                  )}
+                </div>
+                <span className="max-w-[8rem] text-pretty text-xs font-medium leading-tight text-muted-foreground">
+                  {company.name}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       ) : count && count > 0 ? (
         <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">

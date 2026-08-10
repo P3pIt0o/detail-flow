@@ -620,3 +620,29 @@ export const invoiceEvents = pgTable("invoice_events", {
   message: text("message"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
+
+/**
+ * Achats de produits / consommables utilisés par le professionnel pour
+ * réaliser ses prestations (shampoing, polish, céramique, microfibres...).
+ * PAS des produits vendus aux clients : aucun lien avec les factures/CA.
+ * Table physique "products" (créée initialement pour un besoin différent,
+ * réutilisée ici avec des colonnes additives : purchaseDate, quantity, note).
+ */
+export const productPurchases = pgTable(
+  "products",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    priceCents: integer("priceCents").notNull().default(0),
+    purchaseDate: date("purchaseDate").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    note: text("note"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("products_companyId_idx").on(t.companyId),
+  }),
+)
