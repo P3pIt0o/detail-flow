@@ -88,6 +88,12 @@ export default async function ReservationDetailPage({
                     <div>
                       <p className="font-medium text-foreground">{item.serviceName}</p>
                       <p className="text-sm text-muted-foreground">{item.vehicleTypeName}</p>
+                      {(item.vehicleBrand || item.vehicleModel || item.vehiclePlate) && (
+                        <p className="mt-0.5 text-sm text-foreground">
+                          {[item.vehicleBrand, item.vehicleModel].filter(Boolean).join(" ")}
+                          {item.vehiclePlate ? ` · ${item.vehiclePlate}` : ""}
+                        </p>
+                      )}
                     </div>
                     <span className="font-medium text-foreground">{formatPrice(item.priceCents)}</span>
                   </div>

@@ -5,8 +5,12 @@ import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
 import { SiteBranding } from "@/components/admin/settings/site-branding"
+import { PublicSiteContent } from "@/components/admin/settings/public-site-content"
+import { resolveSiteContent } from "@/lib/site-content"
 import { GallerySettings } from "@/components/admin/settings/gallery-settings"
 import { listGalleryItems } from "./gallery-actions"
+import { ReviewSettings } from "@/components/admin/settings/review-settings"
+import { listReviews } from "./review-actions"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { TravelSettings } from "@/components/admin/settings/travel-settings"
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
@@ -21,12 +25,13 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage() {
   const { tenant } = await requireCompanyMember()
 
-  const [settings, hours, timeOff, fullSettings, galleryItems] = await Promise.all([
+  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems] = await Promise.all([
     getSettings(),
     getBusinessHours(),
     getTimeOff(),
     getFullSettings(),
     listGalleryItems(),
+    listReviews(),
   ])
 
   return (
@@ -50,6 +55,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="gallery" className="flex-none px-3 py-1.5">
               Galerie
+            </TabsTrigger>
+            <TabsTrigger value="reviews" className="flex-none px-3 py-1.5">
+              Avis
             </TabsTrigger>
             <TabsTrigger value="appearance" className="flex-none px-3 py-1.5">
               Apparence
@@ -101,9 +109,16 @@ export default async function ParametresPage() {
               heroCtaSecondary: tenant.heroCtaSecondary ?? "",
             }}
           />
+          <div className="mt-10 border-t border-border pt-8">
+            <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
+            <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+          </div>
         </TabsContent>
         <TabsContent value="gallery" className="mt-6">
           <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
+        </TabsContent>
+        <TabsContent value="reviews" className="mt-6">
+          <ReviewSettings items={reviewItems} />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings

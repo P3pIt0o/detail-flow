@@ -3,9 +3,10 @@ import "server-only"
 import { and, asc, eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { db } from "@/lib/db"
-import { services } from "@/lib/db/schema"
+import { services, reviews } from "@/lib/db/schema"
 import { resolveRequestTenant } from "@/lib/tenant"
 import { resolveServiceImageSrc } from "@/lib/service-image"
+import type { Review } from "@/config/content"
 
 const defaultServiceImages: Record<string, string> = {
   "lavage-premium": "/services/lavage-premium.png",
@@ -106,4 +107,30 @@ export async function getPublicServices() {
 
     return { ...service, image }
   })
+}
+
+/**
+ * Avis clients publics.
+ * Retourne uniquement les avis VISIBLES de l'entreprise courante, mappés au
+ * type `Review` attendu par le composant d'affichage (ReviewCard). Le site
+ * public n'affiche donc jamais les avis d'un autre tenant ni les avis masqués.
+ */
+export async function getPublicReviews(): Promise<Review[]> {
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
+
+  const rows = await db
+    .select()
+    .from(reviews)
+    .where(and(eq(reviews.companyId, tenant.id), eq(reviews.visible, true)))
+    .orderBy(asc(reviews.sortOrder), asc(reviews.id))
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    author: r.authorName,
+    vehicle: r.vehicle ?? "",
+    rating: r.rating,
+    text: r.text,
+    date: r.createdAt.toISOString(),
+  }))
 }

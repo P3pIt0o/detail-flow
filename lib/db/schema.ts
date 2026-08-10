@@ -102,6 +102,10 @@ export const companies = pgTable("companies", {
   brandSecondary: text("brandSecondary"),
   websiteUrl: text("websiteUrl"),
   socialLinks: jsonb("socialLinks"),
+  // Contenu éditable des sections du site public (par entreprise), structure
+  // générique typée (voir lib/site-content.ts). Null / champs absents = repli
+  // sur les valeurs par défaut neutres. Évite une colonne par texte de section.
+  siteContent: jsonb("siteContent"),
   // Contenu éditable du Hero de la vitrine (par entreprise). Null = fallback
   // neutre affiché par le composant Hero (aucun texte commercial en dur en base).
   heroTitle: text("heroTitle"),
@@ -212,6 +216,32 @@ export const beforeAfterGallery = pgTable(
   },
   (t) => ({
     byCompany: index("beforeAfterGallery_companyId_idx").on(t.companyId),
+  }),
+)
+
+/**
+ * Avis clients de l'entreprise. Texte pur (aucune image / Blob). Chaque ligne
+ * est isolée par `companyId` ; seule la colonne `visible` détermine l'affichage
+ * sur la vitrine publique du tenant. Suppression en cascade avec l'entreprise.
+ */
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    authorName: text("authorName").notNull(),
+    vehicle: text("vehicle"),
+    rating: integer("rating").notNull().default(5),
+    text: text("text").notNull(),
+    visible: boolean("visible").notNull().default(true),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("reviews_companyId_idx").on(t.companyId),
   }),
 )
 

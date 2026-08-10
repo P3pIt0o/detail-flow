@@ -20,20 +20,19 @@ export type PublicService = {
 const FALLBACK_IMAGE = "/services/default.png"
 
 function formatDuration(min: number): string {
-  // Repli sûr : durée absente / invalide → valeur métier par défaut (60 min).
   const safe = Number.isFinite(min) && min > 0 ? Math.round(min) : 60
   const h = Math.floor(safe / 60)
   const m = safe % 60
 
   if (h === 0) return `${m} min`
   if (m === 0) return `${h}h`
+
   return `${h}h${m.toString().padStart(2, "0")}`
 }
 
 function formatPrice(cents: number): string {
-  // Ne jamais transmettre NaN/undefined/null à Intl.NumberFormat.
-  // Prix absent ou nul → "Sur devis" (logique produit).
   if (!Number.isFinite(cents) || cents <= 0) return "Sur devis"
+
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
@@ -44,9 +43,16 @@ export function ServiceCard({ service }: { service: PublicService }) {
   const tenant = useSearchParams().get("tenant")
   const priceLabel = formatPrice(service.basePriceCents)
 
+  const reservationHref = withTenant(
+    `${siteConfig.cta.href}${
+      siteConfig.cta.href.includes("?") ? "&" : "?"
+    }service=${service.id}`,
+    tenant,
+  )
+
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/50">
-      <div className="relative aspect-[16/10] overflow-hidden">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
         <Image
           src={service.image || FALLBACK_IMAGE}
           alt={service.name}
@@ -72,7 +78,10 @@ export function ServiceCard({ service }: { service: PublicService }) {
             <p className="text-xs text-muted-foreground">
               {priceLabel === "Sur devis" ? "Tarif" : "À partir de"}
             </p>
-            <p className="text-2xl font-bold text-foreground">{priceLabel}</p>
+
+            <p className="text-2xl font-bold text-foreground">
+              {priceLabel}
+            </p>
           </div>
 
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -82,10 +91,11 @@ export function ServiceCard({ service }: { service: PublicService }) {
         </div>
 
         <Link
-          href={withTenant(siteConfig.cta.href, tenant)}
+          href={reservationHref}
           className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
         >
           Réserver cette prestation
+
           <ArrowRight
             className="size-4 transition-transform group-hover:translate-x-0.5"
             aria-hidden="true"

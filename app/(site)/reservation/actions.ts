@@ -18,7 +18,8 @@ import { buildQuote } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import type { BookingSelection } from "@/lib/booking/types"
-import { requireCompanyId } from "@/lib/tenant"
+import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
+import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 
 /* -------------------------------------------------------------------------- */
@@ -80,6 +81,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
 
   // 1. Validation de base des entrées.
   if (!selections?.length) return { ok: false, error: "Aucune prestation sélectionnée.", code: "invalid" }
+  // Marque et modèle du véhicule obligatoires (contrôle serveur indépendant de l'UI).
+  for (const s of selections) {
+    if (!s.brand?.trim() || !s.model?.trim()) {
+      return { ok: false, error: "Champ obligatoire", code: "invalid" }
+    }
+  }
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Date invalide.", code: "invalid" }
   if (!startTime || !/^\d{2}:\d{2}$/.test(startTime)) return { ok: false, error: "Créneau invalide.", code: "invalid" }
   if (!customer?.name?.trim()) return { ok: false, error: "Nom requis.", code: "invalid" }
@@ -88,7 +95,21 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   if (!address?.trim() || address.trim().length < 5) return { ok: false, error: "Adresse invalide.", code: "invalid" }
 
   // Entreprise (tenant) courante : toutes les lectures/écritures y sont rattachées.
-  const companyId = await requireCompanyId()
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
+
+  // Contrôle serveur : une entreprise suspendue/archivée ou n'acceptant pas les
+  // réservations (bookingMode = DISABLED) ne peut jamais créer de réservation,
+  // même via un appel direct à la Server Action. Réutilise tenantAcceptsBookings().
+  if (!tenantAcceptsBookings(tenant)) {
+    return {
+      ok: false,
+      error: "Les réservations en ligne ne sont pas disponibles pour cette entreprise.",
+      code: "closed",
+    }
+  }
+
+  const companyId = tenant.id
 
   const settings = await getSettings(companyId)
 
@@ -122,9 +143,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   // 4. Transaction atomique + verrou par date pour empêcher les doublons.
   try {
     const result = await db.transaction(async (tx) => {
-      // Sérialise les réservations concurrentes sur la même journée.
-      const lockKey = Number.parseInt(date.replace(/-/g, "").slice(2), 10) // ex: 260115
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(${lockKey})`)
+      // Sérialise les réservations concurrentes sur la même journée POUR UNE
+      // MÊME entreprise. La clé combine companyId + date (variante à deux
+      // entiers de pg_advisory_xact_lock) : deux entreprises différentes ne se
+      // bloquent donc jamais mutuellement pour la même date.
+      const dateKey = Number.parseInt(date.replace(/-/g, "").slice(2), 10) // ex: 260115
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${companyId}, ${dateKey})`)
 
       // Re-vérifie la disponibilité DANS la transaction (anti-doublon fiable).
       const buffer = settings.bufferMin
