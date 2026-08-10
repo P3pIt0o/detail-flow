@@ -41,16 +41,32 @@ const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export function BookingWizard(props: Props) {
   const { services, categories, vehicleTypes, options, priceMap, depositType, depositValue, roundTrip, freeDistanceKm } =
     props
-  const router = useRouter()
-  // Tenant courant (aperçu/local : via ?tenant=). Doit être conservé lors de la
-  // redirection vers la page de confirmation, sinon celle-ci ne retrouve pas la
-  // réservation (mauvais tenant) et renvoie une 404.
-  const tenant = useSearchParams().get("tenant")
+ const router = useRouter()
+const searchParams = useSearchParams()
 
-  const [step, setStep] = useState(0)
-  const [vehicles, setVehicles] = useState<VehicleSelection[]>([
-    { uid: typeof crypto !== "undefined" ? crypto.randomUUID() : "v1", serviceId: null, vehicleTypeId: null, optionIds: [] },
-  ])
+// Tenant courant
+const tenant = searchParams.get("tenant")
+
+// Prestation éventuellement choisie depuis la page Prestations
+const serviceParam = searchParams.get("service")
+const requestedServiceId = serviceParam ? Number(serviceParam) : NaN
+
+const initialServiceId =
+  Number.isInteger(requestedServiceId) &&
+  services.some((service) => service.id === requestedServiceId)
+    ? requestedServiceId
+    : null
+
+const [step, setStep] = useState(0)
+
+const [vehicles, setVehicles] = useState<VehicleSelection[]>([
+  {
+    uid: typeof crypto !== "undefined" ? crypto.randomUUID() : "v1",
+    serviceId: initialServiceId,
+    vehicleTypeId: null,
+    optionIds: [],
+  },
+])
   const [date, setDate] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<string | null>(null)
   const [contact, setContact] = useState<ContactData>({ name: "", email: "", phone: "", address: "", notes: "" })
