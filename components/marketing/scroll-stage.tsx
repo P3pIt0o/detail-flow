@@ -101,6 +101,12 @@ function ImmersiveScene() {
 
         {/* --------------------------- Narration --------------------------- */}
         <div className="pointer-events-none absolute inset-0">
+          {/* Scrim dégradé sous le hero : garantit la lisibilité du texte
+              par-dessus le dashboard, puis disparaît quand on entre. */}
+          <NarrativeLayer progress={progress} range={STAGE_RANGE.hero} className="absolute inset-0">
+            <div className="absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-background via-background/85 to-transparent" />
+          </NarrativeLayer>
+
           {/* ACTE 1 — Hero (le seul bloc avec des CTA cliquables) */}
           <NarrativeLayer
             progress={progress}
@@ -139,11 +145,14 @@ function ImmersiveScene() {
           </NarrativeLayer>
 
           {/* ACTE 2 — « Un seul outil » (texte en haut, la convergence est 3D) */}
+          <NarrativeLayer progress={progress} range={STAGE_RANGE.overview} margin={0.22} className="absolute inset-0">
+            <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-background via-background/85 to-transparent" />
+          </NarrativeLayer>
           <NarrativeLayer
             progress={progress}
             range={STAGE_RANGE.overview}
             margin={0.22}
-            className="absolute inset-x-0 top-[9vh] flex justify-center px-4 sm:px-6"
+            className="absolute inset-x-0 top-[7vh] flex justify-center px-4 sm:px-6"
           >
             <div className="max-w-xl text-center">
               <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">{marketing.overview.title}</h2>

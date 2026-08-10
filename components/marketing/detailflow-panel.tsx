@@ -51,8 +51,10 @@ export function DetailFlowPanel({
   const camRotXraw = useTransform(progress, [0, 0.16, 0.34, 0.82, 1], [16, 7, 2, 1, 10])
   const camRotYraw = useTransform(progress, [0, 0.16, 0.42, 0.7, 1], [-13, -4, 6, -3, 0])
   const camXraw = useTransform(progress, [0, 0.34, 0.5, 0.7, 1], [0, 0, -60, 40, 0])
-  const camYraw = useTransform(progress, [0, 0.16, 0.82, 1], [40, 0, 0, -30])
-  const camScaleRaw = useTransform(progress, [0, 0.16, 0.34, 0.62, 0.82, 1], [0.82, 1, 1.12, 1.18, 1.05, 0.7])
+  // Au hero le dashboard est remonté (dégage le bas pour le texte), puis se
+  // recentre dès le premier scroll quand on « entre » dedans.
+  const camYraw = useTransform(progress, [0, 0.16, 0.82, 1], [-70, 0, 0, -30])
+  const camScaleRaw = useTransform(progress, [0, 0.16, 0.34, 0.62, 0.82, 1], [0.74, 1, 1.12, 1.18, 1.05, 0.7])
 
   const camZ = depthScale(camZraw, depth)
   const camRotX = depthScale(camRotXraw, depth)
@@ -65,8 +67,9 @@ export function DetailFlowPanel({
   const haloOpacity = useTransform(progress, [0, 0.1, 0.6, 0.85, 1], [0.35, 0.6, 0.7, 0.4, 0])
   const haloScale = useTransform(progress, [0, 0.5, 1], [0.9, 1.15, 0.7])
 
-  // Le dashboard principal : opacité (léger fondu de sortie tout à la fin).
-  const dashOpacity = useTransform(progress, [0, 0.04, 0.94, 1], [0, 1, 1, 0.15])
+  // Le dashboard principal : visible DÈS le chargement (en profondeur), puis
+  // léger fondu de sortie tout à la fin quand il recule dans l'univers.
+  const dashOpacity = useTransform(progress, [0, 0.92, 1], [1, 1, 0.12])
 
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
@@ -125,13 +128,15 @@ export function DetailFlowPanel({
 /*  ACTE 2 — « Un seul outil » : les outils épars convergent vers le centre   */
 /* ========================================================================== */
 
+// `x` en vw, `y` en vh : les outils sont RÉELLEMENT dispersés autour du
+// dashboard, sur des plans de profondeur variés (`z`), avant de converger.
 const TOOLS = [
-  { icon: Calendar, label: "Agenda", from: { x: -46, y: -30, z: 220, r: -14 } },
-  { icon: Table2, label: "Tableur", from: { x: 44, y: -34, z: 160, r: 12 } },
-  { icon: Mail, label: "Relances", from: { x: -52, y: 20, z: 120, r: -8 } },
-  { icon: Users, label: "Clients", from: { x: 50, y: 24, z: 240, r: 10 } },
-  { icon: FileText, label: "Devis", from: { x: -30, y: 40, z: 80, r: -6 } },
-  { icon: FileText, label: "Factures", from: { x: 30, y: -46, z: 300, r: 8 } },
+  { icon: Calendar, label: "Agenda", from: { x: -34, y: -26, z: 220, r: -14 } },
+  { icon: Table2, label: "Tableur", from: { x: 33, y: -30, z: 150, r: 12 } },
+  { icon: Mail, label: "Relances", from: { x: -38, y: 18, z: 110, r: -8 } },
+  { icon: Users, label: "Clients", from: { x: 37, y: 22, z: 240, r: 10 } },
+  { icon: FileText, label: "Devis", from: { x: -20, y: 32, z: 80, r: -6 } },
+  { icon: FileText, label: "Factures", from: { x: 22, y: -38, z: 300, r: 8 } },
 ] as const
 
 function ConvergingTools({ progress, depth }: { progress: MotionValue<number>; depth: MotionValue<number> }) {
@@ -170,8 +175,8 @@ function ConvergingTool({
   const rot = useTransform(progress, keyframes(range, [[0.15, from.r], [0.72, 0]]).input, keyframes(range, [[0.15, from.r], [0.72, 0]]).output)
   const opacity = useTransform(progress, keyframes(range, [[0.05, 0], [0.2, 1], [0.62, 1], [0.78, 0]]).input, keyframes(range, [[0.05, 0], [0.2, 1], [0.62, 1], [0.78, 0]]).output)
 
-  const x = useTransform([xRaw, depth], (v) => (v[0] as number) * (0.5 + 0.5 * (v[1] as number)))
-  const y = useTransform([yRaw, depth], (v) => (v[0] as number) * (0.5 + 0.5 * (v[1] as number)))
+  const x = useTransform([xRaw, depth], (v) => (v[0] as number) * (0.55 + 0.45 * (v[1] as number)))
+  const y = useTransform([yRaw, depth], (v) => (v[0] as number) * (0.55 + 0.45 * (v[1] as number)))
   const z = useTransform([zRaw, depth], (v) => (v[0] as number) * (v[1] as number))
 
   const Icon = tool.icon
@@ -179,16 +184,16 @@ function ConvergingTool({
     <motion.div
       className="absolute left-1/2 top-1/2"
       style={{
-        translateX: useTransform(x, (v) => `calc(-50% + ${v}%)`),
-        translateY: useTransform(y, (v) => `calc(-50% + ${v}%)`),
+        translateX: useTransform(x, (v) => `calc(-50% + ${v}vw)`),
+        translateY: useTransform(y, (v) => `calc(-50% + ${v}vh)`),
         z,
         rotateZ: rot,
         opacity,
       }}
     >
-      <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-background/90 px-3 py-2 shadow-xl backdrop-blur">
-        <Icon className="size-4 text-primary sm:size-5" />
-        <span className="text-xs font-medium text-foreground sm:text-sm">{tool.label}</span>
+      <div className="flex items-center gap-2 rounded-xl border border-primary/40 bg-background/95 px-4 py-2.5 shadow-2xl shadow-primary/20 backdrop-blur">
+        <Icon className="size-5 text-primary" />
+        <span className="text-sm font-semibold text-foreground">{tool.label}</span>
       </div>
     </motion.div>
   )

@@ -87,17 +87,23 @@ export function stageFade(range: readonly [number, number], margin = 0.16) {
   const input: number[] = []
   const output: number[] = []
 
+  // Entrée : fondu depuis 0 seulement si la plage NE commence PAS au tout
+  // début de la timeline. Un acte qui démarre à 0 (le hero) doit être
+  // pleinement visible dès le chargement — pas de fondu d'entrée.
   if (start > 0) {
-    input.push(Math.max(0, start - m))
+    input.push(start)
     output.push(0)
+    input.push(start + m)
+    output.push(1)
+  } else {
+    input.push(0)
+    output.push(1)
   }
-  input.push(start + m * 0.001) // entrée juste après le début
-  output.push(0)
-  input.push(start + m)
-  output.push(1)
-  input.push(end - m)
-  output.push(1)
+
+  // Sortie : fondu vers 0 sauf si la plage va jusqu'à la fin de la timeline.
   if (end < 1) {
+    input.push(end - m)
+    output.push(1)
     input.push(end)
     output.push(0)
   } else {
