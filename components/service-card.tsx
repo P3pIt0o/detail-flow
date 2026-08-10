@@ -26,6 +26,7 @@ function formatDuration(min: number): string {
 
   if (h === 0) return `${m} min`
   if (m === 0) return `${h}h`
+
   return `${h}h${m.toString().padStart(2, "0")}`
 }
 
@@ -42,10 +43,12 @@ export function ServiceCard({ service }: { service: PublicService }) {
   const tenant = useSearchParams().get("tenant")
   const priceLabel = formatPrice(service.basePriceCents)
 
-  const reservationBase = withTenant(siteConfig.cta.href, tenant)
-  const reservationHref = `${reservationBase}${
-    reservationBase.includes("?") ? "&" : "?"
-  }service=${service.id}`
+  const reservationHref = withTenant(
+    `${siteConfig.cta.href}${
+      siteConfig.cta.href.includes("?") ? "&" : "?"
+    }service=${service.id}`,
+    tenant,
+  )
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card">
@@ -92,6 +95,7 @@ export function ServiceCard({ service }: { service: PublicService }) {
           className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
         >
           Réserver cette prestation
+
           <ArrowRight
             className="size-4 transition-transform group-hover:translate-x-0.5"
             aria-hidden="true"
