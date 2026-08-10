@@ -22,7 +22,7 @@
  */
 
 import { revalidatePath } from "next/cache"
-import { eq, sql } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
@@ -119,12 +119,41 @@ export async function updateBookingAction(input: UpdateBookingInput): Promise<Up
   const endTime = minutesToTime(endMin)
   const vehicleCount = quote.lines.length
 
+  // Composition actuelle (avant remplacement) des prestations/options, pour
+  // détecter un changement de prestation/options même si la durée totale ne
+  // change pas (ex. remplacement d'une prestation par une autre de même durée).
+  const previousItems = await db
+    .select({ id: bookingItems.id, serviceId: bookingItems.serviceId })
+    .from(bookingItems)
+    .where(eq(bookingItems.bookingId, input.bookingId))
+  const previousItemIds = previousItems.map((i) => i.id)
+  const previousOptions = previousItemIds.length
+    ? await db
+        .select({ bookingItemId: bookingItemOptions.bookingItemId, optionId: bookingItemOptions.optionId })
+        .from(bookingItemOptions)
+        .where(inArray(bookingItemOptions.bookingItemId, previousItemIds))
+    : []
+  const previousComposition = previousItems
+    .map((i) => {
+      const optionIds = previousOptions
+        .filter((o) => o.bookingItemId === i.id)
+        .map((o) => o.optionId)
+        .sort((a, b) => a - b)
+      return `${i.serviceId}:${optionIds.join(",")}`
+    })
+    .sort()
+    .join("|")
+  const nextComposition = quote.lines
+    .map((line) => `${line.serviceId}:${line.options.map((o) => o.optionId).sort((a, b) => a - b).join(",")}`)
+    .sort()
+    .join("|")
+
   // Détection d'un changement significatif (déclenche l'email au client).
   const significantChange =
     existing.date !== input.date ||
     existing.startTime !== input.startTime ||
     existing.address !== travel.address ||
-    existing.totalDurationMin !== quote.totalDurationMin
+    previousComposition !== nextComposition
 
   try {
     const result = await db.transaction(async (tx) => {

@@ -70,8 +70,9 @@ export async function getDashboardStats(companyId?: number) {
       .from(bookings)
       .where(eq(bookings.companyId, cid)),
     // Achats de produits/consommables du mois (même période que le CA).
+    // Montant par achat = priceCents * quantity (ex. 20€ x 3 = 60€ de charges).
     db
-      .select({ total: sum(productPurchases.priceCents) })
+      .select({ total: sum(sql`${productPurchases.priceCents} * ${productPurchases.quantity}`) })
       .from(productPurchases)
       .where(
         and(
