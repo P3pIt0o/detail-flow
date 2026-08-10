@@ -358,7 +358,9 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   const missing: string[] = []
   if (!issuer?.businessName?.trim()) missing.push("le nom / la raison sociale")
   if (!(issuer?.invoiceCompanyAddress?.trim() || issuer?.businessAddress?.trim())) missing.push("l'adresse")
-  if (!issuer?.invoiceSiret?.trim()) missing.push("le SIRET")
+  // Le SIRET est une exigence française : les tenants hors France (tenant.country
+  // sur companies) n'en possèdent pas et ne doivent pas être bloqués.
+  if (tenant.country === "FR" && !issuer?.invoiceSiret?.trim()) missing.push("le SIRET")
   if (missing.length) {
     return {
       ok: false,
