@@ -102,7 +102,14 @@ export const marketing = {
     fallbackNote: "Actuellement testé par des professionnels du detailing.",
     // Nombre réel d'entreprises en bêta — à renseigner par l'utilisateur.
     count: null as number | null,
-    companies: [] as Array<{ name: string; logo: string; url?: string; consent: boolean }>,
+    // Logos fournis par les entreprises partenaires (badges circulaires,
+    // recadrés au même format dans un cercle uniforme côté UI).
+    companies: [
+      { name: "Rhine Shine Detailling", logo: "/marketing/partners/rhine-shine.jpg", consent: true },
+      { name: "KY Detailing", logo: "/marketing/partners/ky-detailing.png", consent: true },
+      { name: "AutoCare — Nettoyage Automobile", logo: "/marketing/partners/autocare.jpg", consent: true },
+      { name: "JustClean — Lavage Auto", logo: "/marketing/partners/justclean.jpg", consent: true },
+    ] as Array<{ name: string; logo: string; url?: string; consent: boolean }>,
   },
 
   beta: {
