@@ -346,15 +346,41 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     return { ok: false, error: "Ajoutez au moins une ligne avant d'émettre la facture." }
   }
 
+  // Validation minimale de l'émetteur : sans identification de l'entreprise la
+  // facture n'est pas valable. On réutilise les champs déjà présents dans les
+  // paramètres de facturation (mêmes que ceux snapshotés à l'émission).
+  // Le brouillon est conservé tel quel si une information manque.
+  const [issuer] = await db
+    .select()
+    .from(settingsTable)
+    .where(eq(settingsTable.companyId, companyId))
+    .limit(1)
+  const missing: string[] = []
+  if (!issuer?.businessName?.trim()) missing.push("le nom / la raison sociale")
+  if (!(issuer?.invoiceCompanyAddress?.trim() || issuer?.businessAddress?.trim())) missing.push("l'adresse")
+  if (!issuer?.invoiceSiret?.trim()) missing.push("le SIRET")
+  if (missing.length) {
+    return {
+      ok: false,
+      error: `Impossible d'émettre la facture : renseignez ${missing.join(", ")} dans les paramètres de facturation.`,
+    }
+  }
+
   const year = new Date().getFullYear()
 
   const number = await db.transaction(async (tx) => {
     // Compteur PROPRE à l'entreprise (numérotation isolée par tenant).
+    // `FOR UPDATE` verrouille la ligne settings de CETTE entreprise pendant
+    // toute la transaction : deux émissions concurrentes sont sérialisées et
+    // ne peuvent donc pas obtenir le même numéro. Une autre entreprise
+    // verrouille une autre ligne → aucun blocage inter-tenant. Format et
+    // logique de numérotation inchangés.
     const [s] = await tx
       .select()
       .from(settingsTable)
       .where(eq(settingsTable.companyId, companyId))
       .limit(1)
+      .for("update")
     const prefix = s?.invoicePrefix || "FAC"
     // Réinitialisation du compteur au changement d'année.
     const currentYear = s?.invoiceCounterYear ?? 0
@@ -450,6 +476,16 @@ export async function cancelInvoice(invoiceId: number): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
   const inv = await loadOwnedInvoice(invoiceId, tenant.id)
   if (!inv) return { ok: false, error: "Facture introuvable." }
+  // Une facture émise ou payée est un document figé : elle ne peut plus être
+  // annulée comme un brouillon. La rectification passe par un avoir (hors
+  // périmètre ici). Les brouillons restent annulables comme avant, et les
+  // factures déjà « cancelled » ne sont pas impactées (affichage préservé).
+  if (inv.status === "issued" || inv.status === "paid") {
+    return {
+      ok: false,
+      error: "Une facture émise ne peut pas être annulée directement : elle doit être rectifiée par un avoir.",
+    }
+  }
   await db.update(invoices).set({ status: "cancelled", updatedAt: new Date() }).where(eq(invoices.id, invoiceId))
   await logEvent(invoiceId, "cancelled", "Facture annulée.")
   revalidate()
