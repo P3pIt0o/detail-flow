@@ -1,75 +1,197 @@
 "use client"
 
 /**
- * `ScrollStage` — orchestrateur de l'expérience de scroll.
+ * `ScrollStage` — expérience de scroll immersive DetailFlow (V2).
  *
- * - Source unique de la timeline : un seul `useScroll` + `useSpring`
- *   produisent `scrollYProgress`, transmis au panneau 3D persistant
- *   (`DetailFlowPanel`) et à chaque scène narrative via `StageTextSlot`.
- * - `prefers-reduced-motion` : bascule entièrement sur `StaticMarketingContent`
- *   (sections empilées classiques, aucune dépendance à la timeline animée).
- * - Aucune interaction (CTA, formulaire, accordéon FAQ) n'est jamais bloquée :
- *   le panneau 3D est `pointer-events-none`, et chaque scène narrative ne
- *   redevient cliquable que lorsqu'elle est réellement visible.
+ * Architecture :
+ *  1. Un conteneur haut (`TOTAL_SCROLL_VH`) avec un enfant `sticky` plein
+ *     écran : c'est la SCÈNE IMMERSIVE (hero → « un seul outil » →
+ *     fonctionnalités → finale). Le panneau 3D (`DetailFlowPanel`) est monté
+ *     une seule fois ici et occupe tout le viewport ; les textes narratifs
+ *     apparaissent AUTOUR de lui.
+ *  2. La scène se termine (le dashboard recule, le halo s'éteint), PUIS le
+ *     flux DOM NORMAL reprend : Bénéfices, Partenaires, Programme Beta
+ *     (pleine largeur, formulaire au calme), FAQ. Ces sections ne sont plus
+ *     dans le `sticky` → aucun chevauchement possible avec le panneau 3D.
+ *
+ * `prefers-reduced-motion` : bascule entièrement sur `StaticMarketingContent`.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { motion, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue } from "framer-motion"
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
+import { marketing } from "@/config/marketing"
 import { DetailFlowPanel } from "./detailflow-panel"
 import { useDepthFactor } from "./use-depth-factor"
 import { StaticMarketingContent } from "./static-marketing-content"
-import { STAGE_RANGE, TOTAL_SCROLL_VH, fadeRange, mapOutput, type StageKey } from "./scroll-timeline"
-import { SceneHero } from "./scene-hero"
-import { SceneOverview } from "./scene-overview"
-import { SceneFeatures } from "./scene-features"
-import { SceneBenefits } from "./scene-benefits"
-import { ScenePartners } from "./scene-partners"
-import { SceneBeta } from "./scene-beta"
-import { SceneFaq } from "./scene-faq"
+import { STAGE_RANGE, TOTAL_SCROLL_VH, subRange, stageFade, mapOutput, type StageKey } from "./scroll-timeline"
+import { BenefitsSection, PartnersSection, BetaSection, FaqSection } from "./marketing-sections"
+import { FEATURE_SCENE_LABELS } from "./detailflow-panel"
 
-/** Enveloppe narrative d'une étape : dérive opacité/décalage/pointer-events de la timeline. */
-function StageTextSlot({
+/** Couche narrative : dérive opacité + léger décalage vertical d'une plage. */
+function NarrativeLayer({
   progress,
-  stageKey,
-  children,
+  range,
+  margin = 0.18,
   className,
+  children,
 }: {
   progress: MotionValue<number>
-  stageKey: StageKey
-  children: ReactNode
+  range: readonly [number, number]
+  margin?: number
   className?: string
+  children: ReactNode
 }) {
-  const fade = fadeRange(STAGE_RANGE[stageKey])
+  const fade = stageFade(range, margin)
   const opacity = useTransform(progress, fade.input, fade.output)
-  const yFade = mapOutput(fade, 16, 0)
+  const yFade = mapOutput(fade, 22, 0)
   const y = useTransform(progress, yFade.input, yFade.output)
   const pointerEvents = useTransform(opacity, (v) => (v > 0.5 ? "auto" : "none"))
-  // La scène la plus visible passe devant pendant le chevauchement du crossfade,
-  // pour qu'on ne lise jamais deux textes superposés à parts égales.
-  const zIndex = useTransform(opacity, (v) => (v > 0.5 ? 1 : 0))
-
   return (
-    <motion.div
-      className={className ?? "absolute inset-0 flex items-center px-4 sm:px-6 lg:px-0"}
-      style={{ opacity, y, pointerEvents, zIndex }}
-    >
-      <div className="mx-auto w-full max-w-xl">{children}</div>
+    <motion.div className={className} style={{ opacity, y, pointerEvents }}>
+      {children}
     </motion.div>
   )
 }
 
-export function ScrollStage() {
-  // `useReducedMotion` renvoie `null` côté serveur puis se résout après le
-  // montage : on ne bascule sur le rendu statique qu'une fois monté côté
-  // client, pour que le HTML initial (SSR) et le premier rendu client
-  // correspondent toujours (évite un mismatch d'hydratation React).
-  const [mounted, setMounted] = useState(false)
-  const reducedMotion = useReducedMotion()
+/** Légende d'un « moment » fonctionnalité (acte features), synchronisée. */
+function FeatureCaption({
+  progress,
+  index,
+  total,
+  label,
+}: {
+  progress: MotionValue<number>
+  index: number
+  total: number
+  label: string
+}) {
+  const range = subRange(STAGE_RANGE.features, index / total, (index + 1) / total)
+  const fade = stageFade(range, 0.22)
+  const opacity = useTransform(progress, fade.input, fade.output)
+  const yFade = mapOutput(fade, 16, 0)
+  const y = useTransform(progress, yFade.input, yFade.output)
+  return (
+    <motion.div className="absolute inset-x-0 bottom-[8vh] flex justify-center px-4" style={{ opacity, y }}>
+      <div className="max-w-md rounded-2xl border border-border/70 bg-background/80 px-6 py-4 text-center shadow-xl backdrop-blur">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+          Fonctionnalité {index + 1} / {total}
+        </p>
+        <p className="mt-1 text-lg font-semibold text-foreground">{label}</p>
+      </div>
+    </motion.div>
+  )
+}
+
+function ImmersiveScene() {
   const containerRef = useRef<HTMLDivElement>(null)
   const depth = useDepthFactor()
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
-  const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 24, mass: 0.4 })
+  const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 26, mass: 0.45 })
+
+  const features = marketing.features
+
+  return (
+    <div ref={containerRef} className="relative" style={{ height: `${TOTAL_SCROLL_VH}vh` }}>
+      <div className="sticky top-0 h-screen w-full overflow-hidden">
+        {/* Panneau 3D plein écran, monté une seule fois */}
+        <DetailFlowPanel progress={progress} depth={depth} />
+
+        {/* --------------------------- Narration --------------------------- */}
+        <div className="pointer-events-none absolute inset-0">
+          {/* ACTE 1 — Hero (le seul bloc avec des CTA cliquables) */}
+          <NarrativeLayer
+            progress={progress}
+            range={STAGE_RANGE.hero}
+            className="absolute inset-x-0 bottom-0 flex justify-center px-4 pb-[7vh] sm:px-6"
+          >
+            <div className="max-w-2xl text-center">
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-background/70 px-4 py-1.5 text-sm text-primary backdrop-blur">
+                {marketing.hero.badge}
+              </span>
+              <h1 className="mt-5 text-balance text-3xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+                {marketing.hero.title}
+              </h1>
+              <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+                {marketing.hero.subtitle}
+              </p>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link
+                  href={marketing.hero.primaryCta.href}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-8 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:brightness-110"
+                >
+                  {marketing.hero.primaryCta.label}
+                  <ArrowRight className="size-5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href={marketing.hero.secondaryCta.href}
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-background/50 px-8 text-base font-semibold text-foreground backdrop-blur transition-colors hover:border-primary/50"
+                >
+                  {marketing.hero.secondaryCta.label}
+                </Link>
+              </div>
+              <p className="mt-8 animate-pulse text-xs uppercase tracking-widest text-muted-foreground">
+                Défilez pour entrer dans DetailFlow
+              </p>
+            </div>
+          </NarrativeLayer>
+
+          {/* ACTE 2 — « Un seul outil » (texte en haut, la convergence est 3D) */}
+          <NarrativeLayer
+            progress={progress}
+            range={STAGE_RANGE.overview}
+            margin={0.22}
+            className="absolute inset-x-0 top-[9vh] flex justify-center px-4 sm:px-6"
+          >
+            <div className="max-w-xl text-center">
+              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">{marketing.overview.title}</h2>
+              <p className="mx-auto mt-3 max-w-lg text-pretty leading-relaxed text-muted-foreground">
+                {marketing.overview.description}
+              </p>
+            </div>
+          </NarrativeLayer>
+
+          {/* ACTE 3 — Fonctionnalités : une légende par moment */}
+          {FEATURE_SCENE_LABELS.map((label, i) => (
+            <FeatureCaption
+              key={label}
+              progress={progress}
+              index={i}
+              total={FEATURE_SCENE_LABELS.length}
+              label={label}
+            />
+          ))}
+
+          {/* ACTE 4 — Finale : « Tout est connecté » */}
+          <NarrativeLayer
+            progress={progress}
+            range={subRange(STAGE_RANGE.finale, 0, 0.72)}
+            margin={0.24}
+            className="absolute inset-x-0 top-[10vh] flex justify-center px-4 sm:px-6"
+          >
+            <div className="max-w-2xl text-center">
+              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                Tout est connecté.
+              </h2>
+              <p className="mx-auto mt-4 max-w-lg text-pretty text-lg leading-relaxed text-muted-foreground">
+                Votre activité aussi devrait l&apos;être.
+              </p>
+            </div>
+          </NarrativeLayer>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ScrollStage() {
+  // `useReducedMotion` renvoie `null` en SSR puis se résout : on ne bascule
+  // sur le rendu statique qu'après montage, pour éviter un mismatch
+  // d'hydratation (SSR et premier rendu client identiques).
+  const [mounted, setMounted] = useState(false)
+  const reducedMotion = useReducedMotion()
 
   useEffect(() => {
     setMounted(true)
@@ -80,48 +202,13 @@ export function ScrollStage() {
   }
 
   return (
-    <div ref={containerRef} className="relative" style={{ height: `${TOTAL_SCROLL_VH}vh` }}>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[60vh] bg-gradient-to-b from-primary/10 via-transparent to-transparent"
-      />
-      <div className="sticky top-16 h-[calc(100vh-4rem)] w-full overflow-hidden">
-        <div className="relative mx-auto flex h-full max-w-7xl flex-col items-center justify-center gap-6 px-4 sm:px-6 md:flex-row md:justify-between md:gap-10 lg:px-8">
-          {/* Colonne texte : les 7 scènes narratives, empilées, une seule visible à la fois */}
-          <div className="relative order-2 h-[62vh] w-full md:order-1 md:h-[70vh] md:w-1/2">
-            <StageTextSlot progress={progress} stageKey="hero">
-              <SceneHero />
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="overview">
-              <SceneOverview />
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="features">
-              <SceneFeatures />
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="benefits">
-              <SceneBenefits />
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="partners">
-              <ScenePartners />
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="beta" className="absolute inset-0 flex items-center px-0">
-              <div className="mx-auto w-full max-w-none px-4 sm:px-0">
-                <SceneBeta />
-              </div>
-            </StageTextSlot>
-            <StageTextSlot progress={progress} stageKey="faq" className="absolute inset-0 flex items-center px-0">
-              <div className="mx-auto w-full max-w-none px-4 sm:px-0">
-                <SceneFaq />
-              </div>
-            </StageTextSlot>
-          </div>
-
-          {/* Colonne objet 3D persistant : monté une seule fois, jamais démonté */}
-          <div className="relative order-1 w-full md:order-2 md:w-1/2">
-            <DetailFlowPanel progress={progress} depth={depth} />
-          </div>
-        </div>
-      </div>
-    </div>
+    <>
+      <ImmersiveScene />
+      {/* Flux DOM normal — hors du sticky, aucun élément 3D au-dessus/derrière */}
+      <BenefitsSection />
+      <PartnersSection />
+      <BetaSection />
+      <FaqSection />
+    </>
   )
 }
