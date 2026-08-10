@@ -109,8 +109,8 @@ export default async function ParametresPage() {
               heroCtaSecondary: tenant.heroCtaSecondary ?? "",
             }}
           />
-          <div className="mt-6">
-            <h2 className="mb-1 text-base font-semibold text-foreground">Autres sections du site</h2>
+          <div className="mt-10 border-t border-border pt-8">
+            <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
             <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
           </div>
         </TabsContent>
