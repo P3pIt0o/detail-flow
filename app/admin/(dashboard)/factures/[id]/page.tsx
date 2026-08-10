@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
-import { requireAdmin } from "@/lib/admin"
+import { requireCompanyMember } from "@/lib/admin"
 import { getInvoiceDetail } from "@/lib/invoice/queries"
 import { InvoiceEditor } from "@/components/admin/invoice-editor"
 import { InvoiceView } from "@/components/admin/invoice-view"
@@ -15,7 +15,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  await requireAdmin()
+  const { tenant } = await requireCompanyMember()
   const { id } = await params
   const numId = Number(id)
   if (!Number.isInteger(numId)) notFound()
@@ -35,7 +35,13 @@ export default async function InvoiceDetailPage({
       {data.invoice.status === "draft" ? (
         <InvoiceEditor invoice={data.invoice} items={data.items} />
       ) : (
-        <InvoiceView invoice={data.invoice} items={data.items} payments={data.payments} events={data.events} />
+        <InvoiceView
+          invoice={data.invoice}
+          items={data.items}
+          payments={data.payments}
+          events={data.events}
+          tenantCountry={tenant.country}
+        />
       )}
     </div>
   )

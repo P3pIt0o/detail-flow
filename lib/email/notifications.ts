@@ -9,6 +9,7 @@ import {
   statusConfirmedEmail,
   statusCompletedEmail,
   statusCancelledEmail,
+  bookingUpdatedEmail,
   reminderEmail,
   type BookingEmailData,
 } from "./templates"
@@ -136,6 +137,29 @@ export async function sendStatusChangeEmail(
     })
   } catch (e) {
     console.log("[v0] sendStatusChangeEmail a échoué:", e instanceof Error ? e.message : e)
+  }
+}
+
+/**
+ * Email envoyé au client lorsqu'un admin modifie un RDV (date/heure/prestation/
+ * adresse). Non bloquant : un échec d'email n'annule jamais la modification.
+ */
+export async function sendBookingUpdatedEmail(bookingId: number): Promise<void> {
+  try {
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) return
+    const { data, customerEmail, proEmail } = loaded
+
+    const mail = bookingUpdatedEmail(data)
+    await sendEmail({
+      to: customerEmail,
+      subject: mail.subject,
+      html: mail.html,
+      fromName: data.businessName,
+      replyTo: proEmail ?? undefined,
+    })
+  } catch (e) {
+    console.log("[v0] sendBookingUpdatedEmail a échoué:", e instanceof Error ? e.message : e)
   }
 }
 

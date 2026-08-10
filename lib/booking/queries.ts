@@ -25,7 +25,7 @@ import {
   bookingItems,
   bookingItemOptions,
 } from "@/lib/db/schema"
-import { and, asc, count, eq, inArray } from "drizzle-orm"
+import { and, asc, count, eq, inArray, ne } from "drizzle-orm"
 import { requireCompanyId, getCompanyIdOrNull } from "@/lib/tenant"
 
 /** Statuts qui occupent réellement un créneau (bloquants). */
@@ -204,8 +204,14 @@ export async function getTimeOff(companyId?: number) {
 /**
  * Réservations actives (bloquantes) d'une date donnée, avec leurs horaires.
  * Sert au calcul des créneaux disponibles et à la prévention des doublons.
+ * `excludeBookingId` : exclut une réservation du contrôle (édition d'un RDV
+ * existant — elle ne doit pas se bloquer elle-même).
  */
-export async function getActiveBookingsForDate(dateStr: string, companyId?: number) {
+export async function getActiveBookingsForDate(
+  dateStr: string,
+  companyId?: number,
+  excludeBookingId?: number,
+) {
   const cid = companyId ?? (await requireCompanyId())
   return db
     .select({
@@ -219,12 +225,21 @@ export async function getActiveBookingsForDate(dateStr: string, companyId?: numb
         eq(bookings.companyId, cid),
         eq(bookings.date, dateStr),
         inArray(bookings.status, BLOCKING_STATUSES),
+        excludeBookingId != null ? ne(bookings.id, excludeBookingId) : undefined,
       ),
     )
 }
 
-/** Nombre de véhicules déjà réservés (actifs) sur une date. */
-export async function countVehiclesForDate(dateStr: string, companyId?: number): Promise<number> {
+/**
+ * Nombre de véhicules déjà réservés (actifs) sur une date.
+ * `excludeBookingId` : exclut les véhicules d'une réservation existante
+ * (édition — ses propres véhicules ne doivent pas compter contre elle-même).
+ */
+export async function countVehiclesForDate(
+  dateStr: string,
+  companyId?: number,
+  excludeBookingId?: number,
+): Promise<number> {
   const cid = companyId ?? (await requireCompanyId())
   const rows = await db
     .select({ n: count() })
@@ -235,6 +250,7 @@ export async function countVehiclesForDate(dateStr: string, companyId?: number):
         eq(bookings.companyId, cid),
         eq(bookings.date, dateStr),
         inArray(bookings.status, BLOCKING_STATUSES),
+        excludeBookingId != null ? ne(bookings.id, excludeBookingId) : undefined,
       ),
     )
   return rows[0]?.n ?? 0

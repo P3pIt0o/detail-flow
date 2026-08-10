@@ -358,9 +358,11 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   const missing: string[] = []
   if (!issuer?.businessName?.trim()) missing.push("le nom / la raison sociale")
   if (!(issuer?.invoiceCompanyAddress?.trim() || issuer?.businessAddress?.trim())) missing.push("l'adresse")
-  // Le SIRET est une exigence française : les tenants hors France (tenant.country
-  // sur companies) n'en possèdent pas et ne doivent pas être bloqués.
-  if (tenant.country === "FR" && !issuer?.invoiceSiret?.trim()) missing.push("le SIRET")
+  // Le SIRET n'est volontairement PAS bloquant : DetailFlow accueille des
+  // entreprises étrangères et des bêta-testeurs dont la configuration
+  // administrative n'est pas terminée. L'absence de SIRET n'empêche jamais
+  // l'émission ni le paiement d'une facture ; un avertissement non bloquant
+  // est affiché côté UI (voir InvoiceView) quand l'entreprise est française.
   if (missing.length) {
     return {
       ok: false,

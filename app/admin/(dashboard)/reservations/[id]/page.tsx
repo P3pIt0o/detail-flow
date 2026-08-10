@@ -5,10 +5,12 @@ import { ArrowLeft, Calendar, Clock, Mail, MapPin, Phone, User } from "lucide-re
 import { requireAdmin } from "@/lib/admin"
 import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceByBookingId } from "@/lib/invoice/queries"
+import { getServices, getVehicleTypes, getOptions } from "@/lib/booking/queries"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
 import { BookingNotes } from "@/components/admin/booking-notes"
+import { BookingEditDialog } from "@/components/admin/booking-edit-dialog"
 import { formatPrice, formatDuration, formatDateLong } from "@/lib/format"
 import type { BookingStatus } from "@/lib/booking/status"
 
@@ -29,6 +31,11 @@ export default async function ReservationDetailPage({
   if (!data) notFound()
   const { booking, items } = data
   const existingInvoice = await getInvoiceByBookingId(booking.id)
+  const [services, vehicleTypes, options] = await Promise.all([
+    getServices(),
+    getVehicleTypes(),
+    getOptions(),
+  ])
 
   return (
     <div className="space-y-6">
@@ -48,6 +55,22 @@ export default async function ReservationDetailPage({
           <p className="font-mono text-sm text-muted-foreground">{booking.reference}</p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+          <BookingEditDialog
+            bookingId={booking.id}
+            booking={{
+              date: booking.date,
+              startTime: booking.startTime,
+              customerName: booking.customerName,
+              customerEmail: booking.customerEmail,
+              customerPhone: booking.customerPhone,
+              address: booking.address,
+              notes: booking.notes,
+            }}
+            items={items}
+            services={services}
+            vehicleTypes={vehicleTypes}
+            options={options}
+          />
           <InvoiceButton
             bookingId={booking.id}
             bookingStatus={booking.status}
