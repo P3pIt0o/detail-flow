@@ -1,10 +1,82 @@
 import type React from "react"
+import type { Metadata } from "next"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { WhatsAppButton } from "@/components/layout/whatsapp-button"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact, type PublicContact } from "@/lib/public-contact"
-import { resolveSiteContent } from "@/lib/site-content"
+import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
+import { siteConfig } from "@/config/site"
+
+/**
+ * MÉTADONNÉES DE PARTAGE PAR TENANT (Open Graph / Twitter / SEO).
+ *
+ * Calculées CÔTÉ SERVEUR à partir du tenant de la requête (en-tête posé par le
+ * middleware, jamais d'une valeur client) : chaque site public partagé
+ * (Instagram, WhatsApp, Messenger…) affiche automatiquement le titre /
+ * description / image de SON entreprise. Aucune donnée d'un autre tenant ne
+ * peut apparaître, et cela vaut automatiquement pour tout futur tenant.
+ *
+ * Priorités (repli garanti — aucun champ n'est jamais vide) :
+ *  - Titre       : titre du Hero personnalisé → sinon nom de l'entreprise.
+ *  - Description : sous-titre Hero / texte de présentation personnalisé →
+ *                  sinon texte court construit depuis le nom de l'entreprise.
+ *  - Image       : logo du tenant → sinon image DetailFlow par défaut.
+ *                  (Aucun champ « image Hero » n'existe en base à ce jour.)
+ *
+ * Hors contexte tenant (vitrine racine detailflow.fr) : renvoie {} pour
+ * conserver telles quelles les métadonnées globales du root layout.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getCurrentTenant()
+  if (!tenant) return {}
+
+  const clean = (v: string | null | undefined) => {
+    const t = (v ?? "").trim()
+    return t ? t : null
+  }
+
+  const name = clean(tenant.name) ?? siteConfig.brand.name
+  // `heroTitle` contient déjà le titre complet ; `heroHighlight` n'est qu'un
+  // fragment mis en avant DANS ce titre (pas un suffixe) → ne pas le concaténer.
+  const title = clean(tenant.heroTitle) ?? name
+
+  // Texte de présentation réellement personnalisé (jamais les défauts injectés).
+  const rawContent = (tenant.siteContent ?? null) as SiteContent | null
+  const description =
+    clean(tenant.heroSubtitle) ??
+    clean(rawContent?.about?.text) ??
+    `${name} — detailing et entretien automobile. Réservez votre créneau en ligne.`
+
+  // Base absolue publique + URL réelle du tenant (forme partagée ?tenant=slug).
+  const base = siteConfig.seo.url.replace(/\/+$/, "")
+  const url = `${base}/?tenant=${encodeURIComponent(tenant.slug)}`
+  // Image : logo du tenant (route publique scoping slug) → repli OG DetailFlow.
+  const imageUrl = tenant.logoUrl
+    ? `${base}/api/company-logo?company=${encodeURIComponent(tenant.slug)}`
+    : `${base}${siteConfig.seo.ogImage}`
+
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      locale: siteConfig.seo.locale,
+      url,
+      siteName: name,
+      title,
+      description,
+      images: [{ url: imageUrl, width: 1200, height: 630, alt: name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
+  }
+}
 
 // Données structurées Schema.org (LocalBusiness) pour un SEO local optimal.
 // Uniquement sur les pages publiques, et UNIQUEMENT à partir des coordonnées
