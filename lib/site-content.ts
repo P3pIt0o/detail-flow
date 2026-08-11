@@ -13,6 +13,7 @@
  */
 
 import { resolveRequestTenant } from "@/lib/tenant"
+import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 
 export interface SiteContent {
   about?: {
@@ -128,4 +129,16 @@ export function resolveSiteContent(raw: unknown): typeof SITE_CONTENT_DEFAULTS {
 export async function getPublicSiteContent() {
   const tenant = await resolveRequestTenant()
   return resolveSiteContent(tenant?.siteContent)
+}
+
+/**
+ * Configuration résolue des « Demandes personnalisées » pour le TENANT COURANT.
+ * Lit `companies.siteContent.customRequests`. Comme getPublicSiteContent, la
+ * résolution du tenant se fait côté serveur (jamais depuis le client) : ne peut
+ * pas renvoyer la configuration d'une autre entreprise.
+ */
+export async function getPublicCustomRequestsConfig() {
+  const tenant = await resolveRequestTenant()
+  const raw = (tenant?.siteContent as { customRequests?: unknown } | null)?.customRequests
+  return resolveCustomRequestsConfig(raw)
 }

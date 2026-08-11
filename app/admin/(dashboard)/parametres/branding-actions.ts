@@ -178,10 +178,16 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
     },
   }
 
+  // Préserve la configuration « Demandes personnalisées » stockée dans la même
+  // colonne jsonb : cet onglet ne doit jamais l'effacer (elle est gérée par son
+  // propre onglet / sa propre action).
+  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? null
+  const customRequests = existing?.customRequests
+
   await db
     .update(companies)
     .set({
-      siteContent: clean,
+      siteContent: customRequests !== undefined ? { ...clean, customRequests } : clean,
       updatedAt: new Date(),
     })
     .where(eq(companies.id, tenant.id))

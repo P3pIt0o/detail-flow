@@ -7,6 +7,11 @@ import { Reveal } from "@/components/ui/reveal"
 import { Check } from "lucide-react"
 import { getPublicServices } from "@/lib/catalog-queries"
 import { getCategories, getVehicleTypes, getOptions } from "@/lib/booking/queries"
+import { CustomRequestCard } from "@/components/custom-request-card"
+import { getPublicCustomRequestsConfig } from "@/lib/site-content"
+import { resolveCustomRequestTexts } from "@/lib/custom-requests"
+import { getCurrentTenant } from "@/lib/tenant"
+import { withTenant } from "@/lib/tenant-link"
 
 export const metadata: Metadata = {
   title: "Prestations",
@@ -22,12 +27,19 @@ function formatPrice(cents: number): string {
 
 export default async function PrestationsPage() {
   // Données dynamiques, scopées au tenant courant (isolation via companyId).
-  const [visibleServices, categories, vehicles, options] = await Promise.all([
+  const [visibleServices, categories, vehicles, options, crConfig, tenant] = await Promise.all([
     getPublicServices(),
     getCategories(),
     getVehicleTypes(),
     getOptions(),
+    getPublicCustomRequestsConfig(),
+    getCurrentTenant(),
   ])
+
+  // Card « Demande personnalisée » : affichée UNIQUEMENT si l'entreprise a
+  // activé la fonctionnalité (sinon page identique à aujourd'hui).
+  const crTexts = resolveCustomRequestTexts(crConfig)
+  const demandeHref = withTenant("/demande", tenant?.slug ?? null)
 
   // Prestations sans catégorie regroupées à part.
   const uncategorized = visibleServices.filter(
@@ -87,6 +99,22 @@ export default async function PrestationsPage() {
           <p className="text-muted-foreground">
             Les prestations seront bientôt disponibles. Contactez-nous pour en savoir plus.
           </p>
+        </section>
+      )}
+
+      {/* Demande personnalisée (facultatif, activé par l'entreprise) */}
+      {crConfig.enabled && (
+        <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Reveal>
+              <CustomRequestCard
+                title={crTexts.title}
+                description={crTexts.description}
+                ctaLabel={crTexts.ctaLabel}
+                href={demandeHref}
+              />
+            </Reveal>
+          </div>
         </section>
       )}
 
