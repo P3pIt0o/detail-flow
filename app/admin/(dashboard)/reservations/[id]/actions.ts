@@ -274,3 +274,55 @@ export async function updateBookingAction(input: UpdateBookingInput): Promise<Up
   revalidatePath("/admin/calendrier")
   return { ok: true }
 }
+
+/* ============================================================================
+ *  ACTION SERVEUR — SUPPRESSION D'UNE RÉSERVATION (admin)
+ * ============================================================================
+ *  Sécurité multi-tenant : la réservation n'est supprimée QUE si
+ *  `booking.companyId = tenant.id`, le `companyId` provenant exclusivement du
+ *  contexte serveur (requireCompanyMember) — jamais du client. Une entreprise
+ *  ne peut donc pas supprimer le rendez-vous d'une autre.
+ *
+ *  Les tables enfants (booking_items, booking_item_options) n'ont pas de
+ *  cascade en base : on les supprime explicitement dans la même transaction,
+ *  exactement comme le fait déjà updateBookingAction. Les factures ne sont pas
+ *  touchées (aucune contrainte FK sur invoices.bookingId).
+ * ========================================================================== */
+
+export type DeleteBookingResult = { ok: true } | { ok: false; error: string }
+
+export async function deleteBookingAction(bookingId: number): Promise<DeleteBookingResult> {
+  const { tenant } = await requireCompanyMember()
+  const companyId = tenant.id
+
+  if (!Number.isInteger(bookingId)) return { ok: false, error: "Réservation invalide." }
+
+  // Vérification d'appartenance stricte au tenant courant.
+  const [existing] = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1)
+  if (!existing || existing.companyId !== companyId) {
+    return { ok: false, error: "Réservation introuvable." }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const childItems = await tx
+        .select({ id: bookingItems.id })
+        .from(bookingItems)
+        .where(eq(bookingItems.bookingId, bookingId))
+      const childItemIds = childItems.map((i) => i.id)
+      if (childItemIds.length) {
+        await tx.delete(bookingItemOptions).where(inArray(bookingItemOptions.bookingItemId, childItemIds))
+      }
+      await tx.delete(bookingItems).where(eq(bookingItems.bookingId, bookingId))
+      // Re-scopé par companyId par sécurité (double garde).
+      await tx.delete(bookings).where(eq(bookings.id, bookingId))
+    })
+  } catch (e) {
+    console.log("[v0] deleteBookingAction error:", e instanceof Error ? e.message : e)
+    return { ok: false, error: "La suppression a échoué. Merci de réessayer." }
+  }
+
+  revalidatePath("/admin/reservations")
+  revalidatePath("/admin/calendrier")
+  return { ok: true }
+}
