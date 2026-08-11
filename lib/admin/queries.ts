@@ -13,6 +13,29 @@ import { requireCompanyId } from "@/lib/tenant"
 /** Statuts considérés comme "actifs" (comptent dans le CA / planning). */
 const REVENUE_STATUSES = ["confirmed", "completed"]
 
+/**
+ * Filtre CA : exclut une facture PAYÉE dès lors qu'elle est rattachée à une
+ * réservation (invoices.bookingId non nul) qui a été soit ANNULÉE
+ * (status = 'cancelled'), soit SUPPRIMÉE (la réservation n'existe plus).
+ *
+ * Les factures sans réservation liée (bookingId NULL — factures créées à la
+ * main) continuent de compter normalement. La sous-requête est scopée par
+ * companyId : l'isolation multi-tenant est préservée (aucune donnée d'un autre
+ * tenant n'entre dans le calcul). Ne modifie AUCUNE facture, uniquement la
+ * lecture du CA.
+ */
+function excludeCancelledOrDeletedBooking(companyId: number) {
+  return sql`(
+    ${invoices.bookingId} is null
+    or exists (
+      select 1 from ${bookings} b
+      where b.id = ${invoices.bookingId}
+        and b."companyId" = ${companyId}
+        and b.status <> 'cancelled'
+    )
+  )`
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -57,6 +80,7 @@ export async function getDashboardStats(companyId?: number) {
           eq(invoices.status, "paid"),
           sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) >= ${start}`,
           sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) <= ${end}`,
+          excludeCancelledOrDeletedBooking(cid),
         ),
       ),
     // Nombre de réservations du mois
@@ -125,7 +149,9 @@ export async function getRevenueByMonth(companyId?: number) {
       total: sum(invoices.totalCents),
     })
     .from(invoices)
-    .where(and(eq(invoices.companyId, cid), eq(invoices.status, "paid")))
+    .where(
+      and(eq(invoices.companyId, cid), eq(invoices.status, "paid"), excludeCancelledOrDeletedBooking(cid)),
+    )
     .groupBy(monthExpr)
     .orderBy(monthExpr)
   return rows.map((r) => ({ month: r.month, totalCents: Number(r.total ?? 0) }))
