@@ -42,7 +42,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>© {new Date().getFullYear()} DetailFlow. Tous droits réservés.</p>
           <nav className="flex items-center gap-6">
-            <Link href="/cgv" className="transition-colors hover:text-foreground">
+            <Link href="/conditions" className="transition-colors hover:text-foreground">
               CGV
             </Link>
             <Link href="/mentions-legales" className="transition-colors hover:text-foreground">
