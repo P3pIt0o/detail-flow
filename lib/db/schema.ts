@@ -387,6 +387,13 @@ export const settings = pgTable(
     // Mode vacances : quand activé, la prise de réservation en ligne est suspendue.
     vacationMode: boolean("vacationMode").notNull().default(false),
     vacationMessage: text("vacationMessage"),
+    /* ------------------------------ Rappels SMS ------------------------------ */
+    // Préférences de rappel SMS (le solde vit dans la table sms_credits).
+    smsRemindersEnabled: boolean("smsRemindersEnabled").notNull().default(false),
+    // Délai avant le RDV, en heures : 24 ou 48.
+    smsReminderOffsetHours: integer("smsReminderOffsetHours").notNull().default(24),
+    // Message personnalisé (placeholders {prenom} {entreprise} {date} {heure}).
+    smsReminderTemplate: text("smsReminderTemplate"),
     /* ------------------------------ Facturation ------------------------------ */
     invoiceLogoPathname: text("invoiceLogoPathname"),
     invoiceCompanyAddress: text("invoiceCompanyAddress"),
@@ -489,6 +496,8 @@ export const bookings = pgTable(
     status: text("status").notNull().default("pending_deposit"),
     notes: text("notes"),
     reminderSentAt: timestamp("reminderSentAt"),
+    // Rappel SMS : marqueur d'envoi unique (protection anti double-envoi).
+    smsReminderSentAt: timestamp("smsReminderSentAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
@@ -521,6 +530,62 @@ export const bookingItemOptions = pgTable("booking_item_options", {
   priceCents: integer("priceCents").notNull().default(0),
   durationMin: integer("durationMin").notNull().default(0),
 })
+
+/* -------------------------------------------------------------------------- */
+/*  Crédits SMS (une ligne par entreprise) + demandes de recharge             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Solde SMS d'une entreprise. UNE ligne par tenant (contrainte UNIQUE).
+ * `balance` = crédits restants ; `granted`/`purchased` = totaux cumulés
+ * (offerts / achetés) pour l'historique. `betaBonusGrantedAt` sert de garde-fou
+ * pour n'attribuer les 20 SMS offerts qu'UNE seule fois.
+ */
+export const smsCredits = pgTable(
+  "sms_credits",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    balance: integer("balance").notNull().default(0),
+    granted: integer("granted").notNull().default(0),
+    purchased: integer("purchased").notNull().default(0),
+    // Marqueur idempotent du bonus bêta (null = jamais attribué).
+    betaBonusGrantedAt: timestamp("betaBonusGrantedAt"),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqCompany: unique("sms_credits_company_unique").on(t.companyId),
+  }),
+)
+
+/**
+ * Demande de recharge SMS (workflow semi-automatique, paiement manuel Revolut).
+ * La création NE crédite JAMAIS : seul le passage à "paid" par le super-admin
+ * crédite (idempotent via `validatedAt`). Isolé par `companyId`.
+ */
+export const smsRechargeRequests = pgTable(
+  "sms_recharge_requests",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Référence unique visible (ex. SMS-A8F42K) — sert d'identifiant au paiement.
+    reference: text("reference").notNull().unique(),
+    quantity: integer("quantity").notNull(),
+    amountCents: integer("amountCents").notNull(),
+    // pending | paid | cancelled
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    validatedAt: timestamp("validatedAt"),
+  },
+  (t) => ({
+    byCompany: index("sms_recharge_requests_companyId_idx").on(t.companyId),
+    byStatus: index("sms_recharge_requests_status_idx").on(t.status),
+  }),
+)
 
 /* -------------------------------------------------------------------------- */
 /*  Factures (document figé, montants en CENTIMES)                            */

@@ -1,9 +1,9 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { companies, betaLeads } from "@/lib/db/schema"
+import { companies, betaLeads, smsRechargeRequests } from "@/lib/db/schema"
 import { requireSuperAdmin } from "@/lib/admin"
 import {
   provisionCompany,
@@ -12,6 +12,10 @@ import {
   deleteCompanyCompletely,
   type ProvisionResult,
 } from "@/lib/company/provision"
+import { creditFromRecharge } from "@/lib/sms/credits"
+import { sendEmail } from "@/lib/email/send"
+import { smsCreditedEmail } from "@/lib/email/templates"
+import { tenantAdminUrl } from "@/lib/tenant-shared"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions de super-administration. TOUTES commencent par requireSuperAdmin().*/
@@ -275,6 +279,71 @@ export async function reopenBetaLeadAction(leadId: number): Promise<ActionState>
     await db.update(betaLeads).set({ status: "new" }).where(eq(betaLeads.id, leadId))
     revalidatePath("/super-admin")
     return { ok: true, message: "Demande remise en attente." }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* ----------------------------- Recharges SMS ----------------------------- */
+
+/**
+ * « Paiement reçu — créditer les SMS ».
+ *
+ * IDEMPOTENT : le crédit réel se fait dans creditFromRecharge() via un UPDATE
+ * conditionnel `status = 'pending'` en transaction — un double clic ou un
+ * rechargement ne crédite jamais deux fois. L'email de confirmation n'est
+ * envoyé que si le crédit a effectivement eu lieu (already=false).
+ */
+export async function confirmSmsRechargeAction(requestId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    const res = await creditFromRecharge(requestId)
+    if (!res.ok) return { ok: false, error: res.error }
+
+    if (!res.already) {
+      // Confirmation au professionnel (best-effort : n'invalide pas le crédit).
+      try {
+        const [company] = await db
+          .select({ name: companies.name, slug: companies.slug, email: companies.email, phone: companies.phone })
+          .from(companies)
+          .where(eq(companies.id, res.companyId))
+          .limit(1)
+        if (company?.email) {
+          const mail = smsCreditedEmail({
+            companyName: company.name,
+            quantity: res.quantity,
+            newBalance: res.newBalance,
+            adminUrl: tenantAdminUrl(company.slug),
+            businessEmail: company.email,
+            businessPhone: company.phone,
+          })
+          await sendEmail({ to: company.email, subject: mail.subject, html: mail.html })
+        }
+      } catch (mailErr) {
+        console.log("[v0] smsCreditedEmail failed:", mailErr instanceof Error ? mailErr.message : mailErr)
+      }
+    }
+
+    revalidatePath("/super-admin")
+    return {
+      ok: true,
+      message: res.already ? "Déjà créditée (aucune action)." : `${res.quantity} SMS crédités.`,
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/** Annule une demande de recharge encore en attente (ne crédite rien). */
+export async function cancelSmsRechargeAction(requestId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    await db
+      .update(smsRechargeRequests)
+      .set({ status: "cancelled" })
+      .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
+    revalidatePath("/super-admin")
+    return { ok: true, message: "Demande annulée." }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
   }

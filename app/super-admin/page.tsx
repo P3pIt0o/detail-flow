@@ -1,9 +1,10 @@
 import Link from "next/link"
-import { listCompanies, listBetaLeads, getPlatformStats } from "@/lib/super-admin/queries"
+import { listCompanies, listBetaLeads, getPlatformStats, listPendingSmsRecharges } from "@/lib/super-admin/queries"
 import { buttonVariants } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { CompanyCard } from "@/components/super-admin/company-card"
 import { BetaLeadsSection } from "@/components/super-admin/beta-leads-section"
+import { SmsRechargesSection } from "@/components/super-admin/sms-recharges-section"
 
 export const dynamic = "force-dynamic"
 
@@ -19,7 +20,12 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
 }
 
 export default async function SuperAdminDashboard() {
-  const [stats, companies, leads] = await Promise.all([getPlatformStats(), listCompanies(), listBetaLeads()])
+  const [stats, companies, leads, smsRecharges] = await Promise.all([
+    getPlatformStats(),
+    listCompanies(),
+    listBetaLeads(),
+    listPendingSmsRecharges(),
+  ])
 
   return (
     <div className="flex flex-col gap-8">
@@ -47,6 +53,9 @@ export default async function SuperAdminDashboard() {
 
       {/* Workflow de validation des demandes beta */}
       <BetaLeadsSection leads={leads} rootDomain={ROOT_DOMAIN} />
+
+      {/* Recharges SMS en attente de validation manuelle (paiement Revolut) */}
+      <SmsRechargesSection requests={smsRecharges} />
 
       {/* Tableau de bord des entreprises */}
       <section className="flex flex-col gap-4">

@@ -1,6 +1,14 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { companies, companyMembers, bookings, user as userTable, betaLeads, session } from "@/lib/db/schema"
+import {
+  companies,
+  companyMembers,
+  bookings,
+  user as userTable,
+  betaLeads,
+  session,
+  smsRechargeRequests,
+} from "@/lib/db/schema"
 import { and, count, desc, eq, sql } from "drizzle-orm"
 
 /* -------------------------------------------------------------------------- */
@@ -130,6 +138,38 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     betaExpired: Number(row?.betaExpired ?? 0),
     totalBookings: Number(bk?.n ?? 0),
   }
+}
+
+export type SmsRechargeRow = {
+  id: number
+  companyId: number
+  companyName: string
+  companyEmail: string | null
+  reference: string
+  quantity: number
+  amountCents: number
+  status: string
+  createdAt: Date
+}
+
+/** Demandes de recharge SMS en attente (les plus récentes d'abord). */
+export async function listPendingSmsRecharges(): Promise<SmsRechargeRow[]> {
+  return db
+    .select({
+      id: smsRechargeRequests.id,
+      companyId: smsRechargeRequests.companyId,
+      companyName: companies.name,
+      companyEmail: companies.email,
+      reference: smsRechargeRequests.reference,
+      quantity: smsRechargeRequests.quantity,
+      amountCents: smsRechargeRequests.amountCents,
+      status: smsRechargeRequests.status,
+      createdAt: smsRechargeRequests.createdAt,
+    })
+    .from(smsRechargeRequests)
+    .innerJoin(companies, eq(companies.id, smsRechargeRequests.companyId))
+    .where(eq(smsRechargeRequests.status, "pending"))
+    .orderBy(desc(smsRechargeRequests.createdAt))
 }
 
 /** Détail d'une entreprise + ses membres (pour la fiche super-admin). */
