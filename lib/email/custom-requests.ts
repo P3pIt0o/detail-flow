@@ -34,25 +34,34 @@ async function loadIdentity(companyId: number) {
   }
 }
 
-/** Base absolue du site public/admin du tenant (?tenant= sur le domaine racine). */
-function baseUrl(slug: string): string {
-  const raw = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "")
-  if (!raw) return "" // aperçu/local : liens relatifs (non cliquables en email mais non bloquant)
-  const root = raw.startsWith("www.") ? raw : `www.${raw}`
-  return `https://${root}`
+/**
+ * Base absolue du site du tenant. En PRODUCTION, chaque entreprise vit sur son
+ * sous-domaine `https://{slug}.{rootDomain}` (cf. middleware). Sans domaine
+ * racine (aperçu v0 / local), on retombe sur des liens relatifs + `?tenant=`
+ * (non cliquables en email mais non bloquant pour le flux).
+ */
+function tenantBaseUrl(slug: string): { base: string; useQueryTenant: boolean } {
+  const raw = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "")
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+  if (!raw || !slug) return { base: "", useQueryTenant: Boolean(slug) }
+  return { base: `https://${slug}.${raw}`, useQueryTenant: false }
 }
 
 function publicRequestUrl(slug: string, token: string, intent?: "accept" | "refuse"): string {
-  const base = baseUrl(slug)
-  const q = slug ? `?tenant=${encodeURIComponent(slug)}` : ""
-  const i = intent ? `${q ? "&" : "?"}intent=${intent}` : ""
-  return `${base}/demande/${encodeURIComponent(token)}${q}${i}`
+  const { base, useQueryTenant } = tenantBaseUrl(slug)
+  const params = new URLSearchParams()
+  if (useQueryTenant) params.set("tenant", slug)
+  if (intent) params.set("intent", intent)
+  const qs = params.toString()
+  return `${base}/demande/${encodeURIComponent(token)}${qs ? `?${qs}` : ""}`
 }
 
 function adminRequestUrl(slug: string, id: number): string {
-  const base = baseUrl(slug)
-  const q = slug ? `?tenant=${encodeURIComponent(slug)}` : ""
-  return `${base}/admin/demandes/${id}${q}`
+  const { base, useQueryTenant } = tenantBaseUrl(slug)
+  const qs = useQueryTenant ? `?tenant=${encodeURIComponent(slug)}` : ""
+  return `${base}/admin/demandes/${id}${qs}`
 }
 
 /** Notifie le professionnel qu'une nouvelle demande est arrivée. Non bloquant. */

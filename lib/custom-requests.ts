@@ -114,3 +114,39 @@ export function resolveCustomRequestTexts(cfg: CustomRequestsConfig) {
 export function activeTypes(cfg: CustomRequestsConfig): CustomRequestType[] {
   return cfg.types.filter((t) => t.enabled)
 }
+
+/** Retrouve un type ACTIF par clé (validation d'une soumission publique). */
+export function findRequestType(cfg: CustomRequestsConfig, key: string): CustomRequestType | null {
+  return activeTypes(cfg).find((t) => t.key === key) ?? null
+}
+
+/** Vrai si le type déclenche l'affichage des champs « flotte / entreprise ». */
+export function isFleetType(key: string): boolean {
+  return key === "flotte"
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Statuts d'une demande (cycle de vie).                                     */
+/* -------------------------------------------------------------------------- */
+
+export type CustomRequestStatus = "new" | "proposal_sent" | "accepted" | "declined" | "converted"
+
+export const CUSTOM_REQUEST_STATUS_META: Record<
+  CustomRequestStatus,
+  { label: string; tone: "neutral" | "info" | "success" | "danger" }
+> = {
+  new: { label: "Nouvelle", tone: "info" },
+  proposal_sent: { label: "Proposition envoyée", tone: "neutral" },
+  accepted: { label: "Acceptée", tone: "success" },
+  declined: { label: "Refusée", tone: "danger" },
+  converted: { label: "Convertie en rendez-vous", tone: "success" },
+}
+
+export function statusMeta(status: string) {
+  return (
+    CUSTOM_REQUEST_STATUS_META[status as CustomRequestStatus] ?? {
+      label: status,
+      tone: "neutral" as const,
+    }
+  )
+}
