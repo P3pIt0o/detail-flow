@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, Inbox, Loader2, Mail, MapPin, Phone, X } from "lucide-react"
+import { Check, Inbox, Loader2, Mail, MapPin, Phone, Trash2, X } from "lucide-react"
 import {
   acceptBetaLeadAction,
   declineBetaLeadAction,
+  deleteBetaLeadAction,
   reopenBetaLeadAction,
 } from "@/app/super-admin/actions"
 import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-recap"
@@ -80,6 +81,18 @@ export function BetaLeadsSection({ leads }: { leads: Lead[]; rootDomain?: string
     startTransition(async () => {
       await reopenBetaLeadAction(lead.id)
       setBusyId(null)
+    })
+  }
+
+  function remove(lead: Lead) {
+    // Confirmation : ne supprime QUE la candidature, jamais l'entreprise éventuelle.
+    if (!window.confirm("Supprimer définitivement cette candidature ? (l'entreprise éventuellement créée n'est pas affectée)")) return
+    setError(null)
+    setBusyId(lead.id)
+    startTransition(async () => {
+      const res = await deleteBetaLeadAction(lead.id)
+      setBusyId(null)
+      if (!res.ok) setError(res.error)
     })
   }
 
@@ -177,6 +190,17 @@ export function BetaLeadsSection({ leads }: { leads: Lead[]; rootDomain?: string
                           Remettre en attente
                         </button>
                       )}
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => remove(lead)}
+                        aria-label="Supprimer la candidature"
+                        title="Supprimer la candidature"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        {isBusy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                        Supprimer
+                      </button>
                     </div>
                   )}
                 </div>

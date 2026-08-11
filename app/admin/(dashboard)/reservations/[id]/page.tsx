@@ -11,6 +11,7 @@ import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
 import { BookingNotes } from "@/components/admin/booking-notes"
 import { BookingEditDialog } from "@/components/admin/booking-edit-dialog"
+import { BookingDeleteButton } from "@/components/admin/booking-delete-button"
 import { formatPrice, formatDuration, formatDateLong } from "@/lib/format"
 import type { BookingStatus } from "@/lib/booking/status"
 
@@ -77,6 +78,7 @@ export default async function ReservationDetailPage({
             existingInvoiceId={existingInvoice?.id ?? null}
           />
           <BookingStatusActions bookingId={booking.id} status={booking.status as BookingStatus} />
+          <BookingDeleteButton bookingId={booking.id} />
         </div>
       </div>
 

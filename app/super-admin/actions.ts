@@ -248,6 +248,26 @@ export async function declineBetaLeadAction(leadId: number): Promise<ActionState
   }
 }
 
+/**
+ * Supprime DÉFINITIVEMENT une candidature beta (ligne beta_leads uniquement).
+ *
+ * IMPORTANT : `beta_leads` est une table indépendante. Cette action ne touche
+ * JAMAIS aux entreprises, comptes, réservations, clients ou factures — même si
+ * la candidature a déjà été convertie en entreprise, seule la ligne de la liste
+ * des candidatures est supprimée (l'entreprise/tenant reste intacte).
+ * Réservé au super-admin (requireSuperAdmin).
+ */
+export async function deleteBetaLeadAction(leadId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    await db.delete(betaLeads).where(eq(betaLeads.id, leadId))
+    revalidatePath("/super-admin")
+    return { ok: true, message: "Candidature supprimée." }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
 /** Repasse une demande refusée en attente (statut → new). */
 export async function reopenBetaLeadAction(leadId: number): Promise<ActionState> {
   await requireSuperAdmin()
