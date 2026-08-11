@@ -40,12 +40,18 @@ export const CROP_REGIONS = {
 export function DashboardWindow({
   label,
   region,
+  src,
+  imageAspect = "16 / 10",
   children,
   className,
   accent = false,
 }: {
   label?: string
   region?: CropRegion
+  /** Capture RÉELLE d'une interface produit (mode privilégié). */
+  src?: string
+  /** Ratio du cadre de la fenêtre (le haut de la capture est cadré). */
+  imageAspect?: string
   children?: ReactNode
   className?: string
   accent?: boolean
@@ -66,7 +72,17 @@ export function DashboardWindow({
         </div>
       ) : null}
 
-      {region ? (
+      {src ? (
+        <div className="relative w-full overflow-hidden" style={{ aspectRatio: imageAspect }}>
+          <Image
+            src={src}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 60vw, 30vw"
+            className="object-cover object-top"
+          />
+        </div>
+      ) : region ? (
         <div className="relative aspect-[16/10] w-full overflow-hidden">
           <Image
             src="/marketing/dashboard-preview.png"

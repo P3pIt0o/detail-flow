@@ -341,48 +341,58 @@ export function verificationEmail(opts: {
 
 export function ownerInvitationEmail(opts: {
   ownerName?: string | null
-  businessName: string
-  loginUrl: string
+  /** Nom de l'entreprise réellement créée. */
+  companyName: string
+  /** URL d'administration COMPLÈTE (avec ?tenant=) — cible du CTA principal. */
+  adminUrl: string
+  /** URL publique COMPLÈTE (avec ?tenant=) — lien secondaire "Voir mon site". */
+  publicSiteUrl: string
+  /** Email de connexion. */
   email: string
+  /** Mot de passe provisoire en clair (le même que le hash enregistré). */
   tempPassword: string
   businessEmail?: string | null
   businessPhone?: string | null
 }) {
-  const greeting = opts.ownerName ? `Bonjour ${esc(opts.ownerName)},` : "Bonjour,"
   return {
-    subject: `Votre accès à l'espace professionnel — ${opts.businessName}`,
+    subject: "Bienvenue sur DetailFlow — Vos accès",
     html: layout({
-      businessName: opts.businessName,
+      businessName: opts.companyName,
       businessEmail: opts.businessEmail,
       businessPhone: opts.businessPhone,
-      heading: "Votre espace professionnel est prêt",
+      heading: "Bienvenue sur DetailFlow",
       bodyHtml: `
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
-          ${greeting} un compte administrateur vient d&apos;être créé pour
-          <strong style="color:${INK};">${esc(opts.businessName)}</strong>.
-          Cliquez sur le bouton ci-dessous pour accéder à votre espace.
+          Votre candidature au programme bêta a été acceptée. Votre espace est
+          maintenant disponible.
         </p>
-        <div style="text-align:center;margin:24px 0;">
-          <a href="${esc(opts.loginUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 28px;border-radius:10px;">
-            Accéder à mon espace
-          </a>
-        </div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;">
           <tr><td colspan="2" style="height:6px;"></td></tr>
-          <tr><td style="padding:4px 14px;color:${MUTED};">Identifiant</td>
+          <tr><td style="padding:4px 14px;color:${MUTED};">Entreprise</td>
+              <td style="padding:4px 14px;text-align:right;color:${INK};font-weight:600;">${esc(opts.companyName)}</td></tr>
+          <tr><td style="padding:4px 14px;color:${MUTED};">Email de connexion</td>
               <td style="padding:4px 14px;text-align:right;color:${INK};font-weight:600;">${esc(opts.email)}</td></tr>
-          <tr><td style="padding:4px 14px;color:${MUTED};">Mot de passe temporaire</td>
+          <tr><td style="padding:4px 14px;color:${MUTED};">Mot de passe provisoire</td>
               <td style="padding:4px 14px;text-align:right;color:${INK};font-weight:600;">${esc(opts.tempPassword)}</td></tr>
           <tr><td colspan="2" style="height:6px;"></td></tr>
         </table>
+        <div style="text-align:center;margin:24px 0 12px;">
+          <a href="${esc(opts.adminUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 28px;border-radius:10px;">
+            Accéder à mon espace
+          </a>
+        </div>
+        <p style="text-align:center;font-size:13px;line-height:1.6;margin:0 0 16px;">
+          <a href="${esc(opts.publicSiteUrl)}" style="color:${BRAND};text-decoration:underline;">Voir mon site</a>
+        </p>
         <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:16px 0 8px;">
-          Pour votre sécurité, modifiez ce mot de passe après votre première connexion.
+          Pour votre sécurité, nous vous recommandons de modifier votre mot de
+          passe après votre première connexion.
         </p>
         <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:0 0 4px;">
           Si le bouton ne fonctionne pas, copiez-collez ce lien :
         </p>
         <p style="font-size:12px;line-height:1.5;color:${BRAND};word-break:break-all;margin:0;">
-          ${esc(opts.loginUrl)}
+          ${esc(opts.adminUrl)}
         </p>`,
     }),
   }
