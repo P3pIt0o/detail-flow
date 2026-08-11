@@ -417,6 +417,138 @@ export function bookingUpdatedEmail(b: BookingEmailData) {
   }
 }
 
+/* ------------------- Demandes personnalisées / sur mesure ------------------- */
+
+type CustomRequestIdentity = {
+  businessName: string
+  businessEmail?: string | null
+  businessPhone?: string | null
+}
+
+/** Notification au professionnel : nouvelle demande personnalisée reçue. */
+export function customRequestNewLeadEmail(
+  o: CustomRequestIdentity & {
+    typeLabel: string
+    customerName: string
+    customerEmail: string
+    customerPhone: string
+    description: string
+    detailLines: { label: string; value: string }[]
+    adminUrl: string
+  },
+) {
+  const rows = o.detailLines
+    .map(
+      (d) =>
+        `<tr><td style="padding:4px 0;color:${MUTED};">${esc(d.label)}</td>
+         <td style="padding:4px 0;text-align:right;color:${INK};">${esc(d.value)}</td></tr>`,
+    )
+    .join("")
+  return {
+    subject: `Nouvelle demande personnalisée — ${o.typeLabel}`,
+    html: layout({
+      businessName: o.businessName,
+      businessEmail: o.businessEmail,
+      businessPhone: o.businessPhone,
+      heading: "Nouvelle demande personnalisée",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Vous avez reçu une nouvelle demande de type <strong style="color:${INK};">${esc(o.typeLabel)}</strong>.
+        </p>
+        <div style="background:${BG};border-radius:10px;padding:18px 20px;margin:8px 0 16px;">
+          <div style="font-size:15px;font-weight:700;color:${INK};margin-bottom:8px;">${esc(o.customerName)}</div>
+          <div style="font-size:14px;color:${MUTED};">${esc(o.customerEmail)} &nbsp;·&nbsp; ${esc(o.customerPhone)}</div>
+        </div>
+        ${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;margin-bottom:16px;">${rows}</table>` : ""}
+        <div style="font-size:13px;color:${MUTED};">Besoin décrit</div>
+        <p style="font-size:14px;line-height:1.6;color:${INK};margin:4px 0 20px;white-space:pre-wrap;">${esc(o.description)}</p>
+        <a href="${esc(o.adminUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:999px;">Voir la demande</a>`,
+    }),
+  }
+}
+
+/** Email au client : proposition personnalisée + liens accepter/refuser. */
+export function customRequestProposalEmail(
+  o: CustomRequestIdentity & {
+    customerName: string
+    proposalTitle: string
+    proposalDescription?: string | null
+    proposalPriceCents: number
+    proposalDurationMin: number
+    proposalMessage?: string | null
+    acceptUrl: string
+    refuseUrl: string
+  },
+) {
+  const line = (label: string, value: string) =>
+    `<tr><td style="padding:6px 0;color:${MUTED};">${label}</td>
+     <td style="padding:6px 0;text-align:right;color:${INK};font-weight:700;white-space:nowrap;">${value}</td></tr>`
+  return {
+    subject: `Votre proposition personnalisée — ${o.businessName}`,
+    html: layout({
+      businessName: o.businessName,
+      businessEmail: o.businessEmail,
+      businessPhone: o.businessPhone,
+      heading: "Votre proposition personnalisée",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Bonjour ${esc(o.customerName)}, suite à votre demande, voici notre proposition :
+        </p>
+        <div style="background:${BG};border-radius:10px;padding:18px 20px;margin:8px 0 16px;">
+          <div style="font-size:16px;font-weight:700;color:${INK};margin-bottom:6px;">${esc(o.proposalTitle)}</div>
+          ${o.proposalDescription ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;white-space:pre-wrap;">${esc(o.proposalDescription)}</p>` : ""}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;margin-top:8px;">
+            ${line("Prix", formatPrice(o.proposalPriceCents))}
+            ${o.proposalDurationMin > 0 ? line("Durée estimée", formatDuration(o.proposalDurationMin)) : ""}
+          </table>
+        </div>
+        ${o.proposalMessage ? `<p style="font-size:14px;line-height:1.6;color:${INK};margin:0 0 20px;white-space:pre-wrap;">${esc(o.proposalMessage)}</p>` : ""}
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0;">
+          <tr>
+            <td style="padding-right:10px;">
+              <a href="${esc(o.acceptUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:999px;">Accepter la proposition</a>
+            </td>
+            <td>
+              <a href="${esc(o.refuseUrl)}" style="display:inline-block;color:${MUTED};text-decoration:underline;font-size:14px;padding:12px 6px;">Refuser</a>
+            </td>
+          </tr>
+        </table>`,
+    }),
+  }
+}
+
+/** Notification au professionnel : le client a accepté ou refusé la proposition. */
+export function customRequestDecisionEmail(
+  o: CustomRequestIdentity & {
+    customerName: string
+    typeLabel: string
+    decision: "accepted" | "declined"
+    adminUrl: string
+  },
+) {
+  const accepted = o.decision === "accepted"
+  return {
+    subject: `${accepted ? "Proposition acceptée" : "Proposition refusée"} — ${o.customerName}`,
+    html: layout({
+      businessName: o.businessName,
+      businessEmail: o.businessEmail,
+      businessPhone: o.businessPhone,
+      heading: accepted ? "Proposition acceptée" : "Proposition refusée",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          ${esc(o.customerName)} a <strong style="color:${INK};">${accepted ? "accepté" : "refusé"}</strong> votre proposition
+          (demande « ${esc(o.typeLabel)} »).
+        </p>
+        ${
+          accepted
+            ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 20px;">Vous pouvez maintenant l'ajouter à votre calendrier depuis l'espace d'administration.</p>`
+            : ""
+        }
+        <a href="${esc(o.adminUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:999px;">Voir la demande</a>`,
+    }),
+  }
+}
+
 /* ----------------------------- Rappel RDV ----------------------------- */
 
 export function reminderEmail(b: BookingEmailData) {

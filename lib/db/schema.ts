@@ -646,3 +646,56 @@ export const productPurchases = pgTable(
     byCompany: index("products_companyId_idx").on(t.companyId),
   }),
 )
+
+/* -------------------------------------------------------------------------- */
+/*  Demandes personnalisées / Prestations sur mesure (fonctionnalité          */
+/*  facultative par entreprise ; l'activation et les textes/catégories sont   */
+/*  stockés dans companies.siteContent.customRequests — voir                  */
+/*  lib/custom-requests.ts). Cette table ne contient QUE les demandes reçues. */
+/*  Isolé par companyId. Le champ `token` (aléatoire, non devinable) autorise */
+/*  l'acceptation/refus par le client sans compte.                            */
+/* -------------------------------------------------------------------------- */
+export const customRequests = pgTable(
+  "custom_requests",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Jeton sécurisé unique (lien client accepter/refuser).
+    token: text("token").notNull().unique(),
+    // Type de demande (clé + libellé figé au moment de la demande).
+    typeKey: text("typeKey").notNull(),
+    typeLabel: text("typeLabel").notNull(),
+    // Prospect
+    customerName: text("customerName").notNull(),
+    customerEmail: text("customerEmail").notNull(),
+    customerPhone: text("customerPhone").notNull(),
+    // Informations véhicule / flotte (toutes facultatives)
+    vehicleType: text("vehicleType"),
+    vehicleBrand: text("vehicleBrand"),
+    vehicleModel: text("vehicleModel"),
+    fleetCompanyName: text("fleetCompanyName"),
+    vehicleCount: text("vehicleCount"),
+    frequency: text("frequency"),
+    description: text("description").notNull(),
+    // Statut : new | proposal_sent | accepted | declined | converted
+    status: text("status").notNull().default("new"),
+    // Proposition / devis du professionnel
+    proposalTitle: text("proposalTitle"),
+    proposalDescription: text("proposalDescription"),
+    proposalPriceCents: integer("proposalPriceCents"),
+    proposalDurationMin: integer("proposalDurationMin"),
+    proposalMessage: text("proposalMessage"),
+    proposalSentAt: timestamp("proposalSentAt"),
+    respondedAt: timestamp("respondedAt"),
+    // Réservation créée après conversion (anti-doublon).
+    bookingId: integer("bookingId"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("custom_requests_companyId_idx").on(t.companyId),
+    byToken: index("custom_requests_token_idx").on(t.token),
+  }),
+)

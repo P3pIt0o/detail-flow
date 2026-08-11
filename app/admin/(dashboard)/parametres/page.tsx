@@ -19,6 +19,8 @@ import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
 import { InvoicingSettings } from "@/components/admin/settings/invoicing-settings"
 import { SecuritySettings } from "@/components/admin/settings/security-settings"
 import { SupportForm } from "@/components/admin/settings/support-form"
+import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
+import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
@@ -58,6 +60,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="reviews" className="flex-none px-3 py-1.5">
               Avis
+            </TabsTrigger>
+            <TabsTrigger value="custom-requests" className="flex-none px-3 py-1.5">
+              Demandes
             </TabsTrigger>
             <TabsTrigger value="appearance" className="flex-none px-3 py-1.5">
               Apparence
@@ -119,6 +124,9 @@ export default async function ParametresPage() {
         </TabsContent>
         <TabsContent value="reviews" className="mt-6">
           <ReviewSettings items={reviewItems} />
+        </TabsContent>
+        <TabsContent value="custom-requests" className="mt-6">
+          <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings
