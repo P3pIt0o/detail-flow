@@ -25,24 +25,9 @@ import {
   user as userTable,
   account as accountTable,
 } from "@/lib/db/schema"
-import { isValidSlug, normalizeSlug } from "@/lib/tenant-shared"
+import { isValidSlug, normalizeSlug, tenantPublicUrl, tenantAdminUrl } from "@/lib/tenant-shared"
 import { sendEmail } from "@/lib/email/send"
 import { ownerInvitationEmail } from "@/lib/email/templates"
-
-/**
- * Base publique pour les liens des emails. On évite absolument localhost :
- * priorité au domaine configuré (Better Auth / prod), puis à l'URL d'aperçu v0.
- */
-function publicBaseUrl(): string {
-  const raw =
-    process.env.BETTER_AUTH_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "") ||
-    process.env.V0_RUNTIME_URL ||
-    "https://app.detailflow.fr"
-  return raw.replace(/\/+$/, "")
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Provisionnement d'une entreprise (tenant) — cœur du "créer en < 2 min".    */
@@ -68,7 +53,13 @@ export type ProvisionInput = {
 export type ProvisionResult = {
   companyId: number
   slug: string
+  /** Nom de l'entreprise réellement créée (source de vérité pour l'affichage/email). */
+  companyName: string
   ownerEmail: string
+  /** URL publique COMPLÈTE du tenant (https://www.<root>/?tenant=<slug>). */
+  publicSiteUrl: string
+  /** URL d'administration COMPLÈTE du tenant (https://www.<root>/admin?tenant=<slug>). */
+  adminUrl: string
   /** Mot de passe temporaire à communiquer de façon sécurisée (affiché 1 fois). */
   tempPassword: string
   ownerCreated: boolean
@@ -197,18 +188,36 @@ export async function provisionCompany(input: ProvisionInput): Promise<Provision
     .values({ companyId, userId: owner.userId, role: "OWNER" })
     .onConflictDoNothing()
 
-  // 4bis) Email d'invitation au propriétaire (uniquement si nouveau compte).
+  // 4bis) OBJET D'ACCÈS UNIQUE — source de vérité partagée.
+  // Les mêmes valeurs (nom, email, URL, mot de passe) alimentent À LA FOIS
+  // l'email envoyé au propriétaire ET l'affichage dans le Super Admin (via la
+  // valeur de retour). Les URL sont construites avec les MÊMES helpers que le
+  // Super Admin (tenantPublicUrl / tenantAdminUrl), donc identiques au pixel :
+  // https://www.<root>/?tenant=<slug> et https://www.<root>/admin?tenant=<slug>.
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const companyName = input.name.trim()
+  const ownerEmail = input.ownerEmail.trim().toLowerCase()
+  const access = {
+    companyName,
+    publicSiteUrl: tenantPublicUrl(slug, rootDomain),
+    adminUrl: tenantAdminUrl(slug, rootDomain),
+    email: ownerEmail,
+    temporaryPassword: owner.tempPassword,
+  }
+
+  // Email d'invitation au propriétaire (uniquement si nouveau compte, donc
+  // uniquement quand un mot de passe en clair vient d'être généré + haché).
   // sendEmail ne lève jamais : un échec d'email ne casse pas le provisionnement.
   if (owner.created && owner.tempPassword) {
-    const ownerEmail = input.ownerEmail.trim().toLowerCase()
     const { subject, html } = ownerInvitationEmail({
       ownerName: input.ownerName,
-      businessName: input.name.trim(),
-      loginUrl: `${publicBaseUrl()}/admin/login`,
-      email: ownerEmail,
-      tempPassword: owner.tempPassword,
+      companyName: access.companyName,
+      adminUrl: access.adminUrl,
+      publicSiteUrl: access.publicSiteUrl,
+      email: access.email,
+      tempPassword: access.temporaryPassword,
     })
-    await sendEmail({ to: ownerEmail, subject, html, fromName: input.name.trim() })
+    await sendEmail({ to: access.email, subject, html, fromName: companyName })
   }
 
   // 5) Données de démonstration (optionnel).
@@ -219,7 +228,10 @@ export async function provisionCompany(input: ProvisionInput): Promise<Provision
   return {
     companyId,
     slug,
-    ownerEmail: input.ownerEmail.trim().toLowerCase(),
+    companyName: access.companyName,
+    ownerEmail: access.email,
+    publicSiteUrl: access.publicSiteUrl,
+    adminUrl: access.adminUrl,
     tempPassword: owner.tempPassword,
     ownerCreated: owner.created,
   }
@@ -439,7 +451,7 @@ export async function removeDemoData(companyId: number): Promise<number> {
 
   if (!demoBookings.length) return 0
 
-  // Suppression des lignes enfants puis des réservations.
+  // Suppression des lignes enfants puis des r��servations.
   for (const b of demoBookings) {
     await db.delete(bookingItems).where(eq(bookingItems.bookingId, b.id))
   }

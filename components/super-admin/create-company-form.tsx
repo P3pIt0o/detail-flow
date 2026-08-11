@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Check, Copy, ExternalLink } from "lucide-react"
 import { createCompanyAction } from "@/app/super-admin/actions"
-import { normalizeSlug, tenantPublicUrl, tenantAdminUrl } from "@/lib/tenant-shared"
+import { normalizeSlug, tenantPublicUrl } from "@/lib/tenant-shared"
 
 /**
  * Copie du texte dans le presse-papiers de façon robuste.
@@ -118,8 +118,10 @@ export function CreateCompanyForm({ rootDomain }: { rootDomain: string | null })
   // Écran de récapitulatif après création réussie.
   if (state?.ok && state.result) {
     const r = state.result
-    const publicUrl = tenantPublicUrl(r.slug, rootDomain ?? undefined)
-    const adminUrl = tenantAdminUrl(r.slug, rootDomain ?? undefined)
+    // Source de vérité UNIQUE : URL renvoyées par le serveur (identiques à
+    // celles de l'email). Aucun recalcul local ici.
+    const publicUrl = r.publicSiteUrl
+    const adminUrl = r.adminUrl
     // Bloc de livraison prêt à transmettre au client en un seul copier-coller.
     const shareBlock = [
       "Votre espace DetailFlow est prêt.",

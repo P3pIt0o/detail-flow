@@ -7,7 +7,6 @@ import {
   declineBetaLeadAction,
   reopenBetaLeadAction,
 } from "@/app/super-admin/actions"
-import { tenantAdminUrl, tenantPublicUrl } from "@/lib/tenant-shared"
 import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-recap"
 
 type Lead = {
@@ -28,7 +27,9 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   declined: { label: "Refusée", cls: "bg-destructive/10 text-destructive" },
 }
 
-export function BetaLeadsSection({ leads, rootDomain }: { leads: Lead[]; rootDomain: string | null }) {
+// `rootDomain` reste dans les props (compat appelant) mais n'est plus utilisé :
+// les URL viennent désormais du serveur (source de vérité unique).
+export function BetaLeadsSection({ leads }: { leads: Lead[]; rootDomain?: string | null }) {
   const [pending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,13 +49,15 @@ export function BetaLeadsSection({ leads, rootDomain }: { leads: Lead[]; rootDom
         return
       }
       const r = res.result
+      // Source de vérité UNIQUE : on consomme les valeurs renvoyées par le
+      // serveur (celles-là mêmes utilisées dans l'email), sans recalcul local.
       setAccepted((prev) => ({
         ...prev,
         [lead.id]: {
-          companyName: lead.businessName,
+          companyName: r.companyName,
           slug: r.slug,
-          publicUrl: tenantPublicUrl(r.slug, rootDomain ?? undefined),
-          adminUrl: tenantAdminUrl(r.slug, rootDomain ?? undefined),
+          publicUrl: r.publicSiteUrl,
+          adminUrl: r.adminUrl,
           ownerEmail: r.ownerEmail,
           tempPassword: r.ownerCreated ? r.tempPassword : null,
         },
