@@ -55,18 +55,54 @@ export async function grantBetaBonus(companyId: number): Promise<boolean> {
   return updated.length > 0
 }
 
+export type DebitReason = "ok" | "no_credit" | "already_sent" | "unknown"
+
 /**
- * Débite exactement 1 crédit de façon ATOMIQUE (protection contre les soldes
- * négatifs et les débits concurrents). Renvoie true si le débit a eu lieu.
- * L'appelant NE doit débiter qu'APRÈS un envoi SMS réussi.
+ * Réserve l'envoi d'un rappel SMS pour un RDV donné : marque le RDV comme
+ * "rappel SMS envoyé" ET débite 1 crédit, de façon ATOMIQUE et IDEMPOTENTE.
+ *
+ * Deux gardes SQL dans une transaction :
+ *  - le marquage `smsReminderSentAt` ne réussit que si la colonne est NULL
+ *    (protection anti double-envoi, même en cas d'exécutions concurrentes) ;
+ *  - le débit ne réussit que si `balance > 0` (jamais de solde négatif).
+ * Si l'un échoue, la transaction est annulée (rollback) et rien n'est consommé.
+ *
+ * À appeler AVANT l'envoi réel : comme le crédit n'est pas gratuit, on préfère
+ * ne jamais envoyer deux fois plutôt que risquer un double débit.
  */
-export async function debitOneSms(companyId: number): Promise<boolean> {
-  const updated = await db
-    .update(smsCredits)
-    .set({ balance: sql`${smsCredits.balance} - 1`, updatedAt: new Date() })
-    .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.balance} > 0`))
-    .returning({ id: smsCredits.id })
-  return updated.length > 0
+export async function debitOneSms(
+  companyId: number,
+  bookingId: number,
+): Promise<{ ok: boolean; reason: DebitReason }> {
+  try {
+    return await db.transaction(async (tx) => {
+      // 1) Réservation du RDV (une seule fois).
+      const claimed = await tx.execute(
+        sql`UPDATE bookings SET "smsReminderSentAt" = now()
+            WHERE id = ${bookingId} AND "companyId" = ${companyId} AND "smsReminderSentAt" IS NULL
+            RETURNING id`,
+      )
+      if (claimed.rows.length === 0) {
+        return { ok: false as const, reason: "already_sent" as DebitReason }
+      }
+      // 2) Débit atomique (rollback du marquage si le solde est insuffisant).
+      const debited = await tx
+        .update(smsCredits)
+        .set({ balance: sql`${smsCredits.balance} - 1`, updatedAt: new Date() })
+        .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.balance} > 0`))
+        .returning({ id: smsCredits.id })
+      if (debited.length === 0) {
+        throw new Error("NO_CREDIT")
+      }
+      return { ok: true as const, reason: "ok" as DebitReason }
+    })
+  } catch (e) {
+    if (e instanceof Error && e.message === "NO_CREDIT") {
+      return { ok: false, reason: "no_credit" }
+    }
+    console.log("[v0] debitOneSms error:", e instanceof Error ? e.message : e)
+    return { ok: false, reason: "unknown" }
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -86,65 +122,79 @@ export function generateRechargeReference(): string {
 /*  Validation d'une recharge par le SUPER-ADMIN (idempotent, critique)        */
 /* -------------------------------------------------------------------------- */
 
-export type CreditRechargeResult =
-  | { ok: true; quantity: number; newBalance: number; companyId: number; reference: string; alreadyPaid?: boolean }
+export type CreditFromRechargeResult =
+  | { ok: true; already: boolean; quantity: number; newBalance: number; companyId: number; reference: string }
   | { ok: false; error: string }
 
 /**
  * Crédite les SMS d'une demande de recharge — RÉSERVÉ au super-admin.
  *
- * IDEMPOTENT : le passage pending → paid se fait via un UPDATE conditionnel sur
- * `status = 'pending'`. Si 0 ligne est affectée (déjà payée / annulée), on NE
- * crédite PAS. Ainsi, un double-clic ou un rechargement de page ne crédite
- * jamais deux fois.
+ * IDEMPOTENT (POINT CRITIQUE) : le passage pending → paid se fait via un UPDATE
+ * conditionnel sur `status = 'pending'`. Si 0 ligne est affectée (déjà payée),
+ * on NE crédite PAS et on renvoie `already: true`. Ainsi un double-clic ou un
+ * rechargement de page ne crédite JAMAIS deux fois.
  */
-export async function creditRechargeRequest(requestId: number): Promise<CreditRechargeResult> {
-  // 1) Transition atomique pending -> paid (gagne la course une seule fois).
-  const claimed = await db
-    .update(smsRechargeRequests)
-    .set({ status: "paid", validatedAt: new Date() })
-    .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
-    .returning({
-      companyId: smsRechargeRequests.companyId,
-      quantity: smsRechargeRequests.quantity,
-      reference: smsRechargeRequests.reference,
-    })
+export async function creditFromRecharge(requestId: number): Promise<CreditFromRechargeResult> {
+  return db.transaction(async (tx) => {
+    // 1) Transition atomique pending -> paid (gagnée une seule fois).
+    const claimed = await tx
+      .update(smsRechargeRequests)
+      .set({ status: "paid", validatedAt: new Date() })
+      .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
+      .returning({
+        companyId: smsRechargeRequests.companyId,
+        quantity: smsRechargeRequests.quantity,
+        reference: smsRechargeRequests.reference,
+      })
 
-  if (!claimed.length) {
-    // Déjà traitée (ou inexistante) : on ne crédite pas — renvoie l'état courant.
-    const [existing] = await db
-      .select({ status: smsRechargeRequests.status, reference: smsRechargeRequests.reference })
-      .from(smsRechargeRequests)
-      .where(eq(smsRechargeRequests.id, requestId))
-      .limit(1)
-    if (!existing) return { ok: false, error: "Demande introuvable." }
-    return { ok: false, error: `Demande déjà traitée (statut : ${existing.status}).` }
-  }
+    if (!claimed.length) {
+      // Déjà traitée (ou inexistante) : aucun crédit.
+      const [existing] = await tx
+        .select({
+          status: smsRechargeRequests.status,
+          quantity: smsRechargeRequests.quantity,
+          reference: smsRechargeRequests.reference,
+          companyId: smsRechargeRequests.companyId,
+        })
+        .from(smsRechargeRequests)
+        .where(eq(smsRechargeRequests.id, requestId))
+        .limit(1)
+      if (!existing) return { ok: false as const, error: "Demande introuvable." }
+      const bal = await getSmsBalance(existing.companyId)
+      return {
+        ok: true as const,
+        already: true,
+        quantity: existing.quantity,
+        newBalance: bal.balance,
+        companyId: existing.companyId,
+        reference: existing.reference,
+      }
+    }
 
-  const { companyId, quantity, reference } = claimed[0]
+    const { companyId, quantity, reference } = claimed[0]
 
-  // 2) Créditer le solde (la transition a déjà été "gagnée", donc exactement 1 fois).
-  await ensureCreditsRow(companyId)
-  const [row] = await db
-    .update(smsCredits)
-    .set({
-      balance: sql`${smsCredits.balance} + ${quantity}`,
-      purchased: sql`${smsCredits.purchased} + ${quantity}`,
-      updatedAt: new Date(),
-    })
-    .where(eq(smsCredits.companyId, companyId))
-    .returning({ balance: smsCredits.balance })
+    // 2) Créditer le solde (exactement une fois, la transition ayant été gagnée).
+    await tx
+      .insert(smsCredits)
+      .values({ companyId, balance: 0, granted: 0, purchased: 0 })
+      .onConflictDoNothing({ target: smsCredits.companyId })
+    const [row] = await tx
+      .update(smsCredits)
+      .set({
+        balance: sql`${smsCredits.balance} + ${quantity}`,
+        purchased: sql`${smsCredits.purchased} + ${quantity}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(smsCredits.companyId, companyId))
+      .returning({ balance: smsCredits.balance })
 
-  return { ok: true, quantity, newBalance: row?.balance ?? quantity, companyId, reference }
-}
-
-/** Annule une demande pending -> cancelled (idempotent, super-admin). */
-export async function cancelRechargeRequest(requestId: number): Promise<{ ok: boolean; error?: string }> {
-  const updated = await db
-    .update(smsRechargeRequests)
-    .set({ status: "cancelled" })
-    .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
-    .returning({ id: smsRechargeRequests.id })
-  if (!updated.length) return { ok: false, error: "Demande introuvable ou déjà traitée." }
-  return { ok: true }
+    return {
+      ok: true as const,
+      already: false,
+      quantity,
+      newBalance: row?.balance ?? quantity,
+      companyId,
+      reference,
+    }
+  })
 }

@@ -34,6 +34,18 @@ export const SMS_PACKS: SmsPack[] = [
 export const SMS_DEFAULT_TEMPLATE =
   "Bonjour {prenom}, rappel de votre rendez-vous chez {entreprise} le {date} à {heure}. À bientôt !"
 
+/** Remplace les placeholders {prenom} {entreprise} {date} {heure} dans un modèle. */
+export function renderSmsTemplate(
+  template: string,
+  vars: { prenom: string; entreprise: string; date: string; heure: string },
+): string {
+  return (template || SMS_DEFAULT_TEMPLATE)
+    .replaceAll("{prenom}", vars.prenom)
+    .replaceAll("{entreprise}", vars.entreprise)
+    .replaceAll("{date}", vars.date)
+    .replaceAll("{heure}", vars.heure)
+}
+
 /** Adresse interne notifiée à chaque nouvelle demande de recharge. */
 export const SMS_NOTIFY_EMAIL = "sms@detailflow.fr"
 
