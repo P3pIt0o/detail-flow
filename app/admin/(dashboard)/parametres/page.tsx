@@ -21,20 +21,36 @@ import { SecuritySettings } from "@/components/admin/settings/security-settings"
 import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
 import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
+import { SmsSettings } from "@/components/admin/settings/sms-settings"
+import { getSmsBalance } from "@/lib/sms/credits"
+import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
+import { eq } from "drizzle-orm"
+import { db } from "@/lib/db"
+import { smsCredits } from "@/lib/db/schema"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
 export default async function ParametresPage() {
   const { tenant } = await requireCompanyMember()
 
-  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems] = await Promise.all([
-    getSettings(),
-    getBusinessHours(),
-    getTimeOff(),
-    getFullSettings(),
-    listGalleryItems(),
-    listReviews(),
-  ])
+  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow] =
+    await Promise.all([
+      getSettings(),
+      getBusinessHours(),
+      getTimeOff(),
+      getFullSettings(),
+      listGalleryItems(),
+      listReviews(),
+      getSmsBalance(tenant.id),
+      db
+        .select({ betaBonusGrantedAt: smsCredits.betaBonusGrantedAt })
+        .from(smsCredits)
+        .where(eq(smsCredits.companyId, tenant.id))
+        .limit(1),
+    ])
+
+  const revolutUrl = process.env.REVOLUT_PAYMENT_URL ?? null
+  const revolutQrSrc = process.env.REVOLUT_PAYMENT_QR_URL ?? null
 
   return (
     <div className="space-y-6">
@@ -78,6 +94,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="planning" className="flex-none px-3 py-1.5">
               Planning &amp; acompte
+            </TabsTrigger>
+            <TabsTrigger value="sms" className="flex-none px-3 py-1.5">
+              Rappels SMS
             </TabsTrigger>
             <TabsTrigger value="invoicing" className="flex-none px-3 py-1.5">
               Facturation
@@ -162,6 +181,18 @@ export default async function ParametresPage() {
             depositInstructions={fullSettings?.depositInstructions ?? ""}
             vacationMode={settings.vacationMode}
             vacationMessage={settings.vacationMessage ?? ""}
+          />
+        </TabsContent>
+        <TabsContent value="sms" className="mt-6">
+          <SmsSettings
+            balance={smsBalance.balance}
+            betaBonusGranted={Boolean(smsCreditRow[0]?.betaBonusGrantedAt)}
+            enabled={settings.smsRemindersEnabled}
+            offsetHours={settings.smsReminderOffsetHours}
+            template={settings.smsReminderTemplate ?? ""}
+            defaultTemplate={SMS_DEFAULT_TEMPLATE}
+            revolutUrl={revolutUrl}
+            revolutQrSrc={revolutQrSrc}
           />
         </TabsContent>
         <TabsContent value="invoicing" className="mt-6">

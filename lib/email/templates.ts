@@ -570,3 +570,74 @@ export function reminderEmail(b: BookingEmailData) {
     }),
   }
 }
+
+/* ---------------------------- Recharges SMS ----------------------------- */
+
+/** Notification interne DetailFlow : nouvelle demande de recharge SMS. */
+export function smsRechargeRequestEmail(opts: {
+  companyName: string
+  companyEmail: string
+  quantity: number
+  amountLabel: string
+  reference: string
+  createdAt: string
+}) {
+  const line = (label: string, value: string) =>
+    `<tr><td style="padding:4px 14px;color:${MUTED};">${esc(label)}</td>
+     <td style="padding:4px 14px;text-align:right;color:${INK};font-weight:600;">${esc(value)}</td></tr>`
+  return {
+    subject: `Nouvelle demande de recharge SMS — ${opts.companyName}`,
+    html: layout({
+      businessName: "DetailFlow",
+      heading: "Nouvelle demande de recharge SMS",
+      bodyHtml: `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;">
+          <tr><td colspan="2" style="height:6px;"></td></tr>
+          ${line("Entreprise", opts.companyName)}
+          ${line("Email", opts.companyEmail)}
+          ${line("Pack choisi", `${opts.quantity} SMS`)}
+          ${line("Nombre de SMS", String(opts.quantity))}
+          ${line("Montant", opts.amountLabel)}
+          ${line("Référence", opts.reference)}
+          ${line("Date", opts.createdAt)}
+          <tr><td colspan="2" style="height:6px;"></td></tr>
+        </table>
+        <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:16px 0 0;">
+          Créditez les SMS depuis le Super Admin (« Recharges SMS ») une fois le paiement reçu.
+        </p>`,
+    }),
+  }
+}
+
+/** Confirmation au professionnel : ses SMS ont été crédités. */
+export function smsCreditedEmail(opts: {
+  companyName: string
+  quantity: number
+  newBalance: number
+  adminUrl: string
+  businessEmail?: string | null
+  businessPhone?: string | null
+}) {
+  return {
+    subject: "Vos SMS ont été crédités",
+    html: layout({
+      businessName: opts.companyName,
+      businessEmail: opts.businessEmail,
+      businessPhone: opts.businessPhone,
+      heading: "Vos SMS ont été crédités",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Votre recharge de <strong style="color:${INK};">${opts.quantity} SMS</strong> a été validée.
+        </p>
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Votre nouveau solde est de <strong style="color:${INK};">${opts.newBalance} SMS</strong>.
+          Vous pouvez continuer à utiliser vos rappels automatiques depuis DetailFlow.
+        </p>
+        <div style="text-align:center;margin:24px 0 8px;">
+          <a href="${esc(opts.adminUrl)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 28px;border-radius:10px;">
+            Accéder à mon espace
+          </a>
+        </div>`,
+    }),
+  }
+}
