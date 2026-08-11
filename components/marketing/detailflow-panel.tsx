@@ -11,8 +11,9 @@
  *  ACTE 2 (overview) : des fenêtres (agenda, tableur, emails, clients, devis,
  *                      factures) dispersées en profondeur CONVERGENT et sont
  *                      absorbées dans le dashboard — « centralisez ».
- *  ACTE 3 (features) : 3 moments — une fenêtre sort du dashboard, passe devant
- *                      la caméra, puis y retourne (réservation, planning, devis).
+ *  ACTE 3 (features) : 4 moments — une fenêtre (capture RÉELLE du produit) sort
+ *                      du dashboard, passe devant la caméra, puis y retourne
+ *                      (réservation, planning, devis client, facturation).
  *  ACTE 4 (finale)   : tout est réintégré, vue frontale complète, puis le
  *                      dashboard RECULE dans la profondeur et le halo s'éteint.
  *
@@ -23,7 +24,7 @@ import Image from "next/image"
 import { motion, useTransform, type MotionValue } from "framer-motion"
 import { Calendar, FileText, Mail, Table2, Users } from "lucide-react"
 import { STAGE_RANGE, subRange, keyframes, stageFade } from "./scroll-timeline"
-import { DashboardWindow, CROP_REGIONS } from "./dashboard-window"
+import { DashboardWindow } from "./dashboard-window"
 
 /** Applique le facteur de profondeur autour d'une baseline (mobile = plus doux). */
 function depthScale(raw: MotionValue<number>, depth: MotionValue<number>, baseline = 0) {
@@ -203,10 +204,13 @@ function ConvergingTool({
 /*  ACTE 3 — Fonctionnalités : 3 moments, une fenêtre sort, passe, revient    */
 /* ========================================================================== */
 
+// Chaque « moment » montre une VRAIE capture de l'interface DetailFlow
+// (générée via /capture, données de démo, aucune donnée client réelle).
 const FEATURE_SCENES = [
-  { label: "Réservation en ligne", region: CROP_REGIONS.appointments, side: -1 },
-  { label: "Planning & tableau de bord", region: CROP_REGIONS.revenueChart, side: 1 },
-  { label: "Devis & factures", region: CROP_REGIONS.stats, side: -1 },
+  { label: "Réservation en ligne", src: "/marketing/product/booking.png", aspect: "16 / 10", side: -1 },
+  { label: "Planning", src: "/marketing/product/calendar.png", aspect: "16 / 11", side: 1 },
+  { label: "Devis client", src: "/marketing/product/quote.png", aspect: "16 / 10", side: -1 },
+  { label: "Facturation", src: "/marketing/product/invoice.png", aspect: "16 / 11", side: 1 },
 ] as const
 
 /** Libellés des « moments » fonctionnalités, consommés par les légendes du ScrollStage. */
@@ -271,7 +275,7 @@ function FeatureWindow({
         transformStyle: "preserve-3d",
       }}
     >
-      <DashboardWindow label={scene.label} region={scene.region} accent />
+      <DashboardWindow label={scene.label} src={scene.src} imageAspect={scene.aspect} accent />
     </motion.div>
   )
 }

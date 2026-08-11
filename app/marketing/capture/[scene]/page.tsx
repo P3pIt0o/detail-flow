@@ -30,7 +30,9 @@ export default async function CapturePage({
 
   return (
     <div className="fixed inset-0 z-[999] overflow-auto bg-background">
-      <div className="mx-auto w-full max-w-5xl px-8 py-10">
+      {/* Masque le panneau de navigation dev pour des captures propres. */}
+      <style>{`button[aria-label="Ouvrir le panneau de navigation dev"]{display:none!important}`}</style>
+      <div data-capture-root className="mx-auto w-full max-w-5xl px-8 py-10">
         <SceneContent scene={scene as Scene} />
       </div>
     </div>

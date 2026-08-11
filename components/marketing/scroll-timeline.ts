@@ -46,7 +46,7 @@ export const STAGE_RANGE: Record<StageKey, readonly [number, number]> = (() => {
 })()
 
 /** Nombre de « moments » fonctionnalités mis en scène dans l'acte features. */
-export const FEATURE_MOMENTS = 3
+export const FEATURE_MOMENTS = 4
 
 /** Renvoie une sous-plage absolue [a,b] à l'intérieur d'une plage [s,e]. */
 export function subRange(range: readonly [number, number], from: number, to: number): readonly [number, number] {
