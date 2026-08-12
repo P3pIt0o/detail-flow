@@ -30,7 +30,9 @@ export interface SiteContent {
     points?: string[]
   }
   services?: {
-    /** Sur-titre (eyebrow) au-dessus du titre. Vide/espaces = masqué. */
+    /** Affiche le sur-titre. false = masqué ; true + vide = texte par défaut. */
+    eyebrowEnabled?: boolean
+    /** Sur-titre (eyebrow) au-dessus du titre. Vide = texte par défaut si activé. */
     eyebrow?: string
     title?: string
     intro?: string
@@ -132,6 +134,7 @@ export const SITE_CONTENT_DEFAULTS: Required<{
     ],
   },
   services: {
+    eyebrowEnabled: true,
     eyebrow: "Nos prestations",
     title: "Nos prestations",
     intro: "Des formules adaptées à chaque besoin, du simple lavage à la remise en état complète.",
@@ -175,7 +178,24 @@ export function resolveSiteContent(raw: unknown): typeof SITE_CONTENT_DEFAULTS {
       result[key].points = custom[key]!.points!.filter((p) => p.trim())
     }
   }
+  // Sur-titre Prestations : état du switch. Rétrocompat pour les tenants qui
+  // n'ont jamais vu le switch — on déduit de l'ancien comportement
+  // « vide = masqué » afin que l'admin reflète exactement le rendu public.
+  result.services.eyebrowEnabled = resolveEyebrowEnabled(custom.services)
   return result
+}
+
+/**
+ * Détermine si le sur-titre Prestations doit être affiché :
+ *  - `eyebrowEnabled` explicite (nouveau modèle avec switch) → cette valeur ;
+ *  - sinon rétrocompat : masqué uniquement si `eyebrow` a été explicitement
+ *    vidé (""/espaces) ; sinon affiché (clé absente ou texte réel).
+ */
+function resolveEyebrowEnabled(raw: SiteContent["services"] | undefined): boolean {
+  const svc = raw ?? {}
+  if (typeof svc.eyebrowEnabled === "boolean") return svc.eyebrowEnabled
+  const trimmed = typeof svc.eyebrow === "string" ? svc.eyebrow.trim() : undefined
+  return !("eyebrow" in svc) || (trimmed ?? "") !== ""
 }
 
 /**
@@ -202,20 +222,20 @@ export async function getPublicSectionOrder(): Promise<HomeSectionKey[]> {
 /**
  * Sur-titre (eyebrow) de la section Prestations pour le TENANT COURANT.
  *
- * Cas géré SPÉCIFIQUEMENT (sans passer par resolveSiteContent, qui recolle le
- * défaut sur toute chaîne vide) afin de rendre le sur-titre RÉELLEMENT optionnel :
- *  - clé absente (tenants existants n'ayant jamais touché ce champ)  → défaut ;
- *  - texte réel                                                       → ce texte ;
- *  - "", espaces uniquement, null                                     → null (masqué).
+ * Modèle « switch + texte » :
+ *  - switch désactivé                → null (masqué, aucun conteneur rendu) ;
+ *  - switch activé + texte réel       → ce texte ;
+ *  - switch activé + vide/espaces     → texte par défaut.
+ * L'état du switch est déduit avec rétrocompat (voir resolveEyebrowEnabled) :
+ * les anciens tenants ayant vidé le champ pour le masquer le restent.
  * Résolution du tenant côté serveur : jamais le sur-titre d'un autre tenant.
  */
 export async function getPublicServicesEyebrow(): Promise<string | null> {
   const tenant = await resolveRequestTenant()
   const raw = (tenant?.siteContent as SiteContent | null)?.services ?? {}
-  if (!("eyebrow" in raw)) return SITE_CONTENT_DEFAULTS.services.eyebrow // rétrocompat
-  const value = raw.eyebrow
-  const trimmed = typeof value === "string" ? value.trim() : ""
-  return trimmed === "" ? null : trimmed
+  if (!resolveEyebrowEnabled(raw)) return null
+  const trimmed = typeof raw.eyebrow === "string" ? raw.eyebrow.trim() : ""
+  return trimmed === "" ? SITE_CONTENT_DEFAULTS.services.eyebrow : trimmed
 }
 
 /**

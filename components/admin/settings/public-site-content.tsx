@@ -172,18 +172,27 @@ export function PublicSiteContent({ content }: Props) {
               Les prestations elles-mêmes se gèrent dans l&apos;onglet Prestations. Ici, seul le titre et le texte
               d&apos;introduction de la section sont personnalisables.
             </p>
-            <div>
-              <label className={labelClass}>
-                Sur-titre <span className="text-muted-foreground">(facultatif — laisser vide pour le masquer)</span>
-              </label>
-              <input
-                type="text"
-                value={values.services?.eyebrow ?? ""}
-                onChange={(e) => set("services", { eyebrow: e.target.value })}
-                placeholder="Nos prestations"
-                className={inputClass}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+              <span className="text-sm text-foreground">Afficher le sur-titre</span>
+              <Switch
+                checked={values.services?.eyebrowEnabled ?? true}
+                onCheckedChange={(checked) => set("services", { eyebrowEnabled: checked })}
               />
             </div>
+            {(values.services?.eyebrowEnabled ?? true) && (
+              <div>
+                <label className={labelClass}>
+                  Sur-titre <span className="text-muted-foreground">(laisser vide pour le texte par défaut)</span>
+                </label>
+                <input
+                  type="text"
+                  value={values.services?.eyebrow ?? ""}
+                  onChange={(e) => set("services", { eyebrow: e.target.value })}
+                  placeholder="Nos prestations"
+                  className={inputClass}
+                />
+              </div>
+            )}
             <div>
               <label className={labelClass}>Titre de la section</label>
               <input
