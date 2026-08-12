@@ -153,6 +153,9 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
         : undefined,
     },
     services: {
+      // Sur-titre optionnel : "" est conservé tel quel (masquage volontaire),
+      // seul un champ absent retombe sur le défaut à la lecture.
+      eyebrow: str(content.services?.eyebrow, 60),
       title: str(content.services?.title, 100),
       intro: str(content.services?.intro, 400),
     },

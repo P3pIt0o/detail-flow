@@ -30,6 +30,8 @@ export interface SiteContent {
     points?: string[]
   }
   services?: {
+    /** Sur-titre (eyebrow) au-dessus du titre. Vide/espaces = masqué. */
+    eyebrow?: string
     title?: string
     intro?: string
   }
@@ -130,6 +132,7 @@ export const SITE_CONTENT_DEFAULTS: Required<{
     ],
   },
   services: {
+    eyebrow: "Nos prestations",
     title: "Nos prestations",
     intro: "Des formules adaptées à chaque besoin, du simple lavage à la remise en état complète.",
   },
@@ -194,6 +197,25 @@ export async function getPublicSiteContent() {
 export async function getPublicSectionOrder(): Promise<HomeSectionKey[]> {
   const tenant = await resolveRequestTenant()
   return resolveSectionOrder(tenant?.siteContent)
+}
+
+/**
+ * Sur-titre (eyebrow) de la section Prestations pour le TENANT COURANT.
+ *
+ * Cas géré SPÉCIFIQUEMENT (sans passer par resolveSiteContent, qui recolle le
+ * défaut sur toute chaîne vide) afin de rendre le sur-titre RÉELLEMENT optionnel :
+ *  - clé absente (tenants existants n'ayant jamais touché ce champ)  → défaut ;
+ *  - texte réel                                                       → ce texte ;
+ *  - "", espaces uniquement, null                                     → null (masqué).
+ * Résolution du tenant côté serveur : jamais le sur-titre d'un autre tenant.
+ */
+export async function getPublicServicesEyebrow(): Promise<string | null> {
+  const tenant = await resolveRequestTenant()
+  const raw = (tenant?.siteContent as SiteContent | null)?.services ?? {}
+  if (!("eyebrow" in raw)) return SITE_CONTENT_DEFAULTS.services.eyebrow // rétrocompat
+  const value = raw.eyebrow
+  const trimmed = typeof value === "string" ? value.trim() : ""
+  return trimmed === "" ? null : trimmed
 }
 
 /**
