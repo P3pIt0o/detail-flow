@@ -3,10 +3,14 @@ import { ServiceCard } from "@/components/service-card"
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 import { getPublicServices } from "@/lib/catalog-queries"
-import { getPublicSiteContent } from "@/lib/site-content"
+import { getPublicSiteContent, getPublicServicesEyebrow } from "@/lib/site-content"
 
 export async function ServicesPreview() {
-  const [services, content] = await Promise.all([getPublicServices(), getPublicSiteContent()])
+  const [services, content, eyebrow] = await Promise.all([
+    getPublicServices(),
+    getPublicSiteContent(),
+    getPublicServicesEyebrow(),
+  ])
 
   // On conserve l'image réelle de chaque prestation (pathname Blob privé résolu,
   // URL héritée, ou image par défaut) telle que renvoyée par getPublicServices.
@@ -16,7 +20,7 @@ export async function ServicesPreview() {
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-      <SectionHeading eyebrow="Nos prestations" title={content.services.title} subtitle={content.services.intro} />
+      <SectionHeading eyebrow={eyebrow ?? undefined} title={content.services.title} subtitle={content.services.intro} />
 
       <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {list.map((service, i) => (

@@ -173,6 +173,18 @@ export function PublicSiteContent({ content }: Props) {
               d&apos;introduction de la section sont personnalisables.
             </p>
             <div>
+              <label className={labelClass}>
+                Sur-titre <span className="text-muted-foreground">(facultatif — laisser vide pour le masquer)</span>
+              </label>
+              <input
+                type="text"
+                value={values.services?.eyebrow ?? ""}
+                onChange={(e) => set("services", { eyebrow: e.target.value })}
+                placeholder="Nos prestations"
+                className={inputClass}
+              />
+            </div>
+            <div>
               <label className={labelClass}>Titre de la section</label>
               <input
                 type="text"
