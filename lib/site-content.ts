@@ -34,6 +34,8 @@ export interface SiteContent {
     eyebrowEnabled?: boolean
     /** Sur-titre (eyebrow) au-dessus du titre. Vide = texte par défaut si activé. */
     eyebrow?: string
+    /** Affiche le titre principal. Indépendant du sur-titre. false = masqué. */
+    titleEnabled?: boolean
     title?: string
     intro?: string
   }
@@ -136,6 +138,7 @@ export const SITE_CONTENT_DEFAULTS: Required<{
   services: {
     eyebrowEnabled: true,
     eyebrow: "Nos prestations",
+    titleEnabled: true,
     title: "Nos prestations",
     intro: "Des formules adaptées à chaque besoin, du simple lavage à la remise en état complète.",
   },
