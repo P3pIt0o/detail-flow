@@ -7,7 +7,7 @@ import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { SOCIAL_KEYS } from "./social-config"
-import type { SiteContent } from "@/lib/site-content"
+import { resolveSectionOrder, type SiteContent } from "@/lib/site-content"
 
 export type ActionResult = { ok: boolean; error?: string; logoPathname?: string | null }
 
@@ -178,16 +178,46 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
     },
   }
 
-  // Préserve la configuration « Demandes personnalisées » stockée dans la même
-  // colonne jsonb : cet onglet ne doit jamais l'effacer (elle est gérée par son
-  // propre onglet / sa propre action).
+  // Préserve les autres clés stockées dans la même colonne jsonb que cet onglet
+  // ne gère pas : « Demandes personnalisées » (customRequests) et l'ordre des
+  // sections (sectionOrder). Elles ne doivent jamais être effacées ici.
   const existing = (tenant.siteContent as Record<string, unknown> | null) ?? null
-  const customRequests = existing?.customRequests
+  const preserved: Record<string, unknown> = {}
+  if (existing?.customRequests !== undefined) preserved.customRequests = existing.customRequests
+  if (existing?.sectionOrder !== undefined) preserved.sectionOrder = existing.sectionOrder
 
   await db
     .update(companies)
     .set({
-      siteContent: customRequests !== undefined ? { ...clean, customRequests } : clean,
+      siteContent: { ...clean, ...preserved },
+      updatedAt: new Date(),
+    })
+    .where(eq(companies.id, tenant.id))
+
+  revalidatePath("/admin/parametres")
+  revalidatePath("/", "layout")
+  return { ok: true }
+}
+
+/**
+ * Enregistre l'ordre d'affichage des sections de la homepage dans
+ * `companies.siteContent.sectionOrder`.
+ *
+ * ISOLATION : toujours scopé à l'entreprise de l'admin connecté
+ * (`requireCompanyMember().tenant.id`) — l'ordre d'un autre tenant est
+ * inaccessible. L'entrée est normalisée (clés connues uniquement, complétée
+ * par les sections manquantes) et les autres clés jsonb sont préservées.
+ */
+export async function saveSectionOrder(order: string[]): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+
+  const normalized = resolveSectionOrder({ sectionOrder: order })
+  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? {}
+
+  await db
+    .update(companies)
+    .set({
+      siteContent: { ...existing, sectionOrder: normalized },
       updatedAt: new Date(),
     })
     .where(eq(companies.id, tenant.id))

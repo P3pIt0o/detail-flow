@@ -23,20 +23,31 @@ import { GallerySection } from "@/components/sections/gallery-section"
 import { ReviewsPreview } from "@/components/sections/reviews-preview"
 import { CtaSection } from "@/components/sections/cta-section"
 import { getPublicContact } from "@/lib/public-contact"
-import { getPublicSiteContent } from "@/lib/site-content"
+import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from "@/lib/site-content"
 
 export default async function HomePage() {
-  const [contact, content] = await Promise.all([getPublicContact(), getPublicSiteContent()])
+  const [contact, content, order] = await Promise.all([
+    getPublicContact(),
+    getPublicSiteContent(),
+    getPublicSectionOrder(),
+  ])
+
+  // Chaque section conserve sa logique interne d'activation/masquage ; seul
+  // l'ORDRE change ici. La section Contact reste masquée si elle est désactivée.
+  const sections: Record<HomeSectionKey, React.ReactNode> = {
+    about: <AboutSection key="about" />,
+    whyUs: <WhyUsSection key="whyUs" />,
+    services: <ServicesPreview key="services" />,
+    process: <Process key="process" />,
+    gallery: <GallerySection key="gallery" />,
+    reviews: <ReviewsPreview key="reviews" />,
+    contact: content.contact.enabled ? <CtaSection key="contact" /> : null,
+  }
+
   return (
     <>
       <Hero brandName={contact.name} hero={contact.hero} />
-      <AboutSection />
-      <WhyUsSection />
-      <ServicesPreview />
-      <Process />
-      <GallerySection />
-      <ReviewsPreview />
-      {content.contact.enabled && <CtaSection />}
+      {order.map((key) => sections[key])}
     </>
   )
 }

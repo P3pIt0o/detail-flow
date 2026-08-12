@@ -53,6 +53,61 @@ export interface SiteContent {
     text?: string
     tagline?: string
   }
+  /** Ordre d'affichage des sections de la homepage (clés de HOME_SECTION_KEYS). */
+  sectionOrder?: string[]
+}
+
+/**
+ * Ordre canonique des sections de la page d'accueil. Il correspond EXACTEMENT
+ * à l'ordre de rendu actuel : c'est le repli utilisé quand un tenant n'a jamais
+ * configuré d'ordre. Toute nouvelle section ajoutée ici sera automatiquement
+ * placée en fin d'ordre pour les tenants ayant déjà un ordre enregistré.
+ */
+export const HOME_SECTION_KEYS = [
+  "about",
+  "whyUs",
+  "services",
+  "process",
+  "gallery",
+  "reviews",
+  "contact",
+] as const
+
+export type HomeSectionKey = (typeof HOME_SECTION_KEYS)[number]
+
+/** Libellés lisibles pour l'admin (« Ordre des sections »). */
+export const HOME_SECTION_LABELS: Record<HomeSectionKey, string> = {
+  about: "Présentation",
+  whyUs: "Pourquoi nous choisir",
+  services: "Prestations",
+  process: "Déroulement",
+  gallery: "Galerie",
+  reviews: "Avis",
+  contact: "Contact",
+}
+
+/**
+ * Normalise l'ordre des sections à partir du JSON du tenant :
+ *  - ne conserve que les clés connues, sans doublon ;
+ *  - complète avec les sections manquantes dans l'ordre canonique (nouvelles
+ *    sections ajoutées automatiquement à la fin) ;
+ *  - si rien n'est enregistré, renvoie l'ordre canonique (= ordre actuel).
+ */
+export function resolveSectionOrder(raw: unknown): HomeSectionKey[] {
+  const saved = (raw as SiteContent | null)?.sectionOrder
+  const known = new Set<string>(HOME_SECTION_KEYS)
+  const seen = new Set<HomeSectionKey>()
+  const ordered: HomeSectionKey[] = []
+  if (Array.isArray(saved)) {
+    for (const k of saved) {
+      if (typeof k === "string" && known.has(k) && !seen.has(k as HomeSectionKey)) {
+        seen.add(k as HomeSectionKey)
+        ordered.push(k as HomeSectionKey)
+      }
+    }
+  }
+  for (const k of HOME_SECTION_KEYS) if (!seen.has(k)) ordered.push(k)
+  return ordered
 }
 
 export const SITE_CONTENT_DEFAULTS: Required<{
@@ -129,6 +184,16 @@ export function resolveSiteContent(raw: unknown): typeof SITE_CONTENT_DEFAULTS {
 export async function getPublicSiteContent() {
   const tenant = await resolveRequestTenant()
   return resolveSiteContent(tenant?.siteContent)
+}
+
+/**
+ * Ordre des sections de la homepage pour le TENANT COURANT (site public).
+ * Résolution du tenant côté serveur (jamais depuis le client) : ne peut pas
+ * renvoyer l'ordre d'une autre entreprise.
+ */
+export async function getPublicSectionOrder(): Promise<HomeSectionKey[]> {
+  const tenant = await resolveRequestTenant()
+  return resolveSectionOrder(tenant?.siteContent)
 }
 
 /**
