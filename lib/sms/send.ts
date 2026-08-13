@@ -136,7 +136,7 @@ async function resolveCredentials(companyId?: number): Promise<ResolvedCredentia
 export async function ensureTenantSubAccount(input: {
   companyId: number
   companyName: string
-  email: string
+  email: string | null | undefined
 }): Promise<{ ok: boolean; created: boolean; error?: string }> {
   const central = centralCredentials()
   if (!central.login || !central.apiKey) {
@@ -153,6 +153,21 @@ export async function ensureTenantSubAccount(input: {
     return { ok: true, created: false }
   }
 
+  // EMAIL du sous-compte : on utilise l'adresse RÉELLE du tenant, normalisée
+  // (trim + lowercase) et validée AVANT tout appel API. AllMySMS refuse les
+  // adresses mal formées ("bad EMAIL format"). Aucune adresse n'est inventée :
+  // si rien de valide n'existe, on renvoie une erreur contrôlée sans appeler l'API.
+  const email = (input.email ?? "").trim().toLowerCase()
+  const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  if (!emailIsValid) {
+    console.log("[v0] createSubAccount ignoré — adresse e-mail du tenant invalide ou absente")
+    return {
+      ok: false,
+      created: false,
+      error: "Adresse e-mail du compte invalide : renseignez une adresse valide avant d'activer les SMS.",
+    }
+  }
+
   // Identifiants déterministes/uniques pour le sous-compte du tenant.
   const subLogin = `detailflow_t${input.companyId}`
   const subPassword = randomBytes(12).toString("base64url") // >= 6 caractères
@@ -160,7 +175,7 @@ export async function ensureTenantSubAccount(input: {
   const accountData = {
     FIRSTNAME: firstName || "DetailFlow",
     LASTNAME: rest.join(" ") || `Tenant ${input.companyId}`,
-    EMAIL: input.email,
+    EMAIL: email,
     LOGIN: subLogin,
     PASSWORD: subPassword,
     ACTIVE: 1,
