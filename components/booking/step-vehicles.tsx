@@ -3,6 +3,7 @@
 import { Plus, Trash2, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatPrice, formatDuration } from "@/lib/format"
+import { VehicleCategoryHelp } from "./vehicle-category-help"
 import {
   resolvePrice,
   type VehicleSelection,
@@ -150,9 +151,16 @@ export function StepVehicles({
 
             {/* Type de véhicule */}
             <fieldset className="mb-5">
-              <legend className="mb-2 text-sm font-medium text-card-foreground">
+              <legend className="mb-1 text-sm font-medium text-card-foreground">
                 Type de véhicule
               </legend>
+
+              <div className="mb-2">
+                <VehicleCategoryHelp
+                  vehicleTypes={vehicleTypes}
+                  onSelect={(vehicleTypeId) => update(v.uid, { vehicleTypeId })}
+                />
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 {vehicleTypes.map((t) => {

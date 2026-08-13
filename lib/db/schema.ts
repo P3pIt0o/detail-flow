@@ -260,6 +260,9 @@ export const vehicleTypes = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
+    // Aide au choix côté client : exemples de véhicules (ex. "3008, Tiguan, Q3").
+    // Facultatif : null = aucune aide affichée.
+    examples: text("examples"),
     sortOrder: integer("sortOrder").notNull().default(0),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
