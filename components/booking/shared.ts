@@ -16,7 +16,13 @@ export type ServiceRow = {
 }
 
 export type CategoryRow = { id: number; name: string; slug: string; description: string | null }
-export type VehicleRow = { id: number; name: string; slug: string; description: string | null }
+export type VehicleRow = {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  examples: string | null
+}
 export type OptionRow = {
   id: number
   name: string

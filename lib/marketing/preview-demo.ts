@@ -80,10 +80,10 @@ export const DEMO_SERVICES: ServiceRow[] = [
 ]
 
 export const DEMO_VEHICLE_TYPES: VehicleRow[] = [
-  { id: 1, name: "Citadine", slug: "citadine", description: null },
-  { id: 2, name: "Berline", slug: "berline", description: null },
-  { id: 3, name: "SUV / 4x4", slug: "suv", description: null },
-  { id: 4, name: "Utilitaire", slug: "utilitaire", description: null },
+  { id: 1, name: "Citadine", slug: "citadine", description: null, examples: null },
+  { id: 2, name: "Berline", slug: "berline", description: null, examples: null },
+  { id: 3, name: "SUV / 4x4", slug: "suv", description: null, examples: null },
+  { id: 4, name: "Utilitaire", slug: "utilitaire", description: null, examples: null },
 ]
 
 export const DEMO_OPTIONS: OptionRow[] = [

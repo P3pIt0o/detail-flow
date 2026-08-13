@@ -20,6 +20,7 @@ type VehicleType = {
   id: number
   name: string
   description: string | null
+  examples: string | null
   active: boolean
 }
 
@@ -116,6 +117,7 @@ function VehicleDialog({
         id: vehicle?.id,
         name: String(formData.get("name") || ""),
         description: String(formData.get("description") || ""),
+        examples: String(formData.get("examples") || ""),
         active: formData.get("active") === "on",
       })
       if (res.ok) onOpenChange(false)
@@ -135,8 +137,26 @@ function VehicleDialog({
             <Input id="v-name" name="name" defaultValue={vehicle?.name ?? ""} required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="v-desc">Description</Label>
-            <Textarea id="v-desc" name="description" defaultValue={vehicle?.description ?? ""} rows={2} />
+            <Label htmlFor="v-desc">Description <span className="text-muted-foreground">(facultatif)</span></Label>
+            <Textarea
+              id="v-desc"
+              name="description"
+              defaultValue={vehicle?.description ?? ""}
+              rows={2}
+              placeholder="Véhicules surélevés de taille moyenne"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="v-examples">
+              Exemples de véhicules <span className="text-muted-foreground">(facultatif)</span>
+            </Label>
+            <Input
+              id="v-examples"
+              name="examples"
+              defaultValue={vehicle?.examples ?? ""}
+              placeholder="3008, Tiguan, Model Y, Q3"
+            />
+            <p className="text-xs text-muted-foreground">Aide le client à choisir la bonne catégorie.</p>
           </div>
           <div className="flex items-center gap-2">
             <Switch id="v-active" name="active" defaultChecked={vehicle?.active ?? true} />

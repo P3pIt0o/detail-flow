@@ -309,6 +309,7 @@ export async function saveVehicleType(input: {
   id?: number
   name: string
   description: string
+  examples: string
   active: boolean
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
@@ -323,6 +324,8 @@ export async function saveVehicleType(input: {
   const values = {
     name: input.name.trim(),
     description: input.description.trim() || null,
+    // Exemples de véhicules pour l'aide au choix (facultatif).
+    examples: input.examples.trim() || null,
     active: input.active,
   }
 

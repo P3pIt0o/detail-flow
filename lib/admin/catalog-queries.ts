@@ -43,6 +43,7 @@ export async function getAdminVehicleTypes(companyId?: number) {
     id: v.id,
     name: v.name,
     description: v.description ?? "",
+    examples: v.examples ?? null,
     active: v.active,
   }))
 }
