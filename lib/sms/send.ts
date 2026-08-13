@@ -186,6 +186,18 @@ export async function ensureTenantSubAccount(input: {
   body.set("apiKey", central.apiKey)
   body.set("accountData", JSON.stringify(accountData))
 
+  // --- DIAGNOSTIC TEMPORAIRE (aucune donnée sensible : ni email complet, ni secrets) ---
+  console.log("[v0] createSubAccount diag:", {
+    emailSource: input.email ? "companies.email (tenant)" : "absente",
+    emailLength: email.length,
+    hasAt: email.includes("@"),
+    emailDomain: email.split("@")[1] ?? "(aucun)",
+    regexValid: emailIsValid,
+    accountDataKeys: JSON.stringify(Object.keys(accountData)),
+    typeofEmail: typeof accountData.EMAIL,
+  })
+  // --- FIN DIAGNOSTIC ---
+
   try {
     const res = await fetch(ALLMYSMS_SUBACCOUNT_ENDPOINT, {
       method: "POST",
