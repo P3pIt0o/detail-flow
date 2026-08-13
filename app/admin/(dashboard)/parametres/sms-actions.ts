@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { settings, smsRechargeRequests } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
-import { getSmsBalance, generateRechargeReference } from "@/lib/sms/credits"
+import { getSmsBalance, generateRechargeReference, ensureSmsCreditsRow } from "@/lib/sms/credits"
+import { ensureTenantSubAccount } from "@/lib/sms/send"
 import {
   SMS_MIN_CUSTOM_QUANTITY,
   amountForQuantity,
@@ -42,6 +43,23 @@ export async function saveSmsReminderSettings(input: {
       updatedAt: new Date(),
     })
     .where(eq(settings.companyId, tenant.id))
+
+  // À la (première) activation des rappels SMS : provisionne, de façon
+  // IDEMPOTENTE, le sous-compte AllMySMS du tenant. Ne bloque jamais
+  // l'activation en cas d'échec (repli automatique sur le compte central).
+  // Le companyId provient de la session serveur (jamais du navigateur).
+  if (input.enabled) {
+    await ensureSmsCreditsRow(tenant.id) // la ligne doit exister avant d'y écrire le sous-compte
+    const sub = await ensureTenantSubAccount({
+      companyId: tenant.id,
+      companyName: tenant.name,
+      email: tenant.email ?? `tenant${tenant.id}@detailflow.fr`,
+    })
+    if (!sub.ok) {
+      console.log("[v0] Sous-compte AllMySMS non provisionné (fallback central) pour tenant", tenant.id)
+    }
+  }
+
   revalidatePath("/admin/parametres")
   return { ok: true }
 }
