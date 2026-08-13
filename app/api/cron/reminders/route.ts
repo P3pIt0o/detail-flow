@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { bookings, settings as settingsTable, companies } from "@/lib/db/schema"
 import { sendReminderEmail } from "@/lib/email/notifications"
 import { sendSms } from "@/lib/sms/send"
-import { debitOneSms } from "@/lib/sms/credits"
+import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit } from "@/lib/sms/credits"
 import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
@@ -73,6 +73,7 @@ export async function GET(request: Request) {
   // (protection anti double-envoi), et le SMS n'est jamais tenté deux fois.
   let smsSent = 0
   let smsSkippedNoCredit = 0
+  let smsFailed = 0
   for (const offset of [24, 48]) {
     const smsTarget = dateInDays(offset / 24)
     // Entreprises ayant activé le rappel SMS pour CE délai.
@@ -120,21 +121,30 @@ export async function GET(request: Request) {
 
     for (const b of dueSms) {
       if (!b.customerPhone) continue
-      // 1) Débit atomique + marquage : ne réussit qu'une fois et seulement si solde>0.
-      const debit = await debitOneSms(b.companyId, b.id)
-      if (!debit.ok) {
-        if (debit.reason === "no_credit") smsSkippedNoCredit += 1
-        continue // déjà envoyé, solde nul, ou inconnu -> on n'envoie pas
+      // 1) Réservation anti-doublon + garde solde (SANS débit) : marque le RDV
+      //    seulement s'il est encore confirmé et si le solde > 0.
+      const reserved = await reserveSmsReminder(b.companyId, b.id)
+      if (!reserved.ok) {
+        if (reserved.reason === "no_credit") smsSkippedNoCredit += 1
+        continue // déjà envoyé/annulé, solde nul, ou erreur -> on n'envoie pas
       }
-      // 2) Envoi réel (le solde est déjà débité de façon idempotente).
+      // 2) Envoi réel via AllMySMS.
       const message = renderSmsTemplate(tmplByCompany.get(b.companyId) || SMS_DEFAULT_TEMPLATE, {
         prenom: (b.customerName || "").trim().split(/\s+/)[0] || "",
         entreprise: nameById.get(b.companyId) || "",
         date: b.date,
         heure: b.startTime,
       })
-      await sendSms({ to: b.customerPhone, message })
-      smsSent += 1
+      const result = await sendSms({ to: b.customerPhone, message, companyId: b.companyId })
+      // 3) Débit UNIQUEMENT si l'envoi a réussi ; sinon on relâche la réservation
+      //    (aucun crédit retiré, RDV de nouveau éligible au prochain passage).
+      if (result.ok) {
+        await confirmSmsDebit(b.companyId)
+        smsSent += 1
+      } else {
+        await releaseSmsReminder(b.companyId, b.id)
+        smsFailed += 1
+      }
     }
   }
 
@@ -145,5 +155,6 @@ export async function GET(request: Request) {
     sent,
     smsSent,
     smsSkippedNoCredit,
+    smsFailed,
   })
 }

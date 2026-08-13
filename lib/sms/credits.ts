@@ -55,54 +55,76 @@ export async function grantBetaBonus(companyId: number): Promise<boolean> {
   return updated.length > 0
 }
 
-export type DebitReason = "ok" | "no_credit" | "already_sent" | "unknown"
+export type ReserveReason = "ok" | "no_credit" | "already_sent" | "unknown"
 
 /**
- * Réserve l'envoi d'un rappel SMS pour un RDV donné : marque le RDV comme
- * "rappel SMS envoyé" ET débite 1 crédit, de façon ATOMIQUE et IDEMPOTENTE.
+ * PHASE 1 — Réserve l'envoi d'un rappel SMS pour un RDV donné, SANS débiter.
  *
- * Deux gardes SQL dans une transaction :
- *  - le marquage `smsReminderSentAt` ne réussit que si la colonne est NULL
- *    (protection anti double-envoi, même en cas d'exécutions concurrentes) ;
- *  - le débit ne réussit que si `balance > 0` (jamais de solde négatif).
- * Si l'un échoue, la transaction est annulée (rollback) et rien n'est consommé.
+ * Dans une transaction :
+ *  - garde solde : refuse si `balance <= 0` (aucun SMS ne part si solde nul) ;
+ *  - marquage ATOMIQUE anti-doublon : pose `smsReminderSentAt = now()`
+ *    UNIQUEMENT si la colonne est NULL ET que le RDV est toujours `confirmed`
+ *    (jamais pour un RDV annulé ; un RDV supprimé n'existe plus → 0 ligne).
  *
- * À appeler AVANT l'envoi réel : comme le crédit n'est pas gratuit, on préfère
- * ne jamais envoyer deux fois plutôt que risquer un double débit.
+ * Le marquage AVANT envoi garantit qu'aucune exécution concurrente ne peut
+ * envoyer deux fois. Le débit, lui, n'a lieu qu'APRÈS un envoi réussi
+ * (voir confirmSmsDebit). En cas d'échec d'envoi, appeler releaseSmsReminder
+ * pour rendre le RDV à nouveau éligible (aucun crédit consommé).
  */
-export async function debitOneSms(
+export async function reserveSmsReminder(
   companyId: number,
   bookingId: number,
-): Promise<{ ok: boolean; reason: DebitReason }> {
+): Promise<{ ok: boolean; reason: ReserveReason }> {
   try {
     return await db.transaction(async (tx) => {
-      // 1) Réservation du RDV (une seule fois).
+      const [credits] = await tx
+        .select({ balance: smsCredits.balance })
+        .from(smsCredits)
+        .where(eq(smsCredits.companyId, companyId))
+        .limit(1)
+      if (!credits || credits.balance <= 0) {
+        return { ok: false as const, reason: "no_credit" as ReserveReason }
+      }
       const claimed = await tx.execute(
         sql`UPDATE bookings SET "smsReminderSentAt" = now()
-            WHERE id = ${bookingId} AND "companyId" = ${companyId} AND "smsReminderSentAt" IS NULL
+            WHERE id = ${bookingId} AND "companyId" = ${companyId}
+              AND "smsReminderSentAt" IS NULL AND status = 'confirmed'
             RETURNING id`,
       )
       if (claimed.rows.length === 0) {
-        return { ok: false as const, reason: "already_sent" as DebitReason }
+        return { ok: false as const, reason: "already_sent" as ReserveReason }
       }
-      // 2) Débit atomique (rollback du marquage si le solde est insuffisant).
-      const debited = await tx
-        .update(smsCredits)
-        .set({ balance: sql`${smsCredits.balance} - 1`, updatedAt: new Date() })
-        .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.balance} > 0`))
-        .returning({ id: smsCredits.id })
-      if (debited.length === 0) {
-        throw new Error("NO_CREDIT")
-      }
-      return { ok: true as const, reason: "ok" as DebitReason }
+      return { ok: true as const, reason: "ok" as ReserveReason }
     })
   } catch (e) {
-    if (e instanceof Error && e.message === "NO_CREDIT") {
-      return { ok: false, reason: "no_credit" }
-    }
-    console.log("[v0] debitOneSms error:", e instanceof Error ? e.message : e)
+    console.log("[v0] reserveSmsReminder error:", e instanceof Error ? e.message : e)
     return { ok: false, reason: "unknown" }
   }
+}
+
+/**
+ * Annule une réservation quand l'envoi AllMySMS a échoué : remet
+ * `smsReminderSentAt` à NULL pour que le RDV redevienne éligible au prochain
+ * passage du cron. Aucun crédit n'a été débité à ce stade.
+ */
+export async function releaseSmsReminder(companyId: number, bookingId: number): Promise<void> {
+  await db.execute(
+    sql`UPDATE bookings SET "smsReminderSentAt" = NULL
+        WHERE id = ${bookingId} AND "companyId" = ${companyId}`,
+  )
+}
+
+/**
+ * PHASE 2 — Débite 1 crédit APRÈS un envoi AllMySMS réussi.
+ * Débit atomique conditionnel (`balance > 0`) : jamais de solde négatif.
+ */
+export async function confirmSmsDebit(companyId: number): Promise<boolean> {
+  const debited = await db
+    .update(smsCredits)
+    .set({ balance: sql`${smsCredits.balance} - 1`, updatedAt: new Date() })
+    .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.balance} > 0`))
+    .returning({ id: smsCredits.id })
+  return debited.length > 0
 }
 
 /* -------------------------------------------------------------------------- */
