@@ -556,6 +556,11 @@ export const smsCredits = pgTable(
     purchased: integer("purchased").notNull().default(0),
     // Marqueur idempotent du bonus bêta (null = jamais attribué).
     betaBonusGrantedAt: timestamp("betaBonusGrantedAt"),
+    // Sous-compte AllMySMS propre au tenant (créé à la 1re activation SMS).
+    // null => on utilise le compte central en fallback. Secrets SERVEUR only,
+    // jamais exposés au client (aucune route ne renvoie ces colonnes au front).
+    allmysmsSubLogin: text("allmysmsSubLogin"),
+    allmysmsSubApiKey: text("allmysmsSubApiKey"),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => ({

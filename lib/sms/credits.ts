@@ -16,7 +16,7 @@ export type SmsBalance = {
 }
 
 /** Garantit l'existence de la ligne de crédits d'une entreprise (idempotent). */
-async function ensureCreditsRow(companyId: number): Promise<void> {
+export async function ensureSmsCreditsRow(companyId: number): Promise<void> {
   await db
     .insert(smsCredits)
     .values({ companyId, balance: 0, granted: 0, purchased: 0 })
@@ -41,7 +41,7 @@ export async function getSmsBalance(companyId: number): Promise<SmsBalance> {
  * jamais deux fois. Renvoie true si le bonus vient d'être attribué.
  */
 export async function grantBetaBonus(companyId: number): Promise<boolean> {
-  await ensureCreditsRow(companyId)
+  await ensureSmsCreditsRow(companyId)
   const updated = await db
     .update(smsCredits)
     .set({
