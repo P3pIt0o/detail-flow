@@ -26,6 +26,9 @@ import { smsCredits } from "@/lib/db/schema"
 
 const ALLMYSMS_ENDPOINT = "https://api.allmysms.com/http/9.0/sendSms/"
 const ALLMYSMS_SUBACCOUNT_ENDPOINT = "https://api.allmysms.com/http/9.0/createSubAccount/"
+// Endpoint officiel d'allocation de crédits vers un sous-compte (compte central
+// -> sous-compte). Paramètres: login, apiKey, subaccount, credits (>0 = ajout).
+const ALLMYSMS_MANAGE_CREDITS_ENDPOINT = "https://api.allmysms.com/http/9.0/manageSubAccountCredits/"
 
 export type SendSmsResult = { ok: boolean; id?: string; error?: string; skipped?: boolean }
 
@@ -64,33 +67,57 @@ function centralCredentials(): { login?: string; apiKey?: string; sender?: strin
   }
 }
 
+type ResolvedCredentials =
+  | { ok: true; login: string; apiKey: string; sender?: string; source: "central" | "subaccount" }
+  | { ok: false; error: string; skipped?: boolean }
+
 /**
  * Résout les identifiants AllMySMS à utiliser pour un tenant donné :
- *  - si le tenant possède un SOUS-COMPTE (login + apiKey en base) → on l'utilise ;
- *  - sinon → repli sur le COMPTE CENTRAL.
+ *  - `companyId` absent (usage central EXPLICITE, ex. SMS de test) → compte central ;
+ *  - tenant SANS sous-compte enregistré → compte central (cas prévu) ;
+ *  - tenant AVEC sous-compte provisionné → identifiants du sous-compte UNIQUEMENT.
+ *
+ * POINT CRITIQUE (anti-fallback silencieux) : si un tenant possède un
+ * sous-compte (login présent) mais que sa résolution/authentification échoue
+ * (clé absente, erreur DB), on renvoie une ERREUR CONTRÔLÉE et on n'envoie
+ * JAMAIS via le compte central à sa place.
+ *
  * Résolution 100% serveur à partir d'un `companyId` de confiance (jamais issu
  * du navigateur). Les secrets ne quittent jamais le serveur.
  */
-async function resolveCredentials(
-  companyId?: number,
-): Promise<{ login?: string; apiKey?: string; sender?: string }> {
+async function resolveCredentials(companyId?: number): Promise<ResolvedCredentials> {
   const central = centralCredentials()
-  if (!companyId) return central
+  const centralResolved = (): ResolvedCredentials =>
+    central.login && central.apiKey
+      ? { ok: true, login: central.login, apiKey: central.apiKey, sender: central.sender, source: "central" }
+      : { ok: false, skipped: true, error: "Identifiants AllMySMS manquants" }
+
+  if (!companyId) return centralResolved()
+
+  let row: { login: string | null; apiKey: string | null } | undefined
   try {
-    const [row] = await db
+    ;[row] = await db
       .select({ login: smsCredits.allmysmsSubLogin, apiKey: smsCredits.allmysmsSubApiKey })
       .from(smsCredits)
       .where(eq(smsCredits.companyId, companyId))
       .limit(1)
-    if (row?.login && row?.apiKey) {
-      // Sender : on garde le sender central tant qu'aucun sender dédié par
-      // sous-compte n'est géré (étape ultérieure).
-      return { login: row.login, apiKey: row.apiKey, sender: central.sender }
-    }
   } catch (e) {
-    console.log("[v0] resolveCredentials fallback central:", e instanceof Error ? e.message : e)
+    console.log("[v0] resolveCredentials erreur DB:", e instanceof Error ? e.message : e)
+    // On ne peut pas déterminer l'existence d'un sous-compte : erreur contrôlée,
+    // jamais d'envoi via le central "au hasard".
+    return { ok: false, error: "Résolution du sous-compte AllMySMS impossible" }
   }
-  return central
+
+  // Tenant PROVISIONNÉ (un sous-compte a été créé) : usage exclusif du sous-compte.
+  if (row?.login) {
+    if (!row.apiKey) {
+      return { ok: false, error: "Sous-compte AllMySMS incomplet (clé manquante) — envoi via le compte central refusé" }
+    }
+    return { ok: true, login: row.login, apiKey: row.apiKey, sender: central.sender, source: "subaccount" }
+  }
+
+  // Aucun sous-compte enregistré : compte central (cas explicitement prévu).
+  return centralResolved()
 }
 
 /**
@@ -191,12 +218,14 @@ export async function sendSms(args: SendSmsArgs): Promise<SendSmsResult> {
     return { ok: false, error: "Numéro ou message manquant." }
   }
 
-  const { login, apiKey, sender } = await resolveCredentials(args.companyId)
-  if (!login || !apiKey) {
-    // Configuration absente : on ne bloque pas le flux métier (pas de débit).
-    console.log("[v0] SMS non envoyé — identifiants AllMySMS manquants.")
-    return { ok: false, skipped: true, error: "Identifiants AllMySMS manquants" }
+  const creds = await resolveCredentials(args.companyId)
+  if (!creds.ok) {
+    // skipped => absence de config (pas de débit). Sinon => erreur contrôlée
+    // (ex. sous-compte provisionné inutilisable : PAS d'envoi via le central).
+    console.log("[v0] SMS non envoyé —", creds.error)
+    return { ok: false, skipped: creds.skipped, error: creds.error }
   }
+  const { login, apiKey, sender } = creds
 
   const phone = normalizeFrenchMobile(args.to)
   if (!phone) {
