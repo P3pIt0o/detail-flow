@@ -53,7 +53,9 @@ export async function saveSmsReminderSettings(input: {
     const sub = await ensureTenantSubAccount({
       companyId: tenant.id,
       companyName: tenant.name,
-      email: tenant.email ?? `tenant${tenant.id}@detailflow.fr`,
+      // Adresse réelle du tenant (companies.email) : validée/normalisée dans
+      // ensureTenantSubAccount. On n'invente jamais d'adresse de repli.
+      email: tenant.email,
     })
     if (!sub.ok) {
       console.log("[v0] Sous-compte AllMySMS non provisionné (fallback central) pour tenant", tenant.id)
