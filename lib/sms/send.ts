@@ -1,7 +1,7 @@
 import "server-only"
 
 import { randomBytes } from "node:crypto"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
 
@@ -202,6 +202,93 @@ export async function ensureTenantSubAccount(input: {
   } catch (e) {
     console.log("[v0] createSubAccount erreur réseau:", e instanceof Error ? e.message : "inconnue")
     return { ok: false, created: false, error: "Erreur réseau AllMySMS" }
+  }
+}
+
+export type AllocateResult = { ok: boolean; allocated: number; error?: string }
+
+/**
+ * Alloue réellement `quantity` crédits AllMySMS du COMPTE CENTRAL vers le
+ * SOUS-COMPTE d'un tenant, via l'endpoint officiel `manageSubAccountCredits`.
+ *
+ * Fonction SERVEUR centralisée (`"server-only"` en tête de fichier) : elle ne
+ * peut pas être appelée depuis le navigateur. `companyId` doit être résolu
+ * côté serveur ; aucun `companyId` client n'est fiable.
+ *
+ * Garanties :
+ *  - `quantity > 0` obligatoire ;
+ *  - le tenant DOIT posséder un sous-compte (login + apiKey) — sinon erreur
+ *    contrôlée, aucun transfert vers le compte central « par défaut » ;
+ *  - succès confirmé UNIQUEMENT sur la réponse réelle d'AllMySMS ;
+ *  - en cas de succès, on incrémente `allmysmsCreditsAllocated` (audit +
+ *    protection anti double-allocation) et on horodate `allmysmsLastAllocationAt`.
+ *
+ * NE modifie PAS le solde métier DetailFlow (`balance`) ni le bonus bêta.
+ */
+export async function allocateCreditsToTenant(companyId: number, quantity: number): Promise<AllocateResult> {
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return { ok: false, allocated: 0, error: "Quantité invalide (doit être un entier > 0)" }
+  }
+
+  const central = centralCredentials()
+  if (!central.login || !central.apiKey) {
+    return { ok: false, allocated: 0, error: "Compte central AllMySMS non configuré" }
+  }
+
+  // Le tenant doit avoir un sous-compte : sinon on ne « retombe » pas sur le central.
+  const [row] = await db
+    .select({ subLogin: smsCredits.allmysmsSubLogin, subApiKey: smsCredits.allmysmsSubApiKey })
+    .from(smsCredits)
+    .where(eq(smsCredits.companyId, companyId))
+    .limit(1)
+  if (!row?.subLogin || !row?.subApiKey) {
+    return { ok: false, allocated: 0, error: "Aucun sous-compte AllMySMS pour ce tenant" }
+  }
+
+  const body = new URLSearchParams()
+  body.set("login", central.login)
+  body.set("apiKey", central.apiKey)
+  body.set("subaccount", row.subLogin)
+  body.set("credits", String(quantity)) // positif = ajout de crédits au sous-compte
+  body.set("returnformat", "JSON")
+
+  try {
+    const res = await fetch(ALLMYSMS_MANAGE_CREDITS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      cache: "no-store",
+    })
+    const text = await res.text()
+    let json: { status?: string | number; statusText?: string } | null = null
+    try {
+      json = JSON.parse(text)
+    } catch {
+      console.log("[v0] manageSubAccountCredits réponse illisible (HTTP", res.status, ")")
+      return { ok: false, allocated: 0, error: "Réponse AllMySMS invalide" }
+    }
+
+    // Succès confirmé par l'API : status "OK" (ou 100 selon les comptes).
+    const ok = json?.status === "OK" || json?.status === 100 || json?.status === "100"
+    if (!ok) {
+      console.log("[v0] manageSubAccountCredits échec status:", json?.status, json?.statusText)
+      return { ok: false, allocated: 0, error: json?.statusText || `Statut ${json?.status ?? "?"}` }
+    }
+
+    // Audit + garde anti double-transfert (cumul réellement alloué au sous-compte).
+    await db
+      .update(smsCredits)
+      .set({
+        allmysmsCreditsAllocated: sql`${smsCredits.allmysmsCreditsAllocated} + ${quantity}`,
+        allmysmsLastAllocationAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(smsCredits.companyId, companyId))
+
+    return { ok: true, allocated: quantity }
+  } catch (e) {
+    console.log("[v0] manageSubAccountCredits erreur réseau:", e instanceof Error ? e.message : "inconnue")
+    return { ok: false, allocated: 0, error: "Erreur réseau AllMySMS" }
   }
 }
 
