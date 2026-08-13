@@ -1,8 +1,12 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, Loader2, MessageSquare, X } from "lucide-react"
-import { confirmSmsRechargeAction, cancelSmsRechargeAction } from "@/app/super-admin/actions"
+import { Check, Loader2, MessageSquare, Send, X } from "lucide-react"
+import {
+  confirmSmsRechargeAction,
+  cancelSmsRechargeAction,
+  allocateSmsCreditsAction,
+} from "@/app/super-admin/actions"
 import type { SmsRechargeRow } from "@/lib/super-admin/queries"
 
 function euros(cents: number) {
@@ -13,6 +17,20 @@ export function SmsRechargesSection({ requests }: { requests: SmsRechargeRow[] }
   const [isPending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function allocate(req: SmsRechargeRow) {
+    if (!window.confirm(`Allouer les crédits AllMySMS manquants au sous-compte de ${req.companyName} ?`)) return
+    setError(null)
+    setMessage(null)
+    setBusyId(req.id)
+    startTransition(async () => {
+      const res = await allocateSmsCreditsAction(req.companyId)
+      setBusyId(null)
+      if (res.ok) setMessage(res.message ?? "Allocation effectuée.")
+      else setError(res.error)
+    })
+  }
 
   function confirm(req: SmsRechargeRow) {
     if (!window.confirm(`Confirmer la réception du paiement et créditer ${req.quantity} SMS à ${req.companyName} ?`)) return
@@ -54,6 +72,12 @@ export function SmsRechargesSection({ requests }: { requests: SmsRechargeRow[] }
         </p>
       )}
 
+      {message && (
+        <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary">
+          {message}
+        </p>
+      )}
+
       {requests.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Aucune demande de recharge en attente.
@@ -86,6 +110,16 @@ export function SmsRechargesSection({ requests }: { requests: SmsRechargeRow[] }
                   >
                     {isBusy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                     Paiement reçu — créditer les SMS
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => allocate(req)}
+                    title="Allouer les crédits manquants au sous-compte AllMySMS"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                  >
+                    <Send className="size-4" />
+                    Allouer AllMySMS
                   </button>
                   <button
                     type="button"

@@ -13,6 +13,7 @@ import {
   type ProvisionResult,
 } from "@/lib/company/provision"
 import { creditFromRecharge } from "@/lib/sms/credits"
+import { allocateDeltaToTenant } from "@/lib/sms/send"
 import { sendEmail } from "@/lib/email/send"
 import { smsCreditedEmail } from "@/lib/email/templates"
 import { tenantAdminUrl } from "@/lib/tenant-shared"
@@ -328,6 +329,32 @@ export async function confirmSmsRechargeAction(requestId: number): Promise<Actio
     return {
       ok: true,
       message: res.already ? "Déjà créditée (aucune action)." : `${res.quantity} SMS crédités.`,
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/**
+ * Alloue au sous-compte AllMySMS du tenant UNIQUEMENT le delta non encore
+ * transféré (total accordé/acheté − déjà alloué). RÉSERVÉ au super-admin.
+ *
+ * Déclenchement MANUEL. Aucun `companyId` du navigateur n'est fiable : ici il
+ * provient de la ligne de recharge côté serveur. Idempotent grâce au cumul
+ * `allmysmsCreditsAllocated` : un second appel sans nouveau crédit transfère 0.
+ */
+export async function allocateSmsCreditsAction(companyId: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  try {
+    const res = await allocateDeltaToTenant(companyId)
+    if (!res.ok) return { ok: false, error: res.error ?? "Échec de l'allocation AllMySMS." }
+    revalidatePath("/super-admin")
+    return {
+      ok: true,
+      message:
+        res.allocated > 0
+          ? `${res.allocated} crédit(s) alloué(s) au sous-compte (total ${res.totalGranted}, déjà ${res.alreadyAllocated}).`
+          : `Aucun crédit à allouer (total ${res.totalGranted} déjà entièrement attribué).`,
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }

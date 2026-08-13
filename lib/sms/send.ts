@@ -292,6 +292,60 @@ export async function allocateCreditsToTenant(companyId: number, quantity: numbe
   }
 }
 
+export type AllocateDeltaResult = {
+  ok: boolean
+  allocated: number
+  delta: number
+  totalGranted: number
+  alreadyAllocated: number
+  error?: string
+}
+
+/**
+ * Alloue au sous-compte AllMySMS UNIQUEMENT le DELTA de crédits pas encore
+ * transféré, calculé à partir du TOTAL de crédits accordés/achetés au tenant.
+ *
+ * POINT CRITIQUE (anti double-allocation / anti-boucle gratuite) :
+ * la base du calcul est `granted + purchased` (cumuls monotones qui
+ * n'augmentent qu'au bonus bêta et aux recharges), JAMAIS `balance` (qui
+ * diminue à chaque SMS). On transfère donc `total - déjà alloué`. Ainsi :
+ *  - activer/désactiver les rappels ne déclenche aucun nouveau transfert ;
+ *  - consommer des SMS (balance qui baisse) ne redéclenche jamais d'allocation ;
+ *  - le bonus bêta (20) n'est reflété qu'une seule fois.
+ *
+ * Si le delta est <= 0, aucun appel AllMySMS n'est fait. `companyId` doit être
+ * résolu côté serveur (jamais depuis le navigateur).
+ */
+export async function allocateDeltaToTenant(companyId: number): Promise<AllocateDeltaResult> {
+  const [row] = await db
+    .select({
+      granted: smsCredits.granted,
+      purchased: smsCredits.purchased,
+      allocated: smsCredits.allmysmsCreditsAllocated,
+    })
+    .from(smsCredits)
+    .where(eq(smsCredits.companyId, companyId))
+    .limit(1)
+
+  const totalGranted = (row?.granted ?? 0) + (row?.purchased ?? 0)
+  const alreadyAllocated = row?.allocated ?? 0
+  const delta = totalGranted - alreadyAllocated
+
+  if (delta <= 0) {
+    return { ok: true, allocated: 0, delta: 0, totalGranted, alreadyAllocated }
+  }
+
+  const res = await allocateCreditsToTenant(companyId, delta)
+  return {
+    ok: res.ok,
+    allocated: res.allocated,
+    delta,
+    totalGranted,
+    alreadyAllocated,
+    error: res.error,
+  }
+}
+
 /**
  * Envoie un SMS via AllMySMS. Ne lève jamais : renvoie un résultat structuré
  * pour que le flux métier décide de débiter (ou non) un crédit.
