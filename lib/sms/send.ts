@@ -181,28 +181,13 @@ export async function ensureTenantSubAccount(input: {
     ACTIVE: 1,
   }
 
-  const body = new URLSearchParams()
-  body.set("login", central.login)
-  body.set("apiKey", central.apiKey)
-  body.set("accountData", JSON.stringify(accountData))
-
-  // --- DIAGNOSTIC TEMPORAIRE (aucune donnée sensible : ni email complet, ni secrets) ---
-  console.log("[v0] createSubAccount diag:", {
-    emailSource: input.email ? "companies.email (tenant)" : "absente",
-    emailLength: email.length,
-    hasAt: email.includes("@"),
-    emailDomain: email.split("@")[1] ?? "(aucun)",
-    regexValid: emailIsValid,
-    accountDataKeys: JSON.stringify(Object.keys(accountData)),
-    typeofEmail: typeof accountData.EMAIL,
-  })
-  // --- FIN DIAGNOSTIC ---
-
+  // AllMySMS createSubAccount attend un corps JSON avec `accountData` en OBJET
+  // imbriqué (pas de form-encoding ni de chaîne sérialisée isolée).
   try {
     const res = await fetch(ALLMYSMS_SUBACCOUNT_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login: central.login, apiKey: central.apiKey, accountData }),
       cache: "no-store",
     })
     const text = await res.text()
