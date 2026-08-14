@@ -172,26 +172,34 @@ export async function ensureTenantSubAccount(input: {
   const subLogin = `detailflow_t${input.companyId}`
   const subPassword = randomBytes(12).toString("base64url") // >= 6 caractères
   const [firstName, ...rest] = (input.companyName || `Tenant ${input.companyId}`).trim().split(/\s+/)
-  const accountData = {
-    FIRSTNAME: firstName || "DetailFlow",
-    LASTNAME: rest.join(" ") || `Tenant ${input.companyId}`,
-    EMAIL: email,
-    LOGIN: subLogin,
-    PASSWORD: subPassword,
-    ACTIVE: 1,
+  // Structure officielle AllMySMS v9.0 : flux JSON avec enveloppe racine `DATA`.
+  const stream = {
+    DATA: {
+      FIRSTNAME: firstName || "DetailFlow",
+      LASTNAME: rest.join(" ") || `Tenant ${input.companyId}`,
+      EMAIL: email,
+      LOGIN: subLogin,
+      PASSWORD: subPassword,
+      ACTIVE: 1,
+    },
   }
 
-  // AllMySMS createSubAccount attend un corps JSON avec `accountData` en OBJET
-  // imbriqué (pas de form-encoding ni de chaîne sérialisée isolée).
+  // Endpoint HTTP gateway : POST form-encodé, `accountData` = flux JSON sérialisé
+  // (même schéma que `smsData` pour sendSms). PAS de corps application/json.
+  const body = new URLSearchParams()
+  body.set("login", central.login)
+  body.set("apiKey", central.apiKey)
+  body.set("accountData", JSON.stringify(stream))
+
   try {
     const res = await fetch(ALLMYSMS_SUBACCOUNT_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: central.login, apiKey: central.apiKey, accountData }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
       cache: "no-store",
     })
     const text = await res.text()
-    let json: { status?: number; statusText?: string; apiKey?: string; login?: string } | null = null
+    let json: { status?: number | string; statusText?: string; apiKey?: string; login?: string } | null = null
     try {
       json = JSON.parse(text)
     } catch {
@@ -199,9 +207,11 @@ export async function ensureTenantSubAccount(input: {
       return { ok: false, created: false, error: "Réponse AllMySMS invalide" }
     }
 
-    // Succès = status 100. AllMySMS renvoie la clé d'API du sous-compte créé.
+    // Contrat officiel createSubAccount : succès = status "1" (distinct du 100
+    // de sendSms). AllMySMS renvoie la clé d'API du sous-compte créé.
+    const success = json?.status === "1" || json?.status === 1
     const subApiKey = json?.apiKey
-    if (json?.status === 100 && subApiKey) {
+    if (success && subApiKey) {
       await db
         .update(smsCredits)
         .set({ allmysmsSubLogin: subLogin, allmysmsSubApiKey: subApiKey, updatedAt: new Date() })
