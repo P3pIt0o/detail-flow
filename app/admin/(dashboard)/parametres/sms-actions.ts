@@ -2,30 +2,21 @@
 
 import { revalidatePath } from "next/cache"
 import { eq } from "drizzle-orm"
-
 import { db } from "@/lib/db"
-import {
-  settings,
-  smsRechargeRequests,
-} from "@/lib/db/schema"
-
+import { settings, smsRechargeRequests } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
-
 import {
   getSmsBalance,
   generateRechargeReference,
   ensureSmsCreditsRow,
 } from "@/lib/sms/credits"
-
 import { ensureTenantSubAccount } from "@/lib/sms/send"
-
 import {
   SMS_MIN_CUSTOM_QUANTITY,
   amountForQuantity,
   formatSmsAmount,
   SMS_NOTIFY_EMAIL,
 } from "@/lib/sms/config"
-
 import { sendEmail } from "@/lib/email/send"
 import { smsRechargeRequestEmail } from "@/lib/email/templates"
 
@@ -34,236 +25,120 @@ export type SmsActionResult = {
   error?: string
 }
 
-/**
- * Assure l'existence de la ligne settings du tenant.
- */
+/** Assure l'existence de la ligne settings de l'entreprise courante. */
 async function ensureSettingsRow(companyId: number) {
   const rows = await db
-    .select({
-      id: settings.id,
-    })
+    .select({ id: settings.id })
     .from(settings)
     .where(eq(settings.companyId, companyId))
     .limit(1)
 
   if (!rows.length) {
-    await db
-      .insert(settings)
-      .values({
-        companyId,
-      })
+    await db.insert(settings).values({ companyId })
   }
 }
 
-/**
- * Construit l'identité technique nécessaire
- * à la création du sous-compte AllMySMS.
- *
- * Le schéma companies ne possède pas actuellement
- * firstName / lastName.
- *
- * On dérive donc temporairement ces valeurs
- * depuis le nom de l'entreprise.
- */
-function resolveAllMySmsTenantIdentity(input: {
-  companyName: string
-  phone: string | null | undefined
-}) {
-  const companyName =
-    (input.companyName || "").trim()
-
-  const words = companyName
-    .split(/\s+/)
-    .filter(Boolean)
-
-  const firstName =
-    words[0] || "DetailFlow"
-
-  const lastName =
-    words.length > 1
-      ? words.slice(1).join(" ")
-      : "Professionnel"
-
-  const mobile =
-    (input.phone || "").trim()
-
-  return {
-    companyName,
-    firstName,
-    lastName,
-    mobile,
-  }
-}
-
-/**
- * Enregistre les préférences de rappels SMS
- * du tenant actuellement connecté.
- *
- * Le tenant est toujours résolu côté serveur.
- */
+/** Enregistre les préférences de rappels SMS (tenant courant uniquement). */
 export async function saveSmsReminderSettings(input: {
   enabled: boolean
   offsetHours: 24 | 48
   template: string
 }): Promise<SmsActionResult> {
-  const { tenant } =
-    await requireCompanyMember()
+  const { tenant } = await requireCompanyMember()
 
-  await ensureSettingsRow(
-    tenant.id,
-  )
+  await ensureSettingsRow(tenant.id)
 
-  const offset =
-    input.offsetHours === 48
-      ? 48
-      : 24
+  const offset = input.offsetHours === 48 ? 48 : 24
+  const template = input.template.trim()
 
-  const template =
-    input.template.trim()
-
-  /**
-   * Sauvegarde des préférences SMS.
-   */
   await db
     .update(settings)
     .set({
-      smsRemindersEnabled:
-        input.enabled,
-
-      smsReminderOffsetHours:
-        offset,
-
-      smsReminderTemplate:
-        template || null,
-
-      updatedAt:
-        new Date(),
+      smsRemindersEnabled: input.enabled,
+      smsReminderOffsetHours: offset,
+      smsReminderTemplate: template || null,
+      updatedAt: new Date(),
     })
-    .where(
-      eq(
-        settings.companyId,
-        tenant.id,
-      ),
-    )
+    .where(eq(settings.companyId, tenant.id))
 
   /**
-   * Lors de l'activation des rappels SMS :
+   * À la première activation des rappels SMS :
+   * provisionne de façon idempotente le sous-compte AllMySMS.
    *
-   * - garantit l'existence du portefeuille SMS ;
-   * - récupère le numéro professionnel ;
-   * - provisionne le sous-compte AllMySMS.
-   *
-   * Le provisioning est idempotent :
-   * un sous-compte existant n'est jamais recréé.
+   * Le companyId provient toujours de la session serveur.
    */
   if (input.enabled) {
-    await ensureSmsCreditsRow(
-      tenant.id,
-    )
+    await ensureSmsCreditsRow(tenant.id)
 
     /**
-     * Le numéro utilisé pour AllMySMS est :
-     *
-     * 1. settings.businessPhone
-     * 2. companies.phone
-     *
-     * Cela correspond au fonctionnement réel
-     * de DetailFlow : les coordonnées professionnelles
-     * configurées dans les paramètres sont prioritaires.
+     * Récupère le téléphone professionnel configuré dans les paramètres.
+     * On utilise ensuite companies.phone uniquement comme fallback.
      */
-    const [businessSettings] =
-      await db
-        .select({
-          businessPhone:
-            settings.businessPhone,
-        })
-        .from(settings)
-        .where(
-          eq(
-            settings.companyId,
-            tenant.id,
-          ),
-        )
-        .limit(1)
+    const [businessSettings] = await db
+      .select({
+        businessPhone: settings.businessPhone,
+      })
+      .from(settings)
+      .where(eq(settings.companyId, tenant.id))
+      .limit(1)
 
-    const phone =
-      businessSettings
-        ?.businessPhone
-        ?.trim() ||
+    const mobile =
+      businessSettings?.businessPhone?.trim() ||
       tenant.phone?.trim() ||
       ""
 
-    const identity =
-      resolveAllMySmsTenantIdentity({
-        companyName:
-          tenant.name,
-
-        phone,
-      })
-
-    if (!identity.mobile) {
+    if (!mobile) {
       console.log(
         "[sms] Sous-compte AllMySMS non provisionné pour tenant",
         tenant.id,
         ": numéro professionnel absent",
       )
 
-      revalidatePath(
-        "/admin/parametres",
-      )
+      revalidatePath("/admin/parametres")
 
       return {
         ok: false,
         error:
-          "Renseigne le numéro de téléphone professionnel de l’entreprise avant d’activer les rappels SMS.",
+          "Renseigne le numéro de téléphone professionnel avant d'activer les rappels SMS.",
       }
     }
 
     /**
-     * Création du sous-compte AllMySMS.
-     *
-     * ensureTenantSubAccount utilise :
-     *
-     * FIRSTNAME
-     * LASTNAME
-     * SOCIETY
-     * MOBILE
-     * EMAIL = sms@detailflow.fr
-     * LOGIN
-     * PASSWORD
-     *
-     * ACTIVE n'est pas envoyé.
+     * Le schéma actuel ne possède pas de prénom / nom du propriétaire.
+     * On dérive donc temporairement ces champs depuis le nom de l'entreprise
+     * uniquement pour satisfaire les champs obligatoires AllMySMS.
      */
-    const sub =
-      await ensureTenantSubAccount({
-        companyId:
-          tenant.id,
+    const companyName = tenant.name.trim()
 
-        companyName:
-          identity.companyName,
+    const companyParts = companyName
+      .split(/\s+/)
+      .filter(Boolean)
 
-        firstName:
-          identity.firstName,
+    const firstName =
+      companyParts[0] || "DetailFlow"
 
-        lastName:
-          identity.lastName,
+    const lastName =
+      companyParts.length > 1
+        ? companyParts.slice(1).join(" ")
+        : "Professionnel"
 
-        mobile:
-          identity.mobile,
-      })
+    const sub = await ensureTenantSubAccount({
+      companyId: tenant.id,
+      companyName,
+      firstName,
+      lastName,
+      mobile,
+    })
 
     if (!sub.ok) {
       console.log(
         "[sms] Sous-compte AllMySMS non provisionné pour tenant",
         tenant.id,
         ":",
-        sub.error ||
-          "erreur inconnue",
+        sub.error || "erreur inconnue",
       )
 
-      revalidatePath(
-        "/admin/parametres",
-      )
+      revalidatePath("/admin/parametres")
 
       return {
         ok: false,
@@ -281,13 +156,9 @@ export async function saveSmsReminderSettings(input: {
     }
   }
 
-  revalidatePath(
-    "/admin/parametres",
-  )
+  revalidatePath("/admin/parametres")
 
-  return {
-    ok: true,
-  }
+  return { ok: true }
 }
 
 export type CreateRechargeResult =
@@ -303,41 +174,32 @@ export type CreateRechargeResult =
     }
 
 /**
- * Crée une demande de recharge SMS.
+ * Crée une demande de recharge (statut "pending").
+ * NE crédite JAMAIS.
  *
- * Cette action ne crédite jamais directement
- * le compte du tenant.
- *
- * La validation reste faite côté Super Admin.
+ * L'entreprise est TOUJOURS celle de la session.
  */
 export async function createRechargeRequest(
   quantity: number,
 ): Promise<CreateRechargeResult> {
-  const { tenant } =
-    await requireCompanyMember()
+  const { tenant } = await requireCompanyMember()
 
-  const qty =
-    Math.floor(
-      Number(quantity),
-    )
+  const qty = Math.floor(Number(quantity))
 
   if (
     !Number.isFinite(qty) ||
-    qty <
-      SMS_MIN_CUSTOM_QUANTITY
+    qty < SMS_MIN_CUSTOM_QUANTITY
   ) {
     return {
       ok: false,
-      error:
-        `Quantité minimale : ${SMS_MIN_CUSTOM_QUANTITY} SMS.`,
+      error: `Quantité minimale : ${SMS_MIN_CUSTOM_QUANTITY} SMS.`,
     }
   }
 
   if (qty > 5000) {
     return {
       ok: false,
-      error:
-        "Quantité trop élevée.",
+      error: "Quantité trop élevée.",
     }
   }
 
@@ -348,100 +210,62 @@ export async function createRechargeRequest(
     generateRechargeReference()
 
   await db
-    .insert(
-      smsRechargeRequests,
-    )
+    .insert(smsRechargeRequests)
     .values({
-      companyId:
-        tenant.id,
-
+      companyId: tenant.id,
       reference,
-
-      quantity:
-        qty,
-
+      quantity: qty,
       amountCents,
-
-      status:
-        "pending",
+      status: "pending",
     })
 
   /**
-   * Notification interne DetailFlow.
-   *
-   * Non bloquante :
-   * la demande reste enregistrée
-   * même si l'e-mail échoue.
+   * Notification interne non bloquante :
+   * la demande reste enregistrée même si l'email échoue.
    */
   try {
     const mail =
       smsRechargeRequestEmail({
-        companyName:
-          tenant.name,
-
+        companyName: tenant.name,
         companyEmail:
-          tenant.email ??
-          "—",
-
-        quantity:
-          qty,
-
+          tenant.email ?? "—",
+        quantity: qty,
         amountLabel:
-          formatSmsAmount(
-            amountCents,
-          ),
-
+          formatSmsAmount(amountCents),
         reference,
-
         createdAt:
-          new Date()
-            .toLocaleString(
-              "fr-FR",
-            ),
+          new Date().toLocaleString("fr-FR"),
       })
 
     await sendEmail({
-      to:
-        SMS_NOTIFY_EMAIL,
-
-      subject:
-        mail.subject,
-
-      html:
-        mail.html,
+      to: SMS_NOTIFY_EMAIL,
+      subject: mail.subject,
+      html: mail.html,
     })
-  } catch (error) {
+  } catch (e) {
     console.log(
-      "[sms] Notification recharge SMS échouée:",
-      error instanceof Error
-        ? error.message
-        : error,
+      "[v0] Notification recharge SMS échouée:",
+      e instanceof Error
+        ? e.message
+        : e,
     )
   }
 
-  revalidatePath(
-    "/admin/parametres",
-  )
+  revalidatePath("/admin/parametres")
 
   return {
     ok: true,
     reference,
     quantity: qty,
     amountLabel:
-      formatSmsAmount(
-        amountCents,
-      ),
+      formatSmsAmount(amountCents),
   }
 }
 
-/**
- * Retourne le solde SMS du tenant connecté.
- */
+/** Lit le solde SMS du tenant courant. */
 export async function getMySmsBalance() {
   const { tenant } =
     await requireCompanyMember()
 
-  return getSmsBalance(
-    tenant.id,
-  )
+  return getSmsBalance(tenant.id)
 }
