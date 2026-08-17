@@ -135,6 +135,175 @@ export async function getUpcomingBookings(limit = 6, companyId?: number) {
     .limit(limit)
 }
 
+/** Prochain rendez-vous enrichi (prestations + véhicules), multi-items compatible. */
+export type UpcomingBookingDetailed = {
+  id: number
+  reference: string
+  customerName: string
+  date: string
+  startTime: string
+  status: string
+  totalCents: number
+  /** Prestations distinctes (snapshot serviceName), toutes lignes confondues. */
+  services: string[]
+  /** Véhicules distincts (marque/modèle si renseignés), ordre d'apparition. */
+  vehicles: string[]
+}
+
+/**
+ * Prochains rendez-vous pour le cockpit : à partir d'aujourd'hui, confirmés ou
+ * en attente d'acompte, avec la liste des prestations et des véhicules.
+ * Une réservation = 1 rendez-vous, mais N lignes (véhicules × prestations) :
+ * on ne suppose JAMAIS une seule prestation. Deux requêtes seulement.
+ */
+export async function getUpcomingBookingsDetailed(
+  limit = 5,
+  companyId?: number,
+): Promise<UpcomingBookingDetailed[]> {
+  const cid = companyId ?? (await requireCompanyId())
+  const today = todayISO()
+  const rows = await db
+    .select({
+      id: bookings.id,
+      reference: bookings.reference,
+      customerName: bookings.customerName,
+      date: bookings.date,
+      startTime: bookings.startTime,
+      status: bookings.status,
+      totalCents: bookings.totalCents,
+    })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, cid),
+        gte(bookings.date, today),
+        inArray(bookings.status, ["confirmed", "pending_deposit"]),
+      ),
+    )
+    .orderBy(bookings.date, bookings.startTime)
+    .limit(limit)
+
+  if (rows.length === 0) return []
+
+  const ids = rows.map((r) => r.id)
+  // Lignes (bookingItems) des seules réservations affichées — snapshots inclus.
+  const items = await db
+    .select({
+      bookingId: bookingItems.bookingId,
+      serviceName: bookingItems.serviceName,
+      vehicleBrand: bookingItems.vehicleBrand,
+      vehicleModel: bookingItems.vehicleModel,
+      vehicleTypeName: bookingItems.vehicleTypeName,
+    })
+    .from(bookingItems)
+    .where(inArray(bookingItems.bookingId, ids))
+
+  const itemsByBooking = new Map<number, typeof items>()
+  for (const it of items) {
+    const list = itemsByBooking.get(it.bookingId) ?? []
+    list.push(it)
+    itemsByBooking.set(it.bookingId, list)
+  }
+
+  return rows.map((r) => {
+    const list = itemsByBooking.get(r.id) ?? []
+    const services = Array.from(new Set(list.map((i) => i.serviceName).filter(Boolean))) as string[]
+    const vehicles = Array.from(
+      new Set(
+        list
+          .map((i) => [i.vehicleBrand, i.vehicleModel].filter(Boolean).join(" ").trim() || i.vehicleTypeName || "")
+          .filter(Boolean),
+      ),
+    ) as string[]
+    return { ...r, services, vehicles }
+  })
+}
+
+/**
+ * Aperçu de la semaine pour le cockpit : pour chaque jour, l'état issu du MÊME
+ * moteur de disponibilité que le tunnel de réservation (horaires, congés,
+ * blocages horaires, capacité) + les réservations du jour. Aucune règle de
+ * planning dupliquée : on interroge `getAvailability`.
+ */
+export type DashboardWeekDay = {
+  date: string
+  /** "closed" | "time_off" | "full" | "past" | "open" | "partial" */
+  state: "closed" | "time_off" | "full" | "past" | "open" | "partial"
+  bookingsCount: number
+  /** Réservations du jour (résumé léger). */
+  bookings: { id: number; startTime: string; customerName: string; status: string }[]
+}
+
+export async function getDashboardWeek(companyId?: number): Promise<DashboardWeekDay[]> {
+  const cid = companyId ?? (await requireCompanyId())
+  const { getAvailability } = await import("@/lib/booking/availability")
+
+  // Lundi de la semaine courante (lundi = début).
+  const now = new Date()
+  const monday = new Date(now)
+  monday.setHours(0, 0, 0, 0)
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return iso(d)
+  })
+
+  const startDate = week[0]
+  const endDate = week[6]
+
+  const dayBookings = await db
+    .select({
+      id: bookings.id,
+      date: bookings.date,
+      startTime: bookings.startTime,
+      customerName: bookings.customerName,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, cid),
+        gte(bookings.date, startDate),
+        lte(bookings.date, endDate),
+        inArray(bookings.status, ["confirmed", "pending_deposit", "completed"]),
+      ),
+    )
+    .orderBy(bookings.date, bookings.startTime)
+
+  const bookingsByDate = new Map<string, typeof dayBookings>()
+  for (const b of dayBookings) {
+    const key = b.date.slice(0, 10)
+    const list = bookingsByDate.get(key) ?? []
+    list.push(b)
+    bookingsByDate.set(key, list)
+  }
+
+  // État de chaque jour via le moteur partagé. Durée sonde = 60 min (juste pour
+  // savoir s'il reste au moins un créneau ; la vraie dispo dépend des durées).
+  const results = await Promise.all(
+    week.map(async (date) => {
+      const list = (bookingsByDate.get(date) ?? []).map((b) => ({
+        id: b.id,
+        startTime: b.startTime,
+        customerName: b.customerName,
+        status: b.status,
+      }))
+      const avail = await getAvailability(date, 60, 1)
+      let state: DashboardWeekDay["state"]
+      if (avail.reason === "closed") state = "closed"
+      else if (avail.reason === "time_off") state = "time_off"
+      else if (avail.reason === "past") state = "past"
+      else if (avail.reason === "full") state = "full"
+      else state = list.length > 0 ? "partial" : "open"
+      return { date, state, bookingsCount: list.length, bookings: list }
+    }),
+  )
+  return results
+}
+
 /**
  * Répartition du CA par mois (graphique) — sur la même base que le tableau de
  * bord : total des FACTURES PAYÉES, groupé par mois de prestation (sinon
