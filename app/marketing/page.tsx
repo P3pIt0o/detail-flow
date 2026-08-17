@@ -27,6 +27,14 @@ const jsonLd = {
       logo: `${url}/icon.svg`,
     },
     {
+      "@type": "WebSite",
+      "@id": `${url}/#website`,
+      name: marketing.brand.name,
+      url,
+      inLanguage: "fr-FR",
+      publisher: { "@id": `${url}/#organization` },
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": `${url}/#software`,
       name: marketing.brand.name,

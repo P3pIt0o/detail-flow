@@ -53,7 +53,7 @@ export const siteConfig = {
     /** Nom commercial affiché partout */
     name: "DetailFlow",
     /** Slogan court affiché sous le logo / dans le hero */
-    tagline: "L'excellence du detailing automobile",
+    tagline: "Le logiciel tout-en-un des professionnels du detailing",
     /**
      * Chemin du logo (clair) — mis dans /public.
      * Laisser vide ("") pour afficher le nom en texte stylé à la place.
@@ -71,17 +71,18 @@ export const siteConfig = {
     /** URL de production, sans slash final (utilisée pour sitemap, OG, canonical) */
     url: "https://www.detailflow.fr",
     /** Titre par défaut (balise <title>) */
-    defaultTitle: "DetailFlow — Detailing automobile premium",
+    defaultTitle: "Logiciel de detailing tout-en-un pour les professionnels | DetailFlow",
     /** Modèle de titre pour les pages internes ; %s = titre de la page */
     titleTemplate: "%s | DetailFlow",
     description:
-      "Detailing automobile haut de gamme : lavage premium, rénovation, protection céramique et service à domicile. Prenez rendez-vous en ligne.",
+      "Gérez votre activité de detailing avec DetailFlow : site professionnel, réservations, planning, clients et véhicules, devis, factures et rappels automatiques.",
     keywords: [
-      "detailing automobile",
-      "lavage auto premium",
-      "protection céramique",
-      "rénovation carrosserie",
-      "nettoyage voiture à domicile",
+      "logiciel detailing",
+      "logiciel detailer",
+      "CRM detailing",
+      "gestion entreprise detailing",
+      "réservation detailing",
+      "devis facturation detailing",
     ],
     /** Langue du site */
     locale: "fr_FR",
