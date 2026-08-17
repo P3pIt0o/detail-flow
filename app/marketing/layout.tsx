@@ -3,10 +3,35 @@ import Link from "next/link"
 import { marketing } from "@/config/marketing"
 
 export const metadata: Metadata = {
-  title: "DetailFlow — Le logiciel des professionnels du detailing",
+  title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
   description:
-    "DetailFlow réunit réservation en ligne, devis, facturation et gestion clients pour les entreprises de detailing automobile. Rejoignez le programme Beta.",
+    "DetailFlow est un logiciel de gestion conçu pour les professionnels du detailing automobile. Centralisez réservations, planning, clients, véhicules, devis, factures et automatisations.",
+  keywords: [
+    "logiciel detailing",
+    "logiciel detailing automobile",
+    "logiciel gestion detailing",
+    "CRM detailing",
+    "logiciel devis detailing",
+    "logiciel facturation detailing",
+    "réservation detailing",
+    "logiciel pour detailer",
+  ],
   alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
+    description:
+      "Centralisez réservations, planning, clients, véhicules, devis, factures et automatisations dans un seul outil conçu pour le detailing automobile.",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour le detailing automobile" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
+    description:
+      "Réservations, planning, clients, véhicules, devis, factures et automatisations réunis dans un seul outil pour le detailing.",
+    images: ["/og-image.png"],
+  },
 }
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +46,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <nav className="flex items-center gap-6 text-sm">
             <Link href="#features" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
               Fonctionnalités
+            </Link>
+            <Link href="#workflow" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
+              Comment ça marche
             </Link>
             <Link href="#faq" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
               FAQ
