@@ -125,11 +125,13 @@ export const DEMO_PRICE_MAP: PriceMap = {
 export const DEMO_VEHICLE_SELECTION: VehicleSelection[] = [
   {
     uid: "demo-veh-1",
-    serviceId: 1,
     vehicleTypeId: 3,
-    optionIds: [1, 2],
     brand: "BMW",
     model: "X3",
+    services: [
+      { lid: "demo-line-1", serviceId: 1, optionIds: [1, 2] },
+      { lid: "demo-line-2", serviceId: 3, optionIds: [] },
+    ],
   },
 ]
 
