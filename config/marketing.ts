@@ -45,12 +45,16 @@ export const marketing = {
   /*  HERO                                                                   */
   /* ----------------------------------------------------------------------- */
   hero: {
-    badge: "Programme Beta — Lancement",
+    badge: "La bêta est ouverte aux professionnels sélectionnés",
     title: "Vous detaillez. DetailFlow gère le reste.",
     subtitle:
-      "Réservations, planning, clients, véhicules, devis, factures et automatisations réunis dans un seul outil conçu pour les professionnels du detailing automobile.",
-    primaryCta: { label: "Rejoindre le programme Beta", href: "#beta" },
+      "Réservations, planning, clients, véhicules, devis, factures et automatisations réunis dans un seul outil conçu pour les professionnels du detailing.",
+    betaLine:
+      "La bêta DetailFlow est actuellement ouverte aux professionnels du detailing sélectionnés.",
+    primaryCta: { label: "Rejoindre la bêta gratuitement", href: "#beta" },
     secondaryCta: { label: "Voir comment ça marche", href: "#workflow" },
+    /** Réassurance sobre affichée sous le CTA (hero + CTA final). */
+    reassurance: "Accès gratuit pendant la bêta • Avantages exclusifs à vie • Aucun engagement",
     /** Notifications sobres affichées autour du dashboard (produit réel). */
     notifications: [
       "Nouvelle réservation",
@@ -313,29 +317,55 @@ export const marketing = {
   /*  BETA (conversion réelle)                                               */
   /* ----------------------------------------------------------------------- */
   beta: {
-    badge: "Places limitées",
-    title: "Rejoignez le programme Beta DetailFlow",
-    lead: "Nous recherchons les 20 premières entreprises de detailing prêtes à façonner l'avenir de la plateforme.",
-    points: [
-      "Accès complet à toutes les fonctionnalités",
-      "Accompagnement personnalisé au démarrage",
-      "Votre retour influence directement les prochaines évolutions",
-      "Accès anticipé exclusif avant l'ouverture publique",
+    badge: "Programme bêta ouvert",
+    title: "Rejoignez DetailFlow avant son lancement officiel.",
+    lead: "Nous ouvrons actuellement DetailFlow à une sélection de professionnels du detailing. Utilisez gratuitement la plateforme pendant sa phase bêta, participez à son évolution et conservez des avantages exclusifs réservés à vie aux premiers bêta-testeurs.",
+    /** Trois avantages présentés en cartes. */
+    perks: [
+      {
+        title: "Testez gratuitement DetailFlow",
+        description: "Utilisez la plateforme dans votre activité pendant toute la phase bêta.",
+      },
+      {
+        title: "Participez à sa construction",
+        description:
+          "Vos retours terrain nous permettent de construire DetailFlow autour des besoins réels des professionnels du detailing.",
+      },
+      {
+        title: "Gardez votre statut de bêta-testeur",
+        description:
+          "Les professionnels ayant participé à la bêta conserveront des avantages exclusifs à vie après le lancement officiel de DetailFlow.",
+      },
     ],
-    formTitle: "Candidater au programme",
+    /** Mise en avant premium "bêta-testeur historique". */
+    historic: {
+      label: "Bêta-testeur DetailFlow",
+      title: "Vous étiez là avant le lancement.",
+      description:
+        "Les professionnels sélectionnés pour la bêta bénéficieront d'avantages exclusifs réservés aux premiers utilisateurs de DetailFlow, y compris après le lancement officiel. Ces avantages resteront liés à leur statut de bêta-testeur.",
+    },
+    sectionCta: { label: "Je veux rejoindre la bêta", href: "#beta-form" },
+    /** Intro juste avant le formulaire. */
+    formIntro: {
+      title: "Devenez l'un des premiers utilisateurs de DetailFlow.",
+      description:
+        "Accès gratuit pendant la phase bêta et avantages exclusifs à vie réservés aux professionnels sélectionnés.",
+    },
+    formTitle: "Candidater au programme bêta",
     formNote:
-      "Nous étudions chaque candidature et revenons vers vous rapidement pour préparer la mise en place de votre espace.",
+      "La bêta est une sélection de professionnels avec lesquels nous construisons DetailFlow. Nous étudions chaque candidature et revenons vers vous rapidement.",
   },
 
   /* ----------------------------------------------------------------------- */
   /*  CTA FINAL                                                              */
   /* ----------------------------------------------------------------------- */
   finalCta: {
-    title: "Passez moins de temps à gérer. Plus de temps à detailer.",
+    title: "Faites partie des premiers à utiliser DetailFlow.",
     subtitle:
-      "Centralisez votre activité et offrez une expérience plus professionnelle à vos clients avec DetailFlow.",
-    primaryCta: { label: "Rejoindre le programme Beta", href: "#beta" },
-    secondaryCta: { label: "Voir comment ça marche", href: "#workflow" },
+      "Testez gratuitement la plateforme pendant sa phase bêta, participez à son évolution et conservez des avantages exclusifs à vie réservés aux bêta-testeurs.",
+    primaryCta: { label: "Rejoindre la bêta gratuitement", href: "#beta" },
+    secondaryCta: { label: "Voir la démonstration", href: "#workflow" },
+    reassurance: "Accès bêta gratuit • Avantages exclusifs à vie • Aucun engagement",
   },
 
   /* ----------------------------------------------------------------------- */

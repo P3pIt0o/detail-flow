@@ -43,6 +43,11 @@ export function StaticMarketingContent() {
               {marketing.hero.subtitle}
             </p>
           </Reveal>
+          <Reveal delay={0.12}>
+            <p className="mx-auto mt-4 max-w-xl text-pretty text-sm font-medium leading-relaxed text-foreground">
+              {marketing.hero.betaLine}
+            </p>
+          </Reveal>
           <Reveal delay={0.15}>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
@@ -59,6 +64,9 @@ export function StaticMarketingContent() {
                 {marketing.hero.secondaryCta.label}
               </Link>
             </div>
+          </Reveal>
+          <Reveal delay={0.2}>
+            <p className="mt-5 text-sm text-muted-foreground">{marketing.hero.reassurance}</p>
           </Reveal>
         </div>
 
@@ -356,6 +364,7 @@ export function StaticMarketingContent() {
                 {marketing.finalCta.secondaryCta.label}
               </Link>
             </div>
+            <p className="mt-5 text-sm text-muted-foreground">{marketing.finalCta.reassurance}</p>
           </Reveal>
         </div>
       </section>
