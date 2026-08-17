@@ -40,6 +40,8 @@ export type AvailabilityResult = {
   available: boolean
   /** Raison d'indisponibilité pour la journée entière. */
   reason?: "closed" | "time_off" | "full" | "past" | "no_duration"
+  /** Motif public personnalisé (ex. "Complet") pour un blocage journée entière. */
+  publicLabel?: string
   /** Créneaux de début proposés ("HH:MM"). */
   slots: string[]
 }
@@ -86,8 +88,12 @@ export async function getAvailability(
   //    - Blocage journée entière (startTime/endTime absents) => jour fermé.
   //    - Blocage sur plage horaire => seuls les créneaux chevauchant sont exclus.
   const dayBlocks = timeOffRanges.filter((r) => dateStr >= r.startDate && dateStr <= r.endDate)
-  const fullDayBlocked = dayBlocks.some((r) => !r.startTime || !r.endTime)
-  if (fullDayBlocked) return empty("time_off")
+  const fullDayBlock = dayBlocks.find((r) => !r.startTime || !r.endTime)
+  if (fullDayBlock) {
+    // Propage le motif public personnalisé ("Complet", "Indisponible"…) s'il existe.
+    const publicLabel = fullDayBlock.publicLabel?.trim() || undefined
+    return { ...empty("time_off"), publicLabel }
+  }
   const blockedRanges = dayBlocks
     .filter((r) => r.startTime && r.endTime)
     .map((r) => ({ start: timeToMinutes(r.startTime as string), end: timeToMinutes(r.endTime as string) }))
