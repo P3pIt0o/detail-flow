@@ -13,6 +13,10 @@ type Props = {
   travel: TravelResult | null
   depositType: string
   depositValue: number
+  /** Remise promo (centimes) validée côté serveur — 0 si aucun code. */
+  discountCents?: number
+  /** Code promo appliqué (affichage). */
+  promoCode?: string | null
 }
 
 /** Calcule l'acompte côté client (aperçu). */
@@ -31,6 +35,8 @@ export function BookingSummary({
   travel,
   depositType,
   depositValue,
+  discountCents = 0,
+  promoCode = null,
 }: Props) {
   const complete = vehicles.filter((v) => v.serviceId && v.vehicleTypeId)
 
@@ -43,7 +49,9 @@ export function BookingSummary({
     0,
   )
   const travelFee = travel?.ok ? travel.feeCents : 0
-  const total = servicesCents + travelFee
+  // Remise bornée au sous-total prestations (jamais de total négatif).
+  const discount = Math.max(0, Math.min(discountCents, servicesCents))
+  const total = servicesCents + travelFee - discount
   const deposit = previewDeposit(total, depositType, depositValue)
 
   return (
@@ -104,6 +112,9 @@ export function BookingSummary({
             </>
           ) : (
             <Row label="Déplacement" value="À calculer" muted />
+          )}
+          {discount > 0 && (
+            <Row label={promoCode ? `Remise (${promoCode})` : "Remise"} value={`-${formatPrice(discount)}`} />
           )}
           <div className="flex items-center justify-between border-t border-border pt-2">
             <span className="font-semibold text-card-foreground">Total</span>
