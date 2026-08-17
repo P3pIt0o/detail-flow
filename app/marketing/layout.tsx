@@ -2,34 +2,35 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { marketing } from "@/config/marketing"
 
+// `title.absolute` évite le gabarit "%s | DetailFlow" du root layout : la marque
+// n'apparaît donc qu'UNE fois dans le <title> de la home marketing.
+const marketingTitle = "Logiciel de detailing tout-en-un pour les professionnels | DetailFlow"
+const marketingDescription =
+  "Gérez votre activité de detailing avec DetailFlow : site professionnel, réservations, planning, clients et véhicules, devis, factures et rappels automatiques."
+
 export const metadata: Metadata = {
-  title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
-  description:
-    "DetailFlow est un logiciel de gestion conçu pour les professionnels du detailing automobile. Centralisez réservations, planning, clients, véhicules, devis, factures et automatisations.",
+  title: { absolute: marketingTitle },
+  description: marketingDescription,
   keywords: [
     "logiciel detailing",
-    "logiciel detailing automobile",
-    "logiciel gestion detailing",
+    "logiciel detailer",
     "CRM detailing",
-    "logiciel devis detailing",
-    "logiciel facturation detailing",
+    "gestion entreprise detailing",
     "réservation detailing",
-    "logiciel pour detailer",
+    "devis facturation detailing",
   ],
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: "/",
-    title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
-    description:
-      "Centralisez réservations, planning, clients, véhicules, devis, factures et automatisations dans un seul outil conçu pour le detailing automobile.",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour le detailing automobile" }],
+    title: marketingTitle,
+    description: marketingDescription,
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour le detailing" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "DetailFlow – Logiciel de gestion pour detailers automobiles",
-    description:
-      "Réservations, planning, clients, véhicules, devis, factures et automatisations réunis dans un seul outil pour le detailing.",
+    title: marketingTitle,
+    description: marketingDescription,
     images: ["/og-image.png"],
   },
 }
@@ -69,14 +70,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <footer className="border-t border-border/60 py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>© {new Date().getFullYear()} DetailFlow. Tous droits réservés.</p>
-          <nav className="flex items-center gap-6">
-            <Link href="/conditions" className="transition-colors hover:text-foreground">
-              CGV
-            </Link>
-            <Link href="/mentions-legales" className="transition-colors hover:text-foreground">
-              Mentions légales
-            </Link>
-          </nav>
+          {/* Liens légaux marketing volontairement retirés : les pages /conditions
+              et /mentions-legales appartiennent au groupe tenant (site) et
+              renvoyaient un contenu inadapté / 404 sur le domaine marketing.
+              À rebrancher lorsque de vraies pages légales marketing existeront. */}
         </div>
       </footer>
     </div>

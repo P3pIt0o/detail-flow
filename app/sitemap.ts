@@ -2,19 +2,22 @@ import type { MetadataRoute } from "next"
 import { siteConfig } from "@/config/site"
 
 /**
- * Génère le sitemap.xml automatiquement à partir de la navigation configurée.
- * Ajouter une page dans siteConfig.nav / legalNav suffit à l'y inclure.
+ * Sitemap du domaine marketing (www.detailflow.fr).
+ *
+ * Ne contient QUE des pages marketing réellement existantes et indexables.
+ * Volontairement exclus : /admin, /super-admin, routes API, authentification,
+ * pages tenant et variantes "?tenant=...". Les futures pages SEO métier seront
+ * ajoutées ici lorsqu'elles existeront réellement (aucune URL 404).
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = siteConfig.seo.url
-  const now = new Date()
 
-  const routes = [...siteConfig.nav, ...siteConfig.legalNav]
-
-  return routes.map((route) => ({
-    url: `${base}${route.href === "/" ? "" : route.href}`,
-    lastModified: now,
-    changeFrequency: route.href === "/" ? "weekly" : "monthly",
-    priority: route.href === "/" ? 1 : 0.7,
-  }))
+  return [
+    {
+      url: base,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 1,
+    },
+  ]
 }
