@@ -12,6 +12,8 @@ import { BookingSummary } from "./booking-summary"
 import {
   lineTotals,
   isVehicleComplete,
+  completeServiceLines,
+  newServiceLine,
   type VehicleSelection,
   type ServiceRow,
   type CategoryRow,
@@ -64,9 +66,8 @@ const [step, setStep] = useState(0)
 const [vehicles, setVehicles] = useState<VehicleSelection[]>([
   {
     uid: typeof crypto !== "undefined" ? crypto.randomUUID() : "v1",
-    serviceId: initialServiceId,
     vehicleTypeId: null,
-    optionIds: [],
+    services: [newServiceLine(initialServiceId)],
   },
 ])
   const [date, setDate] = useState<string | null>(null)
@@ -84,16 +85,23 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
 
   const completeVehicles = vehicles.filter(isVehicleComplete)
 
+  /**
+   * Aplatit les véhicules (1 véhicule → N prestations) en une collection plate
+   * de `BookingSelection` : une entrée par prestation, partageant les infos du
+   * véhicule. Le serveur reste la seule source de vérité (prix/durée/dispo).
+   */
   function selectionsPayload() {
-    return completeVehicles.map((v) => ({
-      uid: v.uid,
-      serviceId: v.serviceId as number,
-      vehicleTypeId: v.vehicleTypeId as number,
-      optionIds: v.optionIds,
-      brand: v.brand,
-      model: v.model,
-      plate: v.plate,
-    }))
+    return completeVehicles.flatMap((v) =>
+      completeServiceLines(v).map((line) => ({
+        uid: `${v.uid}:${line.lid}`,
+        serviceId: line.serviceId as number,
+        vehicleTypeId: v.vehicleTypeId as number,
+        optionIds: line.optionIds,
+        brand: v.brand,
+        model: v.model,
+        plate: v.plate,
+      })),
+    )
   }
 
   async function applyPromo() {
@@ -160,15 +168,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
     setError(null)
     try {
       const res = await createBookingAction({
-        selections: completeVehicles.map((v) => ({
-          uid: v.uid,
-          serviceId: v.serviceId as number,
-          vehicleTypeId: v.vehicleTypeId as number,
-          optionIds: v.optionIds,
-          brand: v.brand,
-          model: v.model,
-          plate: v.plate,
-        })),
+        selections: selectionsPayload(),
         date,
         startTime,
         customer: { name: contact.name, email: contact.email, phone: contact.phone },

@@ -1,7 +1,17 @@
 "use client"
 
 import { formatPrice, formatDuration, formatKm } from "@/lib/format"
-import { lineTotals, type VehicleSelection, type ServiceRow, type OptionRow, type VehicleRow, type PriceMap } from "./shared"
+import {
+  lineTotals,
+  serviceLineTotals,
+  completeServiceLines,
+  isVehicleComplete,
+  type VehicleSelection,
+  type ServiceRow,
+  type OptionRow,
+  type VehicleRow,
+  type PriceMap,
+} from "./shared"
 import type { TravelResult } from "@/lib/booking/types"
 
 type Props = {
@@ -38,7 +48,7 @@ export function BookingSummary({
   discountCents = 0,
   promoCode = null,
 }: Props) {
-  const complete = vehicles.filter((v) => v.serviceId && v.vehicleTypeId)
+  const complete = vehicles.filter(isVehicleComplete)
 
   const servicesCents = complete.reduce(
     (sum, v) => sum + lineTotals(v, services, options, priceMap).priceCents,
@@ -63,36 +73,51 @@ export function BookingSummary({
           Ajoutez un véhicule et une prestation pour voir le montant.
         </p>
       ) : (
-        <ul className="mt-4 space-y-3">
+        <ul className="mt-4 space-y-4">
           {complete.map((v) => {
-            const svc = services.find((s) => s.id === v.serviceId)
             const veh = vehicleTypes.find((t) => t.id === v.vehicleTypeId)
-            const { priceCents, durationMin } = lineTotals(v, services, options, priceMap)
-            const chosenOptions = v.optionIds
-              .map((id) => options.find((o) => o.id === id))
-              .filter(Boolean) as OptionRow[]
+            const vehicleLabel = [v.brand?.trim(), v.model?.trim()].filter(Boolean).join(" ")
             return (
               <li key={v.uid} className="border-b border-border/60 pb-3 last:border-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-card-foreground">{svc?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {veh?.name} · {formatDuration(durationMin)}
-                    </p>
-                    {chosenOptions.length > 0 && (
-                      <ul className="mt-1 space-y-0.5">
-                        {chosenOptions.map((o) => (
-                          <li key={o.id} className="text-xs text-muted-foreground">
-                            + {o.name}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold text-card-foreground">
-                    {formatPrice(priceCents)}
-                  </span>
-                </div>
+                <p className="text-sm font-semibold text-card-foreground">{vehicleLabel || veh?.name}</p>
+                {vehicleLabel && veh?.name && (
+                  <p className="text-xs text-muted-foreground">{veh.name}</p>
+                )}
+                <ul className="mt-2 space-y-2">
+                  {completeServiceLines(v).map((line) => {
+                    const svc = services.find((s) => s.id === line.serviceId)
+                    const { priceCents, durationMin } = serviceLineTotals(
+                      line,
+                      v.vehicleTypeId,
+                      services,
+                      options,
+                      priceMap,
+                    )
+                    const chosenOptions = line.optionIds
+                      .map((id) => options.find((o) => o.id === id))
+                      .filter(Boolean) as OptionRow[]
+                    return (
+                      <li key={line.lid} className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-card-foreground">{svc?.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatDuration(durationMin)}</p>
+                          {chosenOptions.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {chosenOptions.map((o) => (
+                                <li key={o.id} className="text-xs text-muted-foreground">
+                                  + {o.name}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold text-card-foreground">
+                          {formatPrice(priceCents)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
               </li>
             )
           })}
