@@ -449,6 +449,11 @@ export const timeOff = pgTable(
       .references(() => companies.id, { onDelete: "cascade" }),
     startDate: date("startDate").notNull(),
     endDate: date("endDate").notNull(),
+    // Plage horaire optionnelle ("HH:MM"). NULL/NULL = indisponibilité journée entière.
+    startTime: text("startTime"),
+    endTime: text("endTime"),
+    // Affichage public : "Complet" | "Indisponible" (défaut historique = indisponible).
+    publicLabel: text("publicLabel"),
     reason: text("reason"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },

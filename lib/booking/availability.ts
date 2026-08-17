@@ -83,8 +83,14 @@ export async function getAvailability(
   if (alreadyBooked + vehicleCount > settings.maxVehiclesPerDay) return empty("full")
 
   // 3. Vacances / indisponibilités ?
-  const inTimeOff = timeOffRanges.some((r) => dateStr >= r.startDate && dateStr <= r.endDate)
-  if (inTimeOff) return empty("time_off")
+  //    - Blocage journée entière (startTime/endTime absents) => jour fermé.
+  //    - Blocage sur plage horaire => seuls les créneaux chevauchant sont exclus.
+  const dayBlocks = timeOffRanges.filter((r) => dateStr >= r.startDate && dateStr <= r.endDate)
+  const fullDayBlocked = dayBlocks.some((r) => !r.startTime || !r.endTime)
+  if (fullDayBlocked) return empty("time_off")
+  const blockedRanges = dayBlocks
+    .filter((r) => r.startTime && r.endTime)
+    .map((r) => ({ start: timeToMinutes(r.startTime as string), end: timeToMinutes(r.endTime as string) }))
 
   // 4. Ouvert ce jour-là ?
   const dow = day.getDay() // 0 = dimanche ... 6 = samedi
@@ -118,6 +124,11 @@ export async function getAvailability(
     // Chevauchement avec une réservation existante (tampon des deux côtés).
     const overlaps = busy.some((b) => start < b.end + buffer && end + buffer > b.start)
     if (overlaps) continue
+
+    // Chevauchement avec une plage d'indisponibilité (durée prestation prise en
+    // compte : slotStart < blockedEnd && slotEnd > blockedStart).
+    const inBlocked = blockedRanges.some((r) => start < r.end && end > r.start)
+    if (inBlocked) continue
 
     slots.push(minutesToTime(start))
   }
