@@ -6,9 +6,11 @@ import {
   getDashboardWeek,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
+import { getVisitStats } from "@/lib/analytics/queries"
 import { formatPrice, formatDateShort } from "@/lib/format"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { DashboardWeek } from "@/components/admin/dashboard-week"
+import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
 import { withTenant } from "@/lib/tenant-link"
 
 export const dynamic = "force-dynamic"
@@ -23,11 +25,12 @@ export default async function DashboardPage({
 
   // Toutes les lectures sont scopées au tenant courant (companyId résolu côté
   // serveur dans chaque requête). Une seule salve parallèle.
-  const [stats, upcoming, week, requests] = await Promise.all([
+  const [stats, upcoming, week, requests, visitStats] = await Promise.all([
     getDashboardStats(),
     getUpcomingBookingsDetailed(5),
     getDashboardWeek(),
     listCustomRequests(),
+    getVisitStats(),
   ])
 
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
@@ -111,6 +114,11 @@ export default async function DashboardPage({
       {/* 2. Aperçu du calendrier (élément principal) */}
       <div className="mt-6">
         <DashboardWeek week={week} planningHref={href("/admin/calendrier")} />
+      </div>
+
+      {/* Visites du site (analytics V1) */}
+      <div className="mt-6">
+        <DashboardAnalytics stats={visitStats} />
       </div>
 
       {/* 3. Prochains rendez-vous */}

@@ -21,6 +21,7 @@ import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import type { BookingSelection } from "@/lib/booking/types"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
+import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 
@@ -340,6 +341,10 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     // Emails transactionnels : confirmation au client + notification au pro.
     // Non bloquant : un échec d'email n'invalide pas la réservation.
     await sendBookingCreatedEmails(result.id)
+
+    // Analytics (V1) : réservation terminée. companyId résolu côté serveur.
+    // Non bloquant : un échec de compteur n'invalide jamais la réservation.
+    void recordBookingCompleted(companyId).catch(() => {})
 
     return { ok: true, reference: result.reference }
   } catch (e) {

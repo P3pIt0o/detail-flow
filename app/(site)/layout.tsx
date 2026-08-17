@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { WhatsAppButton } from "@/components/layout/whatsapp-button"
+import { SiteTracker } from "@/components/site/site-tracker"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact, type PublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
@@ -130,6 +131,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   return (
     <div style={hasBrandColors ? brandStyle : undefined}>
+      {/* Tracking analytics des pages publiques tenant uniquement (jamais admin,
+          jamais la vitrine racine sans tenant). companyId résolu côté serveur. */}
+      {tenant && <SiteTracker />}
       {contact.name && <StructuredData name={contact.name} contact={contact} />}
       <a
         href="#contenu"
