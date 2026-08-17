@@ -49,7 +49,8 @@ export function StepDateTime({
       try {
         const res = await getAvailabilityAction(d, durationMin, vehicleCount)
         setSlots(res.slots)
-        if (!res.available) setReason(res.reason ? REASON_LABELS[res.reason] : "Aucun créneau disponible.")
+        if (!res.available)
+          setReason(res.publicLabel ?? (res.reason ? REASON_LABELS[res.reason] : "Aucun créneau disponible."))
       } catch {
         setReason("Erreur de chargement des créneaux.")
         setSlots([])
