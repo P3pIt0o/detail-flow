@@ -824,3 +824,58 @@ export const customRequests = pgTable(
     byToken: index("custom_requests_token_idx").on(t.token),
   }),
 )
+
+/* -------------------------------------------------------------------------- */
+/*  Analytics de visites (sites publics tenant) — V1 agrégats journaliers      */
+/*  Ajout ADDITIF : ne modifie aucune table existante. Isolation par           */
+/*  companyId, aucune donnée personnelle stockée (pas d'IP, pas d'email).      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Agrégats journaliers par entreprise : une ligne par (companyId, date).
+ * Compteurs incrémentés via upsert atomique. Le champ `meta` (jsonb) est prévu
+ * pour de futures dimensions (sources de trafic, UTM…) sans migration.
+ */
+export const tenantAnalyticsDaily = pgTable(
+  "tenant_analytics_daily",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId").notNull(),
+    // Jour local au format YYYY-MM-DD (agrégation par journée).
+    date: text("date").notNull(),
+    pageViews: integer("pageViews").notNull().default(0),
+    uniqueVisitors: integer("uniqueVisitors").notNull().default(0),
+    // Futur taux de conversion : clic "Réserver" et réservation terminée.
+    bookingClicks: integer("bookingClicks").notNull().default(0),
+    bookingsCompleted: integer("bookingsCompleted").notNull().default(0),
+    // Extension future (sources, UTM, campagnes) sans nouvelle migration.
+    meta: jsonb("meta"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    // Un seul agrégat par entreprise et par jour (cible des upserts).
+    byCompanyDate: unique("tenant_analytics_daily_company_date_key").on(t.companyId, t.date),
+  }),
+)
+
+/**
+ * Table minimaliste de déduplication des visiteurs uniques du jour.
+ * Stocke uniquement un identifiant anonyme de navigateur (cookie) + le jour.
+ * Aucune donnée personnelle. L'unicité (companyId, date, visitorId) permet de
+ * détecter la première vue du jour d'un visiteur de façon atomique.
+ */
+export const tenantAnalyticsVisits = pgTable(
+  "tenant_analytics_visits",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId").notNull(),
+    date: text("date").notNull(),
+    // Identifiant anonyme opaque généré côté navigateur (non nominatif).
+    visitorId: text("visitorId").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompanyDateVisitor: unique("tenant_analytics_visits_key").on(t.companyId, t.date, t.visitorId),
+  }),
+)
