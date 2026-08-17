@@ -23,6 +23,8 @@ import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
 import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
+import { PromoSettings } from "@/components/admin/settings/promo-settings"
+import { listPromoCodes } from "./promo-actions"
 import { getSmsBalance } from "@/lib/sms/credits"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { eq } from "drizzle-orm"
@@ -34,7 +36,7 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage() {
   const { tenant } = await requireCompanyMember()
 
-  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow] =
+  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
     await Promise.all([
       getSettings(),
       getBusinessHours(),
@@ -48,6 +50,7 @@ export default async function ParametresPage() {
         .from(smsCredits)
         .where(eq(smsCredits.companyId, tenant.id))
         .limit(1),
+      listPromoCodes(),
     ])
 
   const revolutUrl = process.env.REVOLUT_PAYMENT_URL ?? null
@@ -95,6 +98,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="planning" className="flex-none px-3 py-1.5">
               Planning &amp; acompte
+            </TabsTrigger>
+            <TabsTrigger value="promo" className="flex-none px-3 py-1.5">
+              Codes promo
             </TabsTrigger>
             <TabsTrigger value="sms" className="flex-none px-3 py-1.5">
               Rappels SMS
@@ -191,6 +197,9 @@ export default async function ParametresPage() {
             vacationMode={settings.vacationMode}
             vacationMessage={settings.vacationMessage ?? ""}
           />
+        </TabsContent>
+        <TabsContent value="promo" className="mt-6">
+          <PromoSettings codes={promoCodesList} />
         </TabsContent>
         <TabsContent value="sms" className="mt-6">
           <SmsSettings

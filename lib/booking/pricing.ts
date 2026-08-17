@@ -16,7 +16,7 @@ import {
   getServicePrices,
   type Settings,
 } from "./queries"
-import type { BookingSelection, Quote, QuoteLine, TravelResult } from "./types"
+import type { AppliedPromo, BookingSelection, Quote, QuoteLine, TravelResult } from "./types"
 
 /** Calcule le montant de l'acompte selon la configuration. */
 export function computeDeposit(totalCents: number, settings: Settings): number {
@@ -39,6 +39,8 @@ export async function buildQuote(
   selections: BookingSelection[],
   settings: Settings,
   travel: TravelResult | null,
+  /** Promo déjà validée côté serveur (jamais fournie par le client). */
+  promo: AppliedPromo | null = null,
 ): Promise<Quote> {
   // On charge les référentiels une seule fois puis on les indexe.
   const [servicesList, vehiclesList, optionsList, pricesList] = await Promise.all([
@@ -107,7 +109,12 @@ export async function buildQuote(
   const travelFeeCents = travel?.ok ? travel.feeCents : 0
 
   const subtotalCents = servicesCents + optionsCents
-  const totalCents = subtotalCents + travelFeeCents
+  // Assiette remisable = services + options (le déplacement n'est jamais remisé).
+  const eligibleSubtotalCents = subtotalCents
+  // Remise bornée à l'assiette éligible : jamais de total négatif.
+  const discountCents = promo ? Math.max(0, Math.min(promo.discountCents, eligibleSubtotalCents)) : 0
+  const appliedPromo: AppliedPromo | null = promo ? { ...promo, discountCents } : null
+  const totalCents = subtotalCents + travelFeeCents - discountCents
   const depositCents = computeDeposit(totalCents, settings)
 
   return {
@@ -116,6 +123,9 @@ export async function buildQuote(
     optionsCents,
     travelFeeCents,
     subtotalCents,
+    eligibleSubtotalCents,
+    discountCents,
+    promo: appliedPromo,
     totalCents,
     depositCents,
     totalDurationMin,

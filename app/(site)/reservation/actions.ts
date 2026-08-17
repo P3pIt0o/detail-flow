@@ -14,8 +14,10 @@ import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { sendBookingCreatedEmails } from "@/lib/email/notifications"
 import { getSettings, getActiveBookingsForDate, countVehiclesForDate } from "@/lib/booking/queries"
-import { buildQuote } from "@/lib/booking/pricing"
+import { buildQuote, computeDeposit } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
+import { validatePromoCode, consumePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
+import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import type { BookingSelection } from "@/lib/booking/types"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
@@ -31,6 +33,43 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
   const travel = address && address.trim().length >= 5 ? await computeTravel(address, settings) : null
   const quote = await buildQuote(selections, settings, travel)
   return { quote, depositType: settings.depositType, depositValue: settings.depositValue }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Aperçu d'un code promo (validation serveur, SANS consommation)            */
+/* -------------------------------------------------------------------------- */
+
+export type PromoPreviewResult =
+  | { ok: true; code: string; discountType: "percent" | "fixed"; discountValue: number; discountCents: number }
+  | { ok: false; reason: PromoInvalidReason }
+
+/**
+ * Valide un code promo pour la sélection courante et renvoie la remise calculée.
+ * Le montant est TOUJOURS recalculé côté serveur ; le navigateur ne décide rien.
+ * Aucune consommation ici (le compteur n'augmente qu'à la création du booking).
+ */
+export async function validatePromoCodeAction(input: {
+  selections: BookingSelection[]
+  code: string
+}): Promise<PromoPreviewResult> {
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
+
+  const settings = await getSettings(tenant.id)
+  const quote = await buildQuote(input.selections, settings, null)
+  const res = await validatePromoCode({
+    companyId: tenant.id,
+    code: input.code,
+    eligibleSubtotalCents: quote.eligibleSubtotalCents,
+  })
+  if (!res.valid) return { ok: false, reason: res.reason }
+  return {
+    ok: true,
+    code: res.normalizedCode,
+    discountType: res.discountType,
+    discountValue: res.discountValue,
+    discountCents: res.discountCents,
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -61,6 +100,8 @@ export type CreateBookingInput = {
   customer: { name: string; email: string; phone: string }
   address: string
   notes?: string
+  /** Code promo saisi par le client (revalidé côté serveur, jamais de confiance). */
+  promoCode?: string
 }
 
 export type CreateBookingResult =
@@ -77,7 +118,7 @@ function generateReference(dateStr: string): string {
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function createBookingAction(input: CreateBookingInput): Promise<CreateBookingResult> {
-  const { selections, date, startTime, customer, address, notes } = input
+  const { selections, date, startTime, customer, address, notes, promoCode } = input
 
   // 1. Validation de base des entrées.
   if (!selections?.length) return { ok: false, error: "Aucune prestation sélectionnée.", code: "invalid" }
@@ -135,6 +176,32 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   const quote = await buildQuote(selections, settings, travel)
   if (!quote.lines.length) return { ok: false, error: "Prestations invalides.", code: "invalid" }
 
+  // 3b. Revalidation serveur du code promo (le navigateur n'est jamais cru).
+  //     La remise et le total sont recalculés ici depuis la base.
+  let appliedPromo: AppliedPromo | null = null
+  let discountCents = 0
+  if (promoCode?.trim()) {
+    const promoRes = await validatePromoCode({
+      companyId,
+      code: promoCode,
+      eligibleSubtotalCents: quote.eligibleSubtotalCents,
+    })
+    if (!promoRes.valid) {
+      return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
+    }
+    discountCents = Math.max(0, Math.min(promoRes.discountCents, quote.eligibleSubtotalCents))
+    appliedPromo = {
+      promoCodeId: promoRes.promoCodeId,
+      code: promoRes.normalizedCode,
+      discountType: promoRes.discountType,
+      discountValue: promoRes.discountValue,
+      discountCents,
+    }
+  }
+  // Totaux finaux (jamais négatifs) recalculés avec la remise validée.
+  const finalTotalCents = quote.subtotalCents + quote.travelFeeCents - discountCents
+  const finalDepositCents = computeDeposit(finalTotalCents, settings)
+
   const startMin = timeToMinutes(startTime)
   const endMin = startMin + quote.totalDurationMin
   const endTime = minutesToTime(endMin)
@@ -175,8 +242,16 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         reference = generateReference(date)
       }
 
+      // Consommation ATOMIQUE du code promo (compteur +1 avec re-vérification
+      // tenant/actif/limite dans la même requête). Si le code n'est plus
+      // disponible (limite atteinte entre-temps), on refuse proprement.
+      if (appliedPromo) {
+        const consumed = await consumePromoCode(tx, companyId, appliedPromo.promoCodeId)
+        if (!consumed) return { conflict: "promo_unavailable" as const }
+      }
+
       // Insertion de la réservation (statut selon acompte).
-      const status = quote.depositCents > 0 ? "pending_deposit" : "confirmed"
+      const status = finalDepositCents > 0 ? "pending_deposit" : "confirmed"
       const [inserted] = await tx
         .insert(bookings)
         .values({
@@ -194,8 +269,18 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           servicesCents: quote.servicesCents,
           optionsCents: quote.optionsCents,
           subtotalCents: quote.subtotalCents,
-          totalCents: quote.totalCents,
-          depositCents: quote.depositCents,
+          promoCodeId: appliedPromo?.promoCodeId ?? null,
+          promoCodeSnapshot: appliedPromo
+            ? {
+                code: appliedPromo.code,
+                discountType: appliedPromo.discountType,
+                discountValue: appliedPromo.discountValue,
+                discountCents: appliedPromo.discountCents,
+              }
+            : null,
+          discountCents,
+          totalCents: finalTotalCents,
+          depositCents: finalDepositCents,
           date,
           startTime,
           endTime,
@@ -246,6 +331,9 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     })
 
     if ("conflict" in result) {
+      if (result.conflict === "promo_unavailable") {
+        return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
+      }
       return { ok: false, error: "Ce créneau vient d'être réservé. Merci d'en choisir un autre.", code: "slot_taken" }
     }
 

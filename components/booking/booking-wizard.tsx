@@ -20,8 +20,10 @@ import {
   type PriceMap,
 } from "./shared"
 import type { TravelResult } from "@/lib/booking/types"
-import { createBookingAction } from "@/app/(site)/reservation/actions"
+import { createBookingAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 import { formatDateLong, formatPrice } from "@/lib/format"
+
+type AppliedPromoUI = { code: string; discountType: "percent" | "fixed"; discountValue: number; discountCents: number }
 
 type Props = {
   services: ServiceRow[]
@@ -74,7 +76,57 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Code promo (validation 100 % serveur ; l'aperçu ne fait qu'afficher).
+  const [promoInput, setPromoInput] = useState("")
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromoUI | null>(null)
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const [promoLoading, setPromoLoading] = useState(false)
+
   const completeVehicles = vehicles.filter(isVehicleComplete)
+
+  function selectionsPayload() {
+    return completeVehicles.map((v) => ({
+      uid: v.uid,
+      serviceId: v.serviceId as number,
+      vehicleTypeId: v.vehicleTypeId as number,
+      optionIds: v.optionIds,
+      brand: v.brand,
+      model: v.model,
+      plate: v.plate,
+    }))
+  }
+
+  async function applyPromo() {
+    const code = promoInput.trim()
+    if (!code) return
+    setPromoLoading(true)
+    setPromoError(null)
+    try {
+      const res = await validatePromoCodeAction({ selections: selectionsPayload(), code })
+      if (res.ok) {
+        setAppliedPromo({
+          code: res.code,
+          discountType: res.discountType,
+          discountValue: res.discountValue,
+          discountCents: res.discountCents,
+        })
+      } else {
+        setAppliedPromo(null)
+        setPromoError("Code promo invalide ou indisponible.")
+      }
+    } catch {
+      setAppliedPromo(null)
+      setPromoError("Code promo invalide ou indisponible.")
+    } finally {
+      setPromoLoading(false)
+    }
+  }
+
+  function clearPromo() {
+    setAppliedPromo(null)
+    setPromoInput("")
+    setPromoError(null)
+  }
   const totalDuration = useMemo(
     () => completeVehicles.reduce((sum, v) => sum + lineTotals(v, services, options, priceMap).durationMin, 0),
     [completeVehicles, services, options, priceMap],
@@ -122,6 +174,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
         customer: { name: contact.name, email: contact.email, phone: contact.phone },
         address: contact.address,
         notes: contact.notes,
+        promoCode: appliedPromo?.code,
       })
 
       if (res.ok) {
@@ -179,7 +232,12 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
         {step === 0 && (
           <StepVehicles
             vehicles={vehicles}
-            onChange={setVehicles}
+            onChange={(v) => {
+              setVehicles(v)
+              // Les choix changent : l'assiette éligible change → on réinitialise le promo.
+              setAppliedPromo(null)
+              setPromoError(null)
+            }}
             services={services}
             categories={categories}
             vehicleTypes={vehicleTypes}
@@ -238,6 +296,60 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
                 <dd className="max-w-[60%] text-right text-card-foreground">{contact.address}</dd>
               </div>
             </dl>
+
+            {/* Code promo (validation serveur) */}
+            <div className="border-t border-border pt-4">
+              <label htmlFor="promo-code" className="mb-1.5 block text-sm font-medium text-card-foreground">
+                Code promo
+              </label>
+              {appliedPromo ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm">
+                  <span className="text-card-foreground">
+                    Code <span className="font-semibold text-primary">{appliedPromo.code}</span> appliqué :{" "}
+                    <span className="font-semibold">
+                      {appliedPromo.discountType === "percent"
+                        ? `-${appliedPromo.discountValue} %`
+                        : `-${formatPrice(appliedPromo.discountValue)}`}
+                    </span>{" "}
+                    ({formatPrice(appliedPromo.discountCents)})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearPromo}
+                    className="shrink-0 text-xs font-medium text-muted-foreground underline hover:text-foreground"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    id="promo-code"
+                    type="text"
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                        e.preventDefault()
+                        applyPromo()
+                      }
+                    }}
+                    placeholder="Ex : WELCOME10"
+                    className="h-11 flex-1 rounded-lg border border-border bg-background px-3 text-sm uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyPromo}
+                    disabled={promoLoading || !promoInput.trim()}
+                    className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    {promoLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Appliquer
+                  </button>
+                </div>
+              )}
+              {promoError && <p className="mt-1.5 text-xs text-destructive">{promoError}</p>}
+            </div>
 
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               En confirmant, vous acceptez nos conditions générales de vente. Un acompte pourra vous être demandé pour
@@ -300,6 +412,8 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
           travel={travel}
           depositType={depositType}
           depositValue={depositValue}
+          discountCents={appliedPromo?.discountCents ?? 0}
+          promoCode={appliedPromo?.code ?? null}
         />
       </aside>
     </div>

@@ -40,6 +40,15 @@ export type QuoteLine = {
   lineDurationMin: number
 }
 
+/** Promo validée côté serveur puis appliquée au devis (snapshot durable). */
+export type AppliedPromo = {
+  promoCodeId: number
+  code: string
+  discountType: "percent" | "fixed"
+  discountValue: number
+  discountCents: number
+}
+
 /** Résultat complet du calcul de devis (100 % serveur). */
 export type Quote = {
   lines: QuoteLine[]
@@ -47,6 +56,12 @@ export type Quote = {
   optionsCents: number
   travelFeeCents: number
   subtotalCents: number
+  /** Assiette remisable (services + options) — le déplacement n'est jamais remisé. */
+  eligibleSubtotalCents: number
+  /** Remise réellement appliquée (0 si aucun code). */
+  discountCents: number
+  /** Promo appliquée, ou null. */
+  promo: AppliedPromo | null
   totalCents: number
   depositCents: number
   totalDurationMin: number

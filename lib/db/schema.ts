@@ -493,6 +493,11 @@ export const bookings = pgTable(
     servicesCents: integer("servicesCents").notNull().default(0),
     optionsCents: integer("optionsCents").notNull().default(0),
     subtotalCents: integer("subtotalCents").notNull().default(0),
+    // Code promo appliqué (snapshot durable : l'ancienne réservation ne change
+    // jamais même si le code est modifié/supprimé plus tard).
+    promoCodeId: integer("promoCodeId"),
+    promoCodeSnapshot: jsonb("promoCodeSnapshot"),
+    discountCents: integer("discountCents").notNull().default(0),
     totalCents: integer("totalCents").notNull().default(0),
     depositCents: integer("depositCents").notNull().default(0),
     // Planning
@@ -538,6 +543,43 @@ export const bookingItemOptions = pgTable("booking_item_options", {
   priceCents: integer("priceCents").notNull().default(0),
   durationMin: integer("durationMin").notNull().default(0),
 })
+
+/* -------------------------------------------------------------------------- */
+/*  Codes promo (V1 simple, structure évolutive via `rules` jsonb)            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Un code promo par entreprise. V1 : remise % ou fixe, dates, limite globale,
+ * activation. Le champ `rules` (jsonb) est réservé aux critères avancés futurs
+ * (firstBookingOnly, minOrderCents, serviceIds, ...) pour éviter une migration.
+ * Contrainte UNIQUE(companyId, code) ; le code est normalisé en MAJUSCULES.
+ */
+export const promoCodes = pgTable(
+  "promo_codes",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    active: boolean("active").notNull().default(true),
+    // "percent" (1-100) | "fixed" (montant en centimes).
+    discountType: text("discountType").notNull(),
+    discountValue: integer("discountValue").notNull().default(0),
+    startsAt: timestamp("startsAt"),
+    endsAt: timestamp("endsAt"),
+    maxUses: integer("maxUses"),
+    usageCount: integer("usageCount").notNull().default(0),
+    minOrderCents: integer("minOrderCents"),
+    rules: jsonb("rules"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("promo_codes_companyId_idx").on(t.companyId),
+    uniqCompanyCode: unique("promo_codes_company_code_uniq").on(t.companyId, t.code),
+  }),
+)
 
 /* -------------------------------------------------------------------------- */
 /*  Crédits SMS (une ligne par entreprise) + demandes de recharge             */
