@@ -1,9 +1,9 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { and, eq } from "drizzle-orm"
+import { and, eq, gte, lte, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { settings, businessHours, timeOff } from "@/lib/db/schema"
+import { settings, businessHours, timeOff, bookings } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
@@ -270,20 +270,58 @@ export async function saveBusinessHours(
 
 /* ------------------------ Congés / indisponibilités ------------------------ */
 
+// Statuts de réservation qui occupent réellement un créneau (à protéger).
+const BLOCKING_BOOKING_STATUSES = ["pending_deposit", "confirmed", "completed"]
+
 export async function addTimeOff(input: {
   startDate: string
   endDate: string
   reason: string
+  // Plage horaire optionnelle "HH:MM"–"HH:MM". Absente = journée entière.
+  startTime?: string | null
+  endTime?: string | null
+  publicLabel?: "Complet" | "Indisponible" | null
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
   if (!input.startDate || !input.endDate) return { ok: false, error: "Dates requises." }
   if (input.endDate < input.startDate) {
     return { ok: false, error: "La date de fin doit suivre la date de début." }
   }
+
+  const hasRange = Boolean(input.startTime && input.endTime)
+  if (hasRange && (input.endTime as string) <= (input.startTime as string)) {
+    return { ok: false, error: "L'heure de fin doit suivre l'heure de début." }
+  }
+
+  // Protection des réservations existantes : ne jamais recouvrir un RDV actif.
+  const existing = await db
+    .select({ date: bookings.date, startTime: bookings.startTime, endTime: bookings.endTime })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, tenant.id),
+        gte(bookings.date, input.startDate),
+        lte(bookings.date, input.endDate),
+        inArray(bookings.status, BLOCKING_BOOKING_STATUSES),
+      ),
+    )
+  const conflict = existing.some((b) =>
+    hasRange ? b.startTime < (input.endTime as string) && b.endTime > (input.startTime as string) : true,
+  )
+  if (conflict) {
+    return {
+      ok: false,
+      error: "Une réservation existe déjà sur cette période. Elle est protégée : déplacez-la ou annulez-la d'abord.",
+    }
+  }
+
   await db.insert(timeOff).values({
     companyId: tenant.id,
     startDate: input.startDate,
     endDate: input.endDate,
+    startTime: hasRange ? input.startTime : null,
+    endTime: hasRange ? input.endTime : null,
+    publicLabel: input.publicLabel === "Complet" ? "Complet" : "Indisponible",
     reason: input.reason.trim() || null,
   })
   revalidate()
