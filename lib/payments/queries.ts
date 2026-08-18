@@ -1,7 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { payments, paymentEvents, companies, bookings } from "@/lib/db/schema"
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { getPaymentProvider } from "./providers"
 import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
 import { computePlatformFeeCents, type PaymentType } from "./types"
@@ -115,19 +115,21 @@ export async function createBookingCheckout(input: {
     return { ok: false, error: "Les paiements en ligne ne sont pas disponibles." }
   }
 
-  // Réservation bornée au tenant (isolation stricte).
+  // Réservation bornée au tenant (isolation stricte). Devise = celle du tenant.
   const [booking] = await db
     .select({
       id: bookings.id,
       reference: bookings.reference,
       totalCents: bookings.totalCents,
       depositCents: bookings.depositCents,
-      currency: sql<string>`'EUR'`,
+      currency: companies.currency,
     })
     .from(bookings)
+    .innerJoin(companies, eq(companies.id, bookings.companyId))
     .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, companyId)))
     .limit(1)
   if (!booking) return { ok: false, error: "Réservation introuvable." }
+  const currency = booking.currency || "EUR"
 
   if (await bookingHasPaidPayment(bookingId, companyId)) return { ok: true, alreadyPaid: true }
 
@@ -152,7 +154,7 @@ export async function createBookingCheckout(input: {
   const created = await provider.createPayment({
     connectedAccountId: cfg.stripeAccountId,
     amountCents,
-    currency: booking.currency,
+    currency,
     applicationFeeCents: feeAmountCents,
     description: `Réservation ${booking.reference}`,
     metadata: {
@@ -170,7 +172,7 @@ export async function createBookingCheckout(input: {
     externalPaymentId: created.externalId,
     type,
     status: "pending",
-    currency: booking.currency,
+    currency,
     grossAmountCents: amountCents,
     platformFeeBps: feeBps,
     platformFeeAmountCents: feeAmountCents,
@@ -184,17 +186,64 @@ export async function createBookingCheckout(input: {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Enregistre un événement provider et indique s'il faut le traiter.
- * Renvoie `true` si l'événement est nouveau (à traiter), `false` s'il a déjà
- * été traité (appel répété → ignoré : pas de double paiement/commission).
+ * Vrai si l'événement a DÉJÀ été traité avec succès (à ignorer).
+ * Contrairement à un "claim" en amont, on n'enregistre l'événement qu'APRÈS
+ * succès (voir `markEventProcessed`) : un retry Stripe consécutif à une erreur
+ * de traitement pourra donc bien retraiter l'événement.
  */
-export async function claimEvent(eventId: string, provider: string, type?: string): Promise<boolean> {
-  const res = await db
+export async function hasProcessedEvent(eventId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ eventId: paymentEvents.eventId })
+    .from(paymentEvents)
+    .where(eq(paymentEvents.eventId, eventId))
+    .limit(1)
+  return Boolean(row)
+}
+
+/** Marque un événement comme définitivement traité (appelé après succès). */
+export async function markEventProcessed(eventId: string, provider: string, type?: string): Promise<void> {
+  await db
     .insert(paymentEvents)
     .values({ eventId, provider, type: type ?? null })
     .onConflictDoNothing({ target: paymentEvents.eventId })
-    .returning({ eventId: paymentEvents.eventId })
-  return res.length > 0
+}
+
+/**
+ * Synchronise les drapeaux d'état d'un compte connecté (account.updated).
+ * Borné par `stripeAccountId` : l'appelant a vérifié que ce compte appartient
+ * bien au tenant. Renvoie le nombre de lignes mises à jour (0 = compte inconnu).
+ */
+export async function syncConnectAccountFlagsByAccountId(input: {
+  stripeAccountId: string
+  chargesEnabled: boolean
+  detailsSubmitted: boolean
+  payoutsEnabled: boolean
+}): Promise<number> {
+  const res = await db
+    .update(companies)
+    .set({
+      stripeChargesEnabled: input.chargesEnabled,
+      stripeDetailsSubmitted: input.detailsSubmitted,
+      stripePayoutsEnabled: input.payoutsEnabled,
+      updatedAt: new Date(),
+    })
+    .where(eq(companies.stripeAccountId, input.stripeAccountId))
+    .returning({ id: companies.id })
+  return res.length
+}
+
+/**
+ * Renvoie le `stripeAccountId` enregistré pour un tenant (ou null).
+ * Sert à vérifier que `event.account` correspond bien au compte du tenant
+ * mentionné dans les métadonnées (défense anti-usurpation de compte).
+ */
+export async function getStripeAccountIdForCompany(companyId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ stripeAccountId: companies.stripeAccountId })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1)
+  return row?.stripeAccountId ?? null
 }
 
 /**

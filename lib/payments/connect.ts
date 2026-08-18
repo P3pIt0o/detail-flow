@@ -26,8 +26,9 @@ async function ensureConnectedAccount(companyId: number): Promise<string> {
     type: "express",
     country: (c.country || "FR").toUpperCase(),
     email: c.email || undefined,
-    // Destination charges : le compte connecté doit pouvoir recevoir des transferts.
-    capabilities: { transfers: { requested: true } },
+    // Direct Charges par carte : le compte connecté doit pouvoir encaisser des
+    // cartes (card_payments) et recevoir des transferts (transfers).
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
     business_profile: { name: c.name || undefined },
     metadata: { companyId: String(companyId) },
   })
@@ -81,10 +82,16 @@ export async function syncConnectAccountStatus(companyId: number): Promise<{
   const acct = await stripe.accounts.retrieve(c.stripeAccountId)
   const chargesEnabled = Boolean(acct.charges_enabled)
   const detailsSubmitted = Boolean(acct.details_submitted)
+  const payoutsEnabled = Boolean(acct.payouts_enabled)
 
   await db
     .update(companies)
-    .set({ stripeChargesEnabled: chargesEnabled, stripeDetailsSubmitted: detailsSubmitted, updatedAt: new Date() })
+    .set({
+      stripeChargesEnabled: chargesEnabled,
+      stripeDetailsSubmitted: detailsSubmitted,
+      stripePayoutsEnabled: payoutsEnabled,
+      updatedAt: new Date(),
+    })
     .where(eq(companies.id, companyId))
 
   return { connected: true, chargesEnabled, detailsSubmitted }

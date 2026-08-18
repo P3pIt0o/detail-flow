@@ -10,10 +10,11 @@ import type {
 } from "./types"
 
 /**
- * Implémentation Stripe Connect (destination charges).
- * Le client paie sur le compte connecté du professionnel ; DetailFlow prélève
- * `application_fee_amount` sur les fonds du professionnel (le prix client n'est
- * jamais majoré). Les données bancaires restent 100 % chez Stripe.
+ * Implémentation Stripe Connect (DIRECT CHARGES).
+ * Le PaymentIntent est créé DIRECTEMENT sur le compte connecté du professionnel
+ * (en-tête `stripeAccount`) : le client paie sur le compte du detailer, qui
+ * reçoit ses fonds via Stripe. DetailFlow peut prélever `application_fee_amount`
+ * (0 par défaut aujourd'hui). Les données bancaires restent 100 % chez Stripe.
  */
 const stripeCapabilities: ProviderCapabilities = {
   supportsOnlinePayments: true,
@@ -29,44 +30,53 @@ const stripeProvider: PaymentProvider = {
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     const stripe = getStripe()
-    // Checkout embarqué : Stripe gère toute la saisie carte (aucune donnée
-    // sensible ne transite par DetailFlow). Destination charge + commission.
-    const session = await stripe.checkout.sessions.create({
-      ui_mode: "embedded_page",
-      mode: "payment",
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: input.currency.toLowerCase(),
-            unit_amount: input.amountCents,
-            product_data: { name: input.description },
+    // Direct Charge : commission éventuelle prélevée par la plateforme. On
+    // n'envoie `application_fee_amount` QUE s'il est > 0 (Stripe préfère son
+    // absence quand il n'y a pas de commission).
+    const paymentIntentData =
+      input.applicationFeeCents > 0
+        ? { application_fee_amount: input.applicationFeeCents, metadata: input.metadata }
+        : { metadata: input.metadata }
+
+    // Checkout embarqué créé DANS LE CONTEXTE DU COMPTE CONNECTÉ (`stripeAccount`)
+    // : le PaymentIntent naît directement sur le compte du professionnel.
+    const session = await stripe.checkout.sessions.create(
+      {
+        ui_mode: "embedded_page",
+        mode: "payment",
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              unit_amount: input.amountCents,
+              product_data: { name: input.description },
+            },
           },
-        },
-      ],
-      payment_intent_data: {
-        application_fee_amount: input.applicationFeeCents,
-        transfer_data: { destination: input.connectedAccountId },
+        ],
+        payment_intent_data: paymentIntentData,
         metadata: input.metadata,
+        // Le caller fournit déjà l'URL complète (avec le placeholder session_id).
+        return_url: input.returnUrl,
       },
-      metadata: input.metadata,
-      // Le caller fournit déjà l'URL complète (avec le placeholder session_id).
-      return_url: input.returnUrl,
-    })
+      { stripeAccount: input.connectedAccountId },
+    )
     if (!session.client_secret) throw new Error("Stripe : client_secret manquant")
     return { externalId: session.id, clientSecret: session.client_secret }
   },
 
-  async refundPayment(paymentIntentId, _connectedAccountId, amountCents) {
+  async refundPayment(paymentIntentId, connectedAccountId, amountCents) {
     const stripe = getStripe()
-    // Destination charge : le remboursement + la reprise de commission se font
-    // sur le compte PLATEFORME (pas d'en-tête stripeAccount).
-    await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-      ...(amountCents != null ? { amount: amountCents } : {}),
-      reverse_transfer: true,
-      refund_application_fee: true,
-    })
+    // Direct Charge : le remboursement se fait DANS LE CONTEXTE du compte
+    // connecté. `refund_application_fee` reprend la commission éventuelle.
+    await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        ...(amountCents != null ? { amount: amountCents } : {}),
+        refund_application_fee: true,
+      },
+      { stripeAccount: connectedAccountId },
+    )
   },
 }
 

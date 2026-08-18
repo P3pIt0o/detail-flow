@@ -139,6 +139,7 @@ export const companies = pgTable("companies", {
   // État de l'onboarding du compte connecté (miroir des flags Stripe).
   stripeChargesEnabled: boolean("stripeChargesEnabled").notNull().default(false),
   stripeDetailsSubmitted: boolean("stripeDetailsSubmitted").notNull().default(false),
+  stripePayoutsEnabled: boolean("stripePayoutsEnabled").notNull().default(false),
   // Interrupteur d'activation des paiements en ligne (désactivé par défaut).
   // Désactiver n'efface rien : empêche seulement de NOUVEAUX paiements.
   paymentsEnabled: boolean("paymentsEnabled").notNull().default(false),
@@ -903,7 +904,7 @@ export const tenantAnalyticsVisits = pgTable(
 /* -------------------------------------------------------------------------- */
 /*  Paiements en ligne (V1 : Stripe Connect) — ajout ADDITIF                   */
 /*  Architecture générique multi-provider : le métier ne dépend jamais de      */
-/*  Stripe. Isolation stricte par companyId. Aucune donnée bancaire stockée.   */
+/*  Stripe. Isolation stricte par companyId. Aucune donn��e bancaire stockée.   */
 /* -------------------------------------------------------------------------- */
 
 /**
