@@ -25,6 +25,8 @@ import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
 import { PromoSettings } from "@/components/admin/settings/promo-settings"
 import { listPromoCodes } from "./promo-actions"
+import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
+import { getTenantPaymentConfig } from "@/lib/payments/config"
 import { getSmsBalance } from "@/lib/sms/credits"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { eq } from "drizzle-orm"
@@ -52,6 +54,9 @@ export default async function ParametresPage() {
         .limit(1),
       listPromoCodes(),
     ])
+
+  // Config paiements du tenant (commission résolue côté serveur : override → global).
+  const paymentConfig = await getTenantPaymentConfig(tenant.id)
 
   const revolutUrl = process.env.REVOLUT_PAYMENT_URL ?? null
   const revolutQrSrc = process.env.REVOLUT_PAYMENT_QR_URL ?? null
@@ -98,6 +103,9 @@ export default async function ParametresPage() {
             </TabsTrigger>
             <TabsTrigger value="planning" className="flex-none px-3 py-1.5">
               Planning &amp; acompte
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex-none px-3 py-1.5">
+              Paiements
             </TabsTrigger>
             <TabsTrigger value="promo" className="flex-none px-3 py-1.5">
               Codes promo
@@ -196,6 +204,24 @@ export default async function ParametresPage() {
             depositInstructions={fullSettings?.depositInstructions ?? ""}
             vacationMode={settings.vacationMode}
             vacationMessage={settings.vacationMessage ?? ""}
+          />
+        </TabsContent>
+        <TabsContent value="payments" className="mt-6">
+          <PaymentsSettings
+            connected={paymentConfig.connected}
+            chargesEnabled={paymentConfig.chargesEnabled}
+            detailsSubmitted={paymentConfig.detailsSubmitted}
+            paymentsEnabled={paymentConfig.paymentsEnabled}
+            paymentMode={paymentConfig.paymentMode}
+            feePercent={paymentConfig.feePercent}
+            depositConfigured={settings.depositType !== "none" && settings.depositValue > 0}
+            depositSummary={
+              settings.depositType === "fixed"
+                ? `${(settings.depositValue / 100).toFixed(2)} €`
+                : settings.depositType === "percent"
+                  ? `${settings.depositValue} %`
+                  : "non configuré"
+            }
           />
         </TabsContent>
         <TabsContent value="promo" className="mt-6">

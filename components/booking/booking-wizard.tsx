@@ -178,7 +178,13 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
       })
 
       if (res.ok) {
-        router.push(withTenant(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`, tenant))
+        // Paiement en ligne activé par le pro → page de paiement DetailFlow.
+        // Sinon, parcours actuel inchangé (page de confirmation).
+        if (res.payUrl) {
+          router.push(withTenant(`${res.payUrl}?ref=${encodeURIComponent(res.reference)}`, tenant))
+        } else {
+          router.push(withTenant(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`, tenant))
+        }
       } else {
         setError(res.error)
         // Créneau pris : renvoyer l'utilisateur à l'étape date.

@@ -25,7 +25,15 @@ export default async function SuperAdminLayout({ children }: { children: React.R
             </span>
             DetailFlow · Super-admin
           </Link>
-          <span className="text-sm text-muted-foreground">{admin.email}</span>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/super-admin/paiements"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Paiements
+            </Link>
+            <span className="hidden text-sm text-muted-foreground sm:inline">{admin.email}</span>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>

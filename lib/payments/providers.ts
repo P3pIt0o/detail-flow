@@ -50,7 +50,8 @@ const stripeProvider: PaymentProvider = {
         metadata: input.metadata,
       },
       metadata: input.metadata,
-      return_url: `${input.returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
+      // Le caller fournit déjà l'URL complète (avec le placeholder session_id).
+      return_url: input.returnUrl,
     })
     if (!session.client_secret) throw new Error("Stripe : client_secret manquant")
     return { externalId: session.id, clientSecret: session.client_secret }

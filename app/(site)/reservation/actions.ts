@@ -22,6 +22,7 @@ import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/ava
 import type { BookingSelection } from "@/lib/booking/types"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { recordBookingCompleted } from "@/lib/analytics/queries"
+import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 
@@ -106,7 +107,7 @@ export type CreateBookingInput = {
 }
 
 export type CreateBookingResult =
-  | { ok: true; reference: string }
+  | { ok: true; reference: string; payUrl?: string }
   | { ok: false; error: string; code?: "slot_taken" | "invalid" | "out_of_range" | "closed" }
 
 /** Génère une référence lisible du type "DF-20260115-4821". */
@@ -345,6 +346,14 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     // Analytics (V1) : réservation terminée. companyId résolu côté serveur.
     // Non bloquant : un échec de compteur n'invalide jamais la réservation.
     void recordBookingCompleted(companyId).catch(() => {})
+
+    // Paiement en ligne (OPTIONNEL). Si le tenant a activé les paiements, on
+    // dirige le client vers la page de paiement DetailFlow. Sinon, comportement
+    // actuel inchangé (aucune dépendance à un provider).
+    const paymentConfig = await getCompanyPaymentConfig(companyId)
+    if (paymentConfig?.paymentsEnabled && paymentConfig.canCollect && paymentConfig.paymentMode !== "none") {
+      return { ok: true, reference: result.reference, payUrl: `/reservation/paiement/${result.id}` }
+    }
 
     return { ok: true, reference: result.reference }
   } catch (e) {
