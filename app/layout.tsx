@@ -21,6 +21,21 @@ export const metadata: Metadata = {
   authors: [{ name: siteConfig.brand.name }],
   creator: siteConfig.brand.name,
   alternates: { canonical: '/' },
+  // PWA : lien vers le manifest + icônes installables (Android/iOS).
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
+  // iOS/Safari : "Ajouter à l'écran d'accueil" en mode app plein écran.
+  appleWebApp: {
+    capable: true,
+    title: 'DetailFlow',
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     type: 'website',
     locale: siteConfig.seo.locale,
