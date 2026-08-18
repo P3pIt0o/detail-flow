@@ -1,6 +1,7 @@
 import type React from "react"
 import { requireCompanyMember } from "@/lib/admin"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
+import { PwaInstallHint } from "@/components/admin/pwa-install-hint"
 
 export const metadata = {
   title: "Espace pro",
@@ -21,7 +22,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         adminName={ctx.user.name || ctx.user.email}
         isSuperAdmin={ctx.isSuperAdmin}
       />
-      <main className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+      <main className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
+        <PwaInstallHint />
+        {children}
+      </main>
     </div>
   )
 }
