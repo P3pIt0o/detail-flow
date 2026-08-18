@@ -17,6 +17,7 @@ import { allocateDeltaToTenant } from "@/lib/sms/send"
 import { sendEmail } from "@/lib/email/send"
 import { smsCreditedEmail } from "@/lib/email/templates"
 import { tenantAdminUrl } from "@/lib/tenant-shared"
+import { setDefaultPlatformFeeBps } from "@/lib/payments/config"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions de super-administration. TOUTES commencent par requireSuperAdmin().*/
@@ -355,6 +356,65 @@ export async function allocateSmsCreditsAction(companyId: number): Promise<Actio
         res.allocated > 0
           ? `${res.allocated} crédit(s) alloué(s) au sous-compte (total ${res.totalGranted}, déjà ${res.alreadyAllocated}).`
           : `Aucun crédit à allouer (total ${res.totalGranted} déjà entièrement attribué).`,
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Commission plateforme (paiements en ligne)                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Définit la commission GLOBALE par défaut (en %). Réservé au super-admin.
+ * Bornée 0–20 % côté serveur (setDefaultPlatformFeeBps re-borne aussi).
+ */
+export async function setPlatformFeeAction(percent: number): Promise<ActionState> {
+  await requireSuperAdmin()
+  if (!Number.isFinite(percent) || percent < 0 || percent > 20) {
+    return { ok: false, error: "La commission doit être comprise entre 0 et 20 %." }
+  }
+  try {
+    await setDefaultPlatformFeeBps(Math.round(percent * 100))
+    revalidatePath("/super-admin")
+    revalidatePath("/super-admin/paiements")
+    return { ok: true, message: `Commission par défaut mise à jour : ${percent} %.` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/**
+ * Définit (ou retire) un override de commission pour UNE entreprise.
+ * `percent === null` retire l'override (retour à la commission globale).
+ * Réservé au super-admin. L'id d'entreprise n'est jamais fourni par le client.
+ */
+export async function setCompanyFeeOverrideAction(
+  companyId: number,
+  percent: number | null,
+): Promise<ActionState> {
+  await requireSuperAdmin()
+  if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Entreprise invalide." }
+
+  let bps: number | null = null
+  if (percent !== null) {
+    if (!Number.isFinite(percent) || percent < 0 || percent > 20) {
+      return { ok: false, error: "La commission doit être comprise entre 0 et 20 %." }
+    }
+    bps = Math.round(percent * 100)
+  }
+
+  try {
+    await db
+      .update(companies)
+      .set({ platformFeeBps: bps, updatedAt: new Date() })
+      .where(eq(companies.id, companyId))
+    revalidatePath("/super-admin")
+    revalidatePath("/super-admin/paiements")
+    return {
+      ok: true,
+      message: bps === null ? "Override retiré (commission globale appliquée)." : `Commission spécifique : ${percent} %.`,
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }

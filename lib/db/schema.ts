@@ -128,6 +128,26 @@ export const companies = pgTable("companies", {
   bookingMode: text("bookingMode").notNull().default("LIVE"),
   // Empêche l'indexation par les moteurs (démos)
   noindex: boolean("noindex").notNull().default(false),
+  /* -------------------------- Paiements en ligne --------------------------- */
+  // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
+  // Null = aucun provider connecté. Seul Stripe est implémenté en V1.
+  paymentProvider: text("paymentProvider"),
+  // Identifiant du compte connecté chez le provider (ex. Stripe `acct_...`).
+  // Résolu UNIQUEMENT côté serveur : jamais un tenant ne peut utiliser le compte
+  // d'un autre. Null tant que l'onboarding n'est pas fait.
+  stripeAccountId: text("stripeAccountId"),
+  // État de l'onboarding du compte connecté (miroir des flags Stripe).
+  stripeChargesEnabled: boolean("stripeChargesEnabled").notNull().default(false),
+  stripeDetailsSubmitted: boolean("stripeDetailsSubmitted").notNull().default(false),
+  // Interrupteur d'activation des paiements en ligne (désactivé par défaut).
+  // Désactiver n'efface rien : empêche seulement de NOUVEAUX paiements.
+  paymentsEnabled: boolean("paymentsEnabled").notNull().default(false),
+  // Mode de paiement demandé au client : "none" | "deposit" | "full".
+  // Pour "deposit", le montant réutilise settings.depositType/depositValue.
+  paymentMode: text("paymentMode").notNull().default("none"),
+  // Override facultatif de la commission plateforme, en points de base (bps :
+  // 300 = 3,00 %). Null = utiliser la commission globale (platform_settings).
+  platformFeeBps: integer("platformFeeBps"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 })
@@ -879,3 +899,82 @@ export const tenantAnalyticsVisits = pgTable(
     byCompanyDateVisitor: unique("tenant_analytics_visits_key").on(t.companyId, t.date, t.visitorId),
   }),
 )
+
+/* -------------------------------------------------------------------------- */
+/*  Paiements en ligne (V1 : Stripe Connect) — ajout ADDITIF                   */
+/*  Architecture générique multi-provider : le métier ne dépend jamais de      */
+/*  Stripe. Isolation stricte par companyId. Aucune donnée bancaire stockée.   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Réglages plateforme (une seule ligne, id = 1). Contient la commission
+ * DetailFlow par défaut, modifiable depuis le Super Admin (sans toucher au code).
+ * Exprimée en points de base (bps) : 300 = 3,00 %.
+ */
+export const platformSettings = pgTable("platform_settings", {
+  id: integer("id").primaryKey().default(1),
+  defaultPlatformFeeBps: integer("defaultPlatformFeeBps").notNull().default(300),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+})
+
+/**
+ * Un paiement en ligne rattaché à une réservation. Le taux de commission
+ * réellement appliqué est FIGÉ ici au moment de la transaction (jamais
+ * recalculé a posteriori). Montants en centimes. `provider`/`externalPaymentId`
+ * abstraits pour permettre d'autres fournisseurs (SumUp…) sans refonte.
+ */
+export const payments = pgTable(
+  "payments",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    bookingId: integer("bookingId")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("stripe"),
+    // Identifiant de la session/intent chez le provider (idempotence + rapprochement).
+    externalPaymentId: text("externalPaymentId"),
+    // "deposit" | "full_payment"
+    type: text("type").notNull(),
+    // Statut GÉNÉRIQUE DetailFlow (indépendant de Stripe) :
+    // pending | processing | paid | failed | cancelled | refunded | partially_refunded
+    status: text("status").notNull().default("pending"),
+    currency: text("currency").notNull().default("EUR"),
+    grossAmountCents: integer("grossAmountCents").notNull(),
+    // Taux + montant de commission FIGÉS à la transaction.
+    platformFeeBps: integer("platformFeeBps").notNull(),
+    platformFeeAmountCents: integer("platformFeeAmountCents").notNull(),
+    // Frais provider (Stripe) si connus via le webhook, sinon null.
+    providerFeeAmountCents: integer("providerFeeAmountCents"),
+    // Net encaissé par le professionnel si connu, sinon null.
+    netAmountCents: integer("netAmountCents"),
+    refundedAmountCents: integer("refundedAmountCents").notNull().default(0),
+    // Extension future (métadonnées provider, reçu…) sans migration.
+    meta: jsonb("meta"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    paidAt: timestamp("paidAt"),
+    failedAt: timestamp("failedAt"),
+    refundedAt: timestamp("refundedAt"),
+  },
+  (t) => ({
+    byCompany: index("payments_companyId_idx").on(t.companyId),
+    byBooking: index("payments_bookingId_idx").on(t.bookingId),
+    // Idempotence : un même paiement provider ne peut exister qu'une fois.
+    uniqExternal: unique("payments_external_key").on(t.provider, t.externalPaymentId),
+  }),
+)
+
+/**
+ * Journal d'idempotence des événements webhook provider. Un eventId déjà présent
+ * signifie "déjà traité" → l'appel répété est ignoré (aucun double paiement /
+ * double commission / double mutation de réservation).
+ */
+export const paymentEvents = pgTable("payment_events", {
+  // Identifiant d'événement du provider (ex. Stripe `evt_...`) — clé primaire.
+  eventId: text("eventId").primaryKey(),
+  provider: text("provider").notNull().default("stripe"),
+  type: text("type"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+})
