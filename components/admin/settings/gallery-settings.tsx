@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { upload } from "@vercel/blob/client"
 import { Loader2, Save, Upload, Trash2, Plus, ArrowUp, ArrowDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { optimizeImage, formatMo } from "@/lib/image/optimize-client"
 import {
   createGalleryItem,
   updateGalleryItem,
@@ -44,11 +45,22 @@ async function uploadImage(file: File, kind: "before" | "after", companyId: numb
   if (!ALLOWED_TYPES.has(file.type)) {
     throw new Error("Format non supporté (JPG, PNG ou WEBP uniquement).")
   }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Image trop lourde (max 6 Mo).")
+  // Optimisation navigateur (redimensionnement + compression + orientation EXIF)
+  // afin que les grosses photos de smartphone passent sous la limite serveur.
+  const optimized = await optimizeImage(file, {
+    maxDimension: 2000,
+    maxBytes: MAX_IMAGE_BYTES,
+    quality: 0.82,
+  })
+  // Sécurité : cohérente avec la limite serveur (`maximumSizeInBytes`).
+  if (optimized.size > MAX_IMAGE_BYTES) {
+    throw new Error(
+      `Image trop lourde : ${formatMo(optimized.size)} (max ${formatMo(MAX_IMAGE_BYTES)}). ` +
+        `Réduisez sa définition puis réessayez.`,
+    )
   }
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
-  const result = await upload(`gallery/company-${companyId}-${kind}-${Date.now()}.${ext}`, file, {
+  const ext = optimized.type === "image/png" ? "png" : optimized.type === "image/webp" ? "webp" : "jpg"
+  const result = await upload(`gallery/company-${companyId}-${kind}-${Date.now()}.${ext}`, optimized, {
     access: "private",
     handleUploadUrl: "/api/gallery-upload",
   })
@@ -64,7 +76,7 @@ export function GallerySettings({ items, slug, companyId }: Props) {
         <h2 className="mb-1 text-base font-semibold text-foreground">Galerie Avant / Après</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Présentez vos réalisations sur votre site public avec un comparateur Avant / Après. Formats acceptés : JPG,
-          PNG, WEBP (max 6 Mo par image).
+          PNG, WEBP. Les photos volumineuses sont automatiquement optimisées lors de l&apos;envoi.
         </p>
         <AddForm slug={slug} companyId={companyId} onDone={() => router.refresh()} />
       </div>
