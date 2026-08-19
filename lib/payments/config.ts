@@ -14,7 +14,9 @@ import { eq, sql, desc } from "drizzle-orm"
  * Exprimée en points de base (bps) : 300 = 3,00 %.
  */
 
-const DEFAULT_FALLBACK_BPS = 300
+// Commission plateforme par défaut : 0 % pour l'instant (DetailFlow ne prélève
+// aucune commission). Le mécanisme reste fonctionnel pour l'activer plus tard.
+const DEFAULT_FALLBACK_BPS = 0
 
 /** Lit la commission globale (crée la ligne id=1 si absente). */
 export async function getDefaultPlatformFeeBps(): Promise<number> {

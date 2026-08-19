@@ -1,17 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/payments/stripe-client"
-import { claimEvent, settlePaymentPaid, settlePaymentCancelled } from "@/lib/payments/queries"
+import {
+  hasProcessedEvent,
+  markEventProcessed,
+  settlePaymentPaid,
+  settlePaymentCancelled,
+  getStripeAccountIdForCompany,
+  syncConnectAccountFlagsByAccountId,
+} from "@/lib/payments/queries"
 
 /**
  * ============================================================================
- *  WEBHOOK STRIPE — confirmation fiable des paiements
+ *  WEBHOOK STRIPE CONNECT — comptes connectés (Direct Charges)
  * ============================================================================
+ *  Endpoint configuré côté Dashboard sur les "Comptes connectés" pour :
+ *    - account.updated
+ *    - checkout.session.completed
+ *    - checkout.session.async_payment_succeeded
+ *    - checkout.session.expired
+ *
  *  - Signature vérifiée (STRIPE_WEBHOOK_SECRET) : rejet si invalide.
- *  - Idempotent : chaque eventId n'est traité qu'une fois (claimEvent).
- *  - Rattaché au bon tenant + booking via les métadonnées signées.
- *  Un même événement reçu deux fois ne double JAMAIS paiement/commission/statut.
- *  La confirmation d'une réservation payée ne dépend QUE de ce webhook,
- *  jamais du retour navigateur.
+ *  - `event.account` identifie le compte connecté propriétaire de l'événement ;
+ *     on VÉRIFIE qu'il correspond au `stripeAccountId` du tenant des métadonnées
+ *     (jamais de confiance aveugle en un companyId issu du payload).
+ *  - Idempotent : un événement n'est enregistré comme traité qu'APRÈS succès,
+ *     donc un retry Stripe après erreur peut retraiter, et un doublon déjà
+ *     traité est ignoré.
+ *  La confirmation d'une réservation payée ne dépend QUE de ce webhook.
  * ============================================================================
  */
 
@@ -40,14 +55,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 })
   }
 
-  // Idempotence : si l'événement est déjà connu, on l'ignore (ACK 200).
-  // `settlePaymentPaid`/`settlePaymentCancelled` sont eux-mêmes idempotents,
-  // donc même en cas de rejeu avant l'enregistrement, aucun double effet.
-  const isNew = await claimEvent(event.id, "stripe", event.type)
-  if (!isNew) return NextResponse.json({ received: true, duplicate: true })
+  // Doublon déjà traité avec succès → ACK 200 sans retraiter.
+  if (await hasProcessedEvent(event.id)) {
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  // Compte connecté propriétaire de l'événement (présent pour les events Connect).
+  const eventAccount = (event as { account?: string }).account ?? null
 
   try {
     switch (event.type) {
+      case "account.updated": {
+        // Synchronise l'état du compte connecté du tenant.
+        const account = event.data.object as {
+          id: string
+          charges_enabled?: boolean
+          details_submitted?: boolean
+          payouts_enabled?: boolean
+        }
+        // L'id du compte vient de l'objet Stripe (et doit être cohérent avec
+        // event.account quand présent).
+        const accountId = eventAccount ?? account.id
+        if (accountId) {
+          await syncConnectAccountFlagsByAccountId({
+            stripeAccountId: accountId,
+            chargesEnabled: Boolean(account.charges_enabled),
+            detailsSubmitted: Boolean(account.details_submitted),
+            payoutsEnabled: Boolean(account.payouts_enabled),
+          })
+        }
+        break
+      }
+
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as {
@@ -58,7 +97,20 @@ export async function POST(req: NextRequest) {
         }
         const companyId = Number.parseInt(session.metadata?.companyId ?? "", 10)
         const bookingId = Number.parseInt(session.metadata?.bookingId ?? "", 10)
+
         if (session.payment_status === "paid" && Number.isInteger(companyId) && Number.isInteger(bookingId)) {
+          // Défense multi-tenant : le compte connecté de l'événement DOIT
+          // correspondre au compte Stripe du tenant indiqué dans les métadonnées.
+          const tenantAccountId = await getStripeAccountIdForCompany(companyId)
+          if (!tenantAccountId || (eventAccount && eventAccount !== tenantAccountId)) {
+            console.log("[v0] webhook: event.account ne correspond pas au tenant", {
+              companyId,
+              eventAccount,
+            })
+            // On enregistre l'événement pour ne pas boucler indéfiniment, mais on
+            // n'applique AUCUN paiement (aucune fuite de compte tenant A vers B).
+            break
+          }
           await settlePaymentPaid({
             externalId: session.id,
             companyId,
@@ -68,21 +120,26 @@ export async function POST(req: NextRequest) {
         }
         break
       }
+
       case "checkout.session.expired": {
         const session = event.data.object as { id: string }
         await settlePaymentCancelled(session.id)
         break
       }
+
       default:
         // Autres événements ignorés en V1.
         break
     }
   } catch (e) {
-    // On log et on renvoie 500 : Stripe réessaiera (l'idempotence protège des
-    // doublons puisque l'event n'aura été traité qu'en cas de succès complet).
+    // Erreur de traitement : on NE marque PAS l'événement traité → Stripe
+    // réessaiera et pourra le retraiter (l'application des paiements est
+    // elle-même idempotente, donc aucun double effet possible).
     console.log("[v0] webhook: erreur de traitement:", e instanceof Error ? e.message : e)
     return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 })
   }
 
+  // Succès : on marque l'événement comme définitivement traité.
+  await markEventProcessed(event.id, "stripe", event.type)
   return NextResponse.json({ received: true })
 }
