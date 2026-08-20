@@ -5,6 +5,7 @@ import { ReviewCard } from "@/components/review-card"
 import { StarRating } from "@/components/ui/star-rating"
 import { CtaSection } from "@/components/sections/cta-section"
 import { Reveal } from "@/components/ui/reveal"
+import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 
 export const metadata: Metadata = {
   title: "Avis clients",
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
 }
 
 export default async function AvisPage() {
+  // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
+  await requireWebsiteFeature()
+
   // Avis visibles du tenant courant (DB).
   const reviews = await getPublicReviews()
   // Moyenne calculée à partir des avis (arrondie à une décimale).

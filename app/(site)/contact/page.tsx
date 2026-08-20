@@ -4,6 +4,7 @@ import { ContactForm } from "@/components/contact-form"
 import { Reveal } from "@/components/ui/reveal"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
 import { getPublicContact, getPublicHours } from "@/lib/public-contact"
+import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 }
 
 export default async function ContactPage() {
+  // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
+  await requireWebsiteFeature()
+
   // Coordonnées + horaires réels du tenant (aucune donnée statique).
   const [contact, hours] = await Promise.all([getPublicContact(), getPublicHours()])
   const whatsappHref = contact.phoneRaw

@@ -24,8 +24,12 @@ import { ReviewsPreview } from "@/components/sections/reviews-preview"
 import { CtaSection } from "@/components/sections/cta-section"
 import { getPublicContact } from "@/lib/public-contact"
 import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from "@/lib/site-content"
+import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 
 export default async function HomePage() {
+  // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
+  await requireWebsiteFeature()
+
   const [contact, content, order] = await Promise.all([
     getPublicContact(),
     getPublicSiteContent(),
