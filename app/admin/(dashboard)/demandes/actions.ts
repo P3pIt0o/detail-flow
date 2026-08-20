@@ -1,11 +1,12 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, gte, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, customRequests } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { sendCustomRequestProposal } from "@/lib/email/custom-requests"
+import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 
 export type ActionResult = { ok: boolean; error?: string; bookingId?: number }
 
@@ -64,6 +65,37 @@ export async function sendProposalAction(formData: FormData): Promise<ActionResu
   if (!reqRow) return { ok: false, error: "Demande introuvable." }
   if (reqRow.status === "converted") return { ok: false, error: "Cette demande a déjà été convertie." }
 
+  // Premier envoi vs renvoi : `proposalSentAt` NULL = aucun devis encore envoyé
+  // pour cette demande. C'est le signal FIABLE d'une NOUVELLE création (par
+  // opposition à une modification/renvoi d'un devis existant).
+  const isFirstProposal = reqRow.proposalSentAt == null
+  const now = new Date()
+
+  // Limite de licence (maxQuotesPerMonth) — s'applique UNIQUEMENT au PREMIER
+  // devis envoyé pour une demande (nouvelle création). Compte les devis dont le
+  // PREMIER envoi (`proposalSentAt`, désormais immuable) tombe dans le mois
+  // courant, scope `companyId` serveur (isolation stricte, anti-IDOR). Un
+  // renvoi/modification d'un devis existant ne consomme jamais de quota. LEGACY
+  // (licensePlan = NULL) => limite null => illimité, comportement inchangé.
+  if (isFirstProposal) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const [monthAgg] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(customRequests)
+      .where(
+        and(
+          eq(customRequests.companyId, tenant.id),
+          gte(customRequests.proposalSentAt, monthStart),
+        ),
+      )
+    const monthCount = Number(monthAgg?.count ?? 0)
+    const allowed = await canCreateWithinLimit(tenant.id, "maxQuotesPerMonth", monthCount)
+    if (!allowed) {
+      // Aucune modification DB, aucun email envoyé.
+      return { ok: false, error: LIMIT_REACHED_MESSAGE }
+    }
+  }
+
   await db
     .update(customRequests)
     .set({
@@ -73,10 +105,12 @@ export async function sendProposalAction(formData: FormData): Promise<ActionResu
       proposalDurationMin: duration,
       proposalMessage: message || null,
       status: "proposal_sent",
-      proposalSentAt: new Date(),
+      // Date IMMUABLE du premier devis : posée au premier envoi, CONSERVÉE lors
+      // d'un renvoi (comptage mensuel stable, un devis = un seul quota consommé).
+      ...(isFirstProposal ? { proposalSentAt: now } : {}),
       // Réinitialise une éventuelle décision précédente si le pro renvoie une offre.
       respondedAt: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(and(eq(customRequests.id, id), eq(customRequests.companyId, tenant.id)))
 
