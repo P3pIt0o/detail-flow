@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits, smsRechargeRequests } from "@/lib/db/schema"
 import { SMS_BETA_BONUS } from "./config"
+import { canUseFeature } from "@/lib/licensing/enforce"
 
 /* -------------------------------------------------------------------------- */
 /*  Solde SMS — toujours scopé par companyId (isolation multi-tenant stricte). */
@@ -157,66 +158,88 @@ export type CreditFromRechargeResult =
  * rechargement de page ne crédite JAMAIS deux fois.
  */
 export async function creditFromRecharge(requestId: number): Promise<CreditFromRechargeResult> {
-  return db.transaction(async (tx) => {
-    // 1) Transition atomique pending -> paid (gagnée une seule fois).
-    const claimed = await tx
-      .update(smsRechargeRequests)
-      .set({ status: "paid", validatedAt: new Date() })
-      .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
-      .returning({
-        companyId: smsRechargeRequests.companyId,
-        quantity: smsRechargeRequests.quantity,
-        reference: smsRechargeRequests.reference,
-      })
-
-    if (!claimed.length) {
-      // Déjà traitée (ou inexistante) : aucun crédit.
-      const [existing] = await tx
-        .select({
-          status: smsRechargeRequests.status,
+  // Sentinelle interne : sert UNIQUEMENT à faire un rollback de la transaction
+  // quand la licence n'inclut pas `sms`. Jamais exposée telle quelle au client.
+  const FEATURE_LOCKED = Symbol("sms-feature-locked")
+  try {
+    return await db.transaction(async (tx) => {
+      // 1) Transition atomique pending -> paid (gagnée une seule fois).
+      const claimed = await tx
+        .update(smsRechargeRequests)
+        .set({ status: "paid", validatedAt: new Date() })
+        .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
+        .returning({
+          companyId: smsRechargeRequests.companyId,
           quantity: smsRechargeRequests.quantity,
           reference: smsRechargeRequests.reference,
-          companyId: smsRechargeRequests.companyId,
         })
-        .from(smsRechargeRequests)
-        .where(eq(smsRechargeRequests.id, requestId))
-        .limit(1)
-      if (!existing) return { ok: false as const, error: "Demande introuvable." }
-      const bal = await getSmsBalance(existing.companyId)
+
+      if (!claimed.length) {
+        // Déjà traitée (ou inexistante) : aucun crédit.
+        const [existing] = await tx
+          .select({
+            status: smsRechargeRequests.status,
+            quantity: smsRechargeRequests.quantity,
+            reference: smsRechargeRequests.reference,
+            companyId: smsRechargeRequests.companyId,
+          })
+          .from(smsRechargeRequests)
+          .where(eq(smsRechargeRequests.id, requestId))
+          .limit(1)
+        if (!existing) return { ok: false as const, error: "Demande introuvable." }
+        const bal = await getSmsBalance(existing.companyId)
+        return {
+          ok: true as const,
+          already: true,
+          quantity: existing.quantity,
+          newBalance: bal.balance,
+          companyId: existing.companyId,
+          reference: existing.reference,
+        }
+      }
+
+      const { companyId, quantity, reference } = claimed[0]
+
+      // Défense en profondeur (feature sms) — vérifiée APRÈS avoir connu le
+      // companyId de la demande, AVANT tout crédit. Si la licence n'inclut plus
+      // `sms` (ex. downgrade BUSINESS -> PRO avec une recharge encore pending),
+      // on lève la sentinelle pour ROLLBACK : la transition pending -> paid est
+      // annulée, la demande reste `pending`, aucun crédit n'est ajouté. LEGACY
+      // (licensePlan = NULL) => autorisé.
+      if (!(await canUseFeature(companyId, "sms"))) {
+        throw FEATURE_LOCKED
+      }
+
+      // 2) Créditer le solde (exactement une fois, la transition ayant été gagnée).
+      await tx
+        .insert(smsCredits)
+        .values({ companyId, balance: 0, granted: 0, purchased: 0 })
+        .onConflictDoNothing({ target: smsCredits.companyId })
+      const [row] = await tx
+        .update(smsCredits)
+        .set({
+          balance: sql`${smsCredits.balance} + ${quantity}`,
+          purchased: sql`${smsCredits.purchased} + ${quantity}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(smsCredits.companyId, companyId))
+        .returning({ balance: smsCredits.balance })
+
       return {
         ok: true as const,
-        already: true,
-        quantity: existing.quantity,
-        newBalance: bal.balance,
-        companyId: existing.companyId,
-        reference: existing.reference,
+        already: false,
+        quantity,
+        newBalance: row?.balance ?? quantity,
+        companyId,
+        reference,
       }
+    })
+  } catch (err) {
+    // Rollback volontaire pour licence sans `sms` : message générique, aucune
+    // donnée modifiée (la demande reste pending). Toute autre erreur est relancée.
+    if (err === FEATURE_LOCKED) {
+      return { ok: false as const, error: "SMS non inclus dans la licence." }
     }
-
-    const { companyId, quantity, reference } = claimed[0]
-
-    // 2) Créditer le solde (exactement une fois, la transition ayant été gagnée).
-    await tx
-      .insert(smsCredits)
-      .values({ companyId, balance: 0, granted: 0, purchased: 0 })
-      .onConflictDoNothing({ target: smsCredits.companyId })
-    const [row] = await tx
-      .update(smsCredits)
-      .set({
-        balance: sql`${smsCredits.balance} + ${quantity}`,
-        purchased: sql`${smsCredits.purchased} + ${quantity}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(smsCredits.companyId, companyId))
-      .returning({ balance: smsCredits.balance })
-
-    return {
-      ok: true as const,
-      already: false,
-      quantity,
-      newBalance: row?.balance ?? quantity,
-      companyId,
-      reference,
-    }
-  })
+    throw err
+  }
 }
