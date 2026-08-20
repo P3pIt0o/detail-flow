@@ -167,7 +167,7 @@ export const companies = pgTable("companies", {
 })
 
 /**
- * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
+ * Overrides de fonctionnalit��s par entreprise (gestes commerciaux, modules
  * achetés/offerts, essais temporaires, pilotes Founder…).
  *
  * Le moteur (lib/licensing) applique : droit du plan → override éventuel →
@@ -281,10 +281,12 @@ export const clients = pgTable(
     address: text("address"),
     notes: text("notes"),
     /* -------- Identité client B2C/B2B multi-pays (additif, nullable) --------
-     * Rétrocompat : clients existants => customerType NULL, traités comme
-     * "individual" (B2C) côté lecture. Aucun identifiant société requis en B2C.
+     * NULL = UNKNOWN / LEGACY / NON CONFIRMÉ (JAMAIS déduit B2C). Un nouveau
+     * client choisit explicitement individual ou business. Quand une règle
+     * réglementaire dépend du B2B/B2C, NULL produira REVIEW_REQUIRED (LOT 2B),
+     * jamais une hypothèse silencieuse. Aucun backfill vers "individual".
      * Le pays DU CLIENT (et non du vendeur) détermine le schéma d'identifiant. */
-    customerType: text("customerType"), // "individual" | "business" | null (=individual)
+    customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
     country: text("country"), // ISO 3166-1 alpha-2 (FR, BE, CH, ...)
     legalRegistrationNumber: text("legalRegistrationNumber"),
     legalRegistrationScheme: text("legalRegistrationScheme"),
@@ -518,8 +520,16 @@ export const settings = pgTable(
     legalForm: text("legalForm"),
     // Catégorie d'entreprise France (calendrier e-invoicing) : micro|pme|eti|ge|unknown.
     frBusinessCategory: text("frBusinessCategory"),
-    // Devise de facturation par défaut (ISO 4217). Null => dérivée du profil pays.
+    // Devise de facturation par défaut CONFIRMÉE (ISO 4217). Null => NON confirmée.
+    // `companies.currency` (default EUR historique) ne vaut PAS confirmation :
+    // un tenant CH legacy peut avoir EUR par défaut sans l'avoir choisi.
     defaultCurrency: text("defaultCurrency"),
+    /* Confirmation explicite du profil de facturation (pays + infos légales).
+     * NULL => `companies.country` (default FR) et `companies.currency` (default
+     * EUR) sont des valeurs HISTORIQUES, PAS un choix confirmé du pro. Tant que
+     * NULL : ne jamais présenter le pays/devise comme configuration légale
+     * confirmée. Renseigné quand le pro confirme réellement dans les paramètres. */
+    billingProfileConfirmedAt: timestamp("billingProfileConfirmedAt"),
     vatEnabled: boolean("vatEnabled").notNull().default(false),
     vatRate: numeric("vatRate").notNull().default("20"),
     vatExemptNote: text("vatExemptNote").default("TVA non applicable, art. 293 B du CGI"),
@@ -790,7 +800,7 @@ export const invoices = pgTable(
     customerPhone: text("customerPhone"),
     customerAddress: text("customerAddress"),
     /* -------- Snapshot identité client multi-pays (additif, nullable) -------- */
-    customerType: text("customerType"), // "individual" | "business" | null
+    customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
     customerCountry: text("customerCountry"),
     customerLegalRegistrationNumber: text("customerLegalRegistrationNumber"),
     customerLegalRegistrationScheme: text("customerLegalRegistrationScheme"),

@@ -389,10 +389,10 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     }
   }
 
-  // Pays + devise vendeur (source de vérité : companies). Sert au snapshot
+  // Pays vendeur (source de vérité : companies.country). Sert au snapshot
   // multi-pays figé à l'émission (identifiant légal générique + devise).
   const [company] = await db
-    .select({ country: companiesTable.country, currency: companiesTable.currency })
+    .select({ country: companiesTable.country })
     .from(companiesTable)
     .where(eq(companiesTable.id, companyId))
     .limit(1)
@@ -404,13 +404,15 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   const issuerLegalScheme =
     issuer?.legalRegistrationScheme?.trim() ||
     (issuerLegalNumber ? (profile.validateLegalId(issuerLegalNumber).scheme ?? profile.legalIdScheme) : null)
-  const currencyCode =
-    inv.currencyCode ?? issuer?.defaultCurrency ?? company?.currency ?? profile.defaultCurrency
+  // Devise : jamais `companies.currency` legacy (default EUR non confirmé).
+  // Priorité : devise déjà posée sur la facture > devise CONFIRMÉE du vendeur
+  // (settings.defaultCurrency) > suggestion dérivée du pays vendeur.
+  const currencyCode = inv.currencyCode ?? issuer?.defaultCurrency ?? profile.defaultCurrency
 
   const year = new Date().getFullYear()
 
   const number = await db.transaction(async (tx) => {
-    // Compteur PROPRE à l'entreprise (numérotation isolée par tenant).
+    // Compteur PROPRE à l'entreprise (num��rotation isolée par tenant).
     // `FOR UPDATE` verrouille la ligne settings de CETTE entreprise pendant
     // toute la transaction : deux émissions concurrentes sont sérialisées et
     // ne peuvent donc pas obtenir le même numéro. Une autre entreprise

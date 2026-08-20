@@ -171,22 +171,21 @@ const CH: CountryBillingProfile = {
     return { valid: false, normalized: formatCheUid(digits), scheme: "CH_UID", message: "Format attendu : CHE-123.456.789." }
   },
   normalizeVatNumber: (raw) => {
-    // Conserve un éventuel suffixe TVA/MWST/IVA officiel.
+    // STOCKAGE CANONIQUE : CHE-123.456.789 SANS suffixe linguistique.
+    // Le suffixe TVA/MWST/IVA (dépend de la langue) n'est PAS intrinsèque au
+    // numéro : il est ajouté à l'affichage (PDF/UI). vatStatus est séparé.
     const upper = (raw ?? "").toUpperCase()
     const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "").slice(0, 9)
     if (digits.length !== 9) return upper.trim()
-    const suffix = /\b(TVA|MWST|IVA)\b/.test(upper) ? " TVA" : ""
-    return `${formatCheUid(digits)}${suffix}`
+    return formatCheUid(digits)
   },
   validateVatNumber: (raw, required = false) => {
+    // Accepte CHE123456789 / CHE-123.456.789 / …789 TVA / …789 MWST / …789 IVA.
     const upper = (raw ?? "").toUpperCase().trim()
     if (!upper) return emptyOk(required)
     const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "").slice(0, 9)
-    if (digits.length === 9) {
-      const suffix = /\b(TVA|MWST|IVA)\b/.test(upper) ? " TVA" : ""
-      return { valid: true, normalized: `${formatCheUid(digits)}${suffix}` }
-    }
-    return { valid: false, normalized: upper, message: "Format attendu : CHE-123.456.789 TVA." }
+    if (digits.length === 9) return { valid: true, normalized: formatCheUid(digits) }
+    return { valid: false, normalized: upper, message: "Format attendu : CHE-123.456.789 (le suffixe TVA est ajouté à l'affichage)." }
   },
 }
 
@@ -233,4 +232,40 @@ export const SUPPORTED_COUNTRIES: { code: SupportedCountry; name: string }[] = [
 export function getCountryProfile(code: CountryCode | null | undefined): CountryBillingProfile {
   if (!code) return FR // défaut historique DetailFlow
   return PROFILES[code.toUpperCase()] ?? GENERIC
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Type de client — NULL n'est JAMAIS déduit B2C                              */
+/* -------------------------------------------------------------------------- */
+
+export type CustomerType = "individual" | "business" | "unknown"
+
+/**
+ * Résout le type de client de façon SÛRE. NULL/inconnu => "unknown" (jamais
+ * "individual"/B2C). Une règle réglementaire dépendant du B2B/B2C devra traiter
+ * "unknown" comme REVIEW_REQUIRED (LOT 2B), pas comme une hypothèse.
+ */
+export function resolveCustomerType(raw: string | null | undefined): CustomerType {
+  if (raw === "individual" || raw === "business") return raw
+  return "unknown"
+}
+
+/**
+ * Le profil de facturation (pays + infos légales + devise) est-il CONFIRMÉ ?
+ * S'appuie sur `settings.billingProfileConfirmedAt`. Tant que non confirmé,
+ * `companies.country` (default FR) et `companies.currency` (default EUR) sont
+ * des valeurs historiques : ne jamais les présenter comme choix légal confirmé.
+ */
+export function isBillingProfileConfirmed(confirmedAt: Date | string | null | undefined): boolean {
+  return confirmedAt != null
+}
+
+/**
+ * Affichage du n° de TVA suisse avec suffixe français (le stockage reste
+ * canonique CHE-123.456.789, sans suffixe). Pour les autres pays : renvoie tel quel.
+ */
+export function formatSwissVatForDisplay(canonical: string | null | undefined): string {
+  const v = (canonical ?? "").trim()
+  if (!v) return ""
+  return /^CHE-\d{3}\.\d{3}\.\d{3}$/.test(v) ? `${v} TVA` : v
 }

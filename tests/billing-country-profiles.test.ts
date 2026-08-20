@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { getCountryProfile } from "@/lib/billing/country-profiles"
+import {
+  getCountryProfile,
+  resolveCustomerType,
+  formatSwissVatForDisplay,
+  isBillingProfileConfirmed,
+} from "@/lib/billing/country-profiles"
 
 /**
  * LOT 2A — sous-étape 1 (fondations) : abstraction CountryBillingProfile.
@@ -78,13 +83,73 @@ describe("Suisse — IDE/UID / TVA", () => {
     expect(r.normalized).toBe("CHE-123.456.789")
     expect(r.scheme).toBe("CH_UID")
   })
-  it("TVA suisse conserve le suffixe TVA", () => {
-    const r = ch.validateVatNumber("CHE-123.456.789 TVA")
-    expect(r.valid).toBe(true)
-    expect(r.normalized).toBe("CHE-123.456.789 TVA")
+  it("TVA suisse : stockage CANONIQUE sans suffixe linguistique", () => {
+    // Toutes les saisies (TVA/MWST/IVA, avec/sans ponctuation) => même canonique.
+    for (const raw of ["CHE123456789 TVA", "CHE-123.456.789 MWST", "CHE-123.456.789 IVA", "CHE123456789"]) {
+      const r = ch.validateVatNumber(raw)
+      expect(r.valid).toBe(true)
+      expect(r.normalized).toBe("CHE-123.456.789")
+    }
+  })
+  it("legalRegistrationNumber et vatNumber partagent la forme canonique CHE-...", () => {
+    expect(ch.normalizeLegalId("CHE123456789")).toBe("CHE-123.456.789")
+    expect(ch.normalizeVatNumber("CHE-123.456.789 TVA")).toBe("CHE-123.456.789")
+  })
+  it("affichage : suffixe TVA ajouté seulement au rendu", () => {
+    expect(formatSwissVatForDisplay("CHE-123.456.789")).toBe("CHE-123.456.789 TVA")
+    expect(formatSwissVatForDisplay("")).toBe("")
   })
   it("format invalide => refus", () => {
     expect(ch.validateLegalId("CHE-12").valid).toBe(false)
+  })
+})
+
+describe("Pays confirmé — default FR historique ≠ choix confirmé", () => {
+  it("billingProfileConfirmedAt NULL => profil NON confirmé (à confirmer)", () => {
+    expect(isBillingProfileConfirmed(null)).toBe(false)
+    expect(isBillingProfileConfirmed(undefined)).toBe(false)
+  })
+  it("tenant historique country=FR non confirmé => pas un profil légal FR confirmé", () => {
+    // Le pays opérationnel peut être FR (default) sans confirmation du pro.
+    const country = "FR"
+    const confirmed = isBillingProfileConfirmed(null)
+    expect(country).toBe("FR")
+    expect(confirmed).toBe(false) // ne jamais traiter comme profil légal FR confirmé
+  })
+  it("confirmation renseignée => profil confirmé", () => {
+    expect(isBillingProfileConfirmed(new Date())).toBe(true)
+  })
+})
+
+describe("Type de client — NULL n'est jamais B2C", () => {
+  it("NULL / undefined / inconnu => unknown (jamais individual)", () => {
+    expect(resolveCustomerType(null)).toBe("unknown")
+    expect(resolveCustomerType(undefined)).toBe("unknown")
+    expect(resolveCustomerType("")).toBe("unknown")
+    expect(resolveCustomerType("legacy")).toBe("unknown")
+  })
+  it("valeurs explicites préservées", () => {
+    expect(resolveCustomerType("individual")).toBe("individual")
+    expect(resolveCustomerType("business")).toBe("business")
+  })
+})
+
+describe("Devise legacy — EUR par défaut n'écrase pas une confirmation CHF", () => {
+  // Reproduit la chaîne de résolution d'émission (sans companies.currency legacy).
+  const resolveIssueCurrency = (
+    invoiceCurrency: string | null,
+    settingsDefaultCurrency: string | null,
+    issuerCountry: string,
+  ) => invoiceCurrency ?? settingsDefaultCurrency ?? getCountryProfile(issuerCountry).defaultCurrency
+
+  it("tenant CH sans confirmation => suggestion CHF (pas EUR legacy)", () => {
+    expect(resolveIssueCurrency(null, null, "CH")).toBe("CHF")
+  })
+  it("confirmation CHF explicite prioritaire", () => {
+    expect(resolveIssueCurrency(null, "CHF", "CH")).toBe("CHF")
+  })
+  it("devise déjà posée sur la facture est conservée", () => {
+    expect(resolveIssueCurrency("USD", "CHF", "CH")).toBe("USD")
   })
 })
 

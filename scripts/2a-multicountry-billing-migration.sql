@@ -20,6 +20,9 @@ ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "vatStatus" text;
 ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "legalForm" text;
 ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "frBusinessCategory" text;
 ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "defaultCurrency" text;
+-- Confirmation explicite du profil de facturation (pays + infos légales).
+-- NULL => pays/devise = valeurs historiques, PAS un choix confirmé du pro.
+ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "billingProfileConfirmedAt" timestamp;
 
 -- ---------------------------------------------------------------------------
 --  2) clients : modèle B2C/B2B + identité client selon SON pays
