@@ -29,6 +29,7 @@ import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
 import { getTenantPaymentConfig } from "@/lib/payments/config"
 import { getSmsBalance } from "@/lib/sms/credits"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
+import { canUseFeature } from "@/lib/licensing/enforce"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
@@ -54,6 +55,10 @@ export default async function ParametresPage() {
         .limit(1),
       listPromoCodes(),
     ])
+
+  // Droit d'ACTIVER/UTILISER les SMS (feature sms). LEGACY => true (inchangé).
+  // Purement indicatif pour l'UI : la sécurité reste côté serveur (actions + cron).
+  const smsFeatureEnabled = await canUseFeature(tenant.id, "sms")
 
   // Config paiements du tenant (commission résolue côté serveur : override → global).
   const paymentConfig = await getTenantPaymentConfig(tenant.id)
@@ -229,6 +234,7 @@ export default async function ParametresPage() {
         </TabsContent>
         <TabsContent value="sms" className="mt-6">
           <SmsSettings
+            featureEnabled={smsFeatureEnabled}
             balance={smsBalance.balance}
             betaBonusGranted={Boolean(smsCreditRow[0]?.betaBonusGrantedAt)}
             enabled={settings.smsRemindersEnabled}

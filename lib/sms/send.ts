@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto"
 import { eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
+import { canUseFeature } from "@/lib/licensing/enforce"
 
 /**
  * Provider SMS unique de DetailFlow : AllMySMS.
@@ -628,6 +629,25 @@ export async function sendSms(
     return {
       ok: false,
       error: "Numéro ou message manquant.",
+    }
+  }
+
+  /**
+   * Défense en profondeur (feature sms).
+   *
+   * Uniquement quand un companyId est fourni : aucun chemin serveur tenant ne
+   * peut envoyer un SMS si la licence explicite n'inclut pas `sms`. LEGACY
+   * (licensePlan = NULL) => autorisé.
+   *
+   * IMPORTANT : sans companyId (route centrale /api/admin/sms-test du
+   * super-admin), ce contrôle est ignoré — la configuration centrale reste
+   * testable et n'est jamais bloquée par une licence tenant.
+   */
+  if (args.companyId != null && !(await canUseFeature(args.companyId, "sms"))) {
+    return {
+      ok: false,
+      skipped: true,
+      error: "SMS non inclus dans la licence.",
     }
   }
 
