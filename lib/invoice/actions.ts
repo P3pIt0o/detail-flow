@@ -24,11 +24,13 @@ import {
   bookings,
   bookingItems,
   bookingItemOptions,
+  companies as companiesTable,
   settings as settingsTable,
 } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
+import { getCountryProfile } from "@/lib/billing/country-profiles"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -387,6 +389,24 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     }
   }
 
+  // Pays + devise vendeur (source de vérité : companies). Sert au snapshot
+  // multi-pays figé à l'émission (identifiant légal générique + devise).
+  const [company] = await db
+    .select({ country: companiesTable.country, currency: companiesTable.currency })
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId))
+    .limit(1)
+  const issuerCountry = company?.country ?? "FR"
+  const profile = getCountryProfile(issuerCountry)
+  // Identifiant légal générique : nouveau champ prioritaire, fallback SIRET
+  // historique (rétrocompat FR). Scheme dérivé du profil si non renseigné.
+  const issuerLegalNumber = issuer?.legalRegistrationNumber?.trim() || issuer?.invoiceSiret?.trim() || null
+  const issuerLegalScheme =
+    issuer?.legalRegistrationScheme?.trim() ||
+    (issuerLegalNumber ? (profile.validateLegalId(issuerLegalNumber).scheme ?? profile.legalIdScheme) : null)
+  const currencyCode =
+    inv.currencyCode ?? issuer?.defaultCurrency ?? company?.currency ?? profile.defaultCurrency
+
   const year = new Date().getFullYear()
 
   const number = await db.transaction(async (tx) => {
@@ -435,6 +455,12 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
         issuerSiret: s?.invoiceSiret ?? null,
         issuerIban: s?.invoiceIban ?? null,
         issuerBic: s?.invoiceBic ?? null,
+        // Snapshot multi-pays figé (indépendant des paramètres actuels ensuite).
+        issuerCountry,
+        issuerLegalRegistrationNumber: issuerLegalNumber,
+        issuerLegalRegistrationScheme: issuerLegalScheme,
+        issuerVatNumber: s?.vatNumber ?? null,
+        currencyCode,
         issuerLogoPathname: s?.invoiceLogoPathname ?? null,
         vatExemptNote: inv.vatEnabled ? null : (s?.vatExemptNote ?? null),
         footerNote: s?.invoiceFooterNote ?? null,
