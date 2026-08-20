@@ -31,6 +31,9 @@ export type CompanyRow = {
   bookingCount: number
   /** true si le propriétaire s'est déjà connecté (une session existe). */
   ownerActivated: boolean
+  /** Licence commerciale (null = tenant historique en accès LEGACY). */
+  licensePlan: string | null
+  licenseGeneration: string | null
 }
 
 /** Liste toutes les entreprises avec quelques compteurs utiles. */
@@ -46,6 +49,8 @@ export async function listCompanies(): Promise<CompanyRow[]> {
       bookingMode: companies.bookingMode,
       createdAt: companies.createdAt,
       ownerEmail: companies.email,
+      licensePlan: companies.licensePlan,
+      licenseGeneration: companies.licenseGeneration,
       // Corrélation qualifiée explicitement (`"companies"."id"`) : les tables
       // internes (company_members, bookings, session) possèdent toutes une
       // colonne `id`, donc un `id` non qualifié serait ambigu / mal résolu.

@@ -149,9 +149,82 @@ export const companies = pgTable("companies", {
   // Override facultatif de la commission plateforme, en points de base (bps :
   // 300 = 3,00 %). Null = utiliser la commission globale (platform_settings).
   platformFeeBps: integer("platformFeeBps"),
+  /* --------------------------- Licence commerciale ------------------------- */
+  // Licence DetailFlow (moteur d'entitlements). DISTINCT de `status`
+  // (BETA/ACTIVE/SUSPENDED/ARCHIVED), qui reste le cycle de vie opérationnel.
+  // NULL = tenant historique en accès LEGACY : le resolver conserve son
+  // comportement actuel (aucune coupure). Voir lib/licensing.
+  // Valeurs : FREE | ESSENTIAL | PRO | BUSINESS | FOUNDER.
+  licensePlan: text("licensePlan"),
+  // Génération de droits figée à l'attribution. Valeur : LIFETIME_V1
+  // (extensible plus tard à SUBSCRIPTION_V2, non implémenté).
+  licenseGeneration: text("licenseGeneration"),
+  // Traçabilité de l'attribution de la licence (super-admin uniquement).
+  licenseAssignedAt: timestamp("licenseAssignedAt"),
+  licenseAssignedByUserId: text("licenseAssignedByUserId"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 })
+
+/**
+ * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
+ * achetés/offerts, essais temporaires, pilotes Founder…).
+ *
+ * Le moteur (lib/licensing) applique : droit du plan → override éventuel →
+ * expiration éventuelle → droit effectif. Une seule ligne par
+ * (companyId, featureKey) grâce à la contrainte unique. On ne stocke JAMAIS
+ * l'état INHERIT : « revenir à INHERIT » supprime simplement la ligne.
+ */
+export const companyFeatureOverrides = pgTable(
+  "company_feature_overrides",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Clé du registre central des features (validée côté serveur).
+    featureKey: text("featureKey").notNull(),
+    // ENABLED | DISABLED (INHERIT n'est jamais persisté : c'est l'absence de ligne).
+    state: text("state").notNull(),
+    // Origine : PURCHASED | GIFT | TRIAL | FOUNDER | COMMERCIAL_GESTURE | MANUAL.
+    source: text("source").notNull().default("MANUAL"),
+    // Essai temporaire : au-delà de cette date, l'override est ignoré (retour
+    // au droit du plan). Aucune donnée métier n'est supprimée à l'expiration.
+    expiresAt: timestamp("expiresAt"),
+    // Note interne VISIBLE UNIQUEMENT du super-admin (affichée en texte brut).
+    internalNote: text("internalNote"),
+    createdByUserId: text("createdByUserId"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqOverride: unique("company_feature_overrides_company_feature_unique").on(t.companyId, t.featureKey),
+    byCompany: index("company_feature_overrides_companyId_idx").on(t.companyId),
+  }),
+)
+
+/**
+ * Journal d'audit léger des changements de licence/droits. Métadonnées NON
+ * sensibles uniquement (jamais de secret/token). Rétention indéfinie.
+ */
+export const licenseAuditLog = pgTable(
+  "license_audit_log",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    actorUserId: text("actorUserId"),
+    // LICENSE_CHANGED | FEATURE_ENABLED | FEATURE_DISABLED |
+    // FEATURE_TRIAL_STARTED | FEATURE_OVERRIDE_REMOVED
+    action: text("action").notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("license_audit_log_companyId_idx").on(t.companyId),
+  }),
+)
 
 /** Rattachement d'un utilisateur à une entreprise avec un rôle. */
 export const companyMembers = pgTable(
