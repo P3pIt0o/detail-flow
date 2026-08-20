@@ -13,15 +13,35 @@ import "server-only"
  * de comportement.
  */
 
-import { getLimit } from "./server"
+import { getLimit, hasFeature } from "./server"
 import { isCreationAllowed } from "./resolver"
-import type { LimitKey } from "./types"
+import type { FeatureKey, LimitKey } from "./types"
 
 /**
  * Message générique renvoyé au client quand une limite est atteinte.
  * NE révèle aucune information interne (plan, tenant, base, comptage).
  */
 export const LIMIT_REACHED_MESSAGE = "Limite de votre licence atteinte."
+
+/**
+ * Message générique renvoyé quand une FONCTIONNALITÉ n'est pas incluse dans la
+ * licence. NE révèle aucune information interne (plan, tenant, base).
+ */
+export const FEATURE_LOCKED_MESSAGE = "Cette fonctionnalité n'est pas incluse dans votre licence."
+
+/**
+ * La fonctionnalité `key` est-elle autorisée pour cette entreprise ?
+ *
+ * Wrapper serveur mince au-dessus de `hasFeature()` (moteur central). Aucune
+ * décision `if (plan === ...)`. Comportements hérités du resolver :
+ *  - LEGACY (licensePlan = NULL) => `true` (aucun changement de comportement) ;
+ *  - plan explicite invalide / entreprise introuvable => `false` (fail closed).
+ *
+ * @param companyId Entreprise RÉSOLUE CÔTÉ SERVEUR (jamais fournie par le client).
+ */
+export async function canUseFeature(companyId: number, key: FeatureKey): Promise<boolean> {
+  return hasFeature(companyId, key)
+}
 
 /**
  * Autorise-t-on une NOUVELLE création pour cette limite ?

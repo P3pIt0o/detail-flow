@@ -18,6 +18,7 @@ import { companies } from "@/lib/db/schema"
 import { requireCompanyMember, requireCompanyRole } from "@/lib/admin"
 import { createOnboardingLink, syncConnectAccountStatus, createExpressLoginLink } from "@/lib/payments/connect"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 
 export type PaymentActionResult = { ok: boolean; error?: string; url?: string }
 
@@ -81,7 +82,15 @@ export async function savePaymentSettings(input: {
 
   const mode = ["none", "deposit", "full"].includes(input.paymentMode) ? input.paymentMode : "none"
 
+  // Contrôle de licence (feature online_payments) — uniquement pour ACTIVER.
+  // La désactivation reste toujours possible. LEGACY (licensePlan = NULL) =>
+  // autorisé. Ce contrôle donne seulement le DROIT d'activer : il ne modifie
+  // JAMAIS stripeAccountId / stripeChargesEnabled / stripeDetailsSubmitted /
+  // stripePayoutsEnabled ni la connexion Stripe existante.
   if (input.paymentsEnabled) {
+    if (!(await canUseFeature(tenant.id, "online_payments"))) {
+      return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+    }
     const cfg = await getCompanyPaymentConfig(tenant.id)
     if (!cfg?.stripeChargesEnabled || !cfg.stripeAccountId) {
       return { ok: false, error: "Terminez d'abord la configuration Stripe avant d'activer les paiements." }
