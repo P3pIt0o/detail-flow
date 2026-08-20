@@ -12,6 +12,7 @@ import { getPublicCustomRequestsConfig } from "@/lib/site-content"
 import { resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { getCurrentTenant } from "@/lib/tenant"
 import { withTenant } from "@/lib/tenant-link"
+import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 
 export const metadata: Metadata = {
   title: "Prestations",
@@ -26,6 +27,9 @@ function formatPrice(cents: number): string {
 }
 
 export default async function PrestationsPage() {
+  // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
+  await requireWebsiteFeature()
+
   // Données dynamiques, scopées au tenant courant (isolation via companyId).
   const [visibleServices, categories, vehicles, options, crConfig, tenant] = await Promise.all([
     getPublicServices(),

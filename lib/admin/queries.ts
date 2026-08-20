@@ -123,6 +123,23 @@ export async function getDashboardStats(companyId?: number) {
   }
 }
 
+/**
+ * Compteur OPÉRATIONNEL : réservations en attente d'acompte.
+ *
+ * Isolé de `getDashboardStats` car il alimente une ALERTE d'action (bloc « À
+ * surveiller ») et non une statistique métier premium : il doit rester
+ * disponible même quand la feature `business_stats` n'est pas incluse. Scopé par
+ * companyId (isolation multi-tenant), requête paramétrée Drizzle.
+ */
+export async function getPendingDepositCount(companyId?: number): Promise<number> {
+  const cid = companyId ?? (await requireCompanyId())
+  const [row] = await db
+    .select({ n: count() })
+    .from(bookings)
+    .where(and(eq(bookings.companyId, cid), eq(bookings.status, "pending_deposit")))
+  return row?.n ?? 0
+}
+
 /** Prochaines réservations (pour l'aperçu du tableau de bord). */
 export async function getUpcomingBookings(limit = 6, companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())

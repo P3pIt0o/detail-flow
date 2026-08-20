@@ -6,6 +6,7 @@ import { sendReminderEmail } from "@/lib/email/notifications"
 import { sendSms } from "@/lib/sms/send"
 import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit } from "@/lib/sms/credits"
 import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
+import { canUseFeature } from "@/lib/licensing/enforce"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
 export const dynamic = "force-dynamic"
@@ -87,8 +88,20 @@ export async function GET(request: Request) {
         ),
       )
     if (enabledSettings.length === 0) continue
-    const tmplByCompany = new Map(enabledSettings.map((s) => [s.companyId, s.template]))
-    const companyIds = enabledSettings.map((s) => s.companyId)
+
+    // Contrôle de licence (feature sms) — évalué UNE SEULE FOIS par companyId
+    // (pas par booking). Un tenant avec licence explicite SANS sms est ignoré :
+    // aucun SMS, aucun débit de crédit, aucun smsReminderSentAt posé. LEGACY
+    // (licensePlan = NULL) => autorisé, comportement historique inchangé. Les
+    // rappels EMAIL ci-dessus ne sont pas concernés (feature automations non plus).
+    const smsAllowed = await Promise.all(
+      enabledSettings.map((s) => canUseFeature(s.companyId, "sms")),
+    )
+    const licensedSettings = enabledSettings.filter((_, i) => smsAllowed[i])
+    if (licensedSettings.length === 0) continue
+
+    const tmplByCompany = new Map(licensedSettings.map((s) => [s.companyId, s.template]))
+    const companyIds = licensedSettings.map((s) => s.companyId)
 
     const nameById = new Map(
       (

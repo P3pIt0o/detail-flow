@@ -6,6 +6,7 @@ import { put, del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 import { SOCIAL_KEYS } from "./social-config"
 import { resolveSectionOrder, type SiteContent } from "@/lib/site-content"
 
@@ -54,6 +55,7 @@ export async function saveSocialLinks(
   input: Record<string, string>,
 ): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+  if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const links: Record<string, string> = {}
   for (const key of SOCIAL_KEYS) {
@@ -91,6 +93,7 @@ export async function saveHeroContent(input: {
   heroCtaSecondary: string
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+  if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const clean = (v: string, max: number): string | null => {
     const t = (v ?? "").trim()
@@ -129,6 +132,7 @@ export async function saveHeroContent(input: {
  */
 export async function saveSiteContent(content: SiteContent): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+  if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const str = (v: unknown, max: number): string | undefined => {
     if (typeof v !== "string") return undefined
@@ -214,6 +218,7 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
  */
 export async function saveSectionOrder(order: string[]): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+  if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const normalized = resolveSectionOrder({ sectionOrder: order })
   const existing = (tenant.siteContent as Record<string, unknown> | null) ?? {}
@@ -233,6 +238,7 @@ export async function saveSectionOrder(order: string[]): Promise<ActionResult> {
 
 export async function saveCompanySite(formData: FormData): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+  if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   // Chaque champ n'est mis à jour QUE s'il est présent dans le formulaire. Ainsi
   // l'onglet "Apparence" (couleurs seules) ne peut pas effacer les CGV/logo, et

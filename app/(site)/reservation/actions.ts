@@ -23,6 +23,7 @@ import type { BookingSelection } from "@/lib/booking/types"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { canUseFeature } from "@/lib/licensing/enforce"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 
@@ -145,6 +146,19 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   // réservations (bookingMode = DISABLED) ne peut jamais créer de réservation,
   // même via un appel direct à la Server Action. Réutilise tenantAcceptsBookings().
   if (!tenantAcceptsBookings(tenant)) {
+    return {
+      ok: false,
+      error: "Les réservations en ligne ne sont pas disponibles pour cette entreprise.",
+      code: "closed",
+    }
+  }
+
+  // Contrôle de licence (feature online_booking) — moteur central, tenant
+  // résolu côté serveur. LEGACY (licensePlan = NULL) => autorisé (comportement
+  // actuel strictement inchangé). Un tenant avec licence explicite SANS
+  // online_booking ne peut pas créer de NOUVELLE réservation en ligne ; aucune
+  // réservation existante n'est touchée et bookingMode n'est jamais modifié.
+  if (!(await canUseFeature(tenant.id, "online_booking"))) {
     return {
       ok: false,
       error: "Les réservations en ligne ne sont pas disponibles pour cette entreprise.",
@@ -351,7 +365,8 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     // dirige le client vers la page de paiement DetailFlow. Sinon, comportement
     // actuel inchangé (aucune dépendance à un provider).
     const paymentConfig = await getCompanyPaymentConfig(companyId)
-    if (paymentConfig?.paymentsEnabled && paymentConfig.canCollect && paymentConfig.paymentMode !== "none") {
+    const canUsePayments = await canUseFeature(companyId, "online_payments")
+    if (canUsePayments && paymentConfig?.paymentsEnabled && paymentConfig.canCollect && paymentConfig.paymentMode !== "none") {
       return { ok: true, reference: result.reference, payUrl: `/reservation/paiement/${result.id}` }
     }
 

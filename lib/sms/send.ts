@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto"
 import { eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
+import { canUseFeature } from "@/lib/licensing/enforce"
 
 /**
  * Provider SMS unique de DetailFlow : AllMySMS.
@@ -226,6 +227,18 @@ export async function ensureTenantSubAccount(input: {
     }
   }
 
+  // Défense en profondeur (feature sms) : refuser de PROVISIONNER un NOUVEAU
+  // sous-compte AllMySMS si la licence explicite n'inclut pas `sms`. Placé APRÈS
+  // le court-circuit d'idempotence : un sous-compte déjà existant reste résolu
+  // (aucune régression). LEGACY (licensePlan = NULL) => autorisé.
+  if (!(await canUseFeature(input.companyId, "sms"))) {
+    return {
+      ok: false,
+      created: false,
+      error: "SMS non inclus dans la licence.",
+    }
+  }
+
   const companyName = (input.companyName || "").trim()
   const firstName = (input.firstName || "").trim()
   const lastName = (input.lastName || "").trim()
@@ -434,6 +447,18 @@ export async function allocateCreditsToTenant(
     }
   }
 
+  // Défense en profondeur (feature sms) — chokepoint le plus bas de l'allocation.
+  // Aucun transfert AllMySMS, aucune écriture de allmysmsCreditsAllocated si la
+  // licence explicite n'inclut pas `sms`. LEGACY => autorisé. Les crédits déjà
+  // alloués restent intacts (aucune suppression).
+  if (!(await canUseFeature(companyId, "sms"))) {
+    return {
+      ok: false,
+      allocated: 0,
+      error: "SMS non inclus dans la licence.",
+    }
+  }
+
   const central = centralCredentials()
 
   if (!central.login || !central.apiKey) {
@@ -572,6 +597,20 @@ export type AllocateDeltaResult = {
 export async function allocateDeltaToTenant(
   companyId: number,
 ): Promise<AllocateDeltaResult> {
+  // Défense en profondeur (feature sms) — court-circuit propre AVANT toute
+  // lecture/allocation. `allocateCreditsToTenant` re-vérifie (chokepoint le plus
+  // bas), donc aucun caller futur ne peut contourner. LEGACY => autorisé.
+  if (!(await canUseFeature(companyId, "sms"))) {
+    return {
+      ok: false,
+      allocated: 0,
+      delta: 0,
+      totalGranted: 0,
+      alreadyAllocated: 0,
+      error: "SMS non inclus dans la licence.",
+    }
+  }
+
   const [row] = await db
     .select({
       granted: smsCredits.granted,
@@ -628,6 +667,25 @@ export async function sendSms(
     return {
       ok: false,
       error: "Numéro ou message manquant.",
+    }
+  }
+
+  /**
+   * Défense en profondeur (feature sms).
+   *
+   * Uniquement quand un companyId est fourni : aucun chemin serveur tenant ne
+   * peut envoyer un SMS si la licence explicite n'inclut pas `sms`. LEGACY
+   * (licensePlan = NULL) => autorisé.
+   *
+   * IMPORTANT : sans companyId (route centrale /api/admin/sms-test du
+   * super-admin), ce contrôle est ignoré — la configuration centrale reste
+   * testable et n'est jamais bloquée par une licence tenant.
+   */
+  if (args.companyId != null && !(await canUseFeature(args.companyId, "sms"))) {
+    return {
+      ok: false,
+      skipped: true,
+      error: "SMS non inclus dans la licence.",
     }
   }
 

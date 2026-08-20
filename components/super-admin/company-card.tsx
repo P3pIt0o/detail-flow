@@ -5,6 +5,7 @@ import { KeyRound, Loader2, CheckCircle2, Circle } from "lucide-react"
 import { resetOwnerPasswordAction } from "@/app/super-admin/actions"
 import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-recap"
 import { CompanyRowActions } from "@/components/super-admin/company-row-actions"
+import { LicensePanel } from "@/components/super-admin/license-panel"
 import { tenantAdminUrl, tenantPublicUrl } from "@/lib/tenant-shared"
 
 export type CompanyCardData = {
@@ -18,6 +19,8 @@ export type CompanyCardData = {
   ownerEmail: string | null
   bookingCount: number
   ownerActivated: boolean
+  licensePlan: string | null
+  licenseGeneration: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -129,6 +132,13 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
           {error}
         </p>
       )}
+
+      {/* Licence & droits (chargé à la demande) */}
+      <LicensePanel
+        companyId={company.id}
+        licensePlan={company.licensePlan}
+        licenseGeneration={company.licenseGeneration}
+      />
 
       {/* Accès + bouton "Copier les accès" */}
       <AccessRecap info={info} />

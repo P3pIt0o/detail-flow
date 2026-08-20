@@ -14,6 +14,7 @@ import { headers } from "next/headers"
 import { resolveRequestTenant } from "@/lib/tenant"
 import { createBookingCheckout, bookingHasPaidPayment } from "@/lib/payments/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { canUseFeature } from "@/lib/licensing/enforce"
 
 async function absoluteUrl(path: string): Promise<string> {
   const h = await headers()
@@ -36,6 +37,14 @@ export async function startBookingCheckout(bookingId: number): Promise<StartChec
   const tenant = await resolveRequestTenant()
   if (!tenant) return { ok: false, error: "Tenant introuvable." }
   if (!Number.isInteger(bookingId) || bookingId <= 0) return { ok: false, error: "Réservation invalide." }
+
+  // Contrôle de licence (feature online_payments) — droit d'UTILISER le
+  // paiement en ligne. LEGACY (licensePlan = NULL) => autorisé (inchangé).
+  // Ne modifie aucune configuration Stripe : bloque uniquement le démarrage
+  // d'un NOUVEAU paiement quand la licence explicite ne l'inclut pas.
+  if (!(await canUseFeature(tenant.id, "online_payments"))) {
+    return { ok: false, error: "Paiements indisponibles." }
+  }
 
   const cfg = await getCompanyPaymentConfig(tenant.id)
   if (!cfg?.stripeAccountId) return { ok: false, error: "Paiements indisponibles." }

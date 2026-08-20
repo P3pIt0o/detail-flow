@@ -26,6 +26,8 @@ import {
 } from "@/lib/sms/config"
 
 type Props = {
+  /** Droit d'activer/utiliser les SMS (feature sms). Défaut true = comportement LEGACY inchangé. */
+  featureEnabled?: boolean
   balance: number
   betaBonusGranted: boolean
   enabled: boolean
@@ -39,6 +41,9 @@ type Props = {
 type PendingRecharge = Extract<CreateRechargeResult, { ok: true }>
 
 export function SmsSettings(props: Props) {
+  // Défaut true : aucun changement de comportement quand la prop n'est pas fournie (LEGACY).
+  const featureEnabled = props.featureEnabled !== false
+  const locked = !featureEnabled
   const [enabled, setEnabled] = useState(props.enabled)
   const [offset, setOffset] = useState<24 | 48>(props.offsetHours === 48 ? 48 : 24)
   const [template, setTemplate] = useState(props.template || props.defaultTemplate)
@@ -60,6 +65,17 @@ export function SmsSettings(props: Props) {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Fonctionnalité non incluse dans la licence : message clair, la sécurité
+          reste côté serveur (actions + cron). La désactivation reste possible. */}
+      {locked ? (
+        <Card className="border-amber-500/30 bg-amber-500/10 p-4">
+          <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+            Cette fonctionnalité n&apos;est pas incluse dans votre licence.
+          </p>
+        </Card>
+      ) : null}
+
       {/* Récapitulatif lisible en un coup d'œil */}
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4">
@@ -100,7 +116,7 @@ export function SmsSettings(props: Props) {
               <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
               Votre solde SMS est bientôt épuisé.
             </p>
-            <Button size="sm" onClick={() => setOpen(true)}>
+            <Button size="sm" disabled={locked} onClick={() => setOpen(true)}>
               Acheter des SMS
             </Button>
           </div>
@@ -111,7 +127,7 @@ export function SmsSettings(props: Props) {
               <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
               Votre solde SMS est épuisé. Les rappels sont temporairement suspendus.
             </p>
-            <Button size="sm" onClick={() => setOpen(true)}>
+            <Button size="sm" disabled={locked} onClick={() => setOpen(true)}>
               Acheter des SMS
             </Button>
           </div>
@@ -119,7 +135,7 @@ export function SmsSettings(props: Props) {
 
         {!low && !empty ? (
           <div className="mt-4">
-            <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            <Button variant="outline" size="sm" disabled={locked} onClick={() => setOpen(true)}>
               Acheter des SMS
             </Button>
           </div>
@@ -135,7 +151,16 @@ export function SmsSettings(props: Props) {
             </Label>
             <p className="text-xs text-muted-foreground">Un SMS de rappel est envoyé avant chaque rendez-vous confirmé.</p>
           </div>
-          <Switch id="sms-enabled" checked={enabled} onCheckedChange={setEnabled} />
+          <Switch
+            id="sms-enabled"
+            checked={enabled}
+            // Verrouillé : on ne peut plus ACTIVER (mais toujours désactiver).
+            disabled={locked && !enabled}
+            onCheckedChange={(v) => {
+              if (locked && v) return
+              setEnabled(v)
+            }}
+          />
         </div>
 
         <div>

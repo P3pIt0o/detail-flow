@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { settings, smsRechargeRequests } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 import {
   getSmsBalance,
   generateRechargeReference,
@@ -45,6 +46,14 @@ export async function saveSmsReminderSettings(input: {
   template: string
 }): Promise<SmsActionResult> {
   const { tenant } = await requireCompanyMember()
+
+  // Contrôle de licence (feature sms) — UNIQUEMENT pour ACTIVER. La désactivation
+  // (input.enabled = false) reste TOUJOURS possible, y compris après un downgrade.
+  // Vérifié AVANT toute écriture / création de crédit / provisioning de
+  // sous-compte AllMySMS. LEGACY (licensePlan = NULL) => autorisé (inchangé).
+  if (input.enabled && !(await canUseFeature(tenant.id, "sms"))) {
+    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  }
 
   await ensureSettingsRow(tenant.id)
 
@@ -183,6 +192,13 @@ export async function createRechargeRequest(
   quantity: number,
 ): Promise<CreateRechargeResult> {
   const { tenant } = await requireCompanyMember()
+
+  // Contrôle de licence (feature sms) — avant toute création de demande de
+  // recharge. Licence explicite sans sms => refus propre, aucune ligne
+  // smsRechargeRequests créée. LEGACY => autorisé (inchangé).
+  if (!(await canUseFeature(tenant.id, "sms"))) {
+    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  }
 
   const qty = Math.floor(Number(quantity))
 
