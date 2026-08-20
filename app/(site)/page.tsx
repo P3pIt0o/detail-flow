@@ -21,6 +21,7 @@ import { ServicesPreview } from "@/components/sections/services-preview"
 import { Process } from "@/components/sections/process"
 import { GallerySection } from "@/components/sections/gallery-section"
 import { ReviewsPreview } from "@/components/sections/reviews-preview"
+import { CustomRequestsSection } from "@/components/sections/custom-requests-section"
 import { CtaSection } from "@/components/sections/cta-section"
 import { getPublicContact } from "@/lib/public-contact"
 import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from "@/lib/site-content"
@@ -45,6 +46,8 @@ export default async function HomePage() {
     process: <Process key="process" />,
     gallery: <GallerySection key="gallery" />,
     reviews: <ReviewsPreview key="reviews" />,
+    // Rendu conditionnel géré dans le composant (désactivé/aucun type => null).
+    customRequests: <CustomRequestsSection key="customRequests" />,
     contact: content.contact.enabled ? <CtaSection key="contact" /> : null,
   }
 

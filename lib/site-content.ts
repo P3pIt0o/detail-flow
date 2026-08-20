@@ -76,6 +76,7 @@ export const HOME_SECTION_KEYS = [
   "process",
   "gallery",
   "reviews",
+  "customRequests",
   "contact",
 ] as const
 
@@ -89,6 +90,7 @@ export const HOME_SECTION_LABELS: Record<HomeSectionKey, string> = {
   process: "Déroulement",
   gallery: "Galerie",
   reviews: "Avis",
+  customRequests: "Demandes personnalisées",
   contact: "Contact",
 }
 
