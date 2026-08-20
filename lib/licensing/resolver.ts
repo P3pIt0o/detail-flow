@@ -182,3 +182,20 @@ export function resolveLimit(ctx: LicenseContext, key: LimitKey): LimitValue {
   if (!isLicensePlan(ctx.plan)) return 0 // fail closed
   return planLimit(ctx.plan, key)
 }
+
+/**
+ * Règle PURE : une NOUVELLE création est-elle autorisée pour une limite donnée ?
+ *
+ *  - `limit === null` : illimité (inclut les tenants LEGACY licensePlan = NULL)
+ *    => toujours autorisé.
+ *  - `limit` numérique : autorisé uniquement si le nombre courant est STRICTEMENT
+ *    inférieur à la limite (ex. limite 10 => la 11ᵉ création est refusée).
+ *
+ * FAIL CLOSED : `getLimit` renvoie `0` pour une entreprise/licence invalide, ce
+ * qui bloque toute création. Ne concerne QUE la création : lecture, édition et
+ * export des données existantes ne passent jamais par cette règle.
+ */
+export function isCreationAllowed(limit: LimitValue, currentCount: number): boolean {
+  if (limit === null) return true
+  return currentCount < limit
+}

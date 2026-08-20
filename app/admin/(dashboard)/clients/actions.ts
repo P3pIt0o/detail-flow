@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { clients } from "@/lib/db/schema"
 import { requireCompanyId } from "@/lib/tenant"
+import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 
 export type CreateClientResult = {
   success: boolean
@@ -63,6 +64,14 @@ export async function createClientAction(
       success: false,
       message: "Un client avec cet email ou ce téléphone existe déjà.",
     }
+  }
+
+  // Limite de licence (maxCustomers) — bloque UNIQUEMENT une nouvelle création.
+  // `existing` = tous les clients de l'entreprise courante (scope companyId
+  // serveur), réutilisé comme comptage. LEGACY => limite null => autorisé.
+  const allowed = await canCreateWithinLimit(companyId, "maxCustomers", existing.length)
+  if (!allowed) {
+    return { success: false, message: LIMIT_REACHED_MESSAGE }
   }
 
   await db.insert(clients).values({

@@ -14,7 +14,7 @@
  */
 
 import { revalidatePath } from "next/cache"
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import {
   invoices,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
+import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -128,6 +129,22 @@ export async function createInvoiceFromBooking(
     .limit(1)
   if (existing.length) {
     return { ok: true, data: { invoiceId: existing[0].id, existed: true } }
+  }
+
+  // Limite de licence (maxInvoicesPerMonth) — compte les factures du MOIS COURANT
+  // pour l'entreprise courante (scope companyId serveur). Bloque uniquement la
+  // création d'une NOUVELLE facture ; ne concerne jamais une réservation ni une
+  // facture déjà créée (retour idempotent ci-dessus). LEGACY => null => illimité.
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const [monthAgg] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(invoices)
+    .where(and(eq(invoices.companyId, companyId), gte(invoices.createdAt, monthStart)))
+  const monthCount = Number(monthAgg?.count ?? 0)
+  const allowed = await canCreateWithinLimit(companyId, "maxInvoicesPerMonth", monthCount)
+  if (!allowed) {
+    return { ok: false, error: LIMIT_REACHED_MESSAGE }
   }
 
   const items = await db.select().from(bookingItems).where(eq(bookingItems.bookingId, bookingId))
