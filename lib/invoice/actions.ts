@@ -332,6 +332,14 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
     customerLegalNumber = legal.normalized || null
     customerLegalScheme = customerLegalNumber ? (legal.scheme ?? custProfile.legalIdScheme) : null
     customerVatNumber = vat.normalized || null
+  } else {
+    // SEUL un client ENTREPRISE peut porter une identité professionnelle.
+    // Particulier OU type inconnu/legacy => on n'enregistre JAMAIS d'identifiant
+    // légal ni de TVA (évite qu'un client repassé "particulier" garde des
+    // identifiants pro cachés). Aucune identité B2B inventée pour un type null.
+    customerLegalNumber = null
+    customerLegalScheme = null
+    customerVatNumber = null
   }
 
   await db.transaction(async (tx) => {

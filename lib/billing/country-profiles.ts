@@ -431,3 +431,60 @@ export function formatSwissVatForDisplay(canonical: string | null | undefined): 
   if (!v) return ""
   return /^CHE-\d{3}\.\d{3}\.\d{3}$/.test(v) ? `${v} TVA` : v
 }
+
+/* -------------------------------------------------------------------------- */
+/*  CLIENT (LOT 2B.3) — rendu depuis le SNAPSHOT facture uniquement           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Identité légale CLIENT à afficher, résolue UNIQUEMENT depuis le snapshot
+ * facture. Symétrique du helper vendeur mais totalement indépendante (aucune
+ * donnée vendeur en entrée).
+ *
+ * - `customerType` ≠ "business" => null (un particulier / type inconnu n'affiche
+ *   jamais d'identifiant d'entreprise).
+ * - numéro absent => null.
+ * - libellé dérivé du scheme snapshoté ; scheme NULL/inconnu => « Identifiant légal ».
+ *   Le scheme n'est JAMAIS deviné depuis le pays.
+ */
+export function resolveCustomerLegalIdentityDisplay(input: {
+  customerType: string | null | undefined
+  customerCountry: string | null | undefined
+  legalRegistrationNumber: string | null | undefined
+  legalRegistrationScheme: string | null | undefined
+}): { label: string; value: string } | null {
+  if ((input.customerType ?? "").trim() !== "business") return null
+  const number = input.legalRegistrationNumber?.trim() || null
+  if (!number) return null
+  const scheme = input.legalRegistrationScheme?.trim().toUpperCase() || ""
+  return { label: SCHEME_LABEL[scheme] ?? "Identifiant légal", value: number }
+}
+
+/**
+ * Nom de pays CLIENT à afficher (France / Belgique / Suisse / Autre pays), depuis
+ * le snapshot facture. Retourne null si absent. N'utilise JAMAIS issuerCountry.
+ */
+export function resolveCustomerCountryLabel(customerCountry: string | null | undefined): string | null {
+  const code = (customerCountry ?? "").trim().toUpperCase()
+  if (!code) return null
+  return getCountryProfile(code).countryName
+}
+
+/**
+ * TVA CLIENT à afficher (donnée d'IDENTITÉ uniquement, aucune règle fiscale).
+ * Réservé aux clients "business" avec un numéro snapshoté. Libellé issu du
+ * CountryBillingProfile ; formatage CH via formatSwissVatForDisplay. Retourne null sinon.
+ */
+export function resolveCustomerVatDisplay(input: {
+  customerType: string | null | undefined
+  customerCountry: string | null | undefined
+  vatNumber: string | null | undefined
+}): { label: string; value: string } | null {
+  if ((input.customerType ?? "").trim() !== "business") return null
+  const raw = (input.vatNumber ?? "").trim()
+  if (!raw) return null
+  const code = (input.customerCountry ?? "").trim().toUpperCase()
+  const label = code ? getCountryProfile(code).vatNumberLabel : "Numéro de TVA"
+  const value = code === "CH" ? formatSwissVatForDisplay(raw) : raw
+  return { label, value }
+}
