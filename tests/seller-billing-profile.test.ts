@@ -151,10 +151,14 @@ describe("2B.5A — catégorie entreprise FR", () => {
     expect(serverActions).toMatch(/FR_BUSINESS_CATEGORIES = \["micro", "pme", "eti", "ge", "unknown"\]/)
   })
 
-  it("5. pays non-FR => frBusinessCategory null", () => {
+  it("5. hors FR => undefined + colonne omise du .set() (ancienne sélection préservée)", () => {
     const code = stripComments(serverActions)
-    // Ternaire : country === "FR" ? (…whitelist… : "unknown") : null
-    expect(code).toMatch(/country === "FR"[\s\S]*?:\s*null/)
+    // Hors FR, la valeur est undefined (jamais null : on n'écrase pas l'existant).
+    expect(code).toMatch(/const frBusinessCategory: FrBusinessCategory \| undefined =[\s\S]*?:\s*undefined/)
+    // Le .set() n'écrit la colonne QUE si une valeur (FR) est définie.
+    expect(code).toMatch(/\.\.\.\(frBusinessCategory !== undefined \? \{ frBusinessCategory \} : \{\}\)/)
+    // Aucune écriture inconditionnelle de la colonne.
+    expect(code).not.toMatch(/^\s*frBusinessCategory,\s*$/m)
   })
 
   it("6. aucune déduction automatique (forme juridique / CA / effectif / TVA)", () => {

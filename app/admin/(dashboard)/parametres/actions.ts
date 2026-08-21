@@ -135,14 +135,15 @@ export async function saveSellerBillingProfile(input: {
     : "unknown"
 
   // Catégorie FR : normalisée sur la whitelist ; "unknown" si valeur non reconnue.
-  // Hors France => null. Aucune déduction automatique.
+  // Hors France => undefined : on N'ÉCRASE PAS une éventuelle ancienne sélection
+  // française (la colonne est simplement omise du .set()). Aucune déduction auto.
   const rawFrCategory = (input.frBusinessCategory || "").trim().toLowerCase()
-  const frBusinessCategory: FrBusinessCategory | null =
+  const frBusinessCategory: FrBusinessCategory | undefined =
     country === "FR"
       ? FR_BUSINESS_CATEGORIES.includes(rawFrCategory as FrBusinessCategory)
         ? (rawFrCategory as FrBusinessCategory)
         : "unknown"
-      : null
+      : undefined
 
   const currency = (input.defaultCurrency || "").toUpperCase()
   if (!/^[A-Z]{3}$/.test(currency)) {
@@ -163,7 +164,9 @@ export async function saveSellerBillingProfile(input: {
         legalRegistrationScheme: legalScheme,
         vatNumber,
         vatStatus,
-        frBusinessCategory,
+        // Écrit UNIQUEMENT pour la France ; hors FR la colonne est omise afin de
+        // préserver une éventuelle ancienne catégorie française enregistrée.
+        ...(frBusinessCategory !== undefined ? { frBusinessCategory } : {}),
         legalForm: input.legalForm.trim() || null,
         defaultCurrency: currency,
         // Rétrocompat FR : garde invoiceSiret en phase avec l'identité FR pour
