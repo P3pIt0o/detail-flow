@@ -13,6 +13,39 @@ export function formatPrice(cents: number): string {
   return eur.format(cents / 100)
 }
 
+/**
+ * Formate un montant en CENTIMES dans la devise d'UNE facture (LOT 2B.1).
+ *
+ * - `cents` : montant en centimes (aucun calcul, aucune conversion FX).
+ * - `currencyCode` : code ISO 4217 de LA FACTURE (invoices.currencyCode).
+ *
+ * Rétrocompat legacy : currencyCode NULL/vide => affichage EUR (VISUEL
+ * uniquement, la DB n'est jamais modifiée). Un code non vide mais invalide
+ * n'est jamais transformé silencieusement en EUR : on affiche un fallback sûr
+ * "123,45 XYZ" plutôt que de mentir sur la devise. Locale fr-FR (UI actuelle).
+ */
+/**
+ * Code devise à AFFICHER dans un label de saisie (ex. "P.U. (CHF)"). Usage
+ * strictement visuel : NULL/vide => "EUR" legacy, sinon trim + majuscules.
+ * Ne modifie jamais la devise réelle, aucune conversion FX.
+ */
+export function getDisplayCurrencyCode(currencyCode?: string | null): string {
+  return (currencyCode ?? "").trim().toUpperCase() || "EUR"
+}
+
+export function formatMoney(cents: number, currencyCode?: string | null): string {
+  const amount = cents / 100
+  const code = (currencyCode ?? "").trim().toUpperCase()
+  // Legacy : pas de devise snapshotée => comportement historique EUR.
+  if (!code) return eur.format(amount)
+  try {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: code }).format(amount)
+  } catch {
+    // Code ISO inconnu/invalide : ne pas planter, ne pas prétendre corriger.
+    return `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)} ${code}`
+  }
+}
+
 /** 150 -> "2 h 30", 60 -> "1 h", 45 -> "45 min" */
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`

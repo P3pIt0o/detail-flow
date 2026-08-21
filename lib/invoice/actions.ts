@@ -30,7 +30,7 @@ import {
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
-import { getCountryProfile, resolveIssuerBillingSnapshot } from "@/lib/billing/country-profiles"
+import { getCountryProfile, resolveIssuerBillingSnapshot, resolveDraftCurrency } from "@/lib/billing/country-profiles"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -162,6 +162,9 @@ export async function createInvoiceFromBooking(
     .limit(1)
   const vatEnabled = settings?.vatEnabled ?? false
   const vatRate = settings?.vatRate ?? "0"
+  // Devise figée dès le brouillon (réutilise `settings` déjà chargé, aucune
+  // requête supplémentaire) : évite tout écart devise aperçu DRAFT vs ISSUED.
+  const draftCurrency = resolveDraftCurrency(settings?.billingProfileConfirmedAt != null, settings?.defaultCurrency)
 
   // Véhicule (snapshot niveau facture) : repris de la 1re ligne.
   const firstItem = items[0]
@@ -245,6 +248,7 @@ export async function createInvoiceFromBooking(
         depositCents: booking.depositCents,
         paidCents: 0,
         balanceCents: totals.balanceCents,
+        currencyCode: draftCurrency,
       })
       .returning({ id: invoices.id })
 
@@ -634,6 +638,7 @@ export async function sendInvoiceEmail(invoiceId: number): Promise<ActionResult>
     invoiceNumber: inv.number || `Facture ${invoiceId}`,
     totalCents: inv.totalCents,
     balanceCents: inv.balanceCents,
+    currencyCode: inv.currencyCode,
     dueDate: inv.dueDate,
     businessName,
     businessEmail: inv.issuerEmail || s?.businessEmail,
