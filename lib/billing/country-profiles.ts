@@ -358,6 +358,65 @@ export function resolveDraftCurrency(
   return code || null
 }
 
+/** Libellé court d'un scheme d'identifiant légal (affichage PDF/UI). */
+const SCHEME_LABEL: Record<string, string> = {
+  FR_SIREN: "SIREN",
+  FR_SIRET: "SIRET",
+  BE_BCE: "BCE",
+  CH_UID: "IDE / UID",
+  GENERIC: "Identifiant légal",
+}
+
+/**
+ * Identité légale VENDEUR à AFFICHER sur une facture, résolue UNIQUEMENT depuis
+ * le snapshot de la facture (LOT 2B.2, logique pure/testable).
+ *
+ * Priorité :
+ * 1. `legalRegistrationNumber` présent => libellé dérivé du scheme snapshoté
+ *    (SIREN / SIRET / BCE / IDE-UID). Scheme NULL/inconnu => « Identifiant légal ».
+ *    On ne DEVINE jamais le scheme depuis le pays s'il n'est pas snapshoté.
+ * 2. Sinon, fallback historique : `legacySiret` présent => « SIRET » (anciennes
+ *    factures FR sans champs multi-pays). issuerSiret n'est JAMAIS réétiqueté
+ *    BCE/UID : le fallback est explicitement « SIRET ».
+ * 3. Sinon null (rien à afficher).
+ */
+export function resolveIssuerLegalIdentityDisplay(input: {
+  legalRegistrationNumber: string | null | undefined
+  legalRegistrationScheme: string | null | undefined
+  legacySiret: string | null | undefined
+}): { label: string; value: string } | null {
+  const number = input.legalRegistrationNumber?.trim() || null
+  if (number) {
+    const scheme = input.legalRegistrationScheme?.trim().toUpperCase() || ""
+    const label = SCHEME_LABEL[scheme] ?? "Identifiant légal"
+    return { label, value: number }
+  }
+  const legacy = input.legacySiret?.trim() || null
+  if (legacy) return { label: "SIRET", value: legacy }
+  return null
+}
+
+/**
+ * Warning NON BLOQUANT d'identité vendeur incomplète, basé EXCLUSIVEMENT sur le
+ * snapshot facture (LOT 2B.2). Retourne un message ou null.
+ *
+ * - `issuerCountry` NULL / non supporté => null (on ne DÉDUIT jamais un pays
+ *   depuis le tenant courant ; une facture legacy sans pays ne déclenche rien).
+ * - Pays supporté (FR/BE/CH) + identité légale absente => message indiquant
+ *   l'identifiant manquant (libellé issu du CountryBillingProfile).
+ * Aucune affirmation juridique absolue (« conforme » / « non conforme »).
+ */
+export function buildIssuerIdentityWarning(
+  issuerCountry: string | null | undefined,
+  hasLegalIdentity: boolean,
+): string | null {
+  const code = (issuerCountry ?? "").trim().toUpperCase()
+  const supported = code === "FR" || code === "BE" || code === "CH"
+  if (!supported || hasLegalIdentity) return null
+  const label = getCountryProfile(code).sellerLegalIdLabel
+  return `Informations légales du vendeur incomplètes sur cette facture (${label} manquant). Vérifiez ce document et complétez votre profil de facturation pour les prochaines factures.`
+}
+
 /**
  * Affichage du n° de TVA suisse avec suffixe français (le stockage reste
  * canonique CHE-123.456.789, sans suffixe). Pour les autres pays : renvoie tel quel.
