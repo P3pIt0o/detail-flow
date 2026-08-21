@@ -17,6 +17,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { formatMoney, getDisplayCurrencyCode, formatDateLong } from "@/lib/format"
 import {
   resolveIssuerLegalIdentityDisplay,
+  resolveIssuerVatDisplay,
   buildIssuerIdentityWarning,
   resolveCustomerLegalIdentityDisplay,
   resolveCustomerCountryLabel,
@@ -58,6 +59,11 @@ export function InvoiceView({
     legacySiret: invoice.issuerSiret,
   })
   const identityWarning = buildIssuerIdentityWarning(invoice.issuerCountry, issuerIdentity != null)
+  // Numéro de TVA vendeur : résolu depuis le SNAPSHOT facture uniquement.
+  const issuerVat = resolveIssuerVatDisplay({
+    issuerCountry: invoice.issuerCountry,
+    vatNumber: invoice.issuerVatNumber,
+  })
   // Identité CLIENT depuis le SNAPSHOT facture uniquement (jamais la fiche client courante).
   const customerCountryLabel = resolveCustomerCountryLabel({
     customerType: invoice.customerType,
@@ -243,6 +249,11 @@ export function InvoiceView({
             {issuerIdentity && (
               <p className="text-sm text-muted-foreground">
                 {issuerIdentity.label} : {issuerIdentity.value}
+              </p>
+            )}
+            {issuerVat && (
+              <p className="text-sm text-muted-foreground">
+                {issuerVat.label} : {issuerVat.value}
               </p>
             )}
           </div>

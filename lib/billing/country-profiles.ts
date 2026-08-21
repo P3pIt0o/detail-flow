@@ -495,3 +495,23 @@ export function resolveCustomerVatDisplay(input: {
   const value = code === "CH" ? formatSwissVatForDisplay(raw) : raw
   return { label, value }
 }
+
+/**
+ * Numéro de TVA VENDEUR à afficher (donnée d'IDENTITÉ uniquement, aucune règle
+ * fiscale ni validation d'existence). Résolu EXCLUSIVEMENT depuis le snapshot
+ * facture (jamais les settings courants). Libellé issu du CountryBillingProfile
+ * du pays vendeur ; formatage CH via formatSwissVatForDisplay. Le stockage reste
+ * la valeur canonique (ex. CHE-123.456.789) — seul l'affichage change.
+ * Retourne null si le numéro est vide. Aucune affirmation « TVA valide ».
+ */
+export function resolveIssuerVatDisplay(input: {
+  issuerCountry: string | null | undefined
+  vatNumber: string | null | undefined
+}): { label: string; value: string } | null {
+  const raw = (input.vatNumber ?? "").trim()
+  if (!raw) return null
+  const code = (input.issuerCountry ?? "").trim().toUpperCase()
+  const label = code ? getCountryProfile(code).vatNumberLabel : "Numéro de TVA"
+  const value = code === "CH" ? formatSwissVatForDisplay(raw) : raw
+  return { label, value }
+}

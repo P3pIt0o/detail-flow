@@ -16,6 +16,7 @@ import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
 import { formatMoney, formatDateLong } from "@/lib/format"
 import {
   resolveIssuerLegalIdentityDisplay,
+  resolveIssuerVatDisplay,
   resolveCustomerLegalIdentityDisplay,
   resolveCustomerCountryLabel,
   resolveCustomerVatDisplay,
@@ -104,6 +105,11 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
     legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
     legacySiret: invoice.issuerSiret,
   })
+  // Numéro de TVA vendeur : SNAPSHOT facture uniquement (jamais les settings courants).
+  const issuerVat = resolveIssuerVatDisplay({
+    issuerCountry: invoice.issuerCountry,
+    vatNumber: invoice.issuerVatNumber,
+  })
   // Identité CLIENT résolue depuis le SNAPSHOT facture (jamais la fiche client courante).
   const customerCountryLabel = resolveCustomerCountryLabel({
     customerType: invoice.customerType,
@@ -141,6 +147,11 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
             {issuerIdentity ? (
               <Text style={s.muted}>
                 {issuerIdentity.label} : {issuerIdentity.value}
+              </Text>
+            ) : null}
+            {issuerVat ? (
+              <Text style={s.muted}>
+                {issuerVat.label} : {issuerVat.value}
               </Text>
             ) : null}
           </View>
