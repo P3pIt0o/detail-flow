@@ -45,6 +45,7 @@ export function InvoiceView({
   const displayCurrency = getDisplayCurrencyCode(invoice.currencyCode)
   // Identité légale vendeur + warning, résolus UNIQUEMENT depuis le snapshot facture.
   const issuerIdentity = resolveIssuerLegalIdentityDisplay({
+    issuerCountry: invoice.issuerCountry,
     legalRegistrationNumber: invoice.issuerLegalRegistrationNumber,
     legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
     legacySiret: invoice.issuerSiret,

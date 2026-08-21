@@ -375,12 +375,15 @@ const SCHEME_LABEL: Record<string, string> = {
  * 1. `legalRegistrationNumber` présent => libellé dérivé du scheme snapshoté
  *    (SIREN / SIRET / BCE / IDE-UID). Scheme NULL/inconnu => « Identifiant légal ».
  *    On ne DEVINE jamais le scheme depuis le pays s'il n'est pas snapshoté.
- * 2. Sinon, fallback historique : `legacySiret` présent => « SIRET » (anciennes
- *    factures FR sans champs multi-pays). issuerSiret n'est JAMAIS réétiqueté
- *    BCE/UID : le fallback est explicitement « SIRET ».
+ * 2. Sinon, fallback historique `legacySiret` UNIQUEMENT si aucun `issuerCountry`
+ *    n'est snapshoté (vraie facture FR legacy sans champs multi-pays). Dès qu'un
+ *    pays est snapshoté (ex. BE/CH), le legacy SIRET est ignoré : on ne réétiquette
+ *    JAMAIS un issuerSiret en BCE/UID, et une facture BE/CH sans identité moderne
+ *    retourne null (=> le warning pays-spécifique prend le relais).
  * 3. Sinon null (rien à afficher).
  */
 export function resolveIssuerLegalIdentityDisplay(input: {
+  issuerCountry: string | null | undefined
   legalRegistrationNumber: string | null | undefined
   legalRegistrationScheme: string | null | undefined
   legacySiret: string | null | undefined
@@ -391,8 +394,10 @@ export function resolveIssuerLegalIdentityDisplay(input: {
     const label = SCHEME_LABEL[scheme] ?? "Identifiant légal"
     return { label, value: number }
   }
+  const country = (input.issuerCountry ?? "").trim()
   const legacy = input.legacySiret?.trim() || null
-  if (legacy) return { label: "SIRET", value: legacy }
+  // Fallback SIRET réservé aux factures legacy SANS pays snapshoté.
+  if (!country && legacy) return { label: "SIRET", value: legacy }
   return null
 }
 

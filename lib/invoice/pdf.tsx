@@ -94,6 +94,7 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   // Identité légale vendeur résolue depuis le SNAPSHOT facture (jamais le tenant courant).
   const issuerIdentity = resolveIssuerLegalIdentityDisplay({
+    issuerCountry: invoice.issuerCountry,
     legalRegistrationNumber: invoice.issuerLegalRegistrationNumber,
     legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
     legacySiret: invoice.issuerSiret,

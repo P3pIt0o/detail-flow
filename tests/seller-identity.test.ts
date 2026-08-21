@@ -7,10 +7,9 @@ import {
 } from "@/lib/billing/country-profiles"
 
 describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snapshot", () => {
-  const legacy = { legacySiret: "12345678900012" as string | null }
-
   it("FR_SIREN => label SIREN", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "FR",
       legalRegistrationNumber: "123456789",
       legalRegistrationScheme: "FR_SIREN",
       legacySiret: null,
@@ -20,6 +19,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("FR_SIRET => label SIRET", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "FR",
       legalRegistrationNumber: "12345678900012",
       legalRegistrationScheme: "FR_SIRET",
       legacySiret: null,
@@ -29,6 +29,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("BE_BCE => label BCE", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "BE",
       legalRegistrationNumber: "0123456789",
       legalRegistrationScheme: "BE_BCE",
       legacySiret: null,
@@ -38,6 +39,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("CH_UID => label IDE / UID", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "CH",
       legalRegistrationNumber: "CHE-123.456.789",
       legalRegistrationScheme: "CH_UID",
       legacySiret: null,
@@ -47,6 +49,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("GENERIC => label Identifiant légal", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: null,
       legalRegistrationNumber: "X-999",
       legalRegistrationScheme: "GENERIC",
       legacySiret: null,
@@ -56,6 +59,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("numéro présent + scheme NULL => Identifiant légal (jamais deviné depuis le pays)", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "BE",
       legalRegistrationNumber: "0123456789",
       legalRegistrationScheme: null,
       legacySiret: null,
@@ -63,27 +67,50 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
     expect(r).toEqual({ label: "Identifiant légal", value: "0123456789" })
   })
 
-  it("legacy : numéro générique NULL + issuerSiret présent => SIRET", () => {
+  it("legacy : issuerCountry NULL + numéro NULL + issuerSiret présent => SIRET", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: null,
       legalRegistrationNumber: null,
       legalRegistrationScheme: null,
-      legacySiret: legacy.legacySiret,
+      legacySiret: "12345678900012",
     })
     expect(r).toEqual({ label: "SIRET", value: "12345678900012" })
   })
 
-  it("facture BE moderne => jamais SIRET", () => {
+  it("HARDENING BE : numéro NULL + legacySiret présent => null (pas de fallback SIRET)", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "BE",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      legacySiret: "12345678900012",
+    })
+    expect(r).toBeNull()
+  })
+
+  it("HARDENING CH : numéro NULL + legacySiret présent => null (pas de fallback SIRET)", () => {
+    const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "CH",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      legacySiret: "12345678900012",
+    })
+    expect(r).toBeNull()
+  })
+
+  it("facture BE moderne (BCE + legacySiret résiduel) => BCE uniquement", () => {
+    const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "BE",
       legalRegistrationNumber: "0123456789",
       legalRegistrationScheme: "BE_BCE",
-      legacySiret: "12345678900012", // même si un ancien SIRET traîne
+      legacySiret: "12345678900012",
     })
     expect(r?.label).toBe("BCE")
     expect(r?.label).not.toBe("SIRET")
   })
 
-  it("facture CH moderne => jamais SIRET", () => {
+  it("facture CH moderne (UID + legacySiret résiduel) => IDE / UID uniquement", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "CH",
       legalRegistrationNumber: "CHE-123.456.789",
       legalRegistrationScheme: "CH_UID",
       legacySiret: "12345678900012",
@@ -94,6 +121,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
 
   it("rien de renseigné => null", () => {
     const r = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: null,
       legalRegistrationNumber: null,
       legalRegistrationScheme: null,
       legacySiret: null,
@@ -105,6 +133,7 @@ describe("resolveIssuerLegalIdentityDisplay — identité vendeur depuis le snap
     // Le helper ne reçoit QUE le snapshot facture : le tenant courant (qui
     // passerait ensuite à CH/UID) ne peut structurellement pas influencer le rendu.
     const snapshotBE = {
+      issuerCountry: "BE",
       legalRegistrationNumber: "0123456789",
       legalRegistrationScheme: "BE_BCE",
       legacySiret: null,
@@ -139,6 +168,28 @@ describe("buildIssuerIdentityWarning — basé exclusivement sur le snapshot", (
 
   it("pays non supporté => pas de warning", () => {
     expect(buildIssuerIdentityWarning("US", false)).toBeNull()
+  })
+
+  it("BE + numéro NULL + legacySiret => identité null => warning BCE (intégration)", () => {
+    const identity = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "BE",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      legacySiret: "12345678900012",
+    })
+    expect(identity).toBeNull()
+    expect(buildIssuerIdentityWarning("BE", identity != null)).toContain("BCE")
+  })
+
+  it("CH + numéro NULL + legacySiret => identité null => warning IDE / UID (intégration)", () => {
+    const identity = resolveIssuerLegalIdentityDisplay({
+      issuerCountry: "CH",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      legacySiret: "12345678900012",
+    })
+    expect(identity).toBeNull()
+    expect(buildIssuerIdentityWarning("CH", identity != null)).toContain("IDE / UID")
   })
 
   it("le warning n'affirme jamais la conformité", () => {
