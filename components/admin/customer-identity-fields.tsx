@@ -31,7 +31,9 @@ export function CustomerIdentityFields({
   onChange: (patch: Partial<CustomerIdentityValue>) => void
   idPrefix?: string
 }) {
-  const profile = getCountryProfile(value.country || undefined)
+  // Pays client vide => profil GENERIC pour l'affichage (JAMAIS FR implicite).
+  // "OTHER" est mappé sur GENERIC par getCountryProfile.
+  const profile = getCountryProfile(value.country || "OTHER")
   const isBusiness = value.customerType === "business"
 
   return (

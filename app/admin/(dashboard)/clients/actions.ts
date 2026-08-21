@@ -36,7 +36,11 @@ function normalizeCustomerIdentity(fd: FormData):
     }
   }
 
-  const profile = getCountryProfile(country ?? undefined)
+  // Un client ENTREPRISE exige un pays explicite : jamais de FR implicite.
+  if (!country) {
+    return { ok: false, message: "Choisissez le pays de l'entreprise cliente." }
+  }
+  const profile = getCountryProfile(country)
   const legal = profile.validateLegalId(String(fd.get("legalRegistrationNumber") ?? ""))
   if (!legal.valid) return { ok: false, message: `${profile.customerLegalIdLabel} : ${legal.message ?? "format invalide."}` }
   const vat = profile.validateVatNumber(String(fd.get("vatNumber") ?? ""))

@@ -184,15 +184,19 @@ const CH: CountryBillingProfile = {
     // Le suffixe TVA/MWST/IVA (dépend de la langue) n'est PAS intrinsèque au
     // numéro : il est ajouté à l'affichage (PDF/UI). vatStatus est séparé.
     const upper = (raw ?? "").toUpperCase()
-    const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "").slice(0, 9)
+    // JAMAIS de troncation : on compte TOUS les chiffres et on exige EXACTEMENT
+    // 9. Un excédent (ex. CHE-123.456.789999) reste invalide (non normalisé).
+    const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "")
     if (digits.length !== 9) return upper.trim()
     return formatCheUid(digits)
   },
   validateVatNumber: (raw, required = false) => {
     // Accepte CHE123456789 / CHE-123.456.789 / …789 TVA / …789 MWST / …789 IVA.
+    // Le suffixe linguistique ne contient aucun chiffre => 9 chiffres exacts.
+    // Aucune troncation : CHE-123.456.789999 ou CHE12345678999 => REFUS.
     const upper = (raw ?? "").toUpperCase().trim()
     if (!upper) return emptyOk(required)
-    const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "").slice(0, 9)
+    const digits = upper.replace(/^.*?CHE/, "").replace(/[^0-9]/g, "")
     if (digits.length === 9) return { valid: true, normalized: formatCheUid(digits) }
     return { valid: false, normalized: upper, message: "Format attendu : CHE-123.456.789 (le suffixe TVA est ajouté à l'affichage)." }
   },
@@ -269,6 +273,63 @@ export function resolveCustomerType(raw: string | null | undefined): CustomerTyp
  */
 export function isBillingProfileConfirmed(confirmedAt: Date | string | null | undefined): boolean {
   return confirmedAt != null
+}
+
+/**
+ * Résout le snapshot légal VENDEUR figé à l'émission (logique PURE, testable).
+ *
+ * Règles de sécurité (hardening PR #71) :
+ * - Profil NON confirmé (billingProfileConfirmedAt NULL) => aucun snapshot
+ *   multi-pays : companies.country (default FR historique) ne prouve rien.
+ *   issuerCountry / legal / scheme / vat restent null.
+ * - Fallback invoiceSiret historique AUTORISÉ uniquement si pays confirmé
+ *   === "FR". Jamais pour BE/CH/GENERIC (un SIRET n'est ni BCE ni UID).
+ * - Devise : jamais dérivée d'un pays non confirmé. Priorité facture > devise
+ *   confirmée du vendeur > (si confirmé) suggestion du pays. Sinon null.
+ * Les champs historiques (issuerSiret, issuerName, adresse, IBAN/BIC…) restent
+ * gérés séparément et ne sont jamais touchés par ce helper.
+ */
+export function resolveIssuerBillingSnapshot(input: {
+  confirmed: boolean
+  companyCountry: string | null | undefined
+  legalRegistrationNumber: string | null | undefined
+  legalRegistrationScheme: string | null | undefined
+  invoiceSiret: string | null | undefined
+  vatNumber: string | null | undefined
+  sellerDefaultCurrency: string | null | undefined
+  invoiceCurrency: string | null | undefined
+}): {
+  issuerCountry: string | null
+  issuerLegalRegistrationNumber: string | null
+  issuerLegalRegistrationScheme: string | null
+  issuerVatNumber: string | null
+  currencyCode: string | null
+} {
+  const confirmed = input.confirmed
+  const issuerCountry = confirmed ? (input.companyCountry ?? null) : null
+  const profile = issuerCountry ? getCountryProfile(issuerCountry) : null
+  let issuerLegalRegistrationNumber: string | null = null
+  let issuerLegalRegistrationScheme: string | null = null
+  let issuerVatNumber: string | null = null
+  if (confirmed && profile) {
+    const siretFallback = issuerCountry === "FR" ? input.invoiceSiret?.trim() || null : null
+    issuerLegalRegistrationNumber = input.legalRegistrationNumber?.trim() || siretFallback
+    issuerLegalRegistrationScheme = issuerLegalRegistrationNumber
+      ? input.legalRegistrationScheme?.trim() ||
+        profile.validateLegalId(issuerLegalRegistrationNumber).scheme ||
+        profile.legalIdScheme
+      : null
+    issuerVatNumber = input.vatNumber?.trim() || null
+  }
+  const currencyCode =
+    input.invoiceCurrency ?? input.sellerDefaultCurrency ?? (confirmed && profile ? profile.defaultCurrency : null)
+  return {
+    issuerCountry,
+    issuerLegalRegistrationNumber,
+    issuerLegalRegistrationScheme,
+    issuerVatNumber,
+    currencyCode,
+  }
 }
 
 /**

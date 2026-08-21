@@ -30,7 +30,7 @@ import {
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
-import { getCountryProfile } from "@/lib/billing/country-profiles"
+import { getCountryProfile, resolveIssuerBillingSnapshot } from "@/lib/billing/country-profiles"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -316,7 +316,11 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
   let customerLegalScheme: string | null = null
   let customerVatNumber: string | null = (input.customerVatNumber ?? "").trim() || null
   if (customerType === "business") {
-    const custProfile = getCountryProfile(customerCountry ?? undefined)
+    // Un client ENTREPRISE exige un pays explicite : jamais de FR implicite.
+    if (!customerCountry) {
+      return { ok: false, error: "Choisissez le pays de l'entreprise cliente." }
+    }
+    const custProfile = getCountryProfile(customerCountry)
     const legal = custProfile.validateLegalId(customerLegalNumber)
     if (!legal.valid) return { ok: false, error: `${custProfile.customerLegalIdLabel} : ${legal.message ?? "format invalide."}` }
     const vat = custProfile.validateVatNumber(customerVatNumber)
@@ -420,25 +424,29 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     }
   }
 
-  // Pays vendeur (source de vérité : companies.country). Sert au snapshot
-  // multi-pays figé à l'émission (identifiant légal générique + devise).
+  // Snapshot légal vendeur figé à l'émission (logique pure/testée) : confirmé
+  // requis + fallback invoiceSiret réservé au FR confirmé + devise sûre.
   const [company] = await db
     .select({ country: companiesTable.country })
     .from(companiesTable)
     .where(eq(companiesTable.id, companyId))
     .limit(1)
-  const issuerCountry = company?.country ?? "FR"
-  const profile = getCountryProfile(issuerCountry)
-  // Identifiant légal générique : nouveau champ prioritaire, fallback SIRET
-  // historique (rétrocompat FR). Scheme dérivé du profil si non renseigné.
-  const issuerLegalNumber = issuer?.legalRegistrationNumber?.trim() || issuer?.invoiceSiret?.trim() || null
-  const issuerLegalScheme =
-    issuer?.legalRegistrationScheme?.trim() ||
-    (issuerLegalNumber ? (profile.validateLegalId(issuerLegalNumber).scheme ?? profile.legalIdScheme) : null)
-  // Devise : jamais `companies.currency` legacy (default EUR non confirmé).
-  // Priorité : devise déjà posée sur la facture > devise CONFIRMÉE du vendeur
-  // (settings.defaultCurrency) > suggestion dérivée du pays vendeur.
-  const currencyCode = inv.currencyCode ?? issuer?.defaultCurrency ?? profile.defaultCurrency
+  const {
+    issuerCountry,
+    issuerLegalRegistrationNumber: issuerLegalNumber,
+    issuerLegalRegistrationScheme: issuerLegalScheme,
+    issuerVatNumber: issuerVatSnapshot,
+    currencyCode,
+  } = resolveIssuerBillingSnapshot({
+    confirmed: issuer?.billingProfileConfirmedAt != null,
+    companyCountry: company?.country,
+    legalRegistrationNumber: issuer?.legalRegistrationNumber,
+    legalRegistrationScheme: issuer?.legalRegistrationScheme,
+    invoiceSiret: issuer?.invoiceSiret,
+    vatNumber: issuer?.vatNumber,
+    sellerDefaultCurrency: issuer?.defaultCurrency,
+    invoiceCurrency: inv.currencyCode,
+  })
 
   const year = new Date().getFullYear()
 
@@ -492,7 +500,7 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
         issuerCountry,
         issuerLegalRegistrationNumber: issuerLegalNumber,
         issuerLegalRegistrationScheme: issuerLegalScheme,
-        issuerVatNumber: s?.vatNumber ?? null,
+        issuerVatNumber: issuerVatSnapshot,
         currencyCode,
         issuerLogoPathname: s?.invoiceLogoPathname ?? null,
         vatExemptNote: inv.vatEnabled ? null : (s?.vatExemptNote ?? null),
