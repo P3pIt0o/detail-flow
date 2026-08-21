@@ -462,10 +462,17 @@ export function resolveCustomerLegalIdentityDisplay(input: {
 
 /**
  * Nom de pays CLIENT à afficher (France / Belgique / Suisse / Autre pays), depuis
- * le snapshot facture. Retourne null si absent. N'utilise JAMAIS issuerCountry.
+ * le snapshot facture. Réservé aux clients "business" : un particulier ou un type
+ * inconnu/legacy n'affiche jamais de pays via le bloc B2B, même si customerCountry
+ * subsiste dans le snapshot (on ne l'efface pas en DB, on contrôle l'affichage).
+ * Retourne null si absent. N'utilise JAMAIS issuerCountry.
  */
-export function resolveCustomerCountryLabel(customerCountry: string | null | undefined): string | null {
-  const code = (customerCountry ?? "").trim().toUpperCase()
+export function resolveCustomerCountryLabel(input: {
+  customerType: string | null | undefined
+  customerCountry: string | null | undefined
+}): string | null {
+  if ((input.customerType ?? "").trim() !== "business") return null
+  const code = (input.customerCountry ?? "").trim().toUpperCase()
   if (!code) return null
   return getCountryProfile(code).countryName
 }

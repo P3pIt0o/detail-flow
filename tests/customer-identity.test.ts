@@ -95,16 +95,38 @@ describe("resolveCustomerLegalIdentityDisplay", () => {
 /*  Pays client                                                               */
 /* -------------------------------------------------------------------------- */
 
-describe("resolveCustomerCountryLabel", () => {
-  it("FR/BE/CH => noms propres", () => {
-    expect(resolveCustomerCountryLabel("FR")).toBe("France")
-    expect(resolveCustomerCountryLabel("BE")).toBe("Belgique")
-    expect(resolveCustomerCountryLabel("CH")).toBe("Suisse")
+describe("resolveCustomerCountryLabel — pays affiché uniquement pour BUSINESS", () => {
+  it("business + BE => Belgique", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: "BE" })).toBe("Belgique")
   })
 
-  it("customerCountry NULL => null (aucun FR implicite)", () => {
-    expect(resolveCustomerCountryLabel(null)).toBeNull()
-    expect(resolveCustomerCountryLabel("")).toBeNull()
+  it("business + FR => France", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: "FR" })).toBe("France")
+  })
+
+  it("business + CH => Suisse", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: "CH" })).toBe("Suisse")
+  })
+
+  it("individual + BE => null (pays masqué)", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "individual", customerCountry: "BE" })).toBeNull()
+  })
+
+  it("individual + FR => null (pays masqué)", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "individual", customerCountry: "FR" })).toBeNull()
+  })
+
+  it("customerType NULL + BE => null (legacy, aucun pays B2B)", () => {
+    expect(resolveCustomerCountryLabel({ customerType: null, customerCountry: "BE" })).toBeNull()
+  })
+
+  it("customerType NULL + country NULL => null", () => {
+    expect(resolveCustomerCountryLabel({ customerType: null, customerCountry: null })).toBeNull()
+  })
+
+  it("business + country NULL => null (aucun FR implicite)", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: null })).toBeNull()
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: "" })).toBeNull()
   })
 })
 
@@ -257,5 +279,26 @@ describe("garde structurelle — rendu basé uniquement sur le snapshot", () => 
     expect(pdf).toMatch(/invoice\.customerCountry/)
     expect(view).toMatch(/invoice\.customerType/)
     expect(view).toMatch(/invoice\.customerCountry/)
+  })
+
+  it("PDF + InvoiceView passent customerType à resolveCustomerCountryLabel (garde individual)", () => {
+    // Le pays ne peut être rendu pour un individual/legacy que si customerType
+    // est bien transmis au helper (qui retourne null hors business).
+    expect(pdf).toMatch(/resolveCustomerCountryLabel\(\{[\s\S]*?customerType: invoice\.customerType/)
+    expect(view).toMatch(/resolveCustomerCountryLabel\(\{[\s\S]*?customerType: invoice\.customerType/)
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  Garde de rendu : individual + customerCountry résiduel => pays masqué      */
+/* -------------------------------------------------------------------------- */
+
+describe("garde de rendu — individual avec customerCountry résiduel", () => {
+  it("individual conservant un ancien pays BE => aucun pays affiché", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "individual", customerCountry: "BE" })).toBeNull()
+  })
+
+  it("business => pays affiché (contrôle positif)", () => {
+    expect(resolveCustomerCountryLabel({ customerType: "business", customerCountry: "BE" })).toBe("Belgique")
   })
 })

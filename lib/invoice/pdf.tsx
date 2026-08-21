@@ -105,7 +105,10 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
     legacySiret: invoice.issuerSiret,
   })
   // Identité CLIENT résolue depuis le SNAPSHOT facture (jamais la fiche client courante).
-  const customerCountryLabel = resolveCustomerCountryLabel(invoice.customerCountry)
+  const customerCountryLabel = resolveCustomerCountryLabel({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+  })
   const customerIdentity = resolveCustomerLegalIdentityDisplay({
     customerType: invoice.customerType,
     customerCountry: invoice.customerCountry,

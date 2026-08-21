@@ -58,7 +58,10 @@ export function InvoiceView({
   })
   const identityWarning = buildIssuerIdentityWarning(invoice.issuerCountry, issuerIdentity != null)
   // Identité CLIENT depuis le SNAPSHOT facture uniquement (jamais la fiche client courante).
-  const customerCountryLabel = resolveCustomerCountryLabel(invoice.customerCountry)
+  const customerCountryLabel = resolveCustomerCountryLabel({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+  })
   const customerIdentity = resolveCustomerLegalIdentityDisplay({
     customerType: invoice.customerType,
     customerCountry: invoice.customerCountry,
