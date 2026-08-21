@@ -167,7 +167,7 @@ export const companies = pgTable("companies", {
 })
 
 /**
- * Overrides de fonctionnalit����s par entreprise (gestes commerciaux, modules
+ * Overrides de fonctionnalit��s par entreprise (gestes commerciaux, modules
  * achetés/offerts, essais temporaires, pilotes Founder…).
  *
  * Le moteur (lib/licensing) applique : droit du plan → override éventuel →

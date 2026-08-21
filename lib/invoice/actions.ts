@@ -449,21 +449,10 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     return { ok: false, error: "Ajoutez au moins une ligne avant d'émettre la facture." }
   }
 
-  // Une facture émise doit figer une mention EXPLICITE quand le traitement fiscal
-  // n'est pas standard. Le brouillon peut rester incomplet, mais l'émission est
-  // bloquée tant que la mention n'a pas été saisie par l'utilisateur (DetailFlow
-  // n'invente jamais cette mention). STANDARD et legacy (null) ne sont pas concernés.
+  // Traitement fiscal snapshoté sur le brouillon. La mention fiscale reste
+  // OPTIONNELLE : l'émission n'est jamais bloquée pour une mention manquante et
+  // DetailFlow n'invente aucune mention automatique.
   const draftTaxTreatment = normalizeTaxTreatment(inv.taxTreatment)
-  if (
-    draftTaxTreatment &&
-    draftTaxTreatment !== "STANDARD" &&
-    !(inv.taxLegalMention ?? "").trim()
-  ) {
-    return {
-      ok: false,
-      error: "Ajoutez la mention fiscale correspondant au traitement TVA choisi avant d'émettre la facture.",
-    }
-  }
 
   // Validation minimale de l'émetteur : sans identification de l'entreprise la
   // facture n'est pas valable. On réutilise les champs déjà présents dans les

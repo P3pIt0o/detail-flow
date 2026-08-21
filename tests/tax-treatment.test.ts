@@ -199,10 +199,12 @@ describe("saveInvoiceDraft — hardening serveur", () => {
 describe("issueInvoice — mention + snapshot", () => {
   const actions = read("lib/invoice/actions.ts")
 
-  it("32. bloque l'émission sans mention pour EXEMPT/REVERSE_CHARGE/OUT_OF_SCOPE", () => {
+  it("32. mention OPTIONNELLE : l'émission n'est jamais bloquée pour une mention manquante", () => {
+    // Le traitement du brouillon est toujours lu (pour le fallback vatExemptNote)…
     expect(actions).toMatch(/const draftTaxTreatment = normalizeTaxTreatment\(inv\.taxTreatment\)/)
-    expect(actions).toMatch(/draftTaxTreatment !== "STANDARD"[\s\S]*?!\(inv\.taxLegalMention \?\? ""\)\.trim\(\)/)
-    expect(actions).toMatch(/Ajoutez la mention fiscale correspondant au traitement TVA choisi/)
+    // …mais AUCUN blocage d'émission lié à une mention absente n'existe.
+    expect(actions).not.toMatch(/Ajoutez la mention fiscale correspondant au traitement TVA choisi/)
+    expect(actions).not.toMatch(/!\(inv\.taxLegalMention \?\? ""\)\.trim\(\)/)
   })
 
   it("33-34. legacy null conserve vatExemptNote ; nouveau modèle ne le récupère jamais", () => {
