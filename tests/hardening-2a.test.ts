@@ -99,6 +99,34 @@ describe("Fallback invoiceSiret réservé au FR confirmé", () => {
     expect(snap.issuerVatNumber).toBe("FR12345678901")
   })
 
+  it("NON confirmé + sellerDefaultCurrency présent => currencyCode null (devise vendeur ignorée)", () => {
+    const snap = resolveIssuerBillingSnapshot({
+      confirmed: false,
+      companyCountry: "FR",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      invoiceSiret: "12345678900012",
+      vatNumber: null,
+      sellerDefaultCurrency: "CHF",
+      invoiceCurrency: null,
+    })
+    expect(snap.currencyCode).toBeNull()
+  })
+
+  it("NON confirmé + invoiceCurrency existante => conservée", () => {
+    const snap = resolveIssuerBillingSnapshot({
+      confirmed: false,
+      companyCountry: "FR",
+      legalRegistrationNumber: null,
+      legalRegistrationScheme: null,
+      invoiceSiret: null,
+      vatNumber: null,
+      sellerDefaultCurrency: "CHF",
+      invoiceCurrency: "EUR",
+    })
+    expect(snap.currencyCode).toBe("EUR")
+  })
+
   it("FR confirmé + identifiant générique présent => prioritaire sur invoiceSiret", () => {
     const snap = resolveIssuerBillingSnapshot({
       confirmed: true,

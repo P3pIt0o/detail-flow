@@ -321,8 +321,13 @@ export function resolveIssuerBillingSnapshot(input: {
       : null
     issuerVatNumber = input.vatNumber?.trim() || null
   }
-  const currencyCode =
-    input.invoiceCurrency ?? input.sellerDefaultCurrency ?? (confirmed && profile ? profile.defaultCurrency : null)
+  // Devise : la devise déjà posée sur la facture prime toujours. La devise du
+  // vendeur (settings.defaultCurrency) et la suggestion dérivée du pays ne
+  // s'appliquent QUE si le profil est confirmé. Non confirmé => facture ou null,
+  // jamais de devise déduite d'un profil vendeur non validé.
+  const currencyCode = confirmed
+    ? (input.invoiceCurrency ?? input.sellerDefaultCurrency ?? (profile ? profile.defaultCurrency : null))
+    : (input.invoiceCurrency ?? null)
   return {
     issuerCountry,
     issuerLegalRegistrationNumber,
