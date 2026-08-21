@@ -14,7 +14,12 @@ import {
 } from "@react-pdf/renderer"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
 import { formatMoney, formatDateLong } from "@/lib/format"
-import { resolveIssuerLegalIdentityDisplay } from "@/lib/billing/country-profiles"
+import {
+  resolveIssuerLegalIdentityDisplay,
+  resolveCustomerLegalIdentityDisplay,
+  resolveCustomerCountryLabel,
+  resolveCustomerVatDisplay,
+} from "@/lib/billing/country-profiles"
 
 const BRAND = "#2563eb"
 const INK = "#0f172a"
@@ -99,6 +104,22 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
     legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
     legacySiret: invoice.issuerSiret,
   })
+  // Identité CLIENT résolue depuis le SNAPSHOT facture (jamais la fiche client courante).
+  const customerCountryLabel = resolveCustomerCountryLabel({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+  })
+  const customerIdentity = resolveCustomerLegalIdentityDisplay({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+    legalRegistrationNumber: invoice.customerLegalRegistrationNumber,
+    legalRegistrationScheme: invoice.customerLegalRegistrationScheme,
+  })
+  const customerVat = resolveCustomerVatDisplay({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+    vatNumber: invoice.customerVatNumber,
+  })
 
   return (
     <Document>
@@ -137,6 +158,17 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
             <Text style={s.sectionLabel}>Facturé à</Text>
             <Text style={s.strong}>{invoice.customerName}</Text>
             {invoice.customerAddress ? <Text style={s.muted}>{invoice.customerAddress}</Text> : null}
+            {customerCountryLabel ? <Text style={s.muted}>{customerCountryLabel}</Text> : null}
+            {customerIdentity ? (
+              <Text style={s.muted}>
+                {customerIdentity.label} : {customerIdentity.value}
+              </Text>
+            ) : null}
+            {customerVat ? (
+              <Text style={s.muted}>
+                {customerVat.label} : {customerVat.value}
+              </Text>
+            ) : null}
             {invoice.customerEmail ? <Text style={s.muted}>{invoice.customerEmail}</Text> : null}
             {invoice.customerPhone ? <Text style={s.muted}>{invoice.customerPhone}</Text> : null}
           </View>

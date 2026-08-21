@@ -15,7 +15,13 @@ import {
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { formatMoney, getDisplayCurrencyCode, formatDateLong } from "@/lib/format"
-import { resolveIssuerLegalIdentityDisplay, buildIssuerIdentityWarning } from "@/lib/billing/country-profiles"
+import {
+  resolveIssuerLegalIdentityDisplay,
+  buildIssuerIdentityWarning,
+  resolveCustomerLegalIdentityDisplay,
+  resolveCustomerCountryLabel,
+  resolveCustomerVatDisplay,
+} from "@/lib/billing/country-profiles"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
 import type {
@@ -51,6 +57,24 @@ export function InvoiceView({
     legacySiret: invoice.issuerSiret,
   })
   const identityWarning = buildIssuerIdentityWarning(invoice.issuerCountry, issuerIdentity != null)
+  // Identité CLIENT depuis le SNAPSHOT facture uniquement (jamais la fiche client courante).
+  const customerCountryLabel = resolveCustomerCountryLabel({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+  })
+  const customerIdentity = resolveCustomerLegalIdentityDisplay({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+    legalRegistrationNumber: invoice.customerLegalRegistrationNumber,
+    legalRegistrationScheme: invoice.customerLegalRegistrationScheme,
+  })
+  const customerVat = resolveCustomerVatDisplay({
+    customerType: invoice.customerType,
+    customerCountry: invoice.customerCountry,
+    vatNumber: invoice.customerVatNumber,
+  })
+  const customerTypeLabel =
+    invoice.customerType === "business" ? "Entreprise" : invoice.customerType === "individual" ? "Particulier" : null
   const router = useRouter()
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -226,13 +250,31 @@ export function InvoiceView({
           <div className={cardClass}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Client</h2>
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Client</h2>
+                  {customerTypeLabel && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                      {customerTypeLabel}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-foreground">{invoice.customerName}</p>
-                {invoice.customerEmail && <p className="text-sm text-muted-foreground">{invoice.customerEmail}</p>}
-                {invoice.customerPhone && <p className="text-sm text-muted-foreground">{invoice.customerPhone}</p>}
                 {invoice.customerAddress && (
                   <p className="text-sm text-muted-foreground whitespace-pre-line">{invoice.customerAddress}</p>
                 )}
+                {customerCountryLabel && <p className="text-sm text-muted-foreground">{customerCountryLabel}</p>}
+                {customerIdentity && (
+                  <p className="text-sm text-muted-foreground">
+                    {customerIdentity.label} : {customerIdentity.value}
+                  </p>
+                )}
+                {customerVat && (
+                  <p className="text-sm text-muted-foreground">
+                    {customerVat.label} : {customerVat.value}
+                  </p>
+                )}
+                {invoice.customerEmail && <p className="text-sm text-muted-foreground">{invoice.customerEmail}</p>}
+                {invoice.customerPhone && <p className="text-sm text-muted-foreground">{invoice.customerPhone}</p>}
               </div>
               <div>
                 <h2 className="mb-2 text-sm font-semibold text-foreground">Véhicule</h2>
