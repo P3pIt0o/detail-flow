@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react"
+import { Loader2, Save, CheckCircle2, AlertCircle, ExternalLink, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { saveSellerBillingProfile } from "@/app/admin/(dashboard)/parametres/actions"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
+import { resolveRegulatoryGuidance, type RegulatoryStatus } from "@/lib/billing/regulatory-guidance"
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
@@ -35,6 +36,14 @@ const FR_BUSINESS_CATEGORIES: { value: string; label: string }[] = [
 
 const CURRENCY_SUGGESTION: Record<string, string> = { FR: "EUR", BE: "EUR", CH: "CHF" }
 
+// Libellé + style de badge par statut consultatif. Vocabulaire neutre imposé.
+const REGULATORY_STATUS_META: Record<RegulatoryStatus, { label: string; badgeClass: string }> = {
+  INFORMATION: { label: "Information", badgeClass: "bg-primary/10 text-foreground" },
+  TO_COMPLETE: { label: "À compléter", badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  REVIEW_REQUIRED: { label: "À vérifier", badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  ACTION_REQUIRED: { label: "Action requise", badgeClass: "bg-destructive/10 text-destructive" },
+}
+
 export function SellerBillingProfile(props: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -51,6 +60,21 @@ export function SellerBillingProfile(props: Props) {
 
   // Profil pays => libellés (SIRET / BCE / UID) adaptés au pays du VENDEUR.
   const profile = useMemo(() => getCountryProfile(country), [country])
+
+  // Informations réglementaires CONSULTATIVES : moteur pur alimenté UNIQUEMENT
+  // par le profil vendeur (aucune facture / client / taxTreatment / montant).
+  // Recalculé sur les valeurs enregistrées (props.*) pour rester cohérent avec
+  // ce qui est confirmé, pas avec une saisie non sauvegardée.
+  const guidance = useMemo(
+    () =>
+      resolveRegulatoryGuidance({
+        country: props.country,
+        confirmed: props.confirmed,
+        vatStatus: props.vatStatus,
+        frBusinessCategory: props.frBusinessCategory,
+      }),
+    [props.country, props.confirmed, props.vatStatus, props.frBusinessCategory],
+  )
 
   function onCountryChange(next: string) {
     setCountry(next)
@@ -81,7 +105,8 @@ export function SellerBillingProfile(props: Props) {
   }
 
   return (
-    <div className={cardClass}>
+    <div className="space-y-5">
+      <div className={cardClass}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">Profil légal de l&apos;entreprise</h2>
         {props.confirmed ? (
@@ -229,6 +254,51 @@ export function SellerBillingProfile(props: Props) {
         {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
         Enregistrer et confirmer le profil
       </Button>
+      </div>
+
+      {/* Carte CONSULTATIVE — informations sur la facturation électronique.
+          Uniquement dans les paramètres. Aucune décision, aucune conformité. */}
+      <section className={cardClass} aria-labelledby="reg-guidance-title">
+        <div className="mb-4 flex items-center gap-2">
+          <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <h2 id="reg-guidance-title" className="text-base font-semibold text-foreground">
+            Informations sur la facturation électronique
+          </h2>
+        </div>
+        <p className="mb-4 text-xs text-muted-foreground text-pretty">
+          Ces informations sont fournies à titre indicatif et ne constituent ni un conseil fiscal ni une garantie de
+          conformité. Vérifiez votre situation selon les sources officielles.
+        </p>
+        <ul className="space-y-3">
+          {guidance.map((g, i) => {
+            const meta = REGULATORY_STATUS_META[g.status]
+            return (
+              <li key={i} className="rounded-lg border border-border bg-background p-4">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.badgeClass}`}>
+                    {meta.label}
+                  </span>
+                  <h3 className="text-sm font-medium text-foreground text-pretty">{g.title}</h3>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed text-pretty">{g.message}</p>
+                {g.deadline && (
+                  <p className="mt-1.5 text-xs font-medium text-foreground">Échéance indicative : {g.deadline}</p>
+                )}
+                {g.source && (
+                  <a
+                    href={g.source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    <ExternalLink className="h-3 w-3" aria-hidden="true" /> {g.source.label}
+                  </a>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </section>
     </div>
   )
 }
