@@ -15,7 +15,8 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { tenant } = await requireCompanyMember()
+  // Garde d'auth/tenant (l'accès à la facture est scopé companyId dans getInvoiceDetail).
+  await requireCompanyMember()
   const { id } = await params
   const numId = Number(id)
   if (!Number.isInteger(numId)) notFound()
@@ -40,7 +41,6 @@ export default async function InvoiceDetailPage({
           items={data.items}
           payments={data.payments}
           events={data.events}
-          tenantCountry={tenant.country}
         />
       )}
     </div>

@@ -14,6 +14,7 @@ import {
 } from "@react-pdf/renderer"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
 import { formatMoney, formatDateLong } from "@/lib/format"
+import { resolveIssuerLegalIdentityDisplay } from "@/lib/billing/country-profiles"
 
 const BRAND = "#2563eb"
 const INK = "#0f172a"
@@ -91,6 +92,12 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
   const vehicle = [invoice.vehicleBrand, invoice.vehicleModel].filter(Boolean).join(" ") || invoice.vehicleTypeName || ""
   // Tous les montants du PDF utilisent la devise SNAPSHOTÉE de la facture.
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
+  // Identité légale vendeur résolue depuis le SNAPSHOT facture (jamais le tenant courant).
+  const issuerIdentity = resolveIssuerLegalIdentityDisplay({
+    legalRegistrationNumber: invoice.issuerLegalRegistrationNumber,
+    legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
+    legacySiret: invoice.issuerSiret,
+  })
 
   return (
     <Document>
@@ -109,7 +116,11 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
             {invoice.issuerAddress ? <Text style={s.muted}>{invoice.issuerAddress}</Text> : null}
             {invoice.issuerPhone ? <Text style={s.muted}>{invoice.issuerPhone}</Text> : null}
             {invoice.issuerEmail ? <Text style={s.muted}>{invoice.issuerEmail}</Text> : null}
-            {invoice.issuerSiret ? <Text style={s.muted}>SIRET : {invoice.issuerSiret}</Text> : null}
+            {issuerIdentity ? (
+              <Text style={s.muted}>
+                {issuerIdentity.label} : {issuerIdentity.value}
+              </Text>
+            ) : null}
           </View>
           <View style={s.right}>
             <Text style={s.invoiceTitle}>FACTURE</Text>

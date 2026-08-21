@@ -70,7 +70,6 @@ export function SceneContent({ scene }: { scene: Scene }) {
           items={DEMO_INVOICE_ITEMS}
           payments={DEMO_INVOICE_PAYMENTS}
           events={DEMO_INVOICE_EVENTS}
-          tenantCountry="FR"
         />
       )
     case "dashboard":

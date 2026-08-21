@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { formatMoney, getDisplayCurrencyCode, formatDateLong } from "@/lib/format"
+import { resolveIssuerLegalIdentityDisplay, buildIssuerIdentityWarning } from "@/lib/billing/country-profiles"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
 import type {
@@ -32,18 +33,23 @@ export function InvoiceView({
   items,
   payments,
   events,
-  tenantCountry,
 }: {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
   payments: InvoicePaymentRow[]
   events: InvoiceEventRow[]
-  tenantCountry?: string | null
 }) {
   // Tous les montants de la vue utilisent la devise SNAPSHOTÉE de la facture.
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   // Code affiché dans les labels de saisie (visuel uniquement).
   const displayCurrency = getDisplayCurrencyCode(invoice.currencyCode)
+  // Identité légale vendeur + warning, résolus UNIQUEMENT depuis le snapshot facture.
+  const issuerIdentity = resolveIssuerLegalIdentityDisplay({
+    legalRegistrationNumber: invoice.issuerLegalRegistrationNumber,
+    legalRegistrationScheme: invoice.issuerLegalRegistrationScheme,
+    legacySiret: invoice.issuerSiret,
+  })
+  const identityWarning = buildIssuerIdentityWarning(invoice.issuerCountry, issuerIdentity != null)
   const router = useRouter()
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -177,15 +183,13 @@ export function InvoiceView({
         </div>
       </div>
 
-      {/* Avertissement non bloquant : SIRET manquant sur une entreprise française.
-          N'empêche jamais l'émission, l'envoi ni le paiement de la facture. */}
-      {!isCancelled && tenantCountry === "FR" && !invoice.issuerSiret && (
+      {/* Avertissement non bloquant : identité légale vendeur incomplète, basé
+          EXCLUSIVEMENT sur le snapshot facture (invoice.issuerCountry), jamais
+          sur le tenant courant. N'empêche ni l'émission ni le paiement. */}
+      {!isCancelled && identityWarning && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            Informations légales de l&apos;entreprise incomplètes (SIRET manquant). Complétez-les dans les
-            paramètres de facturation pour garantir la conformité de cette facture.
-          </span>
+          <span>{identityWarning}</span>
         </div>
       )}
 
@@ -203,6 +207,20 @@ export function InvoiceView({
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="space-y-6 lg:col-span-2">
+          {/* Vendeur (identité légale snapshotée sur la facture) */}
+          <div className={cardClass}>
+            <h2 className="mb-2 text-sm font-semibold text-foreground">Vendeur</h2>
+            {invoice.issuerName && <p className="text-sm text-foreground">{invoice.issuerName}</p>}
+            {invoice.issuerAddress && (
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{invoice.issuerAddress}</p>
+            )}
+            {issuerIdentity && (
+              <p className="text-sm text-muted-foreground">
+                {issuerIdentity.label} : {issuerIdentity.value}
+              </p>
+            )}
+          </div>
+
           {/* Client + véhicule */}
           <div className={cardClass}>
             <div className="grid gap-4 sm:grid-cols-2">
