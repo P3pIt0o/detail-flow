@@ -167,7 +167,7 @@ export const companies = pgTable("companies", {
 })
 
 /**
- * Overrides de fonctionnalit��s par entreprise (gestes commerciaux, modules
+ * Overrides de fonctionnalit����s par entreprise (gestes commerciaux, modules
  * achetés/offerts, essais temporaires, pilotes Founder…).
  *
  * Le moteur (lib/licensing) applique : droit du plan → override éventuel →
@@ -949,10 +949,15 @@ export const customRequests = pgTable(
     vehicleType: text("vehicleType"),
     vehicleBrand: text("vehicleBrand"),
     vehicleModel: text("vehicleModel"),
-    fleetCompanyName: text("fleetCompanyName"),
-    vehicleCount: text("vehicleCount"),
-    frequency: text("frequency"),
-    description: text("description").notNull(),
+  fleetCompanyName: text("fleetCompanyName"),
+  vehicleCount: text("vehicleCount"),
+  frequency: text("frequency"),
+  // Numéro d'entreprise / identifiant légal saisi librement par le prospect
+  // (BCE en Belgique, SIREN/SIRET en France…). Facultatif, jamais validé ni
+  // interprété : simple information transmise au professionnel. Aucun lien
+  // automatique avec la facturation (pays/type client inconnus à ce stade).
+  customerLegalRegistrationNumber: text("customerLegalRegistrationNumber"),
+  description: text("description").notNull(),
     // Statut : new | proposal_sent | accepted | declined | converted
     status: text("status").notNull().default("new"),
     // Proposition / devis du professionnel

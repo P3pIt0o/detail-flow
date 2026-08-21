@@ -61,6 +61,9 @@ export async function submitCustomRequest(
   const customerEmail = str(formData.get("customerEmail"), 160)
   const customerPhone = str(formData.get("customerPhone"), 40)
   const description = str(formData.get("description"), 4000)
+  // Numéro d'entreprise / identifiant légal : information libre du prospect.
+  // Jamais validé, jamais interprété (aucune déduction pays / type d'entreprise).
+  const customerLegalRegistrationNumber = str(formData.get("customerLegalRegistrationNumber"), 60)
 
   const errors: Record<string, string> = {}
   if (!customerName) errors.customerName = "Votre nom est requis."
@@ -88,6 +91,7 @@ export async function submitCustomRequest(
       fleetCompanyName: str(formData.get("fleetCompanyName"), 120) || null,
       vehicleCount: str(formData.get("vehicleCount"), 20) || null,
       frequency: str(formData.get("frequency"), 60) || null,
+      customerLegalRegistrationNumber: customerLegalRegistrationNumber || null,
       description,
       status: "new",
     })
@@ -102,6 +106,7 @@ export async function submitCustomRequest(
   push("Société / flotte", str(formData.get("fleetCompanyName"), 120))
   push("Nombre de véhicules", str(formData.get("vehicleCount"), 20))
   push("Fréquence souhaitée", str(formData.get("frequency"), 60))
+  push("Numéro d'entreprise / identifiant légal", customerLegalRegistrationNumber)
 
   await sendCustomRequestNewLead({
     companyId: tenant.id,

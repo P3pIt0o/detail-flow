@@ -132,6 +132,21 @@ export function CustomRequestForm({ types }: { types: CustomRequestType[] }) {
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="customerLegalRegistrationNumber">
+          Numéro d&apos;entreprise / identifiant légal (facultatif)
+        </Label>
+        <Input
+          id="customerLegalRegistrationNumber"
+          name="customerLegalRegistrationNumber"
+          maxLength={60}
+          autoComplete="off"
+        />
+        <p className="text-sm text-muted-foreground">
+          Par exemple : numéro BCE en Belgique ou SIREN/SIRET en France.
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="description">Décrivez votre besoin</Label>
         <Textarea id="description" name="description" rows={5} required aria-invalid={!!state.errors?.description} />
         {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description}</p>}

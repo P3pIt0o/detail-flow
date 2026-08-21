@@ -39,6 +39,7 @@ export default async function DemandeDetailPage({
   push("Société / flotte", req.fleetCompanyName)
   push("Nombre de véhicules", req.vehicleCount)
   push("Fréquence", req.frequency)
+  push("Numéro d'entreprise / identifiant légal", req.customerLegalRegistrationNumber)
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
