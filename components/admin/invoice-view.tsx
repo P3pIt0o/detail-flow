@@ -14,7 +14,7 @@ import {
   TriangleAlert,
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { formatPrice, formatDateLong } from "@/lib/format"
+import { formatMoney, formatDateLong } from "@/lib/format"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
 import type {
@@ -40,6 +40,8 @@ export function InvoiceView({
   events: InvoiceEventRow[]
   tenantCountry?: string | null
 }) {
+  // Tous les montants de la vue utilisent la devise SNAPSHOTÉE de la facture.
+  const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   const router = useRouter()
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -249,9 +251,9 @@ export function InvoiceView({
                         )}
                       </td>
                       <td className="py-2 text-center text-muted-foreground">{it.quantity}</td>
-                      <td className="py-2 text-right text-muted-foreground">{formatPrice(it.unitPriceCents)}</td>
+                      <td className="py-2 text-right text-muted-foreground">{money(it.unitPriceCents)}</td>
                       <td className="py-2 text-right text-foreground">
-                        {formatPrice(it.unitPriceCents * it.quantity)}
+                        {money(it.unitPriceCents * it.quantity)}
                       </td>
                     </tr>
                   ))}
@@ -293,44 +295,44 @@ export function InvoiceView({
             <h2 className="mb-3 text-sm font-semibold text-foreground">Totaux</h2>
             <div className={rowClass}>
               <span className="text-muted-foreground">Sous-total</span>
-              <span className="text-foreground">{formatPrice(invoice.itemsTotalCents)}</span>
+              <span className="text-foreground">{money(invoice.itemsTotalCents)}</span>
             </div>
             {invoice.discountCents > 0 && (
               <div className={rowClass}>
                 <span className="text-muted-foreground">Remise</span>
-                <span className="text-foreground">−{formatPrice(invoice.discountCents)}</span>
+                <span className="text-foreground">−{money(invoice.discountCents)}</span>
               </div>
             )}
             <div className={rowClass}>
               <span className="text-muted-foreground">Total HT</span>
-              <span className="text-foreground">{formatPrice(invoice.netCents)}</span>
+              <span className="text-foreground">{money(invoice.netCents)}</span>
             </div>
             {invoice.vatEnabled && (
               <div className={rowClass}>
                 <span className="text-muted-foreground">TVA ({invoice.vatRate}%)</span>
-                <span className="text-foreground">{formatPrice(invoice.vatCents)}</span>
+                <span className="text-foreground">{money(invoice.vatCents)}</span>
               </div>
             )}
             <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
               <span className="text-foreground">Total TTC</span>
-              <span className="text-foreground">{formatPrice(invoice.totalCents)}</span>
+              <span className="text-foreground">{money(invoice.totalCents)}</span>
             </div>
             {invoice.depositCents > 0 && (
               <div className={`${rowClass} mt-1`}>
                 <span className="text-muted-foreground">Acompte réglé</span>
-                <span className="text-foreground">−{formatPrice(invoice.depositCents)}</span>
+                <span className="text-foreground">−{money(invoice.depositCents)}</span>
               </div>
             )}
             {invoice.paidCents > 0 && (
               <div className={rowClass}>
                 <span className="text-muted-foreground">Paiements</span>
-                <span className="text-foreground">−{formatPrice(invoice.paidCents)}</span>
+                <span className="text-foreground">−{money(invoice.paidCents)}</span>
               </div>
             )}
             <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
               <span className="text-foreground">Reste à régler</span>
               <span className={invoice.balanceCents <= 0 ? "text-primary" : "text-foreground"}>
-                {formatPrice(invoice.balanceCents)}
+                {money(invoice.balanceCents)}
               </span>
             </div>
           </div>
@@ -357,7 +359,7 @@ export function InvoiceView({
                     <span className="text-muted-foreground">
                       {formatDateLong(p.paidAt)} · {PAYMENT_METHOD_LABEL[p.method] ?? p.method}
                     </span>
-                    <span className="text-foreground">{formatPrice(p.amountCents)}</span>
+                    <span className="text-foreground">{money(p.amountCents)}</span>
                   </li>
                 ))}
               </ul>

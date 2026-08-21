@@ -45,6 +45,7 @@ export async function getInvoiceList(companyId?: number) {
       issueDate: invoices.issueDate,
       totalCents: invoices.totalCents,
       balanceCents: invoices.balanceCents,
+      currencyCode: invoices.currencyCode,
       createdAt: invoices.createdAt,
     })
     .from(invoices)

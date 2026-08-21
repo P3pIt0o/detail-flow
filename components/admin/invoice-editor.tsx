@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, Save, FileCheck2, CircleCheck, Loader2, AlertCircle, Car, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { formatPrice } from "@/lib/format"
+import { formatMoney } from "@/lib/format"
 import {
   computeInvoice,
   LINE_KIND_LABEL,
@@ -46,6 +46,8 @@ function centsToEuros(c: number): string {
 }
 
 export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: InvoiceItemRow[] }) {
+  // Aperçu du brouillon dans SA devise (CHF si brouillon CHF, EUR si NULL legacy).
+  const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [issuing, startIssue] = useTransition()
@@ -328,7 +330,7 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                       />
                     </label>
                     <span className="ml-auto text-sm font-medium text-foreground">
-                      {formatPrice(l.quantity * l.unitPriceCents)}
+                      {money(l.quantity * l.unitPriceCents)}
                     </span>
                   </div>
                 </div>
@@ -419,7 +421,7 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Sous-total</span>
-                <span className="font-medium text-foreground">{formatPrice(totals.itemsTotalCents)}</span>
+                <span className="font-medium text-foreground">{money(totals.itemsTotalCents)}</span>
               </div>
               <label className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Remise €</span>
@@ -433,7 +435,7 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
               </label>
               <div className="flex items-center justify-between border-t border-border pt-3">
                 <span className="text-muted-foreground">Total HT</span>
-                <span className="font-medium text-foreground">{formatPrice(totals.netCents)}</span>
+                <span className="font-medium text-foreground">{money(totals.netCents)}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <label className="flex items-center gap-2 text-muted-foreground">
@@ -457,21 +459,21 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                     <span className="text-muted-foreground">%</span>
                   </span>
                 )}
-                <span className="font-medium text-foreground">{formatPrice(totals.vatCents)}</span>
+                <span className="font-medium text-foreground">{money(totals.vatCents)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-border pt-3 text-base">
                 <span className="font-semibold text-foreground">Total TTC</span>
-                <span className="font-semibold text-foreground">{formatPrice(totals.totalCents)}</span>
+                <span className="font-semibold text-foreground">{money(totals.totalCents)}</span>
               </div>
               {totals.depositCents > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Acompte déjà réglé</span>
-                  <span className="text-foreground">−{formatPrice(totals.depositCents)}</span>
+                  <span className="text-foreground">−{money(totals.depositCents)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-border pt-3">
                 <span className="font-semibold text-foreground">Reste à régler</span>
-                <span className="font-semibold text-primary">{formatPrice(totals.balanceCents)}</span>
+                <span className="font-semibold text-primary">{money(totals.balanceCents)}</span>
               </div>
             </div>
           </section>

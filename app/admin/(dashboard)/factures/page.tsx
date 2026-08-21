@@ -4,7 +4,7 @@ import { FileText } from "lucide-react"
 import { requireAdmin } from "@/lib/admin"
 import { getInvoiceList } from "@/lib/invoice/queries"
 import { invoiceStatusMeta } from "@/lib/invoice/calc"
-import { formatPrice, formatDateShort } from "@/lib/format"
+import { formatMoney, formatDateShort } from "@/lib/format"
 
 export const metadata: Metadata = { title: "Factures" }
 export const dynamic = "force-dynamic"
@@ -65,10 +65,12 @@ export default async function InvoicesPage() {
                         {meta.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">{formatPrice(inv.totalCents)}</td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground">
+                      {formatMoney(inv.totalCents, inv.currencyCode)}
+                    </td>
                     <td className="hidden px-4 py-3 text-right md:table-cell">
                       {inv.balanceCents > 0 ? (
-                        <span className="font-medium text-primary">{formatPrice(inv.balanceCents)}</span>
+                        <span className="font-medium text-primary">{formatMoney(inv.balanceCents, inv.currencyCode)}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

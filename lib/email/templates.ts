@@ -1,4 +1,4 @@
-import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
+import { formatPrice, formatMoney, formatDateLong, formatDuration } from "@/lib/format"
 import { parseDepositMethods } from "@/lib/booking/types"
 
 /**
@@ -250,6 +250,8 @@ export function invoiceEmail(opts: {
   invoiceNumber: string
   totalCents: number
   balanceCents: number
+  /** Devise snapshotée de la facture (invoices.currencyCode). NULL => EUR legacy. */
+  currencyCode?: string | null
   dueDate?: string | null
   businessName: string
   businessEmail?: string | null
@@ -285,8 +287,8 @@ export function invoiceEmail(opts: {
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 20px;">${intro}</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;padding:8px;">
           <tr><td colspan="2" style="height:6px;"></td></tr>
-          ${line("Total TTC", formatPrice(opts.totalCents))}
-          ${line("Reste à régler", formatPrice(opts.balanceCents), true)}
+          ${line("Total TTC", formatMoney(opts.totalCents, opts.currencyCode))}
+          ${line("Reste à régler", formatMoney(opts.balanceCents, opts.currencyCode), true)}
           ${opts.dueDate ? line("Échéance", formatDateLong(opts.dueDate)) : ""}
           <tr><td colspan="2" style="height:6px;"></td></tr>
         </table>

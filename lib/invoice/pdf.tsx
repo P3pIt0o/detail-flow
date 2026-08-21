@@ -13,7 +13,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
-import { formatPrice, formatDateLong } from "@/lib/format"
+import { formatMoney, formatDateLong } from "@/lib/format"
 
 const BRAND = "#2563eb"
 const INK = "#0f172a"
@@ -89,6 +89,8 @@ export type InvoicePdfData = {
 
 function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
   const vehicle = [invoice.vehicleBrand, invoice.vehicleModel].filter(Boolean).join(" ") || invoice.vehicleTypeName || ""
+  // Tous les montants du PDF utilisent la devise SNAPSHOTÉE de la facture.
+  const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
 
   return (
     <Document>
@@ -151,8 +153,8 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
                 {it.description ? <Text style={[s.muted, { fontSize: 8 }]}>{it.description}</Text> : null}
               </View>
               <Text style={s.cQty}>{it.quantity}</Text>
-              <Text style={s.cUnit}>{formatPrice(it.unitPriceCents)}</Text>
-              <Text style={s.cTot}>{formatPrice(it.unitPriceCents * it.quantity)}</Text>
+              <Text style={s.cUnit}>{money(it.unitPriceCents)}</Text>
+              <Text style={s.cTot}>{money(it.unitPriceCents * it.quantity)}</Text>
             </View>
           ))}
         </View>
@@ -161,43 +163,43 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
         <View style={s.totals}>
           <View style={s.totalRow}>
             <Text style={s.muted}>Sous-total</Text>
-            <Text>{formatPrice(invoice.itemsTotalCents)}</Text>
+            <Text>{money(invoice.itemsTotalCents)}</Text>
           </View>
           {invoice.discountCents > 0 ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>Remise</Text>
-              <Text>-{formatPrice(invoice.discountCents)}</Text>
+              <Text>-{money(invoice.discountCents)}</Text>
             </View>
           ) : null}
           <View style={s.totalRow}>
             <Text style={s.muted}>Total HT</Text>
-            <Text>{formatPrice(invoice.netCents)}</Text>
+            <Text>{money(invoice.netCents)}</Text>
           </View>
           {invoice.vatEnabled ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>TVA ({invoice.vatRate}%)</Text>
-              <Text>{formatPrice(invoice.vatCents)}</Text>
+              <Text>{money(invoice.vatCents)}</Text>
             </View>
           ) : null}
           <View style={s.grandRow}>
             <Text style={s.grandText}>Total TTC</Text>
-            <Text style={s.grandText}>{formatPrice(invoice.totalCents)}</Text>
+            <Text style={s.grandText}>{money(invoice.totalCents)}</Text>
           </View>
           {invoice.depositCents > 0 ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>Acompte réglé</Text>
-              <Text>-{formatPrice(invoice.depositCents)}</Text>
+              <Text>-{money(invoice.depositCents)}</Text>
             </View>
           ) : null}
           {invoice.paidCents > 0 ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>Paiements</Text>
-              <Text>-{formatPrice(invoice.paidCents)}</Text>
+              <Text>-{money(invoice.paidCents)}</Text>
             </View>
           ) : null}
           <View style={s.balanceBox}>
             <Text style={s.strong}>Reste à régler</Text>
-            <Text style={s.strong}>{formatPrice(invoice.balanceCents)}</Text>
+            <Text style={s.strong}>{money(invoice.balanceCents)}</Text>
           </View>
         </View>
 

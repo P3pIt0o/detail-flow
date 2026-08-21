@@ -634,6 +634,7 @@ export async function sendInvoiceEmail(invoiceId: number): Promise<ActionResult>
     invoiceNumber: inv.number || `Facture ${invoiceId}`,
     totalCents: inv.totalCents,
     balanceCents: inv.balanceCents,
+    currencyCode: inv.currencyCode,
     dueDate: inv.dueDate,
     businessName,
     businessEmail: inv.issuerEmail || s?.businessEmail,
