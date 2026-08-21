@@ -88,6 +88,10 @@ export async function saveInvoicingSettings(input: {
 const ALLOWED_COUNTRIES = SUPPORTED_COUNTRIES.map((c) => c.code) as string[]
 const VAT_STATUSES = ["subject", "exempt", "unknown"] as const
 type VatStatus = (typeof VAT_STATUSES)[number]
+// Catégorie entreprise FR (calendrier facturation électronique). Choix DÉCLARÉ,
+// jamais déduit (forme juridique / CA / effectif / TVA).
+const FR_BUSINESS_CATEGORIES = ["micro", "pme", "eti", "ge", "unknown"] as const
+type FrBusinessCategory = (typeof FR_BUSINESS_CATEGORIES)[number]
 
 /**
  * Enregistre + CONFIRME le profil de facturation du vendeur.
@@ -104,6 +108,7 @@ export async function saveSellerBillingProfile(input: {
   legalRegistrationNumber: string
   vatNumber: string
   vatStatus: string
+  frBusinessCategory?: string
   defaultCurrency: string
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
@@ -129,6 +134,17 @@ export async function saveSellerBillingProfile(input: {
     ? (input.vatStatus as VatStatus)
     : "unknown"
 
+  // Catégorie FR : normalisée sur la whitelist ; "unknown" si valeur non reconnue.
+  // Hors France => undefined : on N'ÉCRASE PAS une éventuelle ancienne sélection
+  // française (la colonne est simplement omise du .set()). Aucune déduction auto.
+  const rawFrCategory = (input.frBusinessCategory || "").trim().toLowerCase()
+  const frBusinessCategory: FrBusinessCategory | undefined =
+    country === "FR"
+      ? FR_BUSINESS_CATEGORIES.includes(rawFrCategory as FrBusinessCategory)
+        ? (rawFrCategory as FrBusinessCategory)
+        : "unknown"
+      : undefined
+
   const currency = (input.defaultCurrency || "").toUpperCase()
   if (!/^[A-Z]{3}$/.test(currency)) {
     return { ok: false, error: "Devise invalide (code ISO à 3 lettres, ex. EUR, CHF)." }
@@ -148,6 +164,9 @@ export async function saveSellerBillingProfile(input: {
         legalRegistrationScheme: legalScheme,
         vatNumber,
         vatStatus,
+        // Écrit UNIQUEMENT pour la France ; hors FR la colonne est omise afin de
+        // préserver une éventuelle ancienne catégorie française enregistrée.
+        ...(frBusinessCategory !== undefined ? { frBusinessCategory } : {}),
         legalForm: input.legalForm.trim() || null,
         defaultCurrency: currency,
         // Rétrocompat FR : garde invoiceSiret en phase avec l'identité FR pour

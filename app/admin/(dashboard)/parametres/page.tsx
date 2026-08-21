@@ -258,6 +258,7 @@ export default async function ParametresPage() {
             }
             vatNumber={fullSettings?.vatNumber ?? ""}
             vatStatus={fullSettings?.vatStatus ?? "unknown"}
+            frBusinessCategory={fullSettings?.frBusinessCategory ?? "unknown"}
             defaultCurrency={fullSettings?.defaultCurrency ?? ""}
           />
           <InvoicingSettings

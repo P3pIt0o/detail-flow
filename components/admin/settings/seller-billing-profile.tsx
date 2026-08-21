@@ -19,8 +19,19 @@ type Props = {
   legalRegistrationNumber: string
   vatNumber: string
   vatStatus: string
+  frBusinessCategory: string
   defaultCurrency: string
 }
+
+// Catégorie déclarée pour le calendrier de facturation électronique (FR only).
+// Choix EXPLICITE de l'utilisateur — jamais déduit (forme juridique, CA, effectif…).
+const FR_BUSINESS_CATEGORIES: { value: string; label: string }[] = [
+  { value: "unknown", label: "Je ne sais pas" },
+  { value: "micro", label: "Micro-entreprise" },
+  { value: "pme", label: "PME" },
+  { value: "eti", label: "ETI" },
+  { value: "ge", label: "Grande entreprise" },
+]
 
 const CURRENCY_SUGGESTION: Record<string, string> = { FR: "EUR", BE: "EUR", CH: "CHF" }
 
@@ -35,6 +46,7 @@ export function SellerBillingProfile(props: Props) {
   const [legalNumber, setLegalNumber] = useState(props.legalRegistrationNumber)
   const [vatNumber, setVatNumber] = useState(props.vatNumber)
   const [vatStatus, setVatStatus] = useState(props.vatStatus || "unknown")
+  const [frBusinessCategory, setFrBusinessCategory] = useState(props.frBusinessCategory || "unknown")
   const [currency, setCurrency] = useState(props.defaultCurrency)
 
   // Profil pays => libellés (SIRET / BCE / UID) adaptés au pays du VENDEUR.
@@ -56,6 +68,7 @@ export function SellerBillingProfile(props: Props) {
         legalRegistrationNumber: legalNumber,
         vatNumber,
         vatStatus,
+        frBusinessCategory,
         defaultCurrency: currency || CURRENCY_SUGGESTION[country] || "EUR",
       })
       if (!res.ok) {
@@ -140,10 +153,13 @@ export function SellerBillingProfile(props: Props) {
           <div>
             <label className={labelClass}>Situation TVA</label>
             <select value={vatStatus} onChange={(e) => setVatStatus(e.target.value)} className={inputClass}>
+              <option value="subject">TVA facturée / redevable</option>
+              <option value="exempt">TVA non facturée / franchise ou exonération</option>
               <option value="unknown">À préciser</option>
-              <option value="subject">Assujetti à la TVA</option>
-              <option value="exempt">Non assujetti / franchise</option>
             </select>
+            <p className="mt-1 text-xs text-muted-foreground text-pretty">
+              Cette information ne détermine pas à elle seule vos obligations de facturation électronique.
+            </p>
           </div>
           <div>
             <label className={labelClass}>Devise de facturation</label>
@@ -159,6 +175,27 @@ export function SellerBillingProfile(props: Props) {
             </p>
           </div>
         </div>
+
+        {/* Catégorie entreprise : UNIQUEMENT pour la France. Rien pour BE/CH. */}
+        {country === "FR" && (
+          <div>
+            <label className={labelClass}>Catégorie pour le calendrier de facturation électronique</label>
+            <select
+              value={frBusinessCategory}
+              onChange={(e) => setFrBusinessCategory(e.target.value)}
+              className={inputClass}
+            >
+              {FR_BUSINESS_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground text-pretty">
+              Choisissez votre catégorie déclarée. DetailFlow ne la détermine pas automatiquement.
+            </p>
+          </div>
+        )}
 
         {profile.regulatoryLinks.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-1">
