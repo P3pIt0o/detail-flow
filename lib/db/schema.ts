@@ -167,7 +167,7 @@ export const companies = pgTable("companies", {
 })
 
 /**
- * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
+ * Overrides de fonctionnalit��s par entreprise (gestes commerciaux, modules
  * achetés/offerts, essais temporaires, pilotes Founder…).
  *
  * Le moteur (lib/licensing) applique : droit du plan → override éventuel →
@@ -280,6 +280,17 @@ export const clients = pgTable(
     phone: text("phone"),
     address: text("address"),
     notes: text("notes"),
+    /* -------- Identité client B2C/B2B multi-pays (additif, nullable) --------
+     * NULL = UNKNOWN / LEGACY / NON CONFIRMÉ (JAMAIS déduit B2C). Un nouveau
+     * client choisit explicitement individual ou business. Quand une règle
+     * réglementaire dépend du B2B/B2C, NULL produira REVIEW_REQUIRED (LOT 2B),
+     * jamais une hypothèse silencieuse. Aucun backfill vers "individual".
+     * Le pays DU CLIENT (et non du vendeur) détermine le schéma d'identifiant. */
+    customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
+    country: text("country"), // ISO 3166-1 alpha-2 (FR, BE, CH, ...)
+    legalRegistrationNumber: text("legalRegistrationNumber"),
+    legalRegistrationScheme: text("legalRegistrationScheme"),
+    vatNumber: text("vatNumber"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
@@ -497,6 +508,28 @@ export const settings = pgTable(
     invoiceSiret: text("invoiceSiret"),
     invoiceIban: text("invoiceIban"),
     invoiceBic: text("invoiceBic"),
+    /* -------- Identité légale vendeur multi-pays (additif, nullable) --------
+     * `invoiceSiret` historique est CONSERVÉ (rétrocompat). Les champs génériques
+     * ci-dessous prennent le relais pour BE/CH/autres sans colonne par pays.
+     * `legalRegistrationScheme` : FR_SIREN | FR_SIRET | BE_BCE | CH_UID | GENERIC. */
+    legalRegistrationNumber: text("legalRegistrationNumber"),
+    legalRegistrationScheme: text("legalRegistrationScheme"),
+    vatNumber: text("vatNumber"),
+    // Statut TVA déclaré par le pro : "subject" | "exempt" | "unknown" (défaut null).
+    vatStatus: text("vatStatus"),
+    legalForm: text("legalForm"),
+    // Catégorie d'entreprise France (calendrier e-invoicing) : micro|pme|eti|ge|unknown.
+    frBusinessCategory: text("frBusinessCategory"),
+    // Devise de facturation par défaut CONFIRMÉE (ISO 4217). Null => NON confirmée.
+    // `companies.currency` (default EUR historique) ne vaut PAS confirmation :
+    // un tenant CH legacy peut avoir EUR par défaut sans l'avoir choisi.
+    defaultCurrency: text("defaultCurrency"),
+    /* Confirmation explicite du profil de facturation (pays + infos légales).
+     * NULL => `companies.country` (default FR) et `companies.currency` (default
+     * EUR) sont des valeurs HISTORIQUES, PAS un choix confirmé du pro. Tant que
+     * NULL : ne jamais présenter le pays/devise comme configuration légale
+     * confirmée. Renseigné quand le pro confirme réellement dans les paramètres. */
+    billingProfileConfirmedAt: timestamp("billingProfileConfirmedAt"),
     vatEnabled: boolean("vatEnabled").notNull().default(false),
     vatRate: numeric("vatRate").notNull().default("20"),
     vatExemptNote: text("vatExemptNote").default("TVA non applicable, art. 293 B du CGI"),
@@ -758,11 +791,20 @@ export const invoices = pgTable(
     // Lien vers la réservation source. UNIQUE = une seule facture par réservation.
     bookingId: integer("bookingId").unique(),
     status: text("status").notNull().default("draft"),
+    // Devise de la facture (ISO 4217). Null (historique) => EUR à l'affichage.
+    // Une facture émise CONSERVE sa devise même si l'entreprise en change.
+    currencyCode: text("currencyCode"),
     // Snapshot client
     customerName: text("customerName").notNull(),
     customerEmail: text("customerEmail"),
     customerPhone: text("customerPhone"),
     customerAddress: text("customerAddress"),
+    /* -------- Snapshot identité client multi-pays (additif, nullable) -------- */
+    customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
+    customerCountry: text("customerCountry"),
+    customerLegalRegistrationNumber: text("customerLegalRegistrationNumber"),
+    customerLegalRegistrationScheme: text("customerLegalRegistrationScheme"),
+    customerVatNumber: text("customerVatNumber"),
     // Snapshot véhicule
     vehicleTypeName: text("vehicleTypeName"),
     vehicleBrand: text("vehicleBrand"),
@@ -794,6 +836,12 @@ export const invoices = pgTable(
     issuerSiret: text("issuerSiret"),
     issuerIban: text("issuerIban"),
     issuerBic: text("issuerBic"),
+    /* -------- Snapshot identité vendeur multi-pays (additif, nullable) ------
+     * `issuerSiret` historique CONSERVÉ. Champs génériques pour BE/CH/autres. */
+    issuerCountry: text("issuerCountry"),
+    issuerLegalRegistrationNumber: text("issuerLegalRegistrationNumber"),
+    issuerLegalRegistrationScheme: text("issuerLegalRegistrationScheme"),
+    issuerVatNumber: text("issuerVatNumber"),
     issuerLogoPathname: text("issuerLogoPathname"),
     vatExemptNote: text("vatExemptNote"),
     footerNote: text("footerNote"),

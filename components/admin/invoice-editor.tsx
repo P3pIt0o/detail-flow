@@ -18,6 +18,7 @@ import {
   type SaveDraftInput,
 } from "@/lib/invoice/actions"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
+import { CustomerIdentityFields, type CustomerIdentityValue } from "@/components/admin/customer-identity-fields"
 
 type LineState = {
   key: string
@@ -69,6 +70,12 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
   const [customerEmail, setCustomerEmail] = useState(invoice.customerEmail ?? "")
   const [customerPhone, setCustomerPhone] = useState(invoice.customerPhone ?? "")
   const [customerAddress, setCustomerAddress] = useState(invoice.customerAddress ?? "")
+  const [identity, setIdentity] = useState<CustomerIdentityValue>({
+    customerType: invoice.customerType ?? "",
+    country: invoice.customerCountry ?? "",
+    legalRegistrationNumber: invoice.customerLegalRegistrationNumber ?? "",
+    vatNumber: invoice.customerVatNumber ?? "",
+  })
   const [vehicleTypeName, setVehicleTypeName] = useState(invoice.vehicleTypeName ?? "")
   const [vehicleBrand, setVehicleBrand] = useState(invoice.vehicleBrand ?? "")
   const [vehicleModel, setVehicleModel] = useState(invoice.vehicleModel ?? "")
@@ -113,6 +120,10 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
       customerEmail: customerEmail || null,
       customerPhone: customerPhone || null,
       customerAddress: customerAddress || null,
+      customerType: identity.customerType || null,
+      customerCountry: identity.country || null,
+      customerLegalRegistrationNumber: identity.legalRegistrationNumber || null,
+      customerVatNumber: identity.vatNumber || null,
       vehicleTypeName: vehicleTypeName || null,
       vehicleBrand: vehicleBrand || null,
       vehicleModel: vehicleModel || null,
@@ -343,10 +354,18 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
               <User className="h-4 w-4" /> Client
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Nom" value={customerName} onChange={setCustomerName} />
+              <Field label="Nom / raison sociale" value={customerName} onChange={setCustomerName} />
               <Field label="Email" value={customerEmail} onChange={setCustomerEmail} type="email" />
               <Field label="Téléphone" value={customerPhone} onChange={setCustomerPhone} />
               <Field label="Adresse" value={customerAddress} onChange={setCustomerAddress} className="sm:col-span-2" />
+            </div>
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Informations de facturation du client</p>
+              <CustomerIdentityFields
+                value={identity}
+                onChange={(patch) => setIdentity((v) => ({ ...v, ...patch }))}
+                idPrefix="inv-cust"
+              />
             </div>
           </section>
 

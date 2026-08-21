@@ -24,11 +24,13 @@ import {
   bookings,
   bookingItems,
   bookingItemOptions,
+  companies as companiesTable,
   settings as settingsTable,
 } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
+import { getCountryProfile, resolveIssuerBillingSnapshot } from "@/lib/billing/country-profiles"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -270,6 +272,11 @@ export interface SaveDraftInput {
   customerEmail: string | null
   customerPhone: string | null
   customerAddress: string | null
+  // Identité client B2C/B2B (facultative). Le PAYS DU CLIENT pilote la validation.
+  customerType?: string | null
+  customerCountry?: string | null
+  customerLegalRegistrationNumber?: string | null
+  customerVatNumber?: string | null
   vehicleTypeName: string | null
   vehicleBrand: string | null
   vehicleModel: string | null
@@ -299,6 +306,30 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
     return { ok: false, error: "Le nom du client est obligatoire." }
   }
 
+  // Identité client B2C/B2B : normalisation via le PAYS DU CLIENT (jamais le
+  // vendeur). Le brouillon devient la source de vérité pour CETTE facture.
+  const rawCustType = (input.customerType ?? "").trim()
+  const customerType = rawCustType === "individual" || rawCustType === "business" ? rawCustType : null
+  const rawCustCountry = (input.customerCountry ?? "").trim().toUpperCase()
+  const customerCountry = rawCustCountry === "OTHER" ? "OTHER" : rawCustCountry || null
+  let customerLegalNumber: string | null = (input.customerLegalRegistrationNumber ?? "").trim() || null
+  let customerLegalScheme: string | null = null
+  let customerVatNumber: string | null = (input.customerVatNumber ?? "").trim() || null
+  if (customerType === "business") {
+    // Un client ENTREPRISE exige un pays explicite : jamais de FR implicite.
+    if (!customerCountry) {
+      return { ok: false, error: "Choisissez le pays de l'entreprise cliente." }
+    }
+    const custProfile = getCountryProfile(customerCountry)
+    const legal = custProfile.validateLegalId(customerLegalNumber)
+    if (!legal.valid) return { ok: false, error: `${custProfile.customerLegalIdLabel} : ${legal.message ?? "format invalide."}` }
+    const vat = custProfile.validateVatNumber(customerVatNumber)
+    if (!vat.valid) return { ok: false, error: `${custProfile.vatNumberLabel} : ${vat.message ?? "format invalide."}` }
+    customerLegalNumber = legal.normalized || null
+    customerLegalScheme = customerLegalNumber ? (legal.scheme ?? custProfile.legalIdScheme) : null
+    customerVatNumber = vat.normalized || null
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(invoices)
@@ -310,6 +341,12 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
         customerEmail: input.customerEmail?.trim() || null,
         customerPhone: input.customerPhone?.trim() || null,
         customerAddress: input.customerAddress?.trim() || null,
+        // Snapshot client posé dès le brouillon (source de vérité de la facture).
+        customerType,
+        customerCountry,
+        customerLegalRegistrationNumber: customerLegalNumber,
+        customerLegalRegistrationScheme: customerLegalScheme,
+        customerVatNumber,
         vehicleTypeName: input.vehicleTypeName?.trim() || null,
         vehicleBrand: input.vehicleBrand?.trim() || null,
         vehicleModel: input.vehicleModel?.trim() || null,
@@ -387,10 +424,34 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
     }
   }
 
+  // Snapshot légal vendeur figé à l'émission (logique pure/testée) : confirmé
+  // requis + fallback invoiceSiret réservé au FR confirmé + devise sûre.
+  const [company] = await db
+    .select({ country: companiesTable.country })
+    .from(companiesTable)
+    .where(eq(companiesTable.id, companyId))
+    .limit(1)
+  const {
+    issuerCountry,
+    issuerLegalRegistrationNumber: issuerLegalNumber,
+    issuerLegalRegistrationScheme: issuerLegalScheme,
+    issuerVatNumber: issuerVatSnapshot,
+    currencyCode,
+  } = resolveIssuerBillingSnapshot({
+    confirmed: issuer?.billingProfileConfirmedAt != null,
+    companyCountry: company?.country,
+    legalRegistrationNumber: issuer?.legalRegistrationNumber,
+    legalRegistrationScheme: issuer?.legalRegistrationScheme,
+    invoiceSiret: issuer?.invoiceSiret,
+    vatNumber: issuer?.vatNumber,
+    sellerDefaultCurrency: issuer?.defaultCurrency,
+    invoiceCurrency: inv.currencyCode,
+  })
+
   const year = new Date().getFullYear()
 
   const number = await db.transaction(async (tx) => {
-    // Compteur PROPRE à l'entreprise (numérotation isolée par tenant).
+    // Compteur PROPRE à l'entreprise (num��rotation isolée par tenant).
     // `FOR UPDATE` verrouille la ligne settings de CETTE entreprise pendant
     // toute la transaction : deux émissions concurrentes sont sérialisées et
     // ne peuvent donc pas obtenir le même numéro. Une autre entreprise
@@ -435,6 +496,12 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
         issuerSiret: s?.invoiceSiret ?? null,
         issuerIban: s?.invoiceIban ?? null,
         issuerBic: s?.invoiceBic ?? null,
+        // Snapshot multi-pays figé (indépendant des paramètres actuels ensuite).
+        issuerCountry,
+        issuerLegalRegistrationNumber: issuerLegalNumber,
+        issuerLegalRegistrationScheme: issuerLegalScheme,
+        issuerVatNumber: issuerVatSnapshot,
+        currencyCode,
         issuerLogoPathname: s?.invoiceLogoPathname ?? null,
         vatExemptNote: inv.vatEnabled ? null : (s?.vatExemptNote ?? null),
         footerNote: s?.invoiceFooterNote ?? null,

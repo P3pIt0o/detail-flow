@@ -18,6 +18,7 @@ import { PlanningSettings } from "@/components/admin/settings/planning-settings"
 import { HoursSettings } from "@/components/admin/settings/hours-settings"
 import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
 import { InvoicingSettings } from "@/components/admin/settings/invoicing-settings"
+import { SellerBillingProfile } from "@/components/admin/settings/seller-billing-profile"
 import { SecuritySettings } from "@/components/admin/settings/security-settings"
 import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
@@ -245,7 +246,20 @@ export default async function ParametresPage() {
             revolutQrSrc={revolutQrSrc}
           />
         </TabsContent>
-        <TabsContent value="invoicing" className="mt-6">
+        <TabsContent value="invoicing" className="mt-6 space-y-6">
+          <SellerBillingProfile
+            country={(tenant.country ?? "FR").toUpperCase()}
+            confirmed={Boolean(fullSettings?.billingProfileConfirmedAt)}
+            legalForm={fullSettings?.legalForm ?? ""}
+            legalRegistrationNumber={
+              fullSettings?.legalRegistrationNumber ??
+              // Fallback FR uniquement : affiche proprement l'ancien invoiceSiret.
+              ((tenant.country ?? "FR").toUpperCase() === "FR" ? (fullSettings?.invoiceSiret ?? "") : "")
+            }
+            vatNumber={fullSettings?.vatNumber ?? ""}
+            vatStatus={fullSettings?.vatStatus ?? "unknown"}
+            defaultCurrency={fullSettings?.defaultCurrency ?? ""}
+          />
           <InvoicingSettings
             invoiceCompanyAddress={fullSettings?.invoiceCompanyAddress ?? ""}
             invoiceSiret={fullSettings?.invoiceSiret ?? ""}
