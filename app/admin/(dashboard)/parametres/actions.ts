@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache"
 import { and, eq, gte, lte, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { settings, businessHours, timeOff, bookings } from "@/lib/db/schema"
+import { settings, businessHours, timeOff, bookings, companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
+import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
 
 export type ActionResult = { ok: boolean; error?: string }
 
@@ -77,6 +78,88 @@ export async function saveInvoicingSettings(input: {
       updatedAt: new Date(),
     })
     .where(eq(settings.companyId, tenant.id))
+
+  revalidate()
+  return { ok: true }
+}
+
+/* ------------------- Profil légal vendeur (multi-pays) ------------------- */
+
+const ALLOWED_COUNTRIES = SUPPORTED_COUNTRIES.map((c) => c.code) as string[]
+const VAT_STATUSES = ["subject", "exempt", "unknown"] as const
+type VatStatus = (typeof VAT_STATUSES)[number]
+
+/**
+ * Enregistre + CONFIRME le profil de facturation du vendeur.
+ * - `companies.country` = source de vérité pays (mise à jour ici).
+ * - Identité légale générique validée/normalisée via CountryBillingProfile.
+ * - `settings.billingProfileConfirmedAt` posé => profil confirmé (fin de l'état
+ *   « à confirmer » hérité du default FR historique).
+ * - `companies.currency` et les anciennes données ne sont JAMAIS écrasés.
+ * Tout est fait dans UNE transaction pour éviter un état partiel.
+ */
+export async function saveSellerBillingProfile(input: {
+  country: string
+  legalForm: string
+  legalRegistrationNumber: string
+  vatNumber: string
+  vatStatus: string
+  defaultCurrency: string
+}): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+  await ensureSettingsRow(tenant.id)
+
+  const country = (input.country || "").toUpperCase()
+  if (!ALLOWED_COUNTRIES.includes(country)) {
+    return { ok: false, error: "Pays non pris en charge (France, Belgique ou Suisse)." }
+  }
+  const profile = getCountryProfile(country)
+
+  // Validation FORMELLE (jamais d'affirmation de conformité). Vide = accepté.
+  const legal = profile.validateLegalId(input.legalRegistrationNumber)
+  if (!legal.valid) {
+    return { ok: false, error: `${profile.sellerLegalIdLabel} : ${legal.message ?? "format invalide."}` }
+  }
+  const vat = profile.validateVatNumber(input.vatNumber)
+  if (!vat.valid) {
+    return { ok: false, error: `${profile.vatNumberLabel} : ${vat.message ?? "format invalide."}` }
+  }
+
+  const vatStatus: VatStatus = VAT_STATUSES.includes(input.vatStatus as VatStatus)
+    ? (input.vatStatus as VatStatus)
+    : "unknown"
+
+  const currency = (input.defaultCurrency || "").toUpperCase()
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { ok: false, error: "Devise invalide (code ISO à 3 lettres, ex. EUR, CHF)." }
+  }
+
+  const legalNumber = legal.normalized || null
+  const legalScheme = legalNumber ? (legal.scheme ?? profile.legalIdScheme) : null
+  const vatNumber = vat.normalized || null
+
+  await db.transaction(async (tx) => {
+    // Pays = source de vérité sur companies. currency legacy NON touchée.
+    await tx.update(companies).set({ country }).where(eq(companies.id, tenant.id))
+    await tx
+      .update(settings)
+      .set({
+        legalRegistrationNumber: legalNumber,
+        legalRegistrationScheme: legalScheme,
+        vatNumber,
+        vatStatus,
+        legalForm: input.legalForm.trim() || null,
+        defaultCurrency: currency,
+        // Rétrocompat FR : garde invoiceSiret en phase avec l'identité FR pour
+        // ne pas casser le PDF/émission existants (additif, non destructif).
+        ...(legalScheme === "FR_SIREN" || legalScheme === "FR_SIRET"
+          ? { invoiceSiret: legalNumber ?? undefined }
+          : {}),
+        billingProfileConfirmedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(settings.companyId, tenant.id))
+  })
 
   revalidate()
   return { ok: true }
