@@ -338,6 +338,27 @@ export function resolveIssuerBillingSnapshot(input: {
 }
 
 /**
+ * Devise à snapshoter sur un NOUVEAU brouillon de facture (LOT 2B.1 hardening).
+ *
+ * La devise doit appartenir à la facture dès sa création pour éviter tout écart
+ * aperçu (DRAFT) vs émission (ISSUED). Règles :
+ * - Profil vendeur confirmé (billingProfileConfirmedAt != null) ET
+ *   settings.defaultCurrency non vide => cette devise (normalisée majuscules).
+ * - Profil NON confirmé => null (jamais de devise déduite d'un profil non
+ *   validé, ni de companies.currency/country). Le rendu retombe sur EUR legacy.
+ * - Confirmé mais defaultCurrency absent => null (aucune valeur inventée).
+ * Aucune conversion FX : on fige seulement le code, pas les montants.
+ */
+export function resolveDraftCurrency(
+  confirmed: boolean,
+  defaultCurrency: string | null | undefined,
+): string | null {
+  if (!confirmed) return null
+  const code = (defaultCurrency ?? "").trim().toUpperCase()
+  return code || null
+}
+
+/**
  * Affichage du n° de TVA suisse avec suffixe français (le stockage reste
  * canonique CHE-123.456.789, sans suffixe). Pour les autres pays : renvoie tel quel.
  */
