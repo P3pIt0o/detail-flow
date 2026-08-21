@@ -31,27 +31,43 @@ describe("2B.5B — règle préalable (profil non confirmé)", () => {
 })
 
 describe("2B.5B — France", () => {
-  it("2. FR unknown => contient TO_COMPLETE (préciser la catégorie)", () => {
-    const g = resolveRegulatoryGuidance({
-      country: "FR",
-      confirmed: true,
-      vatStatus: "subject",
-      frBusinessCategory: "unknown",
-    })
-    expect(statuses(g)).toContain("TO_COMPLETE")
+  const reception = (g: RegulatoryGuidance[]) =>
+    g.find((x) => x.title.toLowerCase().includes("réception"))
+  const emission = (g: RegulatoryGuidance[]) =>
+    g.find((x) => x.title.toLowerCase().includes("émission"))
+
+  it("2. FR unknown => réception ACTION_REQUIRED + catégorie TO_COMPLETE", () => {
+    for (const cat of ["unknown", null]) {
+      const g = resolveRegulatoryGuidance({
+        country: "FR",
+        confirmed: true,
+        vatStatus: "subject",
+        frBusinessCategory: cat,
+      })
+      // La réception reste une action requise…
+      expect(reception(g)?.status).toBe("ACTION_REQUIRED")
+      // …et la catégorie reste à compléter.
+      expect(statuses(g)).toContain("TO_COMPLETE")
+    }
   })
 
-  it("2bis. FR catégorie absente => TO_COMPLETE", () => {
-    const g = resolveRegulatoryGuidance({
-      country: "FR",
-      confirmed: true,
-      vatStatus: "subject",
-      frBusinessCategory: null,
-    })
-    expect(statuses(g)).toContain("TO_COMPLETE")
+  it("2ter. FR confirmé => réception TOUJOURS ACTION_REQUIRED (toute catégorie / vatStatus)", () => {
+    for (const cat of ["micro", "pme", "eti", "ge", "unknown", null]) {
+      for (const vs of ["subject", "exempt", "unknown"]) {
+        const g = resolveRegulatoryGuidance({
+          country: "FR",
+          confirmed: true,
+          vatStatus: vs,
+          frBusinessCategory: cat,
+        })
+        const r = reception(g)
+        expect(r?.status).toBe("ACTION_REQUIRED")
+        expect(r?.deadline).toBe("1er septembre 2026")
+      }
+    }
   })
 
-  it("3. FR micro et pme => émission 1 septembre 2027", () => {
+  it("3. FR micro et pme => émission INFORMATION au 1er septembre 2027", () => {
     for (const cat of ["micro", "pme"]) {
       const g = resolveRegulatoryGuidance({
         country: "FR",
@@ -59,12 +75,13 @@ describe("2B.5B — France", () => {
         vatStatus: "subject",
         frBusinessCategory: cat,
       })
-      const emission = g.find((x) => x.title.toLowerCase().includes("émission"))
-      expect(emission?.deadline).toBe("1 septembre 2027")
+      const e = emission(g)
+      expect(e?.status).toBe("INFORMATION")
+      expect(e?.deadline).toBe("1er septembre 2027")
     }
   })
 
-  it("4. FR eti et ge => émission 1 septembre 2026", () => {
+  it("4. FR eti et ge => émission ACTION_REQUIRED au 1er septembre 2026", () => {
     for (const cat of ["eti", "ge"]) {
       const g = resolveRegulatoryGuidance({
         country: "FR",
@@ -72,24 +89,38 @@ describe("2B.5B — France", () => {
         vatStatus: "subject",
         frBusinessCategory: cat,
       })
-      const emission = g.find((x) => x.title.toLowerCase().includes("émission"))
-      expect(emission?.deadline).toBe("1 septembre 2026")
+      const e = emission(g)
+      expect(e?.status).toBe("ACTION_REQUIRED")
+      expect(e?.deadline).toBe("1er septembre 2026")
     }
   })
 
-  it("5. FR exempt conserve les avertissements réglementaires (PDF ≠ e-invoice)", () => {
+  it("5. FR exempt conserve l'alerte de réception (jamais d'exclusion automatique)", () => {
     const g = resolveRegulatoryGuidance({
       country: "FR",
       confirmed: true,
       vatStatus: "exempt",
       frBusinessCategory: "ge",
     })
+    // Réception toujours en action requise malgré "exempt".
+    expect(reception(g)?.status).toBe("ACTION_REQUIRED")
     const t = text(g)
-    // L'information réception + rappel PDF restent présents malgré "exempt".
-    expect(t).toContain("réception")
     expect(t).toContain("pdf")
-    // Aucune conclusion "hors champ".
+    // Aucune conclusion d'exclusion de la réforme.
     expect(t).not.toContain("hors champ")
+    expect(t).not.toContain("non concerné")
+  })
+
+  it("5bis. formulation prudente : jamais 'toutes les opérations'", () => {
+    const g = resolveRegulatoryGuidance({
+      country: "FR",
+      confirmed: true,
+      vatStatus: "subject",
+      frBusinessCategory: "ge",
+    })
+    const t = text(g)
+    expect(t).not.toContain("toutes les opérations")
+    expect(t).toContain("entreprises concernées")
   })
 })
 

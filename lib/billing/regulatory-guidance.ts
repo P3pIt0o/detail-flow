@@ -91,24 +91,24 @@ export function resolveRegulatoryGuidance(input: SellerRegulatoryInput): Regulat
 function guidanceFR(vatStatus: string, frCategory: string): RegulatoryGuidance[] {
   const out: RegulatoryGuidance[] = []
 
-  // Réception : commune à toutes les entreprises concernées.
+  // Réception : commune à toutes les entreprises concernées (action requise).
   out.push({
-    status: "INFORMATION",
+    status: "ACTION_REQUIRED",
     title: "Réception des factures électroniques",
     message:
-      "La réception des factures électroniques commence le 1er septembre 2026 pour les entreprises concernées.",
-    deadline: "1 septembre 2026",
+      "À partir du 1er septembre 2026, les entreprises concernées doivent être en mesure de recevoir leurs factures électroniques et avoir choisi une plateforme agréée pour cette réception. DetailFlow ne fournit pas encore cette réception.",
+    deadline: "1er septembre 2026",
     source: SOURCE_FR,
   })
 
   // Émission : dépend de la catégorie DÉCLARÉE (jamais déduite).
   if (frCategory === "ge" || frCategory === "eti") {
     out.push({
-      status: "INFORMATION",
+      status: "ACTION_REQUIRED",
       title: "Émission des factures électroniques",
       message:
-        "Pour une grande entreprise ou une ETI, l'émission des factures électroniques est prévue à partir du 1er septembre 2026.",
-      deadline: "1 septembre 2026",
+        "Pour une grande entreprise ou une ETI concernée, l'émission des factures électroniques est prévue à partir du 1er septembre 2026. DetailFlow ne transmet pas encore les factures via une plateforme agréée.",
+      deadline: "1er septembre 2026",
       source: SOURCE_FR,
     })
   } else if (frCategory === "pme" || frCategory === "micro") {
@@ -117,7 +117,7 @@ function guidanceFR(vatStatus: string, frCategory: string): RegulatoryGuidance[]
       title: "Émission des factures électroniques",
       message:
         "Pour une PME ou une micro-entreprise, l'émission des factures électroniques est prévue à partir du 1er septembre 2027.",
-      deadline: "1 septembre 2027",
+      deadline: "1er septembre 2027",
       source: SOURCE_FR,
     })
   } else {
