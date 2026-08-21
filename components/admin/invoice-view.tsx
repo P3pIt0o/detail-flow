@@ -14,7 +14,7 @@ import {
   TriangleAlert,
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { formatMoney, formatDateLong } from "@/lib/format"
+import { formatMoney, getDisplayCurrencyCode, formatDateLong } from "@/lib/format"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
 import type {
@@ -42,6 +42,8 @@ export function InvoiceView({
 }) {
   // Tous les montants de la vue utilisent la devise SNAPSHOTÉE de la facture.
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
+  // Code affiché dans les labels de saisie (visuel uniquement).
+  const displayCurrency = getDisplayCurrencyCode(invoice.currencyCode)
   const router = useRouter()
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -368,7 +370,7 @@ export function InvoiceView({
                 <div className="mt-3 space-y-2 border-t border-border pt-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Montant (€)</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">{`Montant (${displayCurrency})`}</label>
                       <input
                         type="text"
                         inputMode="decimal"

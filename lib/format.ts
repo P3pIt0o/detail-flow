@@ -24,6 +24,15 @@ export function formatPrice(cents: number): string {
  * n'est jamais transformé silencieusement en EUR : on affiche un fallback sûr
  * "123,45 XYZ" plutôt que de mentir sur la devise. Locale fr-FR (UI actuelle).
  */
+/**
+ * Code devise à AFFICHER dans un label de saisie (ex. "P.U. (CHF)"). Usage
+ * strictement visuel : NULL/vide => "EUR" legacy, sinon trim + majuscules.
+ * Ne modifie jamais la devise réelle, aucune conversion FX.
+ */
+export function getDisplayCurrencyCode(currencyCode?: string | null): string {
+  return (currencyCode ?? "").trim().toUpperCase() || "EUR"
+}
+
 export function formatMoney(cents: number, currencyCode?: string | null): string {
   const amount = cents / 100
   const code = (currencyCode ?? "").trim().toUpperCase()

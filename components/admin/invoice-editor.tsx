@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, Save, FileCheck2, CircleCheck, Loader2, AlertCircle, Car, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { formatMoney } from "@/lib/format"
+import { formatMoney, getDisplayCurrencyCode } from "@/lib/format"
 import {
   computeInvoice,
   LINE_KIND_LABEL,
@@ -37,17 +37,20 @@ function uid() {
 }
 
 /** Convertit des euros saisis en centimes (tolère la virgule française). */
-function eurosToCents(v: string): number {
+// Conversion saisie décimale <-> cents, identique quelle que soit la devise.
+function unitsToCents(v: string): number {
   const n = Number.parseFloat(v.replace(",", "."))
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
-function centsToEuros(c: number): string {
+function centsToUnits(c: number): string {
   return (c / 100).toFixed(2)
 }
 
 export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: InvoiceItemRow[] }) {
   // Aperçu du brouillon dans SA devise (CHF si brouillon CHF, EUR si NULL legacy).
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
+  // Code affiché dans les labels de saisie (visuel uniquement).
+  const displayCurrency = getDisplayCurrencyCode(invoice.currencyCode)
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [issuing, startIssue] = useTransition()
@@ -65,7 +68,7 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
       unitPriceCents: it.unitPriceCents,
     })),
   )
-  const [discountEuros, setDiscountEuros] = useState(centsToEuros(invoice.discountCents))
+  const [discountAmount, setDiscountAmount] = useState(centsToUnits(invoice.discountCents))
   const [vatEnabled, setVatEnabled] = useState(invoice.vatEnabled)
   const [vatRate, setVatRate] = useState(String(invoice.vatRate))
   const [customerName, setCustomerName] = useState(invoice.customerName)
@@ -92,13 +95,13 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
     () =>
       computeInvoice({
         lines: lines.map((l) => ({ kind: l.kind, quantity: l.quantity, unitPriceCents: l.unitPriceCents })),
-        discountCents: eurosToCents(discountEuros),
+        discountCents: unitsToCents(discountAmount),
         vatEnabled,
         vatRate: Number.parseFloat(vatRate.replace(",", ".")) || 0,
         depositCents: invoice.depositCents,
         paidCents: 0,
       }),
-    [lines, discountEuros, vatEnabled, vatRate, invoice.depositCents],
+    [lines, discountAmount, vatEnabled, vatRate, invoice.depositCents],
   )
 
   // -- Manipulation des lignes ----------------------------------------------
@@ -115,7 +118,7 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
   function buildPayload(): SaveDraftInput {
     return {
       invoiceId: invoice.id,
-      discountCents: eurosToCents(discountEuros),
+      discountCents: unitsToCents(discountAmount),
       vatEnabled,
       vatRate: Number.parseFloat(vatRate.replace(",", ".")) || 0,
       customerName,
@@ -320,12 +323,12 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                       />
                     </label>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      P.U. €
+                      {`P.U. (${displayCurrency})`}
                       <input
                         type="text"
                         inputMode="decimal"
-                        defaultValue={centsToEuros(l.unitPriceCents)}
-                        onChange={(e) => updateLine(l.key, { unitPriceCents: eurosToCents(e.target.value) })}
+                        defaultValue={centsToUnits(l.unitPriceCents)}
+                        onChange={(e) => updateLine(l.key, { unitPriceCents: unitsToCents(e.target.value) })}
                         className="w-24 rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
                       />
                     </label>
@@ -424,12 +427,12 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                 <span className="font-medium text-foreground">{money(totals.itemsTotalCents)}</span>
               </div>
               <label className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Remise €</span>
+                <span className="text-muted-foreground">{`Remise (${displayCurrency})`}</span>
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={discountEuros}
-                  onChange={(e) => setDiscountEuros(e.target.value)}
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
                   className="w-24 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-sm text-foreground focus:border-primary focus:outline-none"
                 />
               </label>
