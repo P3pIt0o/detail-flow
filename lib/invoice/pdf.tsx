@@ -247,10 +247,21 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
           </View>
         </View>
 
-        {/* Exonération TVA */}
-        {!invoice.vatEnabled && invoice.vatExemptNote ? (
-          <Text style={[s.muted, { marginTop: 12, fontSize: 8 }]}>{invoice.vatExemptNote}</Text>
-        ) : null}
+        {/* Mention fiscale.
+            - Nouveau modèle (taxTreatment != null) : on imprime UNIQUEMENT
+              taxLegalMention (jamais l'ancien vatExemptNote). Aucune mention si vide.
+            - Legacy (taxTreatment == null) : fallback historique inchangé. */}
+        {invoice.taxTreatment != null
+          ? invoice.taxLegalMention
+            ? (
+                <Text style={[s.muted, { marginTop: 12, fontSize: 8 }]}>{invoice.taxLegalMention}</Text>
+              )
+            : null
+          : !invoice.vatEnabled && invoice.vatExemptNote
+            ? (
+                <Text style={[s.muted, { marginTop: 12, fontSize: 8 }]}>{invoice.vatExemptNote}</Text>
+              )
+            : null}
 
         {/* Commentaire client */}
         {invoice.customerComment ? (

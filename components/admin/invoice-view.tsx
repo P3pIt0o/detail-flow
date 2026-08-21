@@ -22,6 +22,7 @@ import {
   resolveCustomerCountryLabel,
   resolveCustomerVatDisplay,
 } from "@/lib/billing/country-profiles"
+import { getTaxTreatmentLabel } from "@/lib/invoice/tax-treatment"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
 import type {
@@ -398,6 +399,21 @@ export function InvoiceView({
                 {money(invoice.balanceCents)}
               </span>
             </div>
+
+            {/* Traitement fiscal snapshoté (LOT 2B.4). Affiche UNIQUEMENT le choix
+                de l'utilisateur — aucune affirmation de conformité. Legacy (null) => rien. */}
+            {getTaxTreatmentLabel(invoice.taxTreatment) && (
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Traitement TVA</p>
+                <p className="text-sm text-foreground">{getTaxTreatmentLabel(invoice.taxTreatment)}</p>
+                {invoice.taxLegalMention && (
+                  <>
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">Mention fiscale</p>
+                    <p className="text-sm text-foreground whitespace-pre-line">{invoice.taxLegalMention}</p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Paiements */}
