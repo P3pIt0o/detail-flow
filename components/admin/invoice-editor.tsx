@@ -19,6 +19,7 @@ import {
 } from "@/lib/invoice/actions"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
 import { CustomerIdentityFields, type CustomerIdentityValue } from "@/components/admin/customer-identity-fields"
+import { normalizeTaxTreatment, resolveTaxCalculation } from "@/lib/invoice/tax-treatment"
 
 type LineState = {
   key: string
@@ -71,6 +72,9 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
   const [discountAmount, setDiscountAmount] = useState(centsToUnits(invoice.discountCents))
   const [vatEnabled, setVatEnabled] = useState(invoice.vatEnabled)
   const [vatRate, setVatRate] = useState(String(invoice.vatRate))
+  // Traitement fiscal explicite (LOT 2B.4). "" = legacy / non défini.
+  const [taxTreatment, setTaxTreatment] = useState(normalizeTaxTreatment(invoice.taxTreatment) ?? "")
+  const [taxLegalMention, setTaxLegalMention] = useState(invoice.taxLegalMention ?? "")
   const [customerName, setCustomerName] = useState(invoice.customerName)
   const [customerEmail, setCustomerEmail] = useState(invoice.customerEmail ?? "")
   const [customerPhone, setCustomerPhone] = useState(invoice.customerPhone ?? "")
@@ -90,18 +94,29 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
   const [customerComment, setCustomerComment] = useState(invoice.customerComment ?? "")
   const [internalNote, setInternalNote] = useState(invoice.internalNote ?? "")
 
+  // -- Traitement fiscal : résolution mécanique (identique au serveur) --------
+  const effectiveTax = useMemo(
+    () =>
+      resolveTaxCalculation({
+        taxTreatment: normalizeTaxTreatment(taxTreatment),
+        legacyVatEnabled: vatEnabled,
+        vatRate: Number.parseFloat(vatRate.replace(",", ".")) || 0,
+      }),
+    [taxTreatment, vatEnabled, vatRate],
+  )
+
   // -- Recalcul live ---------------------------------------------------------
   const totals = useMemo(
     () =>
       computeInvoice({
         lines: lines.map((l) => ({ kind: l.kind, quantity: l.quantity, unitPriceCents: l.unitPriceCents })),
         discountCents: unitsToCents(discountAmount),
-        vatEnabled,
-        vatRate: Number.parseFloat(vatRate.replace(",", ".")) || 0,
+        vatEnabled: effectiveTax.vatEnabled,
+        vatRate: effectiveTax.vatRate,
         depositCents: invoice.depositCents,
         paidCents: 0,
       }),
-    [lines, discountAmount, vatEnabled, vatRate, invoice.depositCents],
+    [lines, discountAmount, effectiveTax, invoice.depositCents],
   )
 
   // -- Manipulation des lignes ----------------------------------------------
@@ -119,8 +134,11 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
     return {
       invoiceId: invoice.id,
       discountCents: unitsToCents(discountAmount),
-      vatEnabled,
-      vatRate: Number.parseFloat(vatRate.replace(",", ".")) || 0,
+      // vatEnabled/vatRate dérivés du traitement (le serveur re-normalisera).
+      vatEnabled: effectiveTax.vatEnabled,
+      vatRate: effectiveTax.vatRate,
+      taxTreatment: taxTreatment || null,
+      taxLegalMention: taxLegalMention.trim() || null,
       customerName,
       customerEmail: customerEmail || null,
       customerPhone: customerPhone || null,
@@ -440,17 +458,58 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                 <span className="text-muted-foreground">Total HT</span>
                 <span className="font-medium text-foreground">{money(totals.netCents)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-2 text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={vatEnabled}
-                    onChange={(e) => setVatEnabled(e.target.checked)}
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  TVA
-                </label>
-                {vatEnabled && (
+
+              {/* Traitement TVA (LOT 2B.4) — choix explicite, jamais déduit */}
+              <div className="space-y-1 border-t border-border pt-3">
+                <label className="block text-xs text-muted-foreground">Traitement TVA</label>
+                <select
+                  value={taxTreatment}
+                  onChange={(e) => setTaxTreatment(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="">Non défini (comportement actuel)</option>
+                  <option value="STANDARD">TVA normale</option>
+                  <option value="EXEMPT">Sans TVA / exonération</option>
+                  <option value="REVERSE_CHARGE">Autoliquidation</option>
+                  <option value="OUT_OF_SCOPE">Hors champ</option>
+                </select>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Le traitement fiscal est un choix explicite. DetailFlow ne le détermine pas automatiquement.
+                </p>
+              </div>
+
+              {/* LEGACY : comportement historique inchangé (case à cocher + taux) */}
+              {taxTreatment === "" && (
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={vatEnabled}
+                      onChange={(e) => setVatEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    TVA
+                  </label>
+                  {vatEnabled && (
+                    <span className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={vatRate}
+                        onChange={(e) => setVatRate(e.target.value)}
+                        className="w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
+                      <span className="text-muted-foreground">%</span>
+                    </span>
+                  )}
+                  <span className="font-medium text-foreground">{money(totals.vatCents)}</span>
+                </div>
+              )}
+
+              {/* STANDARD : TVA forcée active, taux visible, pas de mention */}
+              {taxTreatment === "STANDARD" && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">TVA</span>
                   <span className="flex items-center gap-1">
                     <input
                       type="text"
@@ -461,9 +520,28 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
                     />
                     <span className="text-muted-foreground">%</span>
                   </span>
-                )}
-                <span className="font-medium text-foreground">{money(totals.vatCents)}</span>
-              </div>
+                  <span className="font-medium text-foreground">{money(totals.vatCents)}</span>
+                </div>
+              )}
+
+              {/* EXEMPT / REVERSE_CHARGE / OUT_OF_SCOPE : TVA 0 + mention explicite */}
+              {(taxTreatment === "EXEMPT" ||
+                taxTreatment === "REVERSE_CHARGE" ||
+                taxTreatment === "OUT_OF_SCOPE") && (
+                <div className="space-y-1">
+                  <label className="block text-xs text-muted-foreground">Mention fiscale</label>
+                  <textarea
+                    value={taxLegalMention}
+                    onChange={(e) => setTaxLegalMention(e.target.value)}
+                    rows={3}
+                    placeholder="Indiquez la mention applicable à cette facture"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  />
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    Vérifiez cette mention selon votre situation fiscale.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between border-t border-border pt-3 text-base">
                 <span className="font-semibold text-foreground">Total TTC</span>
                 <span className="font-semibold text-foreground">{money(totals.totalCents)}</span>

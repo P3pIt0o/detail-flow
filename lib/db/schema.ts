@@ -844,6 +844,13 @@ export const invoices = pgTable(
     issuerVatNumber: text("issuerVatNumber"),
     issuerLogoPathname: text("issuerLogoPathname"),
     vatExemptNote: text("vatExemptNote"),
+    /* -------- Traitement fiscal explicite (LOT 2B.4, additif, nullable) ------
+     * taxTreatment : STANDARD | EXEMPT | REVERSE_CHARGE | OUT_OF_SCOPE | null (legacy).
+     *   Choix EXPLICITE de l'utilisateur — jamais déduit du pays/type/TVA.
+     * taxLegalMention : texte exact de la mention fiscale choisie pour CETTE
+     *   facture (figé à l'émission). null pour STANDARD et pour le legacy. */
+    taxTreatment: text("taxTreatment"),
+    taxLegalMention: text("taxLegalMention"),
     footerNote: text("footerNote"),
     legalMentions: text("legalMentions"),
     pdfPathname: text("pdfPathname"),

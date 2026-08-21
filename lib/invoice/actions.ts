@@ -29,6 +29,7 @@ import {
 } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
+import { isTaxTreatment, normalizeTaxTreatment, resolveTaxCalculation, type TaxTreatment } from "@/lib/invoice/tax-treatment"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 import { getCountryProfile, resolveIssuerBillingSnapshot, resolveDraftCurrency } from "@/lib/billing/country-profiles"
 
@@ -73,6 +74,15 @@ async function recalcInvoice(invoiceId: number) {
     .where(eq(invoicePayments.invoiceId, invoiceId))
   const paidCents = Number(paidAgg[0]?.total ?? 0)
 
+  // Le traitement fiscal (snapshoté) pilote vatEnabled/vatRate AVANT le calcul
+  // mécanique. computeInvoice reste une fonction mathématique pure (aucune
+  // notion de traitement fiscal). Legacy (null) => comportement historique.
+  const effectiveTax = resolveTaxCalculation({
+    taxTreatment: normalizeTaxTreatment(inv.taxTreatment),
+    legacyVatEnabled: inv.vatEnabled,
+    vatRate: Number(inv.vatRate),
+  })
+
   const result = computeInvoice({
     lines: lines.map((l) => ({
       kind: l.kind as InvoiceLineKind,
@@ -80,8 +90,8 @@ async function recalcInvoice(invoiceId: number) {
       unitPriceCents: l.unitPriceCents,
     })),
     discountCents: inv.discountCents,
-    vatEnabled: inv.vatEnabled,
-    vatRate: Number(inv.vatRate),
+    vatEnabled: effectiveTax.vatEnabled,
+    vatRate: effectiveTax.vatRate,
     depositCents: inv.depositCents,
     paidCents,
   })
@@ -272,6 +282,9 @@ export interface SaveDraftInput {
   discountCents: number
   vatEnabled: boolean
   vatRate: number
+  // Traitement fiscal explicite (LOT 2B.4). Le serveur reste source de vérité.
+  taxTreatment?: string | null
+  taxLegalMention?: string | null
   customerName: string
   customerEmail: string | null
   customerPhone: string | null
@@ -310,6 +323,28 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
     return { ok: false, error: "Le nom du client est obligatoire." }
   }
 
+  // Traitement fiscal explicite (LOT 2B.4). Le serveur normalise et reste source
+  // de vérité, même si le front envoie une combinaison incohérente. Aucune
+  // inférence depuis le pays / le type de client / le numéro de TVA.
+  const rawTaxTreatment = input.taxTreatment?.trim().toUpperCase() || null
+  let taxTreatment: TaxTreatment | null = null
+  if (rawTaxTreatment) {
+    if (!isTaxTreatment(rawTaxTreatment)) {
+      return { ok: false, error: "Traitement TVA invalide." }
+    }
+    taxTreatment = rawTaxTreatment
+  }
+  // Mention fiscale : conservée UNIQUEMENT pour les traitements sans TVA. Jamais
+  // pour STANDARD ni pour le legacy (null). Aucune mention injectée par défaut.
+  const taxLegalMention =
+    taxTreatment && taxTreatment !== "STANDARD" ? input.taxLegalMention?.trim() || null : null
+  // Résolution mécanique de vatEnabled/vatRate depuis le traitement.
+  const effectiveTax = resolveTaxCalculation({
+    taxTreatment,
+    legacyVatEnabled: input.vatEnabled,
+    vatRate: input.vatRate,
+  })
+
   // Identité client B2C/B2B : normalisation via le PAYS DU CLIENT (jamais le
   // vendeur). Le brouillon devient la source de vérité pour CETTE facture.
   const rawCustType = (input.customerType ?? "").trim()
@@ -347,8 +382,10 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
       .update(invoices)
       .set({
         discountCents: Math.max(0, Math.round(input.discountCents)),
-        vatEnabled: input.vatEnabled,
-        vatRate: String(input.vatRate),
+        vatEnabled: effectiveTax.vatEnabled,
+        vatRate: String(effectiveTax.vatRate),
+        taxTreatment,
+        taxLegalMention,
         customerName: input.customerName.trim(),
         customerEmail: input.customerEmail?.trim() || null,
         customerPhone: input.customerPhone?.trim() || null,
@@ -411,6 +448,11 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   if (Number(itemsCount[0]?.n ?? 0) === 0) {
     return { ok: false, error: "Ajoutez au moins une ligne avant d'émettre la facture." }
   }
+
+  // Traitement fiscal snapshoté sur le brouillon. La mention fiscale reste
+  // OPTIONNELLE : l'émission n'est jamais bloquée pour une mention manquante et
+  // DetailFlow n'invente aucune mention automatique.
+  const draftTaxTreatment = normalizeTaxTreatment(inv.taxTreatment)
 
   // Validation minimale de l'émetteur : sans identification de l'entreprise la
   // facture n'est pas valable. On réutilise les champs déjà présents dans les
@@ -515,7 +557,12 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
         issuerVatNumber: issuerVatSnapshot,
         currencyCode,
         issuerLogoPathname: s?.invoiceLogoPathname ?? null,
-        vatExemptNote: inv.vatEnabled ? null : (s?.vatExemptNote ?? null),
+        // Fallback historique : le texte d'exonération des settings n'est copié
+        // QUE pour les factures legacy (taxTreatment null) sans TVA. Avec le
+        // nouveau modèle (taxTreatment non-null), la mention vient exclusivement
+        // de taxLegalMention (déjà figée sur le brouillon) : on n'injecte JAMAIS
+        // l'ancien texte FR sur une facture EXEMPT/REVERSE_CHARGE/OUT_OF_SCOPE.
+        vatExemptNote: draftTaxTreatment == null && !inv.vatEnabled ? (s?.vatExemptNote ?? null) : null,
         footerNote: s?.invoiceFooterNote ?? null,
         legalMentions: s?.invoiceLegalMentions ?? null,
         updatedAt: new Date(),
