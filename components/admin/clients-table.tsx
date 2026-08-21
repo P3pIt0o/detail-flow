@@ -1,11 +1,15 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
+import { Pencil } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatPrice, formatDateShort } from "@/lib/format"
 
 type Client = {
   key: string
+  /** id de la fiche `clients` (null pour un client issu uniquement d'une résa). */
+  clientId: number | null
   name: string
   email: string | null
   phone: string | null
@@ -47,12 +51,15 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
               <th className="px-4 py-3 text-center font-medium">Résas</th>
               <th className="hidden px-4 py-3 font-medium md:table-cell">Dernière</th>
               <th className="px-4 py-3 text-right font-medium">Total</th>
+              <th className="px-4 py-3 text-right font-medium">
+                <span className="sr-only">Modifier</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
                   Aucun client.
                 </td>
               </tr>
@@ -87,6 +94,20 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-foreground">
                     {formatPrice(c.totalSpentCents)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {c.clientId != null ? (
+                      <Link
+                        href={`/admin/clients/${c.clientId}`}
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label={`Modifier ${c.name}`}
+                      >
+                        <Pencil className="size-3.5" aria-hidden="true" />
+                        Modifier
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/60">—</span>
+                    )}
                   </td>
                 </tr>
               ))

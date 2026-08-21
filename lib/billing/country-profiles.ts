@@ -48,6 +48,9 @@ export interface CountryBillingProfile {
   /** Schéma d'identifiant par défaut pour ce pays. */
   legalIdScheme: LegalScheme
   vatNumberLabel: string
+  /** Exemples de saisie affichés en placeholder (aucune donnée réelle). */
+  legalIdPlaceholder: string
+  vatNumberPlaceholder: string
   defaultCurrency: string
   /** Liens officiels (affichés dans l'admin sous « source officielle »). */
   regulatoryLinks: RegulatoryLink[]
@@ -83,6 +86,8 @@ const FR: CountryBillingProfile = {
   customerLegalIdLabel: "SIREN / SIRET",
   legalIdScheme: "FR_SIRET",
   vatNumberLabel: "N° TVA intracommunautaire",
+  legalIdPlaceholder: "123456789 (SIREN) ou 12345678900012 (SIRET)",
+  vatNumberPlaceholder: "FR12345678901",
   defaultCurrency: "EUR",
   regulatoryLinks: [{ label: "impots.gouv.fr — facturation électronique", url: "https://www.impots.gouv.fr/" }],
   normalizeLegalId: (raw) => stripAll(raw).replace(/[^0-9]/g, ""),
@@ -118,6 +123,8 @@ const BE: CountryBillingProfile = {
   countryName: "Belgique",
   sellerLegalIdLabel: "Numéro d'entreprise (BCE)",
   customerLegalIdLabel: "Numéro d'entreprise (BCE)",
+  legalIdPlaceholder: "0123.456.789",
+  vatNumberPlaceholder: "BE0123456789",
   legalIdScheme: "BE_BCE",
   vatNumberLabel: "Numéro de TVA",
   defaultCurrency: "EUR",
@@ -153,6 +160,8 @@ const CH: CountryBillingProfile = {
   countryName: "Suisse",
   sellerLegalIdLabel: "IDE / UID",
   customerLegalIdLabel: "IDE / UID",
+  legalIdPlaceholder: "CHE-123.456.789",
+  vatNumberPlaceholder: "CHE-123.456.789 (TVA)",
   legalIdScheme: "CH_UID",
   vatNumberLabel: "Numéro de TVA",
   defaultCurrency: "CHF",
@@ -198,6 +207,8 @@ const GENERIC: CountryBillingProfile = {
   countryName: "Autre pays",
   sellerLegalIdLabel: "N° d'immatriculation de l'entreprise",
   customerLegalIdLabel: "N° d'immatriculation de l'entreprise",
+  legalIdPlaceholder: "N° d'immatriculation",
+  vatNumberPlaceholder: "N° de TVA",
   legalIdScheme: "GENERIC",
   vatNumberLabel: "Numéro de TVA",
   defaultCurrency: "EUR",

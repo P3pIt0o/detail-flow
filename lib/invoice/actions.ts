@@ -272,6 +272,11 @@ export interface SaveDraftInput {
   customerEmail: string | null
   customerPhone: string | null
   customerAddress: string | null
+  // Identité client B2C/B2B (facultative). Le PAYS DU CLIENT pilote la validation.
+  customerType?: string | null
+  customerCountry?: string | null
+  customerLegalRegistrationNumber?: string | null
+  customerVatNumber?: string | null
   vehicleTypeName: string | null
   vehicleBrand: string | null
   vehicleModel: string | null
@@ -301,6 +306,26 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
     return { ok: false, error: "Le nom du client est obligatoire." }
   }
 
+  // Identité client B2C/B2B : normalisation via le PAYS DU CLIENT (jamais le
+  // vendeur). Le brouillon devient la source de vérité pour CETTE facture.
+  const rawCustType = (input.customerType ?? "").trim()
+  const customerType = rawCustType === "individual" || rawCustType === "business" ? rawCustType : null
+  const rawCustCountry = (input.customerCountry ?? "").trim().toUpperCase()
+  const customerCountry = rawCustCountry === "OTHER" ? "OTHER" : rawCustCountry || null
+  let customerLegalNumber: string | null = (input.customerLegalRegistrationNumber ?? "").trim() || null
+  let customerLegalScheme: string | null = null
+  let customerVatNumber: string | null = (input.customerVatNumber ?? "").trim() || null
+  if (customerType === "business") {
+    const custProfile = getCountryProfile(customerCountry ?? undefined)
+    const legal = custProfile.validateLegalId(customerLegalNumber)
+    if (!legal.valid) return { ok: false, error: `${custProfile.customerLegalIdLabel} : ${legal.message ?? "format invalide."}` }
+    const vat = custProfile.validateVatNumber(customerVatNumber)
+    if (!vat.valid) return { ok: false, error: `${custProfile.vatNumberLabel} : ${vat.message ?? "format invalide."}` }
+    customerLegalNumber = legal.normalized || null
+    customerLegalScheme = customerLegalNumber ? (legal.scheme ?? custProfile.legalIdScheme) : null
+    customerVatNumber = vat.normalized || null
+  }
+
   await db.transaction(async (tx) => {
     await tx
       .update(invoices)
@@ -312,6 +337,12 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
         customerEmail: input.customerEmail?.trim() || null,
         customerPhone: input.customerPhone?.trim() || null,
         customerAddress: input.customerAddress?.trim() || null,
+        // Snapshot client posé dès le brouillon (source de vérité de la facture).
+        customerType,
+        customerCountry,
+        customerLegalRegistrationNumber: customerLegalNumber,
+        customerLegalRegistrationScheme: customerLegalScheme,
+        customerVatNumber,
         vehicleTypeName: input.vehicleTypeName?.trim() || null,
         vehicleBrand: input.vehicleBrand?.trim() || null,
         vehicleModel: input.vehicleModel?.trim() || null,
