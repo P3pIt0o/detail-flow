@@ -37,6 +37,18 @@ function isPast(dateStr: string, startTime: string): boolean {
 }
 
 /**
+ * Prédicat d'AFFICHAGE : le RDV peut-il encore être annulé par le client ?
+ * Mêmes règles que l'annulation serveur (source unique de vérité), utilisé par
+ * la page de gestion pour masquer/afficher le bouton. La décision réelle reste
+ * revalidée côté serveur dans `cancelBookingByToken` (le bouton n'est jamais
+ * une autorité).
+ */
+export function isCancellableNow(b: { status: string; date: unknown; startTime: string }): boolean {
+  if (b.status === "cancelled" || b.status === "completed") return false
+  return !isPast(String(b.date), b.startTime)
+}
+
+/**
  * Annule une réservation à partir de son jeton public, pour l'entreprise
  * `companyId` (résolue côté serveur). Idempotence protégée : une réservation
  * déjà annulée renvoie `already_cancelled` (jamais de double annulation).

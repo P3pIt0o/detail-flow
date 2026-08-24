@@ -154,7 +154,7 @@ export default async function ConfirmationPage({
                 Vous pouvez annuler votre rendez-vous ou choisir un autre créneau à tout moment.
               </p>
               <Link
-                href={withTenant(`/reservation/gerer/${booking.manageToken}`)}
+                href={withTenant(`/reservation/gerer/${booking.manageToken}`, tenant?.slug)}
                 className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Gérer mon rendez-vous
