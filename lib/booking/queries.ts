@@ -269,6 +269,42 @@ export async function referenceExists(reference: string): Promise<boolean> {
   return rows.length > 0
 }
 
+/**
+ * Réservation complète (avec lignes + options) par son JETON PUBLIC de gestion,
+ * STRICTEMENT scopée à l'entreprise courante.
+ *
+ * Double barrière d'isolation : `manageToken = token` ET `companyId = cid`. Un
+ * jeton du tenant A présenté dans le contexte du tenant B ne renvoie donc
+ * jamais rien (aucune fuite inter-tenant). Le `companyId` provient toujours du
+ * contexte serveur, jamais du navigateur.
+ */
+export async function getBookingByManageToken(token: string, companyId?: number) {
+  const cid = companyId ?? (await requireCompanyId())
+  const clean = (token ?? "").trim()
+  if (!clean) return null
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(and(eq(bookings.manageToken, clean), eq(bookings.companyId, cid)))
+    .limit(1)
+  if (!rows.length) return null
+  const booking = rows[0]
+
+  const items = await db.select().from(bookingItems).where(eq(bookingItems.bookingId, booking.id))
+  const itemIds = items.map((i) => i.id)
+  const itemOptions = itemIds.length
+    ? await db.select().from(bookingItemOptions).where(inArray(bookingItemOptions.bookingItemId, itemIds))
+    : []
+
+  return {
+    booking,
+    items: items.map((it) => ({
+      ...it,
+      options: itemOptions.filter((o) => o.bookingItemId === it.id),
+    })),
+  }
+}
+
 /** Réservation complète (avec lignes + options) par sa référence, scopée entreprise. */
 export async function getBookingByReference(reference: string, companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())

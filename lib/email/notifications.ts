@@ -3,9 +3,11 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, companies, settings as settingsTable } from "@/lib/db/schema"
 import { sendEmail } from "./send"
+import { tenantPathUrl } from "@/lib/tenant-shared"
 import {
   clientConfirmationEmail,
   proNotificationEmail,
+  proCancellationEmail,
   statusConfirmedEmail,
   statusCompletedEmail,
   statusCancelledEmail,
@@ -40,12 +42,23 @@ async function loadBookingEmailData(
   // sinon au nom légal de la société (point 19 — jamais un nom générique si
   // une identité tenant existe).
   const companyRows = await db
-    .select({ name: companies.name })
+    .select({ name: companies.name, slug: companies.slug })
     .from(companies)
     .where(eq(companies.id, booking.companyId))
     .limit(1)
   const businessName =
     s?.businessName?.trim() || companyRows[0]?.name?.trim() || "Votre professionnel"
+
+  // Liens transactionnels ABSOLUS, rattachés au tenant de la réservation
+  // (jamais un autre). Le lien de gestion n'existe que si un jeton est présent
+  // (réservations historiques sans jeton = pas de bouton).
+  const slug = companyRows[0]?.slug ?? null
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const manageUrl =
+    slug && booking.manageToken
+      ? tenantPathUrl(`/reservation/gerer/${booking.manageToken}`, slug, rootDomain)
+      : null
+  const newBookingUrl = slug ? tenantPathUrl("/reservation", slug, rootDomain) : null
 
   const data: BookingEmailData = {
     reference: booking.reference,
@@ -70,6 +83,8 @@ async function loadBookingEmailData(
     businessName,
     businessEmail: s?.businessEmail ?? null,
     businessPhone: s?.businessPhone ?? null,
+    manageUrl,
+    newBookingUrl,
   }
 
   return { data, customerEmail: booking.customerEmail, proEmail: s?.businessEmail ?? null }
@@ -137,6 +152,42 @@ export async function sendStatusChangeEmail(
     })
   } catch (e) {
     console.log("[v0] sendStatusChangeEmail a échoué:", e instanceof Error ? e.message : e)
+  }
+}
+
+/**
+ * Emails envoyés après une annulation par LE CLIENT lui-même (page publique
+ * de gestion) : confirmation au client (avec lien de nouvelle réservation) +
+ * notification au professionnel. Non bloquant : un échec d'email n'annule
+ * jamais l'annulation (déjà persistée en base avant l'appel).
+ */
+export async function sendCustomerCancellationEmails(bookingId: number): Promise<void> {
+  try {
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) return
+    const { data, customerEmail, proEmail } = loaded
+
+    const clientMail = statusCancelledEmail(data)
+    await sendEmail({
+      to: customerEmail,
+      subject: clientMail.subject,
+      html: clientMail.html,
+      fromName: data.businessName,
+      replyTo: proEmail ?? undefined,
+    })
+
+    if (proEmail) {
+      const proMail = proCancellationEmail(data)
+      await sendEmail({
+        to: proEmail,
+        subject: proMail.subject,
+        html: proMail.html,
+        fromName: data.businessName,
+        replyTo: customerEmail,
+      })
+    }
+  } catch (e) {
+    console.log("[v0] sendCustomerCancellationEmails a échoué:", e instanceof Error ? e.message : e)
   }
 }
 

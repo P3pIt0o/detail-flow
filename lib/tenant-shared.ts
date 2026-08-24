@@ -109,6 +109,22 @@ export function tenantAdminUrl(slug: string, rootDomain?: string): string {
   return `/admin?tenant=${slug}`
 }
 
+/**
+ * Construit l'URL ABSOLUE d'un chemin arbitraire pour une entreprise, sur le
+ * même modèle que `tenantPublicUrl` : `https://www.<root><path>?tenant=<slug>`.
+ * Sert aux liens transactionnels des emails (gestion de RDV, nouvelle
+ * réservation). En l'absence de domaine racine (aperçu/local), retombe sur un
+ * chemin relatif `<path>?tenant=<slug>`.
+ */
+export function tenantPathUrl(path: string, slug: string, rootDomain?: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`
+  const sep = p.includes("?") ? "&" : "?"
+  const query = `${sep}tenant=${encodeURIComponent(slug)}`
+  const root = normalizeRootHost(rootDomain)
+  if (root) return `https://${root}${p}${query}`
+  return `${p}${query}`
+}
+
 export type HostResolution =
   | { kind: "root" } // domaine principal DetailFlow (vitrine)
   | { kind: "tenant"; slug: string } // sous-domaine d'une entreprise
