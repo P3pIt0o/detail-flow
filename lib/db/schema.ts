@@ -10,6 +10,7 @@ import {
   jsonb,
   unique,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 /* -------------------------------------------------------------------------- */
@@ -601,6 +602,11 @@ export const bookings = pgTable(
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
     reference: text("reference").notNull().unique(),
+    // Jeton public haute entropie pour la gestion du RDV par le client final
+    // NON authentifié (page /reservation/gerer/<token>). Nullable : les
+    // réservations historiques n'en ont pas (le lien n'est alors pas proposé).
+    // Impossible à deviner ; ne contient aucune donnée tenant/client.
+    manageToken: text("manageToken"),
     userId: text("userId"), // nullable = réservation invité
     // Marqueur des données de démonstration (nettoyage avant passage en prod).
     isDemoData: boolean("isDemoData").notNull().default(false),
@@ -643,6 +649,9 @@ export const bookings = pgTable(
   },
   (t) => ({
     byCompany: index("bookings_companyId_idx").on(t.companyId),
+    // Recherche par jeton public (gestion client). Unique : un jeton ne peut
+    // désigner qu'une seule réservation. Postgres autorise plusieurs NULL.
+    byManageToken: uniqueIndex("bookings_manageToken_idx").on(t.manageToken),
   }),
 )
 

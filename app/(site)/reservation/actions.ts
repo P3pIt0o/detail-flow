@@ -26,6 +26,7 @@ import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
+import { randomBytes } from "crypto"
 
 /* -------------------------------------------------------------------------- */
 /*  Devis en direct (appelé quand le client modifie ses choix)               */
@@ -116,6 +117,15 @@ function generateReference(dateStr: string): string {
   const compact = dateStr.replace(/-/g, "")
   const rand = Math.floor(1000 + Math.random() * 9000)
   return `DF-${compact}-${rand}`
+}
+
+/**
+ * Jeton public de gestion du RDV : 24 octets aléatoires (192 bits) encodés en
+ * base64url (URL-safe). Impossible à deviner ; ne contient aucune donnée
+ * tenant/client. Permet au client non authentifié d'annuler son rendez-vous.
+ */
+function generateManageToken(): string {
+  return randomBytes(24).toString("base64url")
 }
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -273,6 +283,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         .values({
           companyId,
           reference,
+          manageToken: generateManageToken(),
           customerName: customer.name.trim(),
           customerEmail: customer.email.trim().toLowerCase(),
           customerPhone: customer.phone.trim(),

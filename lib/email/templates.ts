@@ -33,6 +33,10 @@ export type BookingEmailData = {
   businessName: string
   businessEmail?: string | null
   businessPhone?: string | null
+  /** Lien sécurisé de gestion du RDV (annuler / choisir un autre créneau). */
+  manageUrl?: string | null
+  /** Lien vers le parcours de réservation du même tenant (nouveau créneau). */
+  newBookingUrl?: string | null
 }
 
 function esc(s: string): string {
@@ -120,6 +124,24 @@ function bookingSummary(b: BookingEmailData): string {
   </table>`
 }
 
+/** Bouton d'action centré (CTA email), style inline pour compatibilité mail. */
+function ctaButton(url: string, label: string, color: string = BRAND): string {
+  return `<div style="text-align:center;margin:22px 0 4px;">
+    <a href="${esc(url)}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 28px;border-radius:10px;">
+      ${esc(label)}
+    </a>
+  </div>`
+}
+
+/** Bloc "Gérer mon rendez-vous" (annulation / autre créneau), si lien fourni. */
+function manageBlock(b: BookingEmailData): string {
+  if (!b.manageUrl) return ""
+  return `${ctaButton(b.manageUrl, "Gérer mon rendez-vous")}
+    <p style="text-align:center;font-size:13px;line-height:1.6;color:${MUTED};margin:8px 0 0;">
+      Vous pourrez annuler votre rendez-vous ou choisir un autre créneau.
+    </p>`
+}
+
 /* -------------------------- Confirmation client -------------------------- */
 
 export function clientConfirmationEmail(b: BookingEmailData) {
@@ -157,6 +179,7 @@ export function clientConfirmationEmail(b: BookingEmailData) {
         </p>
         ${bookingSummary(b)}
         ${depositNote}
+        ${manageBlock(b)}
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:16px 0 0;">
           Vous recevrez un email dès la confirmation de votre rendez-vous.
         </p>`,
@@ -226,6 +249,7 @@ export function statusCompletedEmail(b: BookingEmailData) {
 }
 
 export function statusCancelledEmail(b: BookingEmailData) {
+  const summaryLine = `${esc(formatDateLong(b.date))} · ${esc(b.startTime)}`
   return {
     subject: `Annulation de votre réservation ${b.reference}`,
     html: layout({
@@ -235,10 +259,50 @@ export function statusCancelledEmail(b: BookingEmailData) {
       heading: "Réservation annulée",
       accent: STATUS_RED,
       bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Bonjour ${esc(b.customerName)}, votre rendez-vous a bien été annulé.
+        </p>
+        <div style="background:${BG};border-radius:10px;padding:14px 18px;margin:8px 0 4px;">
+          <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Référence</div>
+          <div style="font-size:15px;font-weight:700;color:${INK};margin-bottom:10px;">${esc(b.reference)}</div>
+          <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Rendez-vous annulé</div>
+          <div style="font-size:15px;color:${INK};text-transform:capitalize;">${summaryLine}</div>
+        </div>
+        ${b.depositCents > 0
+          ? `<p style="font-size:13px;line-height:1.6;color:${MUTED};margin:12px 0 0;">
+               Si un acompte ou un paiement a déjà été effectué, les conditions de remboursement
+               dépendent de l&apos;entreprise. Elle pourra vous contacter si nécessaire.
+             </p>`
+          : ""}
+        ${b.newBookingUrl ? ctaButton(b.newBookingUrl, "Réserver un nouveau créneau") : ""}`,
+    }),
+  }
+}
+
+/** Notification au professionnel : un client vient d'annuler son RDV. */
+export function proCancellationEmail(b: BookingEmailData) {
+  return {
+    subject: `Annulation client — ${b.customerName} (${b.reference})`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Un client a annulé son rendez-vous",
+      accent: STATUS_RED,
+      bodyHtml: `
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
-          Bonjour ${esc(b.customerName)}, votre réservation <strong style="color:${INK};">${esc(b.reference)}</strong>
-          a été annulée. Pour toute question ou pour reprogrammer, contactez-nous.
-        </p>`,
+          <strong style="color:${INK};">${esc(b.customerName)}</strong> vient d&apos;annuler son rendez-vous.
+          Le créneau est de nouveau disponible.
+        </p>
+        <div style="background:${BG};border-radius:10px;padding:18px 20px;margin:8px 0 4px;">
+          <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Référence</div>
+          <div style="font-size:15px;font-weight:700;color:${INK};margin-bottom:10px;">${esc(b.reference)}</div>
+          <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Date &amp; horaire</div>
+          <div style="font-size:15px;color:${INK};text-transform:capitalize;">
+            ${esc(formatDateLong(b.date))}<br>
+            <span style="color:${MUTED};">${esc(b.startTime)} – ${esc(b.endTime)}</span>
+          </div>
+        </div>`,
     }),
   }
 }
