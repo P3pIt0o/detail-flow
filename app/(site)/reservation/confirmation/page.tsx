@@ -7,6 +7,8 @@ import { getFullSettings } from "@/lib/invoice/queries"
 import { parseDepositMethods } from "@/lib/booking/types"
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
 import { getPublicContact } from "@/lib/public-contact"
+import { withTenant } from "@/lib/tenant-link"
+import { resolveRequestTenant } from "@/lib/tenant"
 
 export const metadata: Metadata = {
   title: "Réservation confirmée",
@@ -27,6 +29,7 @@ export default async function ConfirmationPage({
   if (!data) notFound()
 
   const contact = await getPublicContact()
+  const tenant = await resolveRequestTenant()
   const { booking, items } = data
   const awaitingDeposit = booking.status === "pending_deposit" && booking.depositCents > 0
 
@@ -141,6 +144,24 @@ export default async function ConfirmationPage({
             </div>
           </dl>
         </div>
+
+        {booking.manageToken && booking.status !== "cancelled" && (
+          <div className="mt-8 flex items-start gap-3 rounded-xl border border-border bg-card p-4">
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="text-sm">
+              <p className="font-semibold text-card-foreground">Besoin de modifier votre rendez-vous ?</p>
+              <p className="mt-1 text-muted-foreground">
+                Vous pouvez annuler votre rendez-vous ou choisir un autre créneau à tout moment.
+              </p>
+              <Link
+                href={withTenant(`/reservation/gerer/${booking.manageToken}`)}
+                className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Gérer mon rendez-vous
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link
