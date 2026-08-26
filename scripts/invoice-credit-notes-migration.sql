@@ -22,6 +22,11 @@ ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "documentType" text NOT NULL DEF
 ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "originalInvoiceId" integer;
 ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "creditReason" text;
 
+-- Chaque ligne d'avoir reste rattachée à la ligne facturée qu'elle rectifie.
+ALTER TABLE "invoice_items" ADD COLUMN IF NOT EXISTS "originalInvoiceItemId" integer;
+CREATE INDEX IF NOT EXISTS "invoice_items_original_idx"
+  ON "invoice_items" ("originalInvoiceItemId");
+
 -- Recherche des avoirs d'une facture d'origine, scopée par entreprise.
 CREATE INDEX IF NOT EXISTS "invoices_company_original_idx"
   ON "invoices" ("companyId", "originalInvoiceId");

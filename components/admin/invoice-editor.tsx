@@ -24,6 +24,7 @@ import { normalizeTaxTreatment, resolveTaxCalculation } from "@/lib/invoice/tax-
 
 type LineState = {
   key: string
+  originalInvoiceItemId: number | null
   kind: InvoiceLineKind
   label: string
   description: string
@@ -73,6 +74,7 @@ export function InvoiceEditor({
   const [lines, setLines] = useState<LineState[]>(
     items.map((it) => ({
       key: String(it.id),
+      originalInvoiceItemId: it.originalInvoiceItemId,
       kind: it.kind as InvoiceLineKind,
       label: it.label,
       description: it.description ?? "",
@@ -138,7 +140,7 @@ export function InvoiceEditor({
     setLines((ls) => ls.filter((l) => l.key !== key))
   }
   function addLine(kind: InvoiceLineKind) {
-    setLines((ls) => [...ls, { key: uid(), kind, label: "", description: "", quantity: 1, unitPriceCents: 0 }])
+    setLines((ls) => [...ls, { key: uid(), originalInvoiceItemId: null, kind, label: "", description: "", quantity: 1, unitPriceCents: 0 }])
   }
 
   function buildPayload(): SaveDraftInput {
@@ -167,6 +169,7 @@ export function InvoiceEditor({
       customerComment: customerComment || null,
       internalNote: internalNote || null,
       lines: lines.map((l) => ({
+        originalInvoiceItemId: l.originalInvoiceItemId,
         kind: l.kind,
         label: l.label,
         description: l.description || null,
@@ -362,6 +365,7 @@ export function InvoiceEditor({
                       value={l.kind}
                       onChange={(e) => updateLine(l.key, { kind: e.target.value as InvoiceLineKind })}
                       aria-label="Type de ligne"
+                      disabled={isCredit}
                       className="rounded-lg border border-border bg-background px-2 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
                     >
                       {(Object.keys(LINE_KIND_LABEL) as InvoiceLineKind[]).map((k) => (
@@ -376,6 +380,7 @@ export function InvoiceEditor({
                       onChange={(e) => updateLine(l.key, { label: e.target.value })}
                       placeholder="Désignation"
                       aria-label="Désignation"
+                      readOnly={isCredit}
                       className={`${inputClass} flex-1 min-w-[8rem]`}
                     />
                     <button
@@ -393,6 +398,7 @@ export function InvoiceEditor({
                     onChange={(e) => updateLine(l.key, { description: e.target.value })}
                     placeholder="Description (facultatif)"
                     aria-label="Description"
+                    readOnly={isCredit}
                     className={`${inputClass} mt-2`}
                   />
                   <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -424,7 +430,7 @@ export function InvoiceEditor({
               ))}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            {!isCredit && <div className="mt-4 flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => addLine("service")}>
                 <Plus className="mr-1.5 h-4 w-4" /> Prestation
               </Button>
@@ -434,7 +440,7 @@ export function InvoiceEditor({
               <Button variant="outline" size="sm" onClick={() => addLine("fee")}>
                 <Plus className="mr-1.5 h-4 w-4" /> Frais
               </Button>
-            </div>
+            </div>}
           </section>
 
           {/* Client */}
@@ -609,19 +615,19 @@ export function InvoiceEditor({
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-border pt-3 text-base">
-                <span className="font-semibold text-foreground">Total TTC</span>
+                <span className="font-semibold text-foreground">{isCredit ? "Total crédité" : "Total TTC"}</span>
                 <span className="font-semibold text-foreground">{money(totals.totalCents)}</span>
               </div>
-              {totals.depositCents > 0 && (
+              {!isCredit && totals.depositCents > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Acompte déjà réglé</span>
                   <span className="text-foreground">−{money(totals.depositCents)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between border-t border-border pt-3">
+              {!isCredit && <div className="flex items-center justify-between border-t border-border pt-3">
                 <span className="font-semibold text-foreground">Reste à régler</span>
                 <span className="font-semibold text-primary">{money(totals.balanceCents)}</span>
-              </div>
+              </div>}
             </div>
           </section>
 

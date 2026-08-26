@@ -20,13 +20,42 @@ const REVENUE_STATUSES = ["confirmed", "completed"]
  */
 const netRevenueSumExpr = sql<string>`sum(case when ${invoices.documentType} = 'credit_note' then -${invoices.totalCents} else ${invoices.totalCents} end)`
 
-/** Documents entrant dans le CA net : factures payées OU avoirs émis/payés. */
-function revenueDocumentFilter() {
+/**
+ * Documents entrant dans le CA net. Un avoir n'est déduit que si sa facture
+ * d'origine aurait elle-même été comptée (payée et réservation non annulée).
+ */
+function revenueDocumentFilter(companyId: number) {
   return sql`(
     (${invoices.documentType} = 'invoice' and ${invoices.status} = 'paid')
-    or (${invoices.documentType} = 'credit_note' and ${invoices.status} in ('issued', 'paid'))
+    or (
+      ${invoices.documentType} = 'credit_note'
+      and ${invoices.status} = 'issued'
+      and exists (
+        select 1 from invoices original
+        where original.id = ${invoices.originalInvoiceId}
+          and original."companyId" = ${companyId}
+          and original."documentType" = 'invoice'
+          and original.status = 'paid'
+          and (
+            original."bookingId" is null
+            or exists (
+              select 1 from bookings b
+              where b.id = original."bookingId"
+                and b."companyId" = ${companyId}
+                and b.status <> 'cancelled'
+            )
+          )
+      )
+    )
   )`
 }
+
+/** Les avoirs réduisent le mois où ils sont émis, jamais le mois de prestation. */
+const revenueDateExpr = sql`case
+  when ${invoices.documentType} = 'credit_note'
+    then coalesce(${invoices.issueDate}, ${invoices.createdAt}::date)
+  else coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date)
+end`
 
 /**
  * Filtre CA : exclut une facture PAYÉE dès lors qu'elle est rattachée à une
@@ -92,9 +121,9 @@ export async function getDashboardStats(companyId?: number) {
       .where(
         and(
           eq(invoices.companyId, cid),
-          revenueDocumentFilter(),
-          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) >= ${start}`,
-          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) <= ${end}`,
+          revenueDocumentFilter(cid),
+          sql`${revenueDateExpr} >= ${start}`,
+          sql`${revenueDateExpr} <= ${end}`,
           excludeCancelledOrDeletedBooking(cid),
         ),
       ),
@@ -343,7 +372,7 @@ export async function getDashboardWeek(companyId?: number): Promise<DashboardWee
  */
 export async function getRevenueByMonth(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
-  const monthExpr = sql<string>`to_char(coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date), 'YYYY-MM')`
+  const monthExpr = sql<string>`to_char(${revenueDateExpr}, 'YYYY-MM')`
   const rows = await db
     .select({
       month: monthExpr,
@@ -351,7 +380,7 @@ export async function getRevenueByMonth(companyId?: number) {
     })
     .from(invoices)
     .where(
-      and(eq(invoices.companyId, cid), revenueDocumentFilter(), excludeCancelledOrDeletedBooking(cid)),
+      and(eq(invoices.companyId, cid), revenueDocumentFilter(cid), excludeCancelledOrDeletedBooking(cid)),
     )
     .groupBy(monthExpr)
     .orderBy(monthExpr)

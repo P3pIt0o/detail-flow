@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import {
   canIssueCredit,
   computeCreditSummary,
@@ -88,5 +90,39 @@ describe("isCreditNote / statuts créditables", () => {
     expect(CREDITABLE_INVOICE_STATUSES).toContain("paid")
     expect(CREDITABLE_INVOICE_STATUSES).not.toContain("draft")
     expect(CREDITABLE_INVOICE_STATUSES).not.toContain("cancelled")
+  })
+})
+
+function source(path: string) {
+  return readFileSync(resolve(process.cwd(), path), "utf8")
+}
+
+describe("garde-fous d'intégration des avoirs", () => {
+  it("interdit l'émission classique et les paiements sur un avoir", () => {
+    const actions = source("lib/invoice/actions.ts")
+    expect(actions).toContain('if (isCreditNote(inv.documentType))')
+    expect(actions).toContain("Utilisez l'émission d'avoir pour ce document")
+    expect(actions).toContain("Un paiement ne peut pas être enregistré sur un avoir")
+  })
+
+  it("rattache les lignes d'avoir aux lignes d'origine dans le schéma et la migration", () => {
+    expect(source("lib/db/schema.ts")).toContain('originalInvoiceItemId: integer("originalInvoiceItemId")')
+    expect(source("scripts/invoice-credit-notes-migration.sql")).toContain('ADD COLUMN IF NOT EXISTS "originalInvoiceItemId" integer')
+  })
+
+  it("adapte le PDF et l'email sans présenter l'avoir comme une somme à payer", () => {
+    const pdf = source("lib/invoice/pdf.tsx")
+    const email = source("lib/email/templates.ts")
+    expect(pdf).toContain("Total crédité")
+    expect(pdf).toContain("invoice.creditReason")
+    expect(email).toContain("Total crédité")
+    expect(email).toContain("isCreditNote")
+  })
+
+  it("calcule le CA net avec une facture d'origine payée et la date d'émission de l'avoir", () => {
+    const queries = source("lib/admin/queries.ts")
+    expect(queries).toContain("original.status = 'paid'")
+    expect(queries).toContain("revenueDateExpr")
+    expect(queries).toContain("invoices.issueDate")
   })
 })

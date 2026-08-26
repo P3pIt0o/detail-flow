@@ -224,6 +224,13 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
           ))}
         </View>
 
+        {isCredit && invoice.creditReason ? (
+          <View style={s.comment}>
+            <Text style={s.strong}>Motif de l&apos;avoir</Text>
+            <Text>{invoice.creditReason}</Text>
+          </View>
+        ) : null}
+
         {/* Totaux */}
         <View style={s.totals}>
           <View style={s.totalRow}>
@@ -247,25 +254,27 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
             </View>
           ) : null}
           <View style={s.grandRow}>
-            <Text style={s.grandText}>Total TTC</Text>
+            <Text style={s.grandText}>{isCredit ? "Total crédité" : "Total TTC"}</Text>
             <Text style={s.grandText}>{money(invoice.totalCents)}</Text>
           </View>
-          {invoice.depositCents > 0 ? (
+          {!isCredit && invoice.depositCents > 0 ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>Acompte réglé</Text>
               <Text>-{money(invoice.depositCents)}</Text>
             </View>
           ) : null}
-          {invoice.paidCents > 0 ? (
+          {!isCredit && invoice.paidCents > 0 ? (
             <View style={s.totalRow}>
               <Text style={s.muted}>Paiements</Text>
               <Text>-{money(invoice.paidCents)}</Text>
             </View>
           ) : null}
-          <View style={s.balanceBox}>
-            <Text style={s.strong}>Reste à régler</Text>
-            <Text style={s.strong}>{money(invoice.balanceCents)}</Text>
-          </View>
+          {!isCredit ? (
+            <View style={s.balanceBox}>
+              <Text style={s.strong}>Reste à régler</Text>
+              <Text style={s.strong}>{money(invoice.balanceCents)}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Mention fiscale.
@@ -292,7 +301,7 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
         ) : null}
 
         {/* Infos de paiement */}
-        {invoice.issuerIban ? (
+        {!isCredit && invoice.issuerIban ? (
           <View style={s.payInfo}>
             <Text style={s.sectionLabel}>Coordonnées bancaires</Text>
             <Text>IBAN : {invoice.issuerIban}</Text>

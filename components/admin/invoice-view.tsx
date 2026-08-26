@@ -175,7 +175,7 @@ export function InvoiceView({
         setError(res.error)
         return
       }
-      setNotice("Facture envoyée par email au client.")
+      setNotice(`${isCredit ? "Avoir" : "Facture"} envoyé par email au client.`)
       router.refresh()
     })
   }
@@ -253,7 +253,7 @@ export function InvoiceView({
               Envoyer par email
             </Button>
           )}
-          {!isCancelled && invoice.status !== "draft" && invoice.balanceCents > 0 && (
+          {!isCredit && !isCancelled && invoice.status !== "draft" && invoice.balanceCents > 0 && (
             <Button onClick={markAsPaid} disabled={busy}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-2 h-4 w-4" />}
               Marquer comme payée
@@ -476,27 +476,27 @@ export function InvoiceView({
               </div>
             )}
             <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
-              <span className="text-foreground">Total TTC</span>
+              <span className="text-foreground">{isCredit ? "Total crédité" : "Total TTC"}</span>
               <span className="text-foreground">{money(invoice.totalCents)}</span>
             </div>
-            {invoice.depositCents > 0 && (
+            {!isCredit && invoice.depositCents > 0 && (
               <div className={`${rowClass} mt-1`}>
                 <span className="text-muted-foreground">Acompte réglé</span>
                 <span className="text-foreground">−{money(invoice.depositCents)}</span>
               </div>
             )}
-            {invoice.paidCents > 0 && (
+            {!isCredit && invoice.paidCents > 0 && (
               <div className={rowClass}>
                 <span className="text-muted-foreground">Paiements</span>
                 <span className="text-foreground">−{money(invoice.paidCents)}</span>
               </div>
             )}
-            <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
+            {!isCredit && <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
               <span className="text-foreground">Reste à régler</span>
               <span className={invoice.balanceCents <= 0 ? "text-primary" : "text-foreground"}>
                 {money(invoice.balanceCents)}
               </span>
-            </div>
+            </div>}
 
             {/* Traitement fiscal snapshoté (LOT 2B.4). Affiche UNIQUEMENT le choix
                 de l'utilisateur — aucune affirmation de conformité. Legacy (null) => rien. */}
@@ -515,7 +515,7 @@ export function InvoiceView({
           </div>
 
           {/* Paiements */}
-          {!isCancelled && (
+          {!isCredit && !isCancelled && (
             <div className={cardClass}>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Paiements</h2>

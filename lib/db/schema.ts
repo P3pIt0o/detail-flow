@@ -894,6 +894,8 @@ export const invoices = pgTable(
 export const invoiceItems = pgTable("invoice_items", {
   id: serial("id").primaryKey(),
   invoiceId: integer("invoiceId").notNull(),
+  // Pour un avoir uniquement : ligne de la facture originale rectifiée.
+  originalInvoiceItemId: integer("originalInvoiceItemId"),
   kind: text("kind").notNull().default("service"),
   label: text("label").notNull(),
   description: text("description"),

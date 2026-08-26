@@ -322,17 +322,19 @@ export function invoiceEmail(opts: {
   businessPhone?: string | null
   /** Corps personnalisé (paramètres). Variables : {{client}} {{numero}} {{entreprise}} */
   customBody?: string | null
+  isCreditNote?: boolean
 }) {
+  const isCredit = opts.isCreditNote === true
   const greeting = `Bonjour ${esc(opts.customerName)},`
   let intro: string
-  if (opts.customBody && opts.customBody.trim()) {
+  if (!isCredit && opts.customBody && opts.customBody.trim()) {
     intro = esc(opts.customBody)
       .replace(/\{\{client\}\}/g, esc(opts.customerName))
       .replace(/\{\{numero\}\}/g, esc(opts.invoiceNumber))
       .replace(/\{\{entreprise\}\}/g, esc(opts.businessName))
       .replace(/\n/g, "<br>")
   } else {
-    intro = `Veuillez trouver ci-joint votre facture <strong>${esc(opts.invoiceNumber)}</strong>.`
+    intro = `Veuillez trouver ci-joint votre ${isCredit ? "avoir" : "facture"} <strong>${esc(opts.invoiceNumber)}</strong>.`
   }
 
   const line = (label: string, value: string, strong = false) =>
@@ -340,24 +342,24 @@ export function invoiceEmail(opts: {
      <td style="padding:4px 0;text-align:right;color:${strong ? INK : MUTED};font-weight:${strong ? 700 : 400};white-space:nowrap;">${value}</td></tr>`
 
   return {
-    subject: `Facture ${opts.invoiceNumber} — ${opts.businessName}`,
+    subject: `${isCredit ? "Avoir" : "Facture"} ${opts.invoiceNumber} — ${opts.businessName}`,
     html: layout({
       businessName: opts.businessName,
       businessEmail: opts.businessEmail,
       businessPhone: opts.businessPhone,
-      heading: `Votre facture ${opts.invoiceNumber}`,
+      heading: `Votre ${isCredit ? "avoir" : "facture"} ${opts.invoiceNumber}`,
       bodyHtml: `
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">${greeting}</p>
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 20px;">${intro}</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;padding:8px;">
           <tr><td colspan="2" style="height:6px;"></td></tr>
-          ${line("Total TTC", formatMoney(opts.totalCents, opts.currencyCode))}
-          ${line("Reste à régler", formatMoney(opts.balanceCents, opts.currencyCode), true)}
-          ${opts.dueDate ? line("Échéance", formatDateLong(opts.dueDate)) : ""}
+          ${line(isCredit ? "Total crédité" : "Total TTC", formatMoney(opts.totalCents, opts.currencyCode), isCredit)}
+          ${!isCredit ? line("Reste à régler", formatMoney(opts.balanceCents, opts.currencyCode), true) : ""}
+          ${!isCredit && opts.dueDate ? line("Échéance", formatDateLong(opts.dueDate)) : ""}
           <tr><td colspan="2" style="height:6px;"></td></tr>
         </table>
         <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:20px 0 0;">
-          La facture détaillée est disponible en pièce jointe (PDF).
+          ${isCredit ? "L’avoir détaillé" : "La facture détaillée"} est disponible en pièce jointe (PDF).
         </p>`,
     }),
   }

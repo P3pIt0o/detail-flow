@@ -322,6 +322,7 @@ export interface SaveDraftInput {
     description: string | null
     quantity: number
     unitPriceCents: number
+    originalInvoiceItemId?: number | null
   }[]
 }
 
@@ -332,6 +333,57 @@ export async function saveInvoiceDraft(input: SaveDraftInput): Promise<ActionRes
   if (!inv) return { ok: false, error: "Facture introuvable." }
   if (inv.status !== "draft") {
     return { ok: false, error: "Seul un brouillon peut être modifié." }
+  }
+
+  // Un avoir conserve tous les snapshots de la facture originale. Seules ses
+  // lignes (quantité/prix dans les limites d'origine), sa remise et sa note
+  // interne peuvent être ajustées.
+  if (isCreditNote(inv.documentType)) {
+    if (inv.originalInvoiceId == null) return { ok: false, error: "Avoir non rattaché à une facture." }
+    const original = await loadOwnedInvoice(inv.originalInvoiceId, tenant.id)
+    if (!original || isCreditNote(original.documentType)) {
+      return { ok: false, error: "Facture d'origine introuvable." }
+    }
+    const originals = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, original.id))
+    const byId = new Map(originals.map((line) => [line.id, line]))
+    const seen = new Set<number>()
+    const cleaned = [] as (typeof invoiceItems.$inferInsert)[]
+    for (const [index, line] of input.lines.entries()) {
+      const sourceId = line.originalInvoiceItemId
+      const source = sourceId == null ? null : byId.get(sourceId)
+      if (!source || seen.has(source.id)) {
+        return { ok: false, error: "Une ligne de l'avoir ne correspond pas à la facture d'origine." }
+      }
+      seen.add(source.id)
+      const quantity = Math.round(line.quantity)
+      const unitPriceCents = Math.round(line.unitPriceCents)
+      const gross = quantity * unitPriceCents
+      if (quantity <= 0 || quantity > source.quantity || unitPriceCents < 0 || gross > source.quantity * source.unitPriceCents) {
+        return { ok: false, error: `La ligne « ${source.label} » dépasse les valeurs facturées.` }
+      }
+      cleaned.push({
+        invoiceId: inv.id,
+        originalInvoiceItemId: source.id,
+        kind: source.kind,
+        label: source.label,
+        description: source.description,
+        quantity,
+        unitPriceCents,
+        sortOrder: index,
+      })
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(invoices).set({
+        discountCents: Math.max(0, Math.min(original.discountCents, Math.round(input.discountCents))),
+        internalNote: input.internalNote?.trim() || null,
+        updatedAt: new Date(),
+      }).where(and(eq(invoices.id, inv.id), eq(invoices.companyId, tenant.id), eq(invoices.status, "draft")))
+      await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, inv.id))
+      if (cleaned.length) await tx.insert(invoiceItems).values(cleaned)
+    })
+    await recalcInvoice(inv.id)
+    revalidate()
+    return { ok: true }
   }
   if (!input.customerName.trim()) {
     return { ok: false, error: "Le nom du client est obligatoire." }
@@ -453,6 +505,7 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
 
   const inv = await loadOwnedInvoice(invoiceId, companyId)
   if (!inv) return { ok: false, error: "Facture introuvable." }
+  if (isCreditNote(inv.documentType)) return { ok: false, error: "Utilisez l'émission d'avoir pour ce document." }
   if (inv.status !== "draft") return { ok: false, error: "Cette facture est déjà émise." }
 
   const itemsCount = await db
@@ -606,6 +659,7 @@ export async function addInvoicePayment(input: {
 
   const inv = await loadOwnedInvoice(input.invoiceId, tenant.id)
   if (!inv) return { ok: false, error: "Facture introuvable." }
+  if (isCreditNote(inv.documentType)) return { ok: false, error: "Un paiement ne peut pas être enregistré sur un avoir." }
   if (inv.status === "draft") return { ok: false, error: "Émettez la facture avant d'enregistrer un paiement." }
   if (inv.status === "cancelled") return { ok: false, error: "Facture annulée." }
   if (input.amountCents <= 0) return { ok: false, error: "Le montant doit être positif." }
@@ -720,6 +774,41 @@ export async function createCreditNote(
     .where(eq(invoiceItems.invoiceId, originalInvoiceId))
     .orderBy(invoiceItems.sortOrder)
 
+  // Reprend uniquement le montant encore créditable de chaque ligne. Ainsi,
+  // « avoir intégral » après un premier avoir partiel correspond bien au solde.
+  const issuedCredits = await db
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(and(
+      eq(invoices.companyId, companyId),
+      eq(invoices.documentType, CREDIT_NOTE_DOCUMENT_TYPE),
+      eq(invoices.originalInvoiceId, originalInvoiceId),
+      eq(invoices.status, "issued"),
+    ))
+  const issuedIds = issuedCredits.map((row) => row.id)
+  const priorItems = issuedIds.length
+    ? await db.select().from(invoiceItems).where(inArray(invoiceItems.invoiceId, issuedIds))
+    : []
+  const creditedByLine = new Map<number, number>()
+  for (const line of priorItems) {
+    if (line.originalInvoiceItemId == null) continue
+    creditedByLine.set(
+      line.originalInvoiceItemId,
+      (creditedByLine.get(line.originalInvoiceItemId) ?? 0) + line.quantity * line.unitPriceCents,
+    )
+  }
+  const remainingItems = originalItems.flatMap((line) => {
+    const originalGross = line.quantity * line.unitPriceCents
+    const remainingGross = Math.max(0, originalGross - (creditedByLine.get(line.id) ?? 0))
+    if (remainingGross === 0) return []
+    return [{
+      source: line,
+      quantity: remainingGross === originalGross ? line.quantity : 1,
+      unitPriceCents: remainingGross === originalGross ? line.unitPriceCents : remainingGross,
+    }]
+  })
+  if (!remainingItems.length) return { ok: false, error: "Cette facture est déjà intégralement créditée." }
+
   const invoiceId = await db.transaction(async (tx) => {
     const [cn] = await tx
       .insert(invoices)
@@ -754,7 +843,7 @@ export async function createCreditNote(
         vatRate: original.vatRate,
         taxTreatment: original.taxTreatment,
         taxLegalMention: original.taxLegalMention,
-        discountCents: original.discountCents,
+        discountCents: alreadyIssued === 0 ? original.discountCents : 0,
         depositCents: 0,
         // Snapshot émetteur repris tel quel (identité vendeur figée = celle de
         // la facture d'origine ; l'émission de l'avoir ne le réécrit pas).
@@ -776,15 +865,16 @@ export async function createCreditNote(
       })
       .returning({ id: invoices.id })
 
-    if (originalItems.length) {
+    if (remainingItems.length) {
       await tx.insert(invoiceItems).values(
-        originalItems.map((l, i) => ({
+        remainingItems.map(({ source: l, quantity, unitPriceCents }, i) => ({
           invoiceId: cn.id,
+          originalInvoiceItemId: l.id,
           kind: l.kind,
           label: l.label,
           description: l.description,
-          quantity: l.quantity,
-          unitPriceCents: l.unitPriceCents,
+          quantity,
+          unitPriceCents,
           sortOrder: i,
         })),
       )
@@ -812,27 +902,19 @@ export async function issueCreditNote(creditNoteId: number): Promise<ActionResul
   const { tenant } = await requireCompanyMember()
   const companyId = tenant.id
 
-  const cn = await loadOwnedInvoice(creditNoteId, companyId)
-  if (!cn) return { ok: false, error: "Avoir introuvable." }
-  if (!isCreditNote(cn.documentType)) return { ok: false, error: "Ce document n'est pas un avoir." }
-  if (cn.status !== "draft") return { ok: false, error: "Cet avoir est déjà émis." }
-  if (cn.originalInvoiceId == null) return { ok: false, error: "Avoir non rattaché à une facture." }
-
-  const itemsCount = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(invoiceItems)
-    .where(eq(invoiceItems.invoiceId, creditNoteId))
-  if (Number(itemsCount[0]?.n ?? 0) === 0) {
-    return { ok: false, error: "Ajoutez au moins une ligne avant d'émettre l'avoir." }
-  }
-
-  // Recalcule les totaux depuis les lignes courantes avant contrôle du montant.
-  const totals = await recalcInvoice(creditNoteId)
-  const creditTotalCents = totals?.totalCents ?? cn.totalCents
-
   const year = new Date().getFullYear()
 
   const result = await db.transaction(async (tx) => {
+    // Le document lui-même est verrouillé et relu : un double clic ou deux
+    // requêtes concurrentes ne peuvent jamais l'émettre deux fois.
+    const [cn] = await tx.select().from(invoices).where(and(
+      eq(invoices.id, creditNoteId),
+      eq(invoices.companyId, companyId),
+    )).limit(1).for("update")
+    if (!cn || !isCreditNote(cn.documentType)) return { ok: false as const, error: "Avoir introuvable." }
+    if (cn.status !== "draft") return { ok: false as const, error: "Cet avoir est déjà émis." }
+    if (cn.originalInvoiceId == null) return { ok: false as const, error: "Avoir non rattaché à une facture." }
+
     // Verrou de la facture d'origine (sérialise les émissions concurrentes).
     const [original] = await tx
       .select()
@@ -841,6 +923,11 @@ export async function issueCreditNote(creditNoteId: number): Promise<ActionResul
       .limit(1)
       .for("update")
     if (!original) return { ok: false as const, error: "Facture d'origine introuvable." }
+
+    const currentItems = await tx.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, creditNoteId))
+    if (!currentItems.length) return { ok: false as const, error: "Ajoutez au moins une ligne avant d'émettre l'avoir." }
+    const originalItems = await tx.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, original.id))
+    const originalById = new Map(originalItems.map((line) => [line.id, line]))
 
     // Cumul des avoirs DÉJÀ émis (hors celui-ci), calculé sous verrou.
     const others = await tx
@@ -857,7 +944,49 @@ export async function issueCreditNote(creditNoteId: number): Promise<ActionResul
       .filter((r) => r.id !== creditNoteId && r.status !== "draft" && r.status !== "cancelled")
       .reduce((sum, r) => sum + Math.max(0, r.totalCents), 0)
 
-    const guard = canIssueCredit(original.totalCents, alreadyIssued, creditTotalCents)
+    const otherIds = others.filter((r) => r.id !== creditNoteId && r.status === "issued").map((r) => r.id)
+    const otherItems = otherIds.length
+      ? await tx.select().from(invoiceItems).where(inArray(invoiceItems.invoiceId, otherIds))
+      : []
+    const usedGross = new Map<number, number>()
+    for (const line of otherItems) {
+      if (line.originalInvoiceItemId == null) continue
+      usedGross.set(line.originalInvoiceItemId, (usedGross.get(line.originalInvoiceItemId) ?? 0) + line.quantity * line.unitPriceCents)
+    }
+    const seen = new Set<number>()
+    for (const line of currentItems) {
+      const sourceId = line.originalInvoiceItemId
+      const source = sourceId == null ? null : originalById.get(sourceId)
+      if (!source || seen.has(source.id)) return { ok: false as const, error: "Lignes d'avoir invalides." }
+      seen.add(source.id)
+      const gross = line.quantity * line.unitPriceCents
+      if (line.quantity <= 0 || line.quantity > source.quantity || line.unitPriceCents < 0 || gross <= 0) {
+        return { ok: false as const, error: `La ligne « ${source.label} » est invalide.` }
+      }
+      if ((usedGross.get(source.id) ?? 0) + gross > source.quantity * source.unitPriceCents) {
+        return { ok: false as const, error: `Le cumul crédité dépasse la ligne « ${source.label} ».` }
+      }
+    }
+
+    const effectiveTax = resolveTaxCalculation({
+      taxTreatment: normalizeTaxTreatment(cn.taxTreatment),
+      legacyVatEnabled: cn.vatEnabled,
+      vatRate: Number(cn.vatRate),
+    })
+    const totals = computeInvoice({
+      lines: currentItems.map((line) => ({
+        kind: line.kind as InvoiceLineKind,
+        quantity: line.quantity,
+        unitPriceCents: line.unitPriceCents,
+      })),
+      discountCents: cn.discountCents,
+      vatEnabled: effectiveTax.vatEnabled,
+      vatRate: effectiveTax.vatRate,
+      depositCents: 0,
+      paidCents: 0,
+    })
+
+    const guard = canIssueCredit(original.totalCents, alreadyIssued, totals.totalCents)
     if (!guard.ok) return { ok: false as const, error: guard.error }
 
     // Compteur d'avoirs PROPRE à l'entreprise, verrouillé FOR UPDATE.
@@ -875,8 +1004,25 @@ export async function issueCreditNote(creditNoteId: number): Promise<ActionResul
 
     await tx
       .update(invoices)
-      .set({ number: num, status: "issued", issueDate, updatedAt: new Date() })
-      .where(eq(invoices.id, creditNoteId))
+      .set({
+        number: num,
+        status: "issued",
+        issueDate,
+        itemsTotalCents: totals.itemsTotalCents,
+        netCents: totals.netCents,
+        vatCents: totals.vatCents,
+        totalCents: totals.totalCents,
+        paidCents: 0,
+        balanceCents: 0,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoices.id, creditNoteId), eq(invoices.companyId, companyId), eq(invoices.status, "draft")))
+
+    await tx.insert(invoiceEvents).values({
+      invoiceId: original.id,
+      type: "credit_note_issued",
+      message: `Avoir ${num} émis pour un montant de ${totals.totalCents} centimes.`,
+    })
 
     return { ok: true as const, number: num }
   })
@@ -921,7 +1067,13 @@ export async function sendInvoiceEmail(invoiceId: number): Promise<ActionResult>
   const { sendEmail } = await import("@/lib/email/send")
 
   const logoDataUrl = await getLogoDataUrl(inv.issuerLogoPathname)
-  const pdf = await renderInvoicePdf({ invoice: inv, items, logoDataUrl })
+  const isCredit = isCreditNote(inv.documentType)
+  const original = isCredit && inv.originalInvoiceId != null
+    ? await loadOwnedInvoice(inv.originalInvoiceId, companyId)
+    : null
+  if (isCredit && !original) return { ok: false, error: "Facture d'origine introuvable." }
+  const originalRef = original ? { number: original.number, issueDate: original.issueDate } : null
+  const pdf = await renderInvoicePdf({ invoice: inv, items, logoDataUrl, originalRef })
 
   const { subject, html } = invoiceEmail({
     customerName: inv.customerName,
@@ -934,22 +1086,23 @@ export async function sendInvoiceEmail(invoiceId: number): Promise<ActionResult>
     businessEmail: inv.issuerEmail || s?.businessEmail,
     businessPhone: inv.issuerPhone || s?.businessPhone,
     customBody: s?.invoiceEmailBody,
+    isCreditNote: isCredit,
   })
 
   const res = await sendEmail({
     to: inv.customerEmail,
-    subject: s?.invoiceEmailSubject?.trim() || subject,
+    subject: isCredit ? subject : (s?.invoiceEmailSubject?.trim() || subject),
     html,
     fromName: businessName,
     replyTo: inv.issuerEmail || s?.businessEmail || undefined,
-    attachments: [{ filename: `${inv.number || `facture-${invoiceId}`}.pdf`, content: pdf }],
+    attachments: [{ filename: `${inv.number || `${isCredit ? "avoir" : "facture"}-${invoiceId}`}.pdf`, content: pdf }],
   })
 
   if (!res.ok) {
     return { ok: false, error: res.error || "Échec de l'envoi de l'email." }
   }
 
-  await logEvent(invoiceId, "email_sent", `Facture envoyée par email à ${inv.customerEmail}.`)
+  await logEvent(invoiceId, "email_sent", `${isCredit ? "Avoir" : "Facture"} envoyé par email à ${inv.customerEmail}.`)
   revalidate()
   return { ok: true }
 }
