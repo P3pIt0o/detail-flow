@@ -14,6 +14,21 @@ import { requireCompanyId } from "@/lib/tenant"
 const REVENUE_STATUSES = ["confirmed", "completed"]
 
 /**
+ * CA NET : une facture payée compte en positif, un avoir ÉMIS (ou payé/
+ * remboursé) compte en NÉGATIF. Les brouillons d'avoir (status 'draft') n'ont
+ * aucun impact. Montants stockés positifs ; le signe est appliqué au calcul.
+ */
+const netRevenueSumExpr = sql<string>`sum(case when ${invoices.documentType} = 'credit_note' then -${invoices.totalCents} else ${invoices.totalCents} end)`
+
+/** Documents entrant dans le CA net : factures payées OU avoirs émis/payés. */
+function revenueDocumentFilter() {
+  return sql`(
+    (${invoices.documentType} = 'invoice' and ${invoices.status} = 'paid')
+    or (${invoices.documentType} = 'credit_note' and ${invoices.status} in ('issued', 'paid'))
+  )`
+}
+
+/**
  * Filtre CA : exclut une facture PAYÉE dès lors qu'elle est rattachée à une
  * réservation (invoices.bookingId non nul) qui a été soit ANNULÉE
  * (status = 'cancelled'), soit SUPPRIMÉE (la réservation n'existe plus).
@@ -72,12 +87,12 @@ export async function getDashboardStats(companyId?: number) {
     // pas booking + acompte). Recalculé depuis la facture, jamais depuis la
     // réservation d'origine. Date retenue : date de prestation, sinon émission.
     db
-      .select({ total: sum(invoices.totalCents) })
+      .select({ total: netRevenueSumExpr })
       .from(invoices)
       .where(
         and(
           eq(invoices.companyId, cid),
-          eq(invoices.status, "paid"),
+          revenueDocumentFilter(),
           sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) >= ${start}`,
           sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) <= ${end}`,
           excludeCancelledOrDeletedBooking(cid),
@@ -332,11 +347,11 @@ export async function getRevenueByMonth(companyId?: number) {
   const rows = await db
     .select({
       month: monthExpr,
-      total: sum(invoices.totalCents),
+      total: netRevenueSumExpr,
     })
     .from(invoices)
     .where(
-      and(eq(invoices.companyId, cid), eq(invoices.status, "paid"), excludeCancelledOrDeletedBooking(cid)),
+      and(eq(invoices.companyId, cid), revenueDocumentFilter(), excludeCancelledOrDeletedBooking(cid)),
     )
     .groupBy(monthExpr)
     .orderBy(monthExpr)

@@ -16,6 +16,8 @@ import {
   type CreditSummary,
 } from "@/lib/invoice/credit"
 
+export type { CreditSummary } from "@/lib/invoice/credit"
+
 export type InvoiceRow = typeof invoices.$inferSelect
 export type InvoiceItemRow = typeof invoiceItems.$inferSelect
 export type InvoicePaymentRow = typeof invoicePayments.$inferSelect

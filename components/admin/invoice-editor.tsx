@@ -13,6 +13,7 @@ import {
 import {
   saveInvoiceDraft,
   issueInvoice,
+  issueCreditNote,
   addInvoicePayment,
   deleteDraftInvoice,
   type SaveDraftInput,
@@ -47,7 +48,17 @@ function centsToUnits(c: number): string {
   return (c / 100).toFixed(2)
 }
 
-export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: InvoiceItemRow[] }) {
+export function InvoiceEditor({
+  invoice,
+  items,
+  originalInvoice = null,
+}: {
+  invoice: InvoiceRow
+  items: InvoiceItemRow[]
+  originalInvoice?: InvoiceRow | null
+}) {
+  // Avoir (note de crédit) : on n'émet pas de paiement/acompte, on émet un avoir.
+  const isCredit = invoice.documentType === "credit_note"
   // Aperçu du brouillon dans SA devise (CHF si brouillon CHF, EUR si NULL legacy).
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   // Code affiché dans les labels de saisie (visuel uniquement).
@@ -234,8 +245,27 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
     })
   }
 
+  // Émission d'un AVOIR : on fige d'abord les lignes (avoir partiel), puis on
+  // émet via l'action dédiée (numérotation AVO indépendante, plafond serveur).
+  function issueCredit() {
+    setError(null)
+    startIssue(async () => {
+      const saved = await saveInvoiceDraft(buildPayload())
+      if (!saved.ok) {
+        setError(saved.error)
+        return
+      }
+      const res = await issueCreditNote(invoice.id)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
   function remove() {
-    if (!confirm("Supprimer définitivement ce brouillon ?")) return
+    if (!confirm(`Supprimer définitivement ce brouillon${isCredit ? " d'avoir" : ""} ?`)) return
     startTransition(async () => {
       const res = await deleteDraftInvoice(invoice.id)
       if (!res.ok) setError(res.error)
@@ -247,9 +277,20 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Brouillon de facture</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-foreground">
+              {isCredit ? "Brouillon d'avoir" : "Brouillon de facture"}
+            </h1>
+            {isCredit && (
+              <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                AVOIR
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vérifiez et ajustez les informations, puis émettez la facture définitive.
+            {isCredit
+              ? "Ajustez les lignes à créditer, puis émettez l'avoir définitif."
+              : "Vérifiez et ajustez les informations, puis émettez la facture définitive."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -257,16 +298,41 @@ export function InvoiceEditor({ invoice, items }: { invoice: InvoiceRow; items: 
             {pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Enregistrer
           </Button>
-          <Button size="sm" variant="secondary" disabled={issuing} onClick={issueAndMarkPaid}>
-            {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-1.5 h-4 w-4" />}
-            Émettre &amp; marquer payée
-          </Button>
-          <Button size="sm" disabled={issuing} onClick={issue}>
-            {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileCheck2 className="mr-1.5 h-4 w-4" />}
-            Émettre la facture
-          </Button>
+          {isCredit ? (
+            <Button size="sm" disabled={issuing} onClick={issueCredit}>
+              {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileCheck2 className="mr-1.5 h-4 w-4" />}
+              Émettre l&apos;avoir
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="secondary" disabled={issuing} onClick={issueAndMarkPaid}>
+                {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-1.5 h-4 w-4" />}
+                Émettre &amp; marquer payée
+              </Button>
+              <Button size="sm" disabled={issuing} onClick={issue}>
+                {issuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileCheck2 className="mr-1.5 h-4 w-4" />}
+                Émettre la facture
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {isCredit && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+          <p className="font-medium text-foreground">
+            Avoir rectifiant la facture {originalInvoice?.number ?? "—"}
+            {originalInvoice?.issueDate ? ` du ${originalInvoice.issueDate}` : ""}
+          </p>
+          {invoice.creditReason && (
+            <p className="mt-1 text-muted-foreground">Motif : {invoice.creditReason}</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            La devise et le traitement TVA sont repris de la facture d&apos;origine. Le cumul des avoirs ne peut
+            pas dépasser le total de la facture.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
