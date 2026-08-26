@@ -75,3 +75,43 @@ export function validateCreditReason(reason: string | null | undefined): { ok: t
 export function isCreditNote(documentType: string | null | undefined): boolean {
   return documentType === CREDIT_NOTE_DOCUMENT_TYPE
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Plafonnement PAR LIGNE (avoirs partiels multiples)                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Quantité encore créditable d'une ligne d'origine : quantité facturée moins la
+ * quantité déjà créditée (avoirs émis) sur cette même ligne. Jamais négative.
+ */
+export function remainingLineQuantity(originalQty: number, alreadyCreditedQty: number): number {
+  const orig = Math.max(0, Math.floor(originalQty))
+  const done = Math.max(0, Math.floor(alreadyCreditedQty))
+  return Math.max(0, orig - done)
+}
+
+/**
+ * Ramène une quantité d'avoir demandée dans les limites : entière, positive, et
+ * bornée par la quantité encore créditable de la ligne d'origine. Utilisé côté
+ * serveur pour empêcher tout dépassement, y compris cumul de plusieurs avoirs.
+ */
+export function clampCreditLineQuantity(
+  requestedQty: number,
+  originalQty: number,
+  alreadyCreditedQty: number,
+): number {
+  const remaining = remainingLineQuantity(originalQty, alreadyCreditedQty)
+  const q = Number.isFinite(requestedQty) ? Math.max(0, Math.floor(requestedQty)) : 0
+  return Math.min(q, remaining)
+}
+
+/**
+ * Prix unitaire d'avoir borné : ne peut jamais dépasser le prix unitaire de la
+ * ligne d'origine (on ne crédite pas plus cher que ce qui a été facturé), ni
+ * être négatif.
+ */
+export function clampCreditUnitPrice(requestedUnitPriceCents: number, originalUnitPriceCents: number): number {
+  const cap = Math.max(0, Math.round(originalUnitPriceCents))
+  const v = Number.isFinite(requestedUnitPriceCents) ? Math.max(0, Math.round(requestedUnitPriceCents)) : 0
+  return Math.min(v, cap)
+}

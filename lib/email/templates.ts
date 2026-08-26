@@ -322,15 +322,24 @@ export function invoiceEmail(opts: {
   businessPhone?: string | null
   /** Corps personnalisé (paramètres). Variables : {{client}} {{numero}} {{entreprise}} */
   customBody?: string | null
+  /** true => email d'AVOIR (wording différent, pas de « Reste à régler »). */
+  isCreditNote?: boolean
+  /** Référence de la facture d'origine (avoirs uniquement). */
+  originalRef?: { number: string | null; issueDate: string | null } | null
 }) {
+  const isCredit = opts.isCreditNote === true
+  const docWord = isCredit ? "avoir" : "facture"
   const greeting = `Bonjour ${esc(opts.customerName)},`
   let intro: string
-  if (opts.customBody && opts.customBody.trim()) {
+  if (!isCredit && opts.customBody && opts.customBody.trim()) {
     intro = esc(opts.customBody)
       .replace(/\{\{client\}\}/g, esc(opts.customerName))
       .replace(/\{\{numero\}\}/g, esc(opts.invoiceNumber))
       .replace(/\{\{entreprise\}\}/g, esc(opts.businessName))
       .replace(/\n/g, "<br>")
+  } else if (isCredit) {
+    const orig = opts.originalRef?.number ? ` rectifiant la facture <strong>${esc(opts.originalRef.number)}</strong>` : ""
+    intro = `Veuillez trouver ci-joint votre avoir <strong>${esc(opts.invoiceNumber)}</strong>${orig}.`
   } else {
     intro = `Veuillez trouver ci-joint votre facture <strong>${esc(opts.invoiceNumber)}</strong>.`
   }
@@ -339,25 +348,33 @@ export function invoiceEmail(opts: {
     `<tr><td style="padding:4px 0;color:${strong ? INK : MUTED};font-weight:${strong ? 700 : 400};">${label}</td>
      <td style="padding:4px 0;text-align:right;color:${strong ? INK : MUTED};font-weight:${strong ? 700 : 400};white-space:nowrap;">${value}</td></tr>`
 
+  // Un avoir n'affiche jamais « Reste à régler » : c'est un remboursement/
+  // annulation, pas une demande de paiement. On montre « Total crédité ».
+  const amountRows = isCredit
+    ? `${line("Total crédité", formatMoney(opts.totalCents, opts.currencyCode), true)}`
+    : `${line("Total TTC", formatMoney(opts.totalCents, opts.currencyCode))}
+       ${line("Reste à régler", formatMoney(opts.balanceCents, opts.currencyCode), true)}
+       ${opts.dueDate ? line("Échéance", formatDateLong(opts.dueDate)) : ""}`
+
   return {
-    subject: `Facture ${opts.invoiceNumber} — ${opts.businessName}`,
+    subject: isCredit
+      ? `Avoir ${opts.invoiceNumber} — ${opts.businessName}`
+      : `Facture ${opts.invoiceNumber} — ${opts.businessName}`,
     html: layout({
       businessName: opts.businessName,
       businessEmail: opts.businessEmail,
       businessPhone: opts.businessPhone,
-      heading: `Votre facture ${opts.invoiceNumber}`,
+      heading: isCredit ? `Votre avoir ${opts.invoiceNumber}` : `Votre facture ${opts.invoiceNumber}`,
       bodyHtml: `
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">${greeting}</p>
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 20px;">${intro}</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;padding:8px;">
           <tr><td colspan="2" style="height:6px;"></td></tr>
-          ${line("Total TTC", formatMoney(opts.totalCents, opts.currencyCode))}
-          ${line("Reste à régler", formatMoney(opts.balanceCents, opts.currencyCode), true)}
-          ${opts.dueDate ? line("Échéance", formatDateLong(opts.dueDate)) : ""}
+          ${amountRows}
           <tr><td colspan="2" style="height:6px;"></td></tr>
         </table>
         <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:20px 0 0;">
-          La facture détaillée est disponible en pièce jointe (PDF).
+          ${isCredit ? "L'avoir détaillé est disponible" : "La facture détaillée est disponible"} en pièce jointe (PDF).
         </p>`,
     }),
   }

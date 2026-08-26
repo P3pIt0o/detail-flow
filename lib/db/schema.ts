@@ -891,16 +891,30 @@ export const invoices = pgTable(
 )
 
 /** Ligne de facture. kind : "service" | "option" | "travel" | "fee". */
-export const invoiceItems = pgTable("invoice_items", {
-  id: serial("id").primaryKey(),
-  invoiceId: integer("invoiceId").notNull(),
-  kind: text("kind").notNull().default("service"),
-  label: text("label").notNull(),
-  description: text("description"),
-  quantity: integer("quantity").notNull().default(1),
-  unitPriceCents: integer("unitPriceCents").notNull().default(0),
-  sortOrder: integer("sortOrder").notNull().default(0),
-})
+export const invoiceItems = pgTable(
+  "invoice_items",
+  {
+    id: serial("id").primaryKey(),
+    invoiceId: integer("invoiceId").notNull(),
+    kind: text("kind").notNull().default("service"),
+    label: text("label").notNull(),
+    description: text("description"),
+    quantity: integer("quantity").notNull().default(1),
+    unitPriceCents: integer("unitPriceCents").notNull().default(0),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    /**
+     * Ligne d'avoir : rattachement à la ligne de la facture d'origine (additif,
+     * nullable). Permet de plafonner côté serveur les quantités/montants crédités
+     * par ligne, y compris avec plusieurs avoirs partiels. NULL pour les lignes
+     * de facture classiques et pour les avoirs legacy antérieurs à la migration.
+     */
+    originalInvoiceItemId: integer("originalInvoiceItemId"),
+  },
+  (t) => ({
+    byInvoice: index("invoice_items_invoiceId_idx").on(t.invoiceId),
+    byOriginalItem: index("invoice_items_original_item_idx").on(t.originalInvoiceItemId),
+  }),
+)
 
 /** Paiement enregistré sur une facture (hors acompte initial). */
 export const invoicePayments = pgTable("invoice_payments", {
