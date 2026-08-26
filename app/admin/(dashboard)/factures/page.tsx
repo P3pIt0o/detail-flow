@@ -49,9 +49,16 @@ export default async function InvoicesPage() {
                 return (
                   <tr key={inv.id} className="border-b border-border last:border-0 hover:bg-muted/40">
                     <td className="px-4 py-3">
-                      <Link href={`/admin/factures/${inv.id}`} className="font-mono font-medium text-primary hover:underline">
-                        {inv.number ?? "Brouillon"}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/admin/factures/${inv.id}`} className="font-mono font-medium text-primary hover:underline">
+                          {inv.number ?? "Brouillon"}
+                        </Link>
+                        {inv.documentType === "credit_note" && (
+                          <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                            Avoir
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-foreground">{inv.customerName}</td>
                     <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">

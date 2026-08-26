@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   Download,
@@ -8,10 +9,10 @@ import {
   Plus,
   Loader2,
   CircleCheck,
-  Ban,
   History,
-  Copy,
   TriangleAlert,
+  ReceiptText,
+  ExternalLink,
 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { formatMoney, getDisplayCurrencyCode, formatDateLong } from "@/lib/format"
@@ -25,12 +26,14 @@ import {
 } from "@/lib/billing/country-profiles"
 import { getTaxTreatmentLabel } from "@/lib/invoice/tax-treatment"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
-import { addInvoicePayment, cancelInvoice, sendInvoiceEmail } from "@/lib/invoice/actions"
+import { addInvoicePayment, createCreditNote, sendInvoiceEmail } from "@/lib/invoice/actions"
+import { CREDITABLE_INVOICE_STATUSES } from "@/lib/invoice/credit"
 import type {
   InvoiceRow,
   InvoiceItemRow,
   InvoicePaymentRow,
   InvoiceEventRow,
+  CreditSummary,
 } from "@/lib/invoice/queries"
 
 const cardClass = "rounded-2xl border border-border bg-card p-5"
@@ -41,12 +44,25 @@ export function InvoiceView({
   items,
   payments,
   events,
+  creditNotes = [],
+  creditSummary = null,
+  originalInvoice = null,
 }: {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
   payments: InvoicePaymentRow[]
   events: InvoiceEventRow[]
+  creditNotes?: InvoiceRow[]
+  creditSummary?: CreditSummary | null
+  originalInvoice?: InvoiceRow | null
 }) {
+  const isCredit = invoice.documentType === "credit_note"
+  // Une facture (non avoir) émise/payée et non intégralement créditée est
+  // éligible à la création d'un avoir.
+  const canCreateCredit =
+    !isCredit &&
+    CREDITABLE_INVOICE_STATUSES.includes(invoice.status as (typeof CREDITABLE_INVOICE_STATUSES)[number]) &&
+    (creditSummary ? creditSummary.remainingCents > 0 : true)
   // Tous les montants de la vue utilisent la devise SNAPSHOTÉE de la facture.
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
   // Code affiché dans les labels de saisie (visuel uniquement).
@@ -92,6 +108,11 @@ export function InvoiceView({
   const [payMethod, setPayMethod] = useState("transfer")
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10))
   const [payNote, setPayNote] = useState("")
+
+  // Dialogue « Créer un avoir » (facture d'origine uniquement).
+  const [showCredit, setShowCredit] = useState(false)
+  const [creditMode, setCreditMode] = useState<"full" | "partial">("full")
+  const [creditReason, setCreditReason] = useState("")
 
   const meta = invoiceStatusMeta(invoice.status)
   const isCancelled = invoice.status === "cancelled"
@@ -159,17 +180,22 @@ export function InvoiceView({
     })
   }
 
-  function doCancel() {
-    if (!confirm("Annuler cette facture ? Cette action est définitive.")) return
+  function createCredit() {
     setError(null)
+    setNotice(null)
+    const reason = creditReason.trim()
+    if (!reason) {
+      setError("Le motif de l'avoir est obligatoire.")
+      return
+    }
     startBusy(async () => {
-      const res = await cancelInvoice(invoice.id)
+      const res = await createCreditNote(invoice.id, creditMode, reason)
       if (!res.ok) {
         setError(res.error)
         return
       }
-      setNotice("Facture annulée.")
-      router.refresh()
+      // Redirige vers le BROUILLON d'avoir créé (éditable avant émission).
+      router.push(`/admin/factures/${res.data.invoiceId}`)
     })
   }
 
@@ -178,7 +204,12 @@ export function InvoiceView({
       {/* En-tête */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {isCredit && (
+              <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                AVOIR
+              </span>
+            )}
             <h1 className="text-2xl font-semibold text-foreground">{invoice.number}</h1>
             <span
               className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${meta.className}`}
@@ -187,9 +218,25 @@ export function InvoiceView({
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Émise le {invoice.issueDate ? formatDateLong(invoice.issueDate) : "—"}
-            {invoice.dueDate ? ` · échéance le ${formatDateLong(invoice.dueDate)}` : ""}
+            {isCredit ? "Établi le " : "Émise le "}
+            {invoice.issueDate ? formatDateLong(invoice.issueDate) : "—"}
+            {!isCredit && invoice.dueDate ? ` · échéance le ${formatDateLong(invoice.dueDate)}` : ""}
           </p>
+          {isCredit && originalInvoice && (
+            <p className="mt-1 text-sm">
+              <Link
+                href={`/admin/factures/${originalInvoice.id}`}
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                Rectifie la facture {originalInvoice.number ?? `#${originalInvoice.id}`}
+                {originalInvoice.issueDate ? ` du ${formatDateLong(originalInvoice.issueDate)}` : ""}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </p>
+          )}
+          {isCredit && invoice.creditReason && (
+            <p className="mt-1 text-sm text-muted-foreground">Motif : {invoice.creditReason}</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
         <a
@@ -342,6 +389,46 @@ export function InvoiceView({
               </p>
             )}
           </div>
+
+          {/* Avoirs rattachés (facture d'origine uniquement) */}
+          {!isCredit && creditSummary && creditNotes.length > 0 && (
+            <div className={cardClass}>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ReceiptText className="h-4 w-4" /> Avoirs
+              </h2>
+              <ul className="space-y-2">
+                {creditNotes.map((cn) => (
+                  <li key={cn.id} className="flex items-center justify-between text-sm">
+                    <Link
+                      href={`/admin/factures/${cn.id}`}
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      {cn.number ?? "Brouillon d'avoir"}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                    <span className="text-foreground">
+                      {cn.status === "draft" ? "Brouillon" : `−${money(cn.totalCents)}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 space-y-1 border-t border-border pt-3">
+                <div className={rowClass}>
+                  <span className="text-muted-foreground">Total crédité</span>
+                  <span className="text-foreground">−{money(creditSummary.creditedCents)}</span>
+                </div>
+                <div className={rowClass}>
+                  <span className="text-muted-foreground">Restant créditable</span>
+                  <span className="text-foreground">{money(creditSummary.remainingCents)}</span>
+                </div>
+                {creditSummary.remainingCents <= 0 && (
+                  <p className="pt-1 text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Facture intégralement créditée
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Historique */}
           <div className={cardClass}>
@@ -515,15 +602,75 @@ export function InvoiceView({
             </div>
           )}
 
-          {!isCancelled && (
-            <Button
-              variant="ghost"
-              className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={doCancel}
-              disabled={busy}
-            >
-              <Ban className="mr-2 h-4 w-4" /> Annuler la facture
-            </Button>
+          {/* Rectification comptable : sur une facture émise/payée, on ne
+              « supprime » jamais — on crée un AVOIR. La facture d'origine reste
+              inchangée. Indisponible dès que la facture est intégralement créditée. */}
+          {canCreateCredit && (
+            <div className={cardClass}>
+              {!showCredit ? (
+                <>
+                  <Button className="w-full" variant="outline" onClick={() => setShowCredit(true)} disabled={busy}>
+                    <ReceiptText className="mr-2 h-4 w-4" /> Créer un avoir
+                  </Button>
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    Rectifie cette facture sans la modifier ni la supprimer.
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-semibold text-foreground">Créer un avoir</h2>
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-2 text-sm text-foreground">
+                      <input
+                        type="radio"
+                        name="creditMode"
+                        checked={creditMode === "full"}
+                        onChange={() => setCreditMode("full")}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Avoir intégral
+                        <span className="block text-xs text-muted-foreground">Crédite la totalité de la facture.</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-foreground">
+                      <input
+                        type="radio"
+                        name="creditMode"
+                        checked={creditMode === "partial"}
+                        onChange={() => setCreditMode("partial")}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Avoir partiel
+                        <span className="block text-xs text-muted-foreground">
+                          Crée un brouillon dont vous ajustez les lignes avant émission.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">Motif de l&apos;avoir (obligatoire)</label>
+                    <textarea
+                      value={creditReason}
+                      onChange={(e) => setCreditReason(e.target.value)}
+                      rows={2}
+                      placeholder="Ex. Erreur de facturation, geste commercial…"
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" className="flex-1" onClick={() => setShowCredit(false)} disabled={busy}>
+                      Annuler
+                    </Button>
+                    <Button className="flex-1" onClick={createCredit} disabled={busy}>
+                      {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Créer le brouillon
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

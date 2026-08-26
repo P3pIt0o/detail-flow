@@ -224,7 +224,11 @@ describe("issueInvoice — mention + snapshot", () => {
     // Jamais réassigné depuis les settings de facturation (issuer/s?.).
     expect(code).not.toMatch(/\btaxTreatment\s*=\s*(issuer|s\?\.)/)
     // L'update d'émission ne réécrit PAS taxTreatment / taxLegalMention (immutabilité).
-    const issueUpdate = code.slice(code.indexOf('status: "issued"'))
+    // On borne l'inspection à l'instruction d'update d'émission de issueInvoice
+    // (du `status: "issued"` jusqu'au `.where(` qui la termine) afin de ne pas
+    // capter d'autres blocs du fichier (ex. copie de snapshot d'un avoir).
+    const issuedStart = code.indexOf('status: "issued"')
+    const issueUpdate = code.slice(issuedStart, code.indexOf(".where(", issuedStart))
     expect(issueUpdate).not.toMatch(/taxTreatment:/)
     expect(issueUpdate).not.toMatch(/taxLegalMention:/)
   })

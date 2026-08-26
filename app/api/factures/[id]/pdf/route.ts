@@ -29,7 +29,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const logoDataUrl = await getLogoDataUrl(data.invoice.issuerLogoPathname)
-  const pdf = await renderInvoicePdf({ invoice: data.invoice, items: data.items, logoDataUrl })
+  const originalRef = data.originalInvoice
+    ? { number: data.originalInvoice.number, issueDate: data.originalInvoice.issueDate }
+    : null
+  const pdf = await renderInvoicePdf({ invoice: data.invoice, items: data.items, logoDataUrl, originalRef })
 
   const filename = `${data.invoice.number || `facture-${numId}`}.pdf`
   return new NextResponse(pdf as unknown as BodyInit, {
