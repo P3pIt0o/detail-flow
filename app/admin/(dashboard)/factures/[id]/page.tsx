@@ -34,13 +34,16 @@ export default async function InvoiceDetailPage({
       </Link>
 
       {data.invoice.status === "draft" ? (
-        <InvoiceEditor invoice={data.invoice} items={data.items} />
+        <InvoiceEditor invoice={data.invoice} items={data.items} originalInvoice={data.originalInvoice} />
       ) : (
         <InvoiceView
           invoice={data.invoice}
           items={data.items}
           payments={data.payments}
           events={data.events}
+          creditNotes={data.creditNotes}
+          creditSummary={data.creditSummary}
+          originalInvoice={data.originalInvoice}
         />
       )}
     </div>
