@@ -9,6 +9,12 @@ import {
 } from "@/lib/db/schema"
 import { getCompanyIdOrNull, requireCompanyId } from "@/lib/tenant"
 import { and, asc, desc, eq, inArray } from "drizzle-orm"
+import {
+  computeCreditSummary,
+  CREDIT_NOTE_DOCUMENT_TYPE,
+  isCreditNote,
+  type CreditSummary,
+} from "@/lib/invoice/credit"
 
 export type InvoiceRow = typeof invoices.$inferSelect
 export type InvoiceItemRow = typeof invoiceItems.$inferSelect
@@ -40,6 +46,8 @@ export async function getInvoiceList(companyId?: number) {
       number: invoices.number,
       bookingId: invoices.bookingId,
       status: invoices.status,
+      documentType: invoices.documentType,
+      originalInvoiceId: invoices.originalInvoiceId,
       customerName: invoices.customerName,
       serviceDate: invoices.serviceDate,
       issueDate: invoices.issueDate,
@@ -73,7 +81,64 @@ export async function getInvoiceDetail(id: number, companyId?: number) {
     db.select().from(invoiceEvents).where(eq(invoiceEvents.invoiceId, id)).orderBy(desc(invoiceEvents.createdAt)),
   ])
 
-  return { invoice, items, payments, events }
+  // Contexte AVOIR (scopé companyId) :
+  //  - facture d'origine : liste de ses avoirs + récap du crédit ;
+  //  - avoir : facture d'origine rattachée (référence + lien).
+  let creditNotes: InvoiceRow[] = []
+  let creditSummary: CreditSummary | null = null
+  let originalInvoice: InvoiceRow | null = null
+
+  if (isCreditNote(invoice.documentType)) {
+    if (invoice.originalInvoiceId != null) {
+      const orig = await db
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.id, invoice.originalInvoiceId), eq(invoices.companyId, cid)))
+        .limit(1)
+      originalInvoice = orig[0] ?? null
+    }
+  } else {
+    creditNotes = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.companyId, cid),
+          eq(invoices.documentType, CREDIT_NOTE_DOCUMENT_TYPE),
+          eq(invoices.originalInvoiceId, id),
+        ),
+      )
+      .orderBy(desc(invoices.createdAt))
+    const issuedTotals = creditNotes.filter((c) => c.status !== "draft" && c.status !== "cancelled").map((c) => c.totalCents)
+    creditSummary = computeCreditSummary(invoice.totalCents, issuedTotals)
+  }
+
+  return { invoice, items, payments, events, creditNotes, creditSummary, originalInvoice }
+}
+
+/**
+ * Total des avoirs DÉJÀ ÉMIS d'une facture d'origine (scopé entreprise), utilisé
+ * comme base du plafond de cumul. Exclut brouillons et avoirs annulés, et — en
+ * émission — un avoir donné (`excludeCreditNoteId`) pour recalculer sans lui.
+ */
+export async function getIssuedCreditTotalCents(
+  originalInvoiceId: number,
+  companyId: number,
+  excludeCreditNoteId?: number,
+): Promise<number> {
+  const rows = await db
+    .select({ id: invoices.id, status: invoices.status, totalCents: invoices.totalCents })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.companyId, companyId),
+        eq(invoices.documentType, CREDIT_NOTE_DOCUMENT_TYPE),
+        eq(invoices.originalInvoiceId, originalInvoiceId),
+      ),
+    )
+  return rows
+    .filter((r) => r.id !== excludeCreditNoteId && r.status !== "draft" && r.status !== "cancelled")
+    .reduce((sum, r) => sum + Math.max(0, r.totalCents), 0)
 }
 
 /** Facture liée à une réservation (pour afficher le bon bouton), scopée entreprise. */

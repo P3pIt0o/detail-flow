@@ -14,6 +14,7 @@ import {
 } from "@react-pdf/renderer"
 import type { InvoiceRow, InvoiceItemRow } from "@/lib/invoice/queries"
 import { formatMoney, formatDateLong } from "@/lib/format"
+import { isCreditNote } from "@/lib/invoice/credit"
 import {
   resolveIssuerLegalIdentityDisplay,
   resolveIssuerVatDisplay,
@@ -92,9 +93,12 @@ export type InvoicePdfData = {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
   logoDataUrl?: string | null
+  // Référence de la facture d'origine (avoirs uniquement).
+  originalRef?: { number: string | null; issueDate: string | null } | null
 }
 
-function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
+function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePdfData) {
+  const isCredit = isCreditNote(invoice.documentType)
   const vehicle = [invoice.vehicleBrand, invoice.vehicleModel].filter(Boolean).join(" ") || invoice.vehicleTypeName || ""
   // Tous les montants du PDF utilisent la devise SNAPSHOTÉE de la facture.
   const money = (cents: number) => formatMoney(cents, invoice.currencyCode)
@@ -156,10 +160,16 @@ function InvoiceDocument({ invoice, items, logoDataUrl }: InvoicePdfData) {
             ) : null}
           </View>
           <View style={s.right}>
-            <Text style={s.invoiceTitle}>FACTURE</Text>
+            <Text style={s.invoiceTitle}>{isCredit ? "AVOIR" : "FACTURE"}</Text>
             <Text style={[s.strong, { marginTop: 4 }]}>{invoice.number}</Text>
             {invoice.issueDate ? <Text style={s.muted}>Date : {formatDateLong(invoice.issueDate)}</Text> : null}
-            {invoice.dueDate ? <Text style={s.muted}>Échéance : {formatDateLong(invoice.dueDate)}</Text> : null}
+            {!isCredit && invoice.dueDate ? <Text style={s.muted}>Échéance : {formatDateLong(invoice.dueDate)}</Text> : null}
+            {isCredit && originalRef ? (
+              <Text style={[s.muted, { marginTop: 4 }]}>
+                Rectifie la facture {originalRef.number ?? "—"}
+                {originalRef.issueDate ? ` du ${formatDateLong(originalRef.issueDate)}` : ""}
+              </Text>
+            ) : null}
           </View>
         </View>
 

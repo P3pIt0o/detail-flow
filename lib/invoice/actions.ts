@@ -32,6 +32,13 @@ import { computeInvoice, type InvoiceLineKind } from "@/lib/invoice/calc"
 import { isTaxTreatment, normalizeTaxTreatment, resolveTaxCalculation, type TaxTreatment } from "@/lib/invoice/tax-treatment"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 import { getCountryProfile, resolveIssuerBillingSnapshot, resolveDraftCurrency } from "@/lib/billing/country-profiles"
+import {
+  CREDIT_NOTE_DOCUMENT_TYPE,
+  CREDITABLE_INVOICE_STATUSES,
+  canIssueCredit,
+  isCreditNote,
+  validateCreditReason,
+} from "@/lib/invoice/credit"
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -152,7 +159,14 @@ export async function createInvoiceFromBooking(
   const [monthAgg] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(invoices)
-    .where(and(eq(invoices.companyId, companyId), gte(invoices.createdAt, monthStart)))
+    .where(
+      and(
+        eq(invoices.companyId, companyId),
+        // Les avoirs ne consomment JAMAIS le quota mensuel de factures.
+        eq(invoices.documentType, "invoice"),
+        gte(invoices.createdAt, monthStart),
+      ),
+    )
   const monthCount = Number(monthAgg?.count ?? 0)
   const allowed = await canCreateWithinLimit(companyId, "maxInvoicesPerMonth", monthCount)
   if (!allowed) {
@@ -651,6 +665,227 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<ActionResul
   })
   revalidate()
   return { ok: true }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Avoirs (notes de crédit) — rectification d'une facture émise              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Crée un BROUILLON d'avoir rectifiant une facture émise/payée. L'avoir reprend
+ * les informations FIGÉES de la facture d'origine (client, véhicule, devise,
+ * traitement TVA, identité vendeur) et référence son numéro/date. Il démarre en
+ * brouillon : ses lignes restent modifiables (avoir partiel) jusqu'à l'émission.
+ *
+ * Garde-fous serveur (companyId résolu côté serveur, jamais depuis le client) :
+ *  - facture d'origine appartenant à l'entreprise (sinon introuvable) ;
+ *  - avoir impossible sur un brouillon (uniquement émise/payée) ;
+ *  - avoir impossible depuis un autre avoir ;
+ *  - motif obligatoire ;
+ *  - facture déjà intégralement créditée => refus.
+ * La facture d'origine n'est JAMAIS modifiée.
+ *
+ * mode "full"  => reprend toutes les lignes de la facture d'origine.
+ * mode "partial" => reprend aussi toutes les lignes, à ajuster dans le brouillon.
+ */
+export async function createCreditNote(
+  originalInvoiceId: number,
+  mode: "full" | "partial",
+  reason: string,
+): Promise<ActionResult<{ invoiceId: number }>> {
+  const { tenant } = await requireCompanyMember()
+  const companyId = tenant.id
+
+  const original = await loadOwnedInvoice(originalInvoiceId, companyId)
+  if (!original) return { ok: false, error: "Facture introuvable." }
+  if (isCreditNote(original.documentType)) {
+    return { ok: false, error: "Un avoir ne peut pas être créé depuis un autre avoir." }
+  }
+  if (!CREDITABLE_INVOICE_STATUSES.includes(original.status as (typeof CREDITABLE_INVOICE_STATUSES)[number])) {
+    return { ok: false, error: "Un avoir ne peut être créé que depuis une facture émise." }
+  }
+  const reasonCheck = validateCreditReason(reason)
+  if (!reasonCheck.ok) return { ok: false, error: reasonCheck.error }
+
+  // Plafond : refuse un nouvel avoir si la facture est déjà intégralement créditée.
+  const { getIssuedCreditTotalCents } = await import("@/lib/invoice/queries")
+  const alreadyIssued = await getIssuedCreditTotalCents(originalInvoiceId, companyId)
+  if (alreadyIssued >= original.totalCents) {
+    return { ok: false, error: "Cette facture est déjà intégralement créditée." }
+  }
+
+  const originalItems = await db
+    .select()
+    .from(invoiceItems)
+    .where(eq(invoiceItems.invoiceId, originalInvoiceId))
+    .orderBy(invoiceItems.sortOrder)
+
+  const invoiceId = await db.transaction(async (tx) => {
+    const [cn] = await tx
+      .insert(invoices)
+      .values({
+        companyId,
+        // Un avoir n'est jamais rattaché à une réservation (évite la contrainte
+        // unique bookingId ; l'avoir référence la facture, pas la réservation).
+        bookingId: null,
+        status: "draft",
+        documentType: CREDIT_NOTE_DOCUMENT_TYPE,
+        originalInvoiceId,
+        creditReason: reasonCheck.reason,
+        // Snapshot client figé, repris de la facture d'origine.
+        customerName: original.customerName,
+        customerEmail: original.customerEmail,
+        customerPhone: original.customerPhone,
+        customerAddress: original.customerAddress,
+        customerType: original.customerType,
+        customerCountry: original.customerCountry,
+        customerLegalRegistrationNumber: original.customerLegalRegistrationNumber,
+        customerLegalRegistrationScheme: original.customerLegalRegistrationScheme,
+        customerVatNumber: original.customerVatNumber,
+        // Snapshot véhicule.
+        vehicleTypeName: original.vehicleTypeName,
+        vehicleBrand: original.vehicleBrand,
+        vehicleModel: original.vehicleModel,
+        vehiclePlate: original.vehiclePlate,
+        serviceDate: original.serviceDate,
+        // Même devise + même traitement TVA que la facture d'origine.
+        currencyCode: original.currencyCode,
+        vatEnabled: original.vatEnabled,
+        vatRate: original.vatRate,
+        taxTreatment: original.taxTreatment,
+        taxLegalMention: original.taxLegalMention,
+        discountCents: original.discountCents,
+        depositCents: 0,
+        // Snapshot émetteur repris tel quel (identité vendeur figée = celle de
+        // la facture d'origine ; l'émission de l'avoir ne le réécrit pas).
+        issuerName: original.issuerName,
+        issuerEmail: original.issuerEmail,
+        issuerPhone: original.issuerPhone,
+        issuerAddress: original.issuerAddress,
+        issuerSiret: original.issuerSiret,
+        issuerIban: original.issuerIban,
+        issuerBic: original.issuerBic,
+        issuerCountry: original.issuerCountry,
+        issuerLegalRegistrationNumber: original.issuerLegalRegistrationNumber,
+        issuerLegalRegistrationScheme: original.issuerLegalRegistrationScheme,
+        issuerVatNumber: original.issuerVatNumber,
+        issuerLogoPathname: original.issuerLogoPathname,
+        vatExemptNote: original.vatExemptNote,
+        footerNote: original.footerNote,
+        legalMentions: original.legalMentions,
+      })
+      .returning({ id: invoices.id })
+
+    if (originalItems.length) {
+      await tx.insert(invoiceItems).values(
+        originalItems.map((l, i) => ({
+          invoiceId: cn.id,
+          kind: l.kind,
+          label: l.label,
+          description: l.description,
+          quantity: l.quantity,
+          unitPriceCents: l.unitPriceCents,
+          sortOrder: i,
+        })),
+      )
+    }
+    return cn.id
+  })
+
+  await recalcInvoice(invoiceId)
+  await logEvent(
+    invoiceId,
+    "created",
+    `Brouillon d'avoir (${mode === "full" ? "intégral" : "partiel"}) créé pour la facture ${original.number ?? originalInvoiceId}.`,
+  )
+  revalidate()
+  return { ok: true, data: { invoiceId } }
+}
+
+/**
+ * Émet un avoir : numérotation INDÉPENDANTE (AVO-AAAA-NNNN), gel définitif.
+ * Dans une seule transaction, verrouille la facture d'origine ET la ligne
+ * settings (FOR UPDATE) : deux émissions concurrentes sont sérialisées et ne
+ * peuvent jamais faire dépasser le cumul des avoirs au-delà du total d'origine.
+ */
+export async function issueCreditNote(creditNoteId: number): Promise<ActionResult<{ number: string }>> {
+  const { tenant } = await requireCompanyMember()
+  const companyId = tenant.id
+
+  const cn = await loadOwnedInvoice(creditNoteId, companyId)
+  if (!cn) return { ok: false, error: "Avoir introuvable." }
+  if (!isCreditNote(cn.documentType)) return { ok: false, error: "Ce document n'est pas un avoir." }
+  if (cn.status !== "draft") return { ok: false, error: "Cet avoir est déjà émis." }
+  if (cn.originalInvoiceId == null) return { ok: false, error: "Avoir non rattaché à une facture." }
+
+  const itemsCount = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(invoiceItems)
+    .where(eq(invoiceItems.invoiceId, creditNoteId))
+  if (Number(itemsCount[0]?.n ?? 0) === 0) {
+    return { ok: false, error: "Ajoutez au moins une ligne avant d'émettre l'avoir." }
+  }
+
+  // Recalcule les totaux depuis les lignes courantes avant contrôle du montant.
+  const totals = await recalcInvoice(creditNoteId)
+  const creditTotalCents = totals?.totalCents ?? cn.totalCents
+
+  const year = new Date().getFullYear()
+
+  const result = await db.transaction(async (tx) => {
+    // Verrou de la facture d'origine (sérialise les émissions concurrentes).
+    const [original] = await tx
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.id, cn.originalInvoiceId as number), eq(invoices.companyId, companyId)))
+      .limit(1)
+      .for("update")
+    if (!original) return { ok: false as const, error: "Facture d'origine introuvable." }
+
+    // Cumul des avoirs DÉJÀ émis (hors celui-ci), calculé sous verrou.
+    const others = await tx
+      .select({ id: invoices.id, status: invoices.status, totalCents: invoices.totalCents })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.companyId, companyId),
+          eq(invoices.documentType, CREDIT_NOTE_DOCUMENT_TYPE),
+          eq(invoices.originalInvoiceId, original.id),
+        ),
+      )
+    const alreadyIssued = others
+      .filter((r) => r.id !== creditNoteId && r.status !== "draft" && r.status !== "cancelled")
+      .reduce((sum, r) => sum + Math.max(0, r.totalCents), 0)
+
+    const guard = canIssueCredit(original.totalCents, alreadyIssued, creditTotalCents)
+    if (!guard.ok) return { ok: false as const, error: guard.error }
+
+    // Compteur d'avoirs PROPRE à l'entreprise, verrouillé FOR UPDATE.
+    const [s] = await tx.select().from(settingsTable).where(eq(settingsTable.companyId, companyId)).limit(1).for("update")
+    const prefix = s?.creditNotePrefix || "AVO"
+    const currentYear = s?.creditNoteCounterYear ?? 0
+    const nextCounter = currentYear === year ? (s?.creditNoteCounter ?? 0) + 1 : 1
+    await tx
+      .update(settingsTable)
+      .set({ creditNoteCounter: nextCounter, creditNoteCounterYear: year, updatedAt: new Date() })
+      .where(eq(settingsTable.companyId, companyId))
+
+    const num = `${prefix}-${year}-${String(nextCounter).padStart(4, "0")}`
+    const issueDate = new Date().toISOString().slice(0, 10)
+
+    await tx
+      .update(invoices)
+      .set({ number: num, status: "issued", issueDate, updatedAt: new Date() })
+      .where(eq(invoices.id, creditNoteId))
+
+    return { ok: true as const, number: num }
+  })
+
+  if (!result.ok) return { ok: false, error: result.error }
+
+  await logEvent(creditNoteId, "issued", `Avoir émis sous le numéro ${result.number}.`)
+  revalidate()
+  return { ok: true, data: { number: result.number } }
 }
 
 /* -------------------------------------------------------------------------- */

@@ -537,6 +537,12 @@ export const settings = pgTable(
     invoicePrefix: text("invoicePrefix").notNull().default("FAC"),
     invoiceCounter: integer("invoiceCounter").notNull().default(0),
     invoiceCounterYear: integer("invoiceCounterYear").notNull().default(0),
+    /* -------- Numérotation INDÉPENDANTE des avoirs (additif) -----------------
+     * Compteur propre aux avoirs, distinct des factures, réinitialisé par année.
+     * Format : `${creditNotePrefix}-${année}-${NNNN}` (ex. AVO-2026-0001). */
+    creditNotePrefix: text("creditNotePrefix").notNull().default("AVO"),
+    creditNoteCounter: integer("creditNoteCounter").notNull().default(0),
+    creditNoteCounterYear: integer("creditNoteCounterYear").notNull().default(0),
     invoiceDueDays: integer("invoiceDueDays").notNull().default(30),
     invoiceFooterNote: text("invoiceFooterNote"),
     invoiceLegalMentions: text("invoiceLegalMentions"),
@@ -800,6 +806,16 @@ export const invoices = pgTable(
     // Lien vers la réservation source. UNIQUE = une seule facture par réservation.
     bookingId: integer("bookingId").unique(),
     status: text("status").notNull().default("draft"),
+    /* -------- Avoir / note de crédit (additif, rétrocompatible) --------------
+     * documentType : "invoice" (défaut, toutes les factures existantes) ou
+     *   "credit_note" (avoir rectifiant une facture émise). Jamais déduit :
+     *   fixé explicitement à la création du document.
+     * originalInvoiceId : facture d'origine rectifiée (null pour une facture).
+     * creditReason : motif obligatoire de l'avoir (null pour une facture).
+     * Un avoir NE MODIFIE JAMAIS la facture d'origine (documents indépendants). */
+    documentType: text("documentType").notNull().default("invoice"),
+    originalInvoiceId: integer("originalInvoiceId"),
+    creditReason: text("creditReason"),
     // Devise de la facture (ISO 4217). Null (historique) => EUR à l'affichage.
     // Une facture émise CONSERVE sa devise même si l'entreprise en change.
     currencyCode: text("currencyCode"),
@@ -869,6 +885,8 @@ export const invoices = pgTable(
   (t) => ({
     uniqNumber: unique("invoices_company_number_unique").on(t.companyId, t.number),
     byCompany: index("invoices_companyId_idx").on(t.companyId),
+    // Recherche des avoirs rattachés à une facture d'origine, scopée entreprise.
+    byCompanyOriginal: index("invoices_company_original_idx").on(t.companyId, t.originalInvoiceId),
   }),
 )
 
