@@ -175,7 +175,7 @@ export function InvoiceView({
         setError(res.error)
         return
       }
-      setNotice("Facture envoyée par email au client.")
+      setNotice(isCredit ? "Avoir envoyé par email au client." : "Facture envoyée par email au client.")
       router.refresh()
     })
   }
@@ -253,7 +253,7 @@ export function InvoiceView({
               Envoyer par email
             </Button>
           )}
-          {!isCancelled && invoice.status !== "draft" && invoice.balanceCents > 0 && (
+          {!isCancelled && !isCredit && invoice.status !== "draft" && invoice.balanceCents > 0 && (
             <Button onClick={markAsPaid} disabled={busy}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleCheck className="mr-2 h-4 w-4" />}
               Marquer comme payée
@@ -479,24 +479,35 @@ export function InvoiceView({
               <span className="text-foreground">Total TTC</span>
               <span className="text-foreground">{money(invoice.totalCents)}</span>
             </div>
-            {invoice.depositCents > 0 && (
-              <div className={`${rowClass} mt-1`}>
-                <span className="text-muted-foreground">Acompte réglé</span>
-                <span className="text-foreground">−{money(invoice.depositCents)}</span>
+            {/* Un avoir n'affiche jamais acompte / paiements / « Reste à régler »
+                (ce n'est pas une demande de paiement) mais un « Total crédité ». */}
+            {isCredit ? (
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
+                <span className="text-foreground">Total crédité</span>
+                <span className="text-primary">−{money(invoice.totalCents)}</span>
               </div>
+            ) : (
+              <>
+                {invoice.depositCents > 0 && (
+                  <div className={`${rowClass} mt-1`}>
+                    <span className="text-muted-foreground">Acompte réglé</span>
+                    <span className="text-foreground">−{money(invoice.depositCents)}</span>
+                  </div>
+                )}
+                {invoice.paidCents > 0 && (
+                  <div className={rowClass}>
+                    <span className="text-muted-foreground">Paiements</span>
+                    <span className="text-foreground">−{money(invoice.paidCents)}</span>
+                  </div>
+                )}
+                <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
+                  <span className="text-foreground">Reste à régler</span>
+                  <span className={invoice.balanceCents <= 0 ? "text-primary" : "text-foreground"}>
+                    {money(invoice.balanceCents)}
+                  </span>
+                </div>
+              </>
             )}
-            {invoice.paidCents > 0 && (
-              <div className={rowClass}>
-                <span className="text-muted-foreground">Paiements</span>
-                <span className="text-foreground">−{money(invoice.paidCents)}</span>
-              </div>
-            )}
-            <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
-              <span className="text-foreground">Reste à régler</span>
-              <span className={invoice.balanceCents <= 0 ? "text-primary" : "text-foreground"}>
-                {money(invoice.balanceCents)}
-              </span>
-            </div>
 
             {/* Traitement fiscal snapshoté (LOT 2B.4). Affiche UNIQUEMENT le choix
                 de l'utilisateur — aucune affirmation de conformité. Legacy (null) => rien. */}
@@ -514,8 +525,8 @@ export function InvoiceView({
             )}
           </div>
 
-          {/* Paiements */}
-          {!isCancelled && (
+          {/* Paiements — jamais pour un avoir (aucun règlement ne s'y rattache). */}
+          {!isCancelled && !isCredit && (
             <div className={cardClass}>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Paiements</h2>

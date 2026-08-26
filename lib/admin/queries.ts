@@ -20,13 +20,61 @@ const REVENUE_STATUSES = ["confirmed", "completed"]
  */
 const netRevenueSumExpr = sql<string>`sum(case when ${invoices.documentType} = 'credit_note' then -${invoices.totalCents} else ${invoices.totalCents} end)`
 
-/** Documents entrant dans le CA net : factures payées OU avoirs émis/payés. */
-function revenueDocumentFilter() {
-  return sql`(
-    (${invoices.documentType} = 'invoice' and ${invoices.status} = 'paid')
-    or (${invoices.documentType} = 'credit_note' and ${invoices.status} in ('issued', 'paid'))
+/**
+ * Sous-requête : un avoir n'est déductible du CA net que si sa facture d'ORIGINE
+ * entrait elle-même dans le CA payé — c'est-à-dire une facture 'paid', du même
+ * tenant, dont la réservation liée n'a pas été annulée/supprimée. On ne déduit
+ * donc jamais un avoir rattaché à une facture qui n'a jamais compté (ex. facture
+ * annulée puis créditée). Scopée companyId : isolation multi-tenant préservée.
+ */
+function creditNoteOriginalCountedInRevenue(companyId: number) {
+  return sql`exists (
+    select 1 from ${invoices} orig
+    where orig.id = ${invoices.originalInvoiceId}
+      and orig."companyId" = ${companyId}
+      and orig."documentType" = 'invoice'
+      and orig.status = 'paid'
+      and (
+        orig."bookingId" is null
+        or exists (
+          select 1 from ${bookings} b
+          where b.id = orig."bookingId"
+            and b."companyId" = ${companyId}
+            and b.status <> 'cancelled'
+        )
+      )
   )`
 }
+
+/**
+ * Documents entrant dans le CA net :
+ *  - factures 'paid' (positif) ;
+ *  - avoirs 'issued'/'paid' (négatif) UNIQUEMENT si leur facture d'origine
+ *    comptait dans le CA payé.
+ */
+function revenueDocumentFilter(companyId: number) {
+  return sql`(
+    (${invoices.documentType} = 'invoice' and ${invoices.status} = 'paid')
+    or (
+      ${invoices.documentType} = 'credit_note'
+      and ${invoices.status} in ('issued', 'paid')
+      and ${creditNoteOriginalCountedInRevenue(companyId)}
+    )
+  )`
+}
+
+/**
+ * Date retenue pour l'affectation mensuelle :
+ *  - facture : date de prestation, sinon émission, sinon création ;
+ *  - AVOIR   : sa propre date d'ÉMISSION (issueDate), sinon création. Un avoir
+ *    n'a pas de date de prestation ; sa déduction tombe le mois où il est émis.
+ */
+const revenuePeriodDateExpr = sql`(
+  case when ${invoices.documentType} = 'credit_note'
+    then coalesce(${invoices.issueDate}, ${invoices.createdAt}::date)
+    else coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date)
+  end
+)`
 
 /**
  * Filtre CA : exclut une facture PAYÉE dès lors qu'elle est rattachée à une
@@ -92,9 +140,9 @@ export async function getDashboardStats(companyId?: number) {
       .where(
         and(
           eq(invoices.companyId, cid),
-          revenueDocumentFilter(),
-          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) >= ${start}`,
-          sql`coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date) <= ${end}`,
+          revenueDocumentFilter(cid),
+          sql`${revenuePeriodDateExpr} >= ${start}`,
+          sql`${revenuePeriodDateExpr} <= ${end}`,
           excludeCancelledOrDeletedBooking(cid),
         ),
       ),
@@ -343,7 +391,9 @@ export async function getDashboardWeek(companyId?: number): Promise<DashboardWee
  */
 export async function getRevenueByMonth(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
-  const monthExpr = sql<string>`to_char(coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date), 'YYYY-MM')`
+  // Même affectation de date que le tableau de bord : avoir => mois d'émission,
+  // facture => mois de prestation (sinon émission/création).
+  const monthExpr = sql<string>`to_char(${revenuePeriodDateExpr}, 'YYYY-MM')`
   const rows = await db
     .select({
       month: monthExpr,
@@ -351,7 +401,7 @@ export async function getRevenueByMonth(companyId?: number) {
     })
     .from(invoices)
     .where(
-      and(eq(invoices.companyId, cid), revenueDocumentFilter(), excludeCancelledOrDeletedBooking(cid)),
+      and(eq(invoices.companyId, cid), revenueDocumentFilter(cid), excludeCancelledOrDeletedBooking(cid)),
     )
     .groupBy(monthExpr)
     .orderBy(monthExpr)

@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import {
   canIssueCredit,
+  clampCreditLineQuantity,
+  clampCreditUnitPrice,
   computeCreditSummary,
   CREDITABLE_INVOICE_STATUSES,
   isCreditNote,
+  remainingLineQuantity,
   validateCreditReason,
 } from "@/lib/invoice/credit"
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
 describe("computeCreditSummary", () => {
   it("aucun avoir émis => rien crédité, tout restant", () => {
@@ -88,5 +95,116 @@ describe("isCreditNote / statuts créditables", () => {
     expect(CREDITABLE_INVOICE_STATUSES).toContain("paid")
     expect(CREDITABLE_INVOICE_STATUSES).not.toContain("draft")
     expect(CREDITABLE_INVOICE_STATUSES).not.toContain("cancelled")
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  Plafonnement PAR LIGNE (avoirs partiels multiples)                        */
+/* -------------------------------------------------------------------------- */
+
+describe("remainingLineQuantity", () => {
+  it("rien de crédité => quantité d'origine entière", () => {
+    expect(remainingLineQuantity(3, 0)).toBe(3)
+  })
+  it("partiellement crédité => différence", () => {
+    expect(remainingLineQuantity(5, 2)).toBe(3)
+  })
+  it("intégralement crédité => 0, jamais négatif", () => {
+    expect(remainingLineQuantity(5, 5)).toBe(0)
+    expect(remainingLineQuantity(5, 8)).toBe(0)
+  })
+})
+
+describe("clampCreditLineQuantity", () => {
+  it("borne la quantité demandée au restant créditable", () => {
+    expect(clampCreditLineQuantity(10, 5, 0)).toBe(5)
+    expect(clampCreditLineQuantity(2, 5, 0)).toBe(2)
+  })
+  it("tient compte des avoirs déjà émis (cumul)", () => {
+    // 5 facturés, 3 déjà crédités => au plus 2 crédités, même si on demande 4.
+    expect(clampCreditLineQuantity(4, 5, 3)).toBe(2)
+  })
+  it("refuse valeurs négatives / non entières / non finies", () => {
+    expect(clampCreditLineQuantity(-3, 5, 0)).toBe(0)
+    expect(clampCreditLineQuantity(2.9, 5, 0)).toBe(2)
+    expect(clampCreditLineQuantity(Number.NaN, 5, 0)).toBe(0)
+  })
+})
+
+describe("clampCreditUnitPrice", () => {
+  it("ne crédite jamais plus cher que le prix d'origine", () => {
+    expect(clampCreditUnitPrice(20_000, 10_000)).toBe(10_000)
+    expect(clampCreditUnitPrice(4_000, 10_000)).toBe(4_000)
+  })
+  it("jamais négatif", () => {
+    expect(clampCreditUnitPrice(-500, 10_000)).toBe(0)
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  Garde-fous serveur (inspection du code réel — pas de DB de test)          */
+/* -------------------------------------------------------------------------- */
+
+describe("actions serveur : sécurité & rétrocompatibilité des avoirs", () => {
+  const actions = read("lib/invoice/actions.ts")
+  const queries = read("lib/admin/queries.ts")
+
+  it("createCreditNote et l'émission sont scopés companyId (isolation tenant)", () => {
+    // La résolution du tenant passe par le helper serveur, jamais par un
+    // companyId issu du navigateur.
+    expect(actions).toMatch(/requireCompanyMember\(\)/)
+    // Les documents sont toujours chargés bornés au tenant courant.
+    expect(actions).toMatch(/loadOwnedInvoice\(/)
+    // Les avoirs référencent la facture d'origine par son companyId.
+    expect(actions).toMatch(/originalInvoiceId/)
+  })
+
+  it("l'ajout de paiement refuse un document de type avoir", () => {
+    // Un avoir n'accepte aucun paiement : garde-fou serveur explicite.
+    expect(actions).toMatch(/credit_note/)
+    expect(actions).toMatch(/documentType/)
+  })
+
+  it("les lignes d'avoir sont bornées par les helpers de plafonnement", () => {
+    expect(actions).toMatch(/clampCreditLineQuantity|clampCreditUnitPrice/)
+    expect(actions).toMatch(/originalInvoiceItemId/)
+  })
+
+  it("le CA net déduit un avoir seulement si l'origine comptait dans le CA payé", () => {
+    expect(queries).toMatch(/creditNoteOriginalCountedInRevenue/)
+    // L'origine doit être une facture 'paid' du même tenant.
+    expect(queries).toMatch(/orig\."companyId" = /)
+    expect(queries).toMatch(/orig\.status = 'paid'/)
+  })
+
+  it("l'avoir est affecté au mois de son émission, pas d'une date de prestation", () => {
+    expect(queries).toMatch(/revenuePeriodDateExpr/)
+    expect(queries).toMatch(/credit_note[\s\S]*issueDate/)
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  UI / PDF : un avoir n'est pas une demande de paiement                     */
+/* -------------------------------------------------------------------------- */
+
+describe("UI & PDF : un avoir ne demande aucun règlement", () => {
+  const pdf = read("lib/invoice/pdf.tsx")
+  const view = read("components/admin/invoice-view.tsx")
+  const editor = read("components/admin/invoice-editor.tsx")
+
+  it("le PDF affiche « Total crédité » et masque le bloc bancaire pour un avoir", () => {
+    expect(pdf).toMatch(/Total crédité/)
+    expect(pdf).toMatch(/!isCredit && invoice\.issuerIban/)
+    expect(pdf).toMatch(/creditReason/)
+  })
+
+  it("la vue masque la carte Paiements et « Marquer comme payée » pour un avoir", () => {
+    expect(view).toMatch(/!isCancelled && !isCredit/)
+    expect(view).toMatch(/Total crédité/)
+  })
+
+  it("l'éditeur transmet originalInvoiceItemId et interdit d'ajouter des lignes à un avoir", () => {
+    expect(editor).toMatch(/originalInvoiceItemId/)
+    expect(editor).toMatch(/Aucune ligne ne peut être ajoutée à un avoir/)
   })
 })

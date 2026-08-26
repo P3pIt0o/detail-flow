@@ -29,6 +29,8 @@ type LineState = {
   description: string
   quantity: number
   unitPriceCents: number
+  // Avoirs uniquement : rattachement à la ligne de la facture d'origine.
+  originalInvoiceItemId: number | null
 }
 
 const inputClass =
@@ -78,6 +80,7 @@ export function InvoiceEditor({
       description: it.description ?? "",
       quantity: it.quantity,
       unitPriceCents: it.unitPriceCents,
+      originalInvoiceItemId: it.originalInvoiceItemId ?? null,
     })),
   )
   const [discountAmount, setDiscountAmount] = useState(centsToUnits(invoice.discountCents))
@@ -172,6 +175,8 @@ export function InvoiceEditor({
         description: l.description || null,
         quantity: l.quantity,
         unitPriceCents: l.unitPriceCents,
+        // Avoir : le serveur borne chaque ligne à sa ligne d'origine.
+        originalInvoiceItemId: l.originalInvoiceItemId,
       })),
     }
   }
@@ -358,30 +363,40 @@ export function InvoiceEditor({
               {lines.map((l) => (
                 <div key={l.key} className="rounded-lg border border-border p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      value={l.kind}
-                      onChange={(e) => updateLine(l.key, { kind: e.target.value as InvoiceLineKind })}
-                      aria-label="Type de ligne"
-                      className="rounded-lg border border-border bg-background px-2 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                    >
-                      {(Object.keys(LINE_KIND_LABEL) as InvoiceLineKind[]).map((k) => (
-                        <option key={k} value={k}>
-                          {LINE_KIND_LABEL[k]}
-                        </option>
-                      ))}
-                    </select>
+                    {/* Sur un avoir, type/désignation sont FIGÉS (repris de la
+                        ligne d'origine) : seuls quantité et P.U. sont ajustables. */}
+                    {isCredit ? (
+                      <span className="rounded-lg border border-border bg-muted px-2 py-2 text-xs text-muted-foreground">
+                        {LINE_KIND_LABEL[l.kind]}
+                      </span>
+                    ) : (
+                      <select
+                        value={l.kind}
+                        onChange={(e) => updateLine(l.key, { kind: e.target.value as InvoiceLineKind })}
+                        aria-label="Type de ligne"
+                        className="rounded-lg border border-border bg-background px-2 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                      >
+                        {(Object.keys(LINE_KIND_LABEL) as InvoiceLineKind[]).map((k) => (
+                          <option key={k} value={k}>
+                            {LINE_KIND_LABEL[k]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <input
                       type="text"
                       value={l.label}
                       onChange={(e) => updateLine(l.key, { label: e.target.value })}
                       placeholder="Désignation"
                       aria-label="Désignation"
-                      className={`${inputClass} flex-1 min-w-[8rem]`}
+                      readOnly={isCredit}
+                      className={`${inputClass} flex-1 min-w-[8rem]${isCredit ? " bg-muted text-muted-foreground" : ""}`}
                     />
                     <button
                       type="button"
                       onClick={() => removeLine(l.key)}
-                      aria-label="Supprimer la ligne"
+                      aria-label="Retirer la ligne"
+                      title={isCredit ? "Retirer cette ligne de l'avoir" : "Supprimer la ligne"}
                       className="rounded-md p-2 text-muted-foreground transition-colors hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -393,7 +408,8 @@ export function InvoiceEditor({
                     onChange={(e) => updateLine(l.key, { description: e.target.value })}
                     placeholder="Description (facultatif)"
                     aria-label="Description"
-                    className={`${inputClass} mt-2`}
+                    readOnly={isCredit}
+                    className={`${inputClass} mt-2${isCredit ? " bg-muted text-muted-foreground" : ""}`}
                   />
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -424,17 +440,26 @@ export function InvoiceEditor({
               ))}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => addLine("service")}>
-                <Plus className="mr-1.5 h-4 w-4" /> Prestation
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => addLine("option")}>
-                <Plus className="mr-1.5 h-4 w-4" /> Option
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => addLine("fee")}>
-                <Plus className="mr-1.5 h-4 w-4" /> Frais
-              </Button>
-            </div>
+            {/* Un avoir ne crédite QUE des lignes existantes de la facture
+                d'origine : pas d'ajout de ligne libre. On peut en retirer et
+                réduire quantités/montants. */}
+            {isCredit ? (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Ajustez les quantités ou retirez des lignes. Aucune ligne ne peut être ajoutée à un avoir.
+              </p>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => addLine("service")}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Prestation
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => addLine("option")}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Option
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => addLine("fee")}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Frais
+                </Button>
+              </div>
+            )}
           </section>
 
           {/* Client */}

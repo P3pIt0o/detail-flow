@@ -250,23 +250,42 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
             <Text style={s.grandText}>Total TTC</Text>
             <Text style={s.grandText}>{money(invoice.totalCents)}</Text>
           </View>
-          {invoice.depositCents > 0 ? (
-            <View style={s.totalRow}>
-              <Text style={s.muted}>Acompte réglé</Text>
-              <Text>-{money(invoice.depositCents)}</Text>
+          {/* Un avoir n'affiche jamais acompte / paiements / « Reste à régler »
+              (ce n'est pas une demande de paiement) mais un « Total crédité ». */}
+          {isCredit ? (
+            <View style={s.balanceBox}>
+              <Text style={s.strong}>Total crédité</Text>
+              <Text style={s.strong}>{money(invoice.totalCents)}</Text>
             </View>
-          ) : null}
-          {invoice.paidCents > 0 ? (
-            <View style={s.totalRow}>
-              <Text style={s.muted}>Paiements</Text>
-              <Text>-{money(invoice.paidCents)}</Text>
-            </View>
-          ) : null}
-          <View style={s.balanceBox}>
-            <Text style={s.strong}>Reste à régler</Text>
-            <Text style={s.strong}>{money(invoice.balanceCents)}</Text>
-          </View>
+          ) : (
+            <>
+              {invoice.depositCents > 0 ? (
+                <View style={s.totalRow}>
+                  <Text style={s.muted}>Acompte réglé</Text>
+                  <Text>-{money(invoice.depositCents)}</Text>
+                </View>
+              ) : null}
+              {invoice.paidCents > 0 ? (
+                <View style={s.totalRow}>
+                  <Text style={s.muted}>Paiements</Text>
+                  <Text>-{money(invoice.paidCents)}</Text>
+                </View>
+              ) : null}
+              <View style={s.balanceBox}>
+                <Text style={s.strong}>Reste à régler</Text>
+                <Text style={s.strong}>{money(invoice.balanceCents)}</Text>
+              </View>
+            </>
+          )}
         </View>
+
+        {/* Motif de l'avoir (avoirs uniquement). */}
+        {isCredit && invoice.creditReason ? (
+          <View style={{ marginTop: 12 }}>
+            <Text style={s.sectionLabel}>Motif de l&apos;avoir</Text>
+            <Text style={s.muted}>{invoice.creditReason}</Text>
+          </View>
+        ) : null}
 
         {/* Mention fiscale.
             - Nouveau modèle (taxTreatment != null) : on imprime UNIQUEMENT
@@ -291,8 +310,9 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
           </View>
         ) : null}
 
-        {/* Infos de paiement */}
-        {invoice.issuerIban ? (
+        {/* Infos de paiement — jamais sur un avoir : un avoir ne demande aucun
+            règlement, on n'affiche donc pas les coordonnées bancaires. */}
+        {!isCredit && invoice.issuerIban ? (
           <View style={s.payInfo}>
             <Text style={s.sectionLabel}>Coordonnées bancaires</Text>
             <Text>IBAN : {invoice.issuerIban}</Text>
