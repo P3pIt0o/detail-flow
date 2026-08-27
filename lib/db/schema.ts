@@ -131,6 +131,12 @@ export const companies = pgTable("companies", {
   bookingMode: text("bookingMode").notNull().default("LIVE"),
   // Empêche l'indexation par les moteurs (démos)
   noindex: boolean("noindex").notNull().default(false),
+  // Clé technique d'un site public ENTIÈREMENT personnalisé (ex. "spirit-acs").
+  // NULL = site standard DetailFlow (comportement historique inchangé). Validée
+  // UNIQUEMENT côté serveur contre le registre (lib/custom-sites). Une clé
+  // inconnue ne casse jamais la prod : repli automatique sur le site standard.
+  // Jamais attribuée automatiquement : réservée à une action super-admin.
+  customSiteKey: text("customSiteKey"),
   /* -------------------------- Paiements en ligne --------------------------- */
   // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
   // Null = aucun provider connecté. Seul Stripe est implémenté en V1.

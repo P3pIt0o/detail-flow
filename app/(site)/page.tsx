@@ -26,10 +26,24 @@ import { CtaSection } from "@/components/sections/cta-section"
 import { getPublicContact } from "@/lib/public-contact"
 import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from "@/lib/site-content"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
+import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
+  // Reste active y compris pour un site personnalisé (aucun contournement).
   await requireWebsiteFeature()
+
+  // DISPATCH PUBLIC : si le tenant a un customSiteKey enregistré, on rend SON
+  // accueil personnalisé. Clé null/inconnue => `null` => site standard exact
+  // ci-dessous (aucune régression, aucun autre tenant affecté).
+  const customSite = await resolveCustomSite()
+  if (customSite) {
+    const data = await getCustomSitePublicData()
+    if (data) {
+      const CustomPage = customSite.Page
+      return <CustomPage data={data} />
+    }
+  }
 
   const [contact, content, order] = await Promise.all([
     getPublicContact(),

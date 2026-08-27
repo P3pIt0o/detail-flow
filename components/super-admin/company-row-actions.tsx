@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { MoreHorizontal, AlertTriangle, Loader2 } from "lucide-react"
+import { MoreHorizontal, AlertTriangle, Loader2, Check } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -16,6 +17,7 @@ import {
   removeDemoDataAction,
   endBetaAction,
   deleteCompanyAction,
+  setCustomSiteKeyAction,
 } from "@/app/super-admin/actions"
 
 /**
@@ -27,10 +29,16 @@ export function CompanyRowActions({
   companyId,
   companyName,
   status,
+  customSiteKey,
+  customSiteOptions,
 }: {
   companyId: number
   companyName: string
   status: string
+  /** Clé actuelle du site public (null = site standard). */
+  customSiteKey: string | null
+  /** Sites personnalisés enregistrés (métadonnées uniquement). Vide au Lot 1. */
+  customSiteOptions: Array<{ key: string; name: string }>
 }) {
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
@@ -99,6 +107,22 @@ export function CompanyRowActions({
           >
             Archiver
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {/* Site public : attribuer/retirer un site personnalisé. Chaque item
+              appelle setCustomSiteKeyAction (validée côté serveur). La liste des
+              sites provient du registre : elle affichera automatiquement les
+              futures clés (aucune valeur codée en dur ici). */}
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Site public</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => run(() => setCustomSiteKeyAction(companyId, null))}>
+            <Check className={`size-4 ${customSiteKey == null ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
+            Site standard
+          </DropdownMenuItem>
+          {customSiteOptions.map((opt) => (
+            <DropdownMenuItem key={opt.key} onClick={() => run(() => setCustomSiteKeyAction(companyId, opt.key))}>
+              <Check className={`size-4 ${customSiteKey === opt.key ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
+              {opt.name}
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteOpen(true)}>
             Supprimer définitivement
