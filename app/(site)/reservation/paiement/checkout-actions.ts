@@ -15,6 +15,7 @@ import { resolveRequestTenant } from "@/lib/tenant"
 import { createBookingCheckout, bookingHasPaidPayment } from "@/lib/payments/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { withTenant } from "@/lib/tenant-link"
 
 async function absoluteUrl(path: string): Promise<string> {
   const h = await headers()
@@ -49,8 +50,15 @@ export async function startBookingCheckout(bookingId: number): Promise<StartChec
   const cfg = await getCompanyPaymentConfig(tenant.id)
   if (!cfg?.stripeAccountId) return { ok: false, error: "Paiements indisponibles." }
 
+  // Le retour Stripe atterrit sur le domaine où le tenant est porté par
+  // `?tenant=<slug>` (domaine racine). Sans ce paramètre, le middleware ne pose
+  // pas `x-tenant-slug`, `resolveRequestTenant()` renvoie null et la page de
+  // retour tombe en 404. On reconduit donc le slug résolu CÔTÉ SERVEUR (jamais
+  // un companyId/slug fourni par le navigateur). Sur un vrai sous-domaine, le
+  // paramètre est simplement redondant et sans effet. Le placeholder
+  // {CHECKOUT_SESSION_ID} reste intact (withTenant n'encode que la valeur tenant).
   const returnUrl = await absoluteUrl(
-    `/reservation/paiement/${bookingId}/retour?session_id={CHECKOUT_SESSION_ID}`,
+    withTenant(`/reservation/paiement/${bookingId}/retour?session_id={CHECKOUT_SESSION_ID}`, tenant.slug),
   )
   const res = await createBookingCheckout({ bookingId, companyId: tenant.id, returnUrl })
   if (!res.ok) return { ok: false, error: res.error }

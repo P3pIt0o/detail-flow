@@ -1,7 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { payments, paymentEvents, companies, bookings } from "@/lib/db/schema"
-import { and, desc, eq } from "drizzle-orm"
+import { and, desc, eq, sql } from "drizzle-orm"
 import { getPaymentProvider } from "./providers"
 import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
 import { computePlatformFeeCents, type PaymentType } from "./types"
@@ -87,6 +87,66 @@ export async function bookingHasPaidPayment(bookingId: number, companyId: number
     .where(and(eq(payments.bookingId, bookingId), eq(payments.companyId, companyId), eq(payments.status, "paid")))
     .limit(1)
   return Boolean(row)
+}
+
+export type BookingPaymentReturnInfo = {
+  paid: boolean
+  reference: string
+  date: string
+  startTime: string
+  totalCents: number
+  /** Montant encaissé (0 tant qu'aucun paiement "paid"). */
+  paidCents: number
+  type: PaymentType | null
+  /** Solde restant à régler sur place (acompte). */
+  remainingCents: number
+}
+
+/**
+ * Informations d'affichage de la page de retour, STRICTEMENT bornées au tenant
+ * (companyId issu du contexte serveur) + au bookingId : une réservation d'un
+ * autre tenant renvoie `null` (aucune fuite inter-tenant). Le statut payé fait
+ * foi via la table `payments` (alimentée par le webhook signé), jamais via
+ * `session_id` de l'URL.
+ */
+export async function getBookingPaymentReturnInfo(
+  bookingId: number,
+  companyId: number,
+): Promise<BookingPaymentReturnInfo | null> {
+  const [booking] = await db
+    .select({
+      reference: bookings.reference,
+      date: bookings.date,
+      startTime: bookings.startTime,
+      totalCents: bookings.totalCents,
+    })
+    .from(bookings)
+    .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, companyId)))
+    .limit(1)
+  if (!booking) return null
+
+  const [pay] = await db
+    .select({ grossAmountCents: payments.grossAmountCents, type: payments.type })
+    .from(payments)
+    .where(and(eq(payments.bookingId, bookingId), eq(payments.companyId, companyId), eq(payments.status, "paid")))
+    .orderBy(desc(payments.createdAt))
+    .limit(1)
+
+  const paid = Boolean(pay)
+  const paidCents = pay?.grossAmountCents ?? 0
+  const type = (pay?.type as PaymentType | undefined) ?? null
+  const remainingCents = type === "deposit" ? Math.max(0, booking.totalCents - paidCents) : 0
+
+  return {
+    paid,
+    reference: booking.reference,
+    date: typeof booking.date === "string" ? booking.date : String(booking.date),
+    startTime: booking.startTime,
+    totalCents: booking.totalCents,
+    paidCents,
+    type,
+    remainingCents,
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -247,19 +307,41 @@ export async function getStripeAccountIdForCompany(companyId: number): Promise<s
 }
 
 /**
+ * Résultat de `settlePaymentPaid`.
+ * - `justPaid` : true UNIQUEMENT lorsque CE traitement a fait passer le paiement
+ *   de "pending" à "paid". C'est la clé d'idempotence des effets de bord (email)
+ *   basée sur le vrai changement d'état — un webhook rejoué (ou un second
+ *   événement pour une réservation déjà payée) renvoie `false` → aucun doublon.
+ * - `amountCents` / `type` : montant encaissé et nature du paiement, exposés pour
+ *   les notifications (jamais recalculés côté navigateur).
+ */
+export type SettlePaidResult = {
+  justPaid: boolean
+  amountCents: number | null
+  type: PaymentType | null
+}
+
+/**
  * Marque un paiement encaissé et confirme la réservation associée.
  * Borné par companyId + bookingId (issus des métadonnées vérifiées).
+ * Idempotent : ne repasse jamais un paiement déjà "paid" et le signale via
+ * `justPaid=false`.
  */
 export async function settlePaymentPaid(input: {
   externalId: string
   companyId: number
   bookingId: number
   paymentIntentId?: string | null
-}): Promise<void> {
+}): Promise<SettlePaidResult> {
   const { externalId, companyId, bookingId, paymentIntentId } = input
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [pay] = await tx
-      .select({ id: payments.id, status: payments.status })
+      .select({
+        id: payments.id,
+        status: payments.status,
+        grossAmountCents: payments.grossAmountCents,
+        type: payments.type,
+      })
       .from(payments)
       .where(
         and(
@@ -270,24 +352,111 @@ export async function settlePaymentPaid(input: {
         ),
       )
       .limit(1)
-    if (!pay) return
-    if (pay.status === "paid") return // déjà réglé (idempotence défensive)
+    if (!pay) return { justPaid: false, amountCents: null, type: null }
 
-    await tx
+    // Transition ATOMIQUE pending→paid : le WHERE status='pending' + le verrou
+    // de ligne Postgres garantissent qu'un seul traitement concurrent obtient la
+    // ligne. `justPaid` est donc fiable même si deux webhooks arrivent en même
+    // temps (checkout.session.completed + async_payment_succeeded). Le `meta`
+    // est FUSIONNÉ (||) pour ne jamais écraser d'éventuels statuts d'email.
+    const updated = await tx
       .update(payments)
       .set({
         status: "paid",
         paidAt: new Date(),
-        meta: paymentIntentId ? { paymentIntentId } : undefined,
+        ...(paymentIntentId
+          ? {
+              meta: sql`coalesce(${payments.meta}, '{}'::jsonb) || ${JSON.stringify({ paymentIntentId })}::jsonb`,
+            }
+          : {}),
       })
-      .where(eq(payments.id, pay.id))
+      .where(and(eq(payments.id, pay.id), eq(payments.status, "pending")))
+      .returning({ id: payments.id })
 
-    // La réservation passe à "confirmed" (réutilise le workflow de statuts).
-    await tx
-      .update(bookings)
-      .set({ status: "confirmed" })
-      .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, companyId)))
+    const justPaid = updated.length > 0
+    if (justPaid) {
+      // La réservation passe à "confirmed" (réutilise le workflow de statuts).
+      await tx
+        .update(bookings)
+        .set({ status: "confirmed" })
+        .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, companyId)))
+    }
+
+    return { justPaid, amountCents: pay.grossAmountCents, type: pay.type as PaymentType }
   })
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Idempotence DURABLE des emails de paiement (persistée dans payments.meta) */
+/* -------------------------------------------------------------------------- */
+
+export type PaymentEmailRecipient = "client" | "pro"
+/** Cycle de vie d'un email : en cours / envoyé / échoué (réessayable) / invalide. */
+export type PaymentEmailState = "sending" | "sent" | "failed" | "invalid"
+
+export type PaymentEmailClaim = {
+  claimed: boolean
+  paymentId: number | null
+  amountCents: number | null
+  type: PaymentType | null
+}
+
+/**
+ * Réclame ATOMIQUEMENT l'envoi d'un email pour un destinataire du dernier
+ * paiement "paid" d'une réservation (borné companyId + bookingId).
+ *
+ * - Pose l'état "sending" UNIQUEMENT si l'état courant est réclamable (absent ou
+ *   "failed"). Grâce au verrou de ligne Postgres, deux webhooks concurrents ne
+ *   peuvent jamais réclamer le même destinataire → aucun email en double.
+ * - "sent" et "invalid" ne sont jamais re-réclamés.
+ * - "failed" est réclamable → reprise sur erreur lors d'un rejeu Stripe.
+ *
+ * Persistance DURABLE dans `payments.meta` (jsonb existant), sans table dédiée
+ * ni migration. Les logs ne servent que d'observabilité, jamais d'historique.
+ */
+export async function claimPaymentEmail(input: {
+  bookingId: number
+  companyId: number
+  recipient: PaymentEmailRecipient
+}): Promise<PaymentEmailClaim> {
+  const { bookingId, companyId } = input
+  // Garde-fou : clé strictement whitelizée (jamais interpolée librement).
+  const key: PaymentEmailRecipient = input.recipient === "pro" ? "pro" : "client"
+  const res = await db.execute(sql`
+    UPDATE payments
+    SET meta = jsonb_set(
+      jsonb_set(coalesce(meta, '{}'::jsonb), '{emails}', coalesce(meta->'emails', '{}'::jsonb), true),
+      array['emails', ${key}], '"sending"'::jsonb, true
+    )
+    WHERE id = (
+      SELECT id FROM payments
+      WHERE "bookingId" = ${bookingId} AND "companyId" = ${companyId} AND status = 'paid'
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    )
+    AND coalesce(meta->'emails'->>${key}, '') NOT IN ('sent', 'sending', 'invalid')
+    RETURNING id, "grossAmountCents" AS gross, type
+  `)
+  const row = res.rows[0] as { id: number; gross: number; type: string } | undefined
+  if (!row) return { claimed: false, paymentId: null, amountCents: null, type: null }
+  return { claimed: true, paymentId: row.id, amountCents: row.gross, type: row.type as PaymentType }
+}
+
+/** Fige l'état final d'un email (sent / failed / invalid) sur le paiement. */
+export async function markPaymentEmail(input: {
+  paymentId: number
+  recipient: PaymentEmailRecipient
+  state: Exclude<PaymentEmailState, "sending">
+}): Promise<void> {
+  const key: PaymentEmailRecipient = input.recipient === "pro" ? "pro" : "client"
+  await db.execute(sql`
+    UPDATE payments
+    SET meta = jsonb_set(
+      jsonb_set(coalesce(meta, '{}'::jsonb), '{emails}', coalesce(meta->'emails', '{}'::jsonb), true),
+      array['emails', ${key}], ${JSON.stringify(input.state)}::jsonb, true
+    )
+    WHERE id = ${input.paymentId}
+  `)
 }
 
 /** Marque une session expirée/abandonnée comme annulée (aucune réservation touchée). */

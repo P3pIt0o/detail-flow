@@ -8,6 +8,7 @@ import {
   getStripeAccountIdForCompany,
   syncConnectAccountFlagsByAccountId,
 } from "@/lib/payments/queries"
+import { sendPaymentReceivedEmails } from "@/lib/email/notifications"
 
 /**
  * ============================================================================
@@ -117,6 +118,14 @@ export async function POST(req: NextRequest) {
             bookingId,
             paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
           })
+
+          // Emails de paiement : on APPELLE TOUJOURS le dispatch après une résa
+          // payée. L'idempotence ne repose plus sur `justPaid` (fragile : un
+          // échec Resend suivi d'un rejeu ne serait jamais retenté) mais sur un
+          // état DURABLE par destinataire (payments.meta). Ainsi : "sent" n'est
+          // jamais renvoyé, "failed" est retenté au rejeu, deux webhooks
+          // concurrents ne dupliquent pas (claim atomique). Non bloquant.
+          await sendPaymentReceivedEmails(bookingId, companyId)
         }
         break
       }

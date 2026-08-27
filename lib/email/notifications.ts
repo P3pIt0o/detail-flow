@@ -13,8 +13,38 @@ import {
   statusCancelledEmail,
   bookingUpdatedEmail,
   reminderEmail,
+  paymentReceivedClientEmail,
+  paymentReceivedProEmail,
   type BookingEmailData,
 } from "./templates"
+import { claimPaymentEmail, markPaymentEmail, type PaymentEmailRecipient } from "@/lib/payments/queries"
+
+/** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
+function isValidEmail(value: string | null | undefined): value is string {
+  return typeof value === "string" && /\S+@\S+\.\S+/.test(value.trim())
+}
+
+/**
+ * Journal structuré NON SENSIBLE des notifications de paiement. Sert d'historique
+ * minimal (envoyé / échoué / ignoré / déjà traité) sans table dédiée. On ne
+ * journalise JAMAIS d'adresse email, de nom client, de téléphone ni de contenu :
+ * uniquement le rôle du destinataire, l'étape et un message technique borné.
+ */
+function logPayEmail(
+  level: "info" | "error",
+  step: string,
+  data: { bookingId: number; recipient?: "client" | "pro"; message?: string },
+) {
+  const payload = {
+    scope: "payments/email",
+    step,
+    bookingId: data.bookingId,
+    ...(data.recipient ? { recipient: data.recipient } : {}),
+    ...(data.message ? { message: data.message } : {}),
+  }
+  if (level === "error") console.error("[payments-email]", JSON.stringify(payload))
+  else console.log("[payments-email]", JSON.stringify(payload))
+}
 
 /** Charge une réservation + ses lignes + les réglages, prêts pour un email. */
 async function loadBookingEmailData(
@@ -124,6 +154,118 @@ export async function sendBookingCreatedEmails(bookingId: number): Promise<void>
   } catch (e) {
     console.log("[v0] sendBookingCreatedEmails a échoué:", e instanceof Error ? e.message : e)
   }
+}
+
+/**
+ * Envoi (ou reprise) d'UN email de paiement pour UN destinataire, avec
+ * idempotence DURABLE persistée dans `payments.meta.emails.<recipient>` :
+ *
+ *  1. `claimPaymentEmail` pose atomiquement l'état "sending" seulement si l'état
+ *     est réclamable (absent ou "failed"). Deux webhooks concurrents ne peuvent
+ *     pas réclamer le même destinataire → jamais de doublon. "sent"/"invalid"
+ *     ne sont jamais re-réclamés.
+ *  2. On envoie via le service existant.
+ *  3. `markPaymentEmail` fige l'état final :
+ *       - "sent"   si le fournisseur accepte ;
+ *       - "invalid" si l'adresse est absente/invalide (jamais "sent") ;
+ *       - "failed" si le fournisseur refuse → réessayable à un prochain rejeu.
+ *
+ * NON BLOQUANT : ne lève jamais. Un échec n'annule jamais le paiement.
+ * Les états CLIENT et PRO sont indépendants (deux clés distinctes).
+ */
+async function dispatchPaymentEmail(
+  bookingId: number,
+  companyId: number,
+  recipient: PaymentEmailRecipient,
+): Promise<void> {
+  // Réservation d'un doublon impossible : claim atomique en amont de tout envoi.
+  const claim = await claimPaymentEmail({ bookingId, companyId, recipient })
+  if (!claim.claimed || claim.paymentId == null) {
+    // Déjà envoyé / déjà en cours / invalide, ou aucun paiement "paid" : on
+    // n'envoie rien (comportement idempotent attendu lors d'un rejeu).
+    logPayEmail("info", "email_skipped", { bookingId, recipient })
+    return
+  }
+  const paymentId = claim.paymentId
+  try {
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) {
+      // Impossible d'envoyer : on libère l'état en "failed" pour permettre une
+      // reprise ultérieure (ne reste jamais bloqué en "sending").
+      await markPaymentEmail({ paymentId, recipient, state: "failed" })
+      logPayEmail("error", "booking_not_found", { bookingId, recipient })
+      return
+    }
+    const { data, customerEmail, proEmail } = loaded
+    const address = recipient === "client" ? customerEmail : proEmail
+
+    if (!isValidEmail(address)) {
+      // Adresse absente/invalide : état terminal "invalid" (jamais "sent").
+      await markPaymentEmail({ paymentId, recipient, state: "invalid" })
+      logPayEmail("error", "email_invalid", { bookingId, recipient })
+      return
+    }
+
+    const isDeposit = claim.type === "deposit"
+    const amountCents = claim.amountCents ?? 0
+    const remainingCents = isDeposit ? Math.max(0, data.totalCents - amountCents) : 0
+
+    const mail =
+      recipient === "client"
+        ? paymentReceivedClientEmail(data, { amountCents, isDeposit, remainingCents })
+        : paymentReceivedProEmail(data, { amountCents, isDeposit })
+
+    const res = await sendEmail({
+      to: address,
+      subject: mail.subject,
+      html: mail.html,
+      fromName: data.businessName,
+      replyTo: recipient === "client" ? proEmail ?? undefined : customerEmail,
+    })
+
+    // On ne marque "sent" QUE si le fournisseur a accepté. skip (clé Resend
+    // absente) et erreur → "failed" pour permettre un renvoi ultérieur.
+    await markPaymentEmail({ paymentId, recipient, state: res.ok ? "sent" : "failed" })
+    logPayEmail(res.ok ? "info" : "error", res.ok ? "email_sent" : "email_failed", {
+      bookingId,
+      recipient,
+      message: res.ok ? undefined : res.error,
+    })
+  } catch (e) {
+    // Exception inattendue : on repasse l'état en "failed" (réessayable) sans
+    // jamais propager l'erreur au webhook.
+    await markPaymentEmail({ paymentId, recipient, state: "failed" }).catch(() => {})
+    logPayEmail("error", "email_unexpected", {
+      bookingId,
+      recipient,
+      message: e instanceof Error ? e.message : "unknown",
+    })
+  }
+}
+
+/**
+ * Emails envoyés APRÈS un paiement encaissé — déclenchés UNIQUEMENT depuis le
+ * webhook Stripe signé (jamais depuis la page de retour navigateur) :
+ *  - confirmation de paiement au client ;
+ *  - notification d'encaissement au professionnel.
+ *
+ * L'idempotence NE dépend plus de `justPaid` (fragile : un échec Resend suivi
+ * d'un rejeu ne serait jamais retenté). Elle repose désormais sur un état
+ * DURABLE par destinataire dans `payments.meta`. Conséquences :
+ *  - un email "sent" n'est jamais renvoyé ;
+ *  - un email "failed" est retenté au prochain rejeu Stripe (reprise sur erreur) ;
+ *  - deux webhooks concurrents ne créent pas de doublon (claim atomique) ;
+ *  - un échec d'email n'annule jamais le paiement.
+ *
+ * `payment` est conservé pour compat d'appel mais les montants/type font foi
+ * depuis la base (via le claim), jamais depuis l'appelant.
+ */
+export async function sendPaymentReceivedEmails(
+  bookingId: number,
+  companyId: number,
+): Promise<void> {
+  await dispatchPaymentEmail(bookingId, companyId, "client")
+  await dispatchPaymentEmail(bookingId, companyId, "pro")
 }
 
 /** Email envoyé au client lors d'un changement de statut par l'admin. */
