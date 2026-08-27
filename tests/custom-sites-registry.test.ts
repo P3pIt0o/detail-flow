@@ -1,47 +1,56 @@
 import { describe, it, expect } from "vitest"
 
 /**
- * Lot 1 — Registre des sites personnalisés (fonctions pures, registre RÉEL).
+ * Registre des sites personnalisés — métadonnées PURES (`lib/custom-sites/meta`).
  *
- * Le registre est volontairement vide dans ce lot : on vérifie donc surtout le
- * REFUS d'une clé inconnue et le traitement sûr d'une valeur nulle/vide.
+ * On teste ici la SOURCE DE VÉRITÉ des clés (pas les composants de page, qui
+ * vivent dans `registry.ts` côté serveur). Depuis le lot Spirit, la clé
+ * "spirit-acs" est enregistrée ; toute autre clé retombe sur le site standard.
  */
 
 import {
   isRegisteredCustomSiteKey,
-  getCustomSiteDefinition,
+  getCustomSiteMeta,
   customSiteLabel,
   listRegisteredCustomSites,
-} from "@/lib/custom-sites/registry"
+} from "@/lib/custom-sites/meta"
 
-describe("registre — clé inconnue refusée", () => {
+describe("meta — clé inconnue refusée (repli site standard)", () => {
   it("isRegisteredCustomSiteKey renvoie false pour une clé inconnue", () => {
-    expect(isRegisteredCustomSiteKey("spirit-acs")).toBe(false)
     expect(isRegisteredCustomSiteKey("n-importe-quoi")).toBe(false)
   })
 
-  it("getCustomSiteDefinition renvoie null pour une clé inconnue", () => {
-    expect(getCustomSiteDefinition("spirit-acs")).toBeNull()
+  it("getCustomSiteMeta renvoie null pour une clé inconnue", () => {
+    expect(getCustomSiteMeta("n-importe-quoi")).toBeNull()
   })
 
   it("customSiteLabel renvoie null pour une clé inconnue", () => {
-    expect(customSiteLabel("spirit-acs")).toBeNull()
+    expect(customSiteLabel("n-importe-quoi")).toBeNull()
   })
 })
 
-describe("registre — valeur nulle/vide (site standard)", () => {
-  it("null / undefined / vide => non enregistré, définition null", () => {
+describe("meta — valeur nulle/vide (site standard)", () => {
+  it("null / undefined / vide => non enregistré, métadonnée null", () => {
     expect(isRegisteredCustomSiteKey(null)).toBe(false)
     expect(isRegisteredCustomSiteKey(undefined)).toBe(false)
     expect(isRegisteredCustomSiteKey("   ")).toBe(false)
-    expect(getCustomSiteDefinition(null)).toBeNull()
+    expect(getCustomSiteMeta(null)).toBeNull()
     expect(customSiteLabel(null)).toBeNull()
   })
 })
 
-describe("registre — état initial vide", () => {
-  it("listRegisteredCustomSites() est un tableau (vide dans ce lot)", () => {
-    expect(Array.isArray(listRegisteredCustomSites())).toBe(true)
-    expect(listRegisteredCustomSites()).toHaveLength(0)
+describe("meta — spirit-acs enregistré", () => {
+  it("isRegisteredCustomSiteKey('spirit-acs') est true (clé tolérante aux espaces)", () => {
+    expect(isRegisteredCustomSiteKey("spirit-acs")).toBe(true)
+    expect(isRegisteredCustomSiteKey("  spirit-acs  ")).toBe(true)
+  })
+
+  it("customSiteLabel expose le nom lisible attendu", () => {
+    expect(customSiteLabel("spirit-acs")).toBe("Spirit ACS")
+  })
+
+  it("listRegisteredCustomSites contient spirit-acs", () => {
+    const list = listRegisteredCustomSites()
+    expect(list).toEqual(expect.arrayContaining([{ key: "spirit-acs", name: "Spirit ACS" }]))
   })
 })
