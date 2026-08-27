@@ -33,8 +33,9 @@ export default async function DashboardPage({
 
   // Contexte résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
   // l'isolation tenant et à l'évaluation des droits via le moteur central.
-  const { tenant } = await requireCompanyMember()
-  const companyId = tenant.id
+  // NB: `tenant` (ci-dessus) = slug d'URL ; `company` = entité résolue serveur.
+  const { tenant: company } = await requireCompanyMember()
+  const companyId = company.id
 
   // Onboarding « Vos premiers pas » — signaux dérivés des données RÉELLES du
   // tenant (aucune case cochée à la main). Toutes les lectures sont scopées au
@@ -53,7 +54,7 @@ export default async function DashboardPage({
     billingConfirmed: Boolean(obFullSettings?.billingProfileConfirmedAt),
     hasService: obServices.length > 0,
     hasAvailability: obHours.some((h) => h.isOpen),
-    publicSiteComplete: (nonEmpty(tenant.heroTitle) || nonEmpty(tenant.heroSubtitle)) && nonEmpty(obSettings.businessPhone),
+    publicSiteComplete: (nonEmpty(company.heroTitle) || nonEmpty(company.heroSubtitle)) && nonEmpty(obSettings.businessPhone),
     hasBooking: obBookingCount > 0,
   })
   // Réécrit les liens relatifs en liens tenant-safe (jamais de companyId client).

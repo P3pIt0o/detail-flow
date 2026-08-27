@@ -39,8 +39,23 @@ import { smsCredits } from "@/lib/db/schema"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
-export default async function ParametresPage() {
+// Onglets valides : un ?tab= inconnu retombe sur "business" (jamais de panneau vide).
+const SETTINGS_TABS = [
+  "business", "site", "gallery", "reviews", "custom-requests", "appearance",
+  "travel", "hours", "timeoff", "planning", "payments", "promo", "invoicing",
+  "sms", "security", "data", "support",
+] as const
+
+export default async function ParametresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const { tenant } = await requireCompanyMember()
+  // Deep-link d'onglet (ex. depuis l'onboarding). Uncontrolled : l'utilisateur
+  // peut toujours changer d'onglet librement ensuite.
+  const { tab } = await searchParams
+  const initialTab = tab && (SETTINGS_TABS as readonly string[]).includes(tab) ? tab : "business"
 
   const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
     await Promise.all([
@@ -78,7 +93,7 @@ export default async function ParametresPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="business" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         {/* Barre d'onglets : une seule ligne, défilement horizontal sur mobile. */}
         <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 p-1">
