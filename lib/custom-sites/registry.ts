@@ -1,68 +1,50 @@
 /**
- * Registre central des sites publics personnalisés.
+ * Registre des sites publics personnalisés — LIAISON clé → composant de page.
  *
- * SOURCE DE VÉRITÉ des clés techniques valides (`customSiteKey`). Une clé
- * n'existe pour la plateforme que si elle est enregistrée ici.
+ * Ce module associe une clé technique (déclarée dans `meta.ts`) à son COMPOSANT
+ * de page. Comme il importe les composants réels (et donc leur arbre : polices
+ * `next/font`, sections React…), il ne doit être consommé QUE côté serveur
+ * (dispatch public dans `server.ts`). Les composants CLIENT (ex. super-admin)
+ * doivent importer les fonctions PURES depuis `meta.ts`, jamais d'ici.
  *
- * Aucun accès DB : ce module ne fait que déclarer/valider des définitions. Il
- * est donc importable côté serveur (dispatch, adaptateur) comme par les actions
- * de validation.
+ * Les métadonnées (clés/labels/validation) restent la SOURCE DE VÉRITÉ dans
+ * `meta.ts` ; on les ré-exporte ici pour les consommateurs serveur existants.
  *
- * ÉTAT ACTUEL : le registre est volontairement VIDE. Aucun faux site n'est
- * enregistré. Il est prêt à recevoir "spirit-acs" au lot suivant, sans changer
- * l'API publique ci-dessous. Tant qu'il est vide, toute entreprise retombe sur
- * le site standard (repli sûr).
+ * ÉTAT ACTUEL : un seul site enregistré, "spirit-acs" (Spirit ACS). Toute autre
+ * entreprise (clé NULL/vide/inconnue) retombe sur le site standard (repli sûr).
  */
 
-import type { CustomSiteDefinition } from "./types"
+import type { ComponentType } from "react"
+import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
+import { getCustomSiteMeta } from "./meta"
+import { SpiritAcsHome } from "@/components/custom-sites/spirit-acs/home-page"
+
+// Ré-export des helpers PURS (source de vérité : meta.ts). Permet aux modules
+// serveur qui importaient historiquement depuis "registry" de continuer.
+export {
+  isRegisteredCustomSiteKey,
+  listRegisteredCustomSites,
+  customSiteLabel,
+  getCustomSiteMeta,
+} from "./meta"
 
 /**
- * Table des sites personnalisés, indexée par clé technique.
- *
- * Pour enregistrer un site (lot suivant) : ajouter une entrée dont la valeur
- * `key` est IDENTIQUE à la clé de l'objet. Voir docs/custom-site-integration.md.
+ * Liaison clé → composant de page personnalisée. La clé DOIT exister dans
+ * `customSiteMetaRegistry` (meta.ts) ; sinon la page n'est pas résoluble.
  */
-export const customSiteRegistry: Readonly<Record<string, CustomSiteDefinition>> = Object.freeze({
-  // Exemple (NON activé) — à décommenter/adapter au lot Spirit :
-  // "spirit-acs": {
-  //   key: "spirit-acs",
-  //   name: "Spirit ACS",
-  //   ownShell: true,
-  //   Page: SpiritAcsHome,
-  // },
+const customSitePages: Readonly<Record<string, ComponentType<{ data: CustomSitePublicData }>>> = Object.freeze({
+  "spirit-acs": SpiritAcsHome,
 })
 
-/** Normalise une clé entrante (défensif) avant toute recherche/validation. */
-function normalizeKey(key: string | null | undefined): string {
-  return (key ?? "").trim()
-}
-
-/** Vrai si la clé correspond à un site personnalisé réellement enregistré. */
-export function isRegisteredCustomSiteKey(key: string | null | undefined): boolean {
-  const k = normalizeKey(key)
-  return k !== "" && Object.prototype.hasOwnProperty.call(customSiteRegistry, k)
-}
-
 /**
- * Définition d'un site personnalisé, ou `null` si la clé est absente/inconnue.
- * Repli sûr : l'appelant traite `null` comme « utiliser le site standard ».
+ * Définition complète (métadonnée + composant de page) d'un site personnalisé,
+ * ou `null` si la clé est absente/inconnue OU sans page associée. Repli sûr :
+ * l'appelant traite `null` comme « utiliser le site standard ».
  */
 export function getCustomSiteDefinition(key: string | null | undefined): CustomSiteDefinition | null {
-  const k = normalizeKey(key)
-  if (!k) return null
-  return customSiteRegistry[k] ?? null
-}
-
-/**
- * Liste des sites enregistrés (clé + nom), pour l'affichage super-admin.
- * Ne renvoie jamais de composant : uniquement des métadonnées sûres.
- */
-export function listRegisteredCustomSites(): Array<{ key: string; name: string }> {
-  return Object.values(customSiteRegistry).map((d) => ({ key: d.key, name: d.name }))
-}
-
-/** Nom lisible d'une clé enregistrée, ou `null` si inconnue/absente. */
-export function customSiteLabel(key: string | null | undefined): string | null {
-  const def = getCustomSiteDefinition(key)
-  return def?.name ?? null
+  const meta = getCustomSiteMeta(key)
+  if (!meta) return null
+  const Page = customSitePages[meta.key]
+  if (!Page) return null
+  return { ...meta, Page }
 }

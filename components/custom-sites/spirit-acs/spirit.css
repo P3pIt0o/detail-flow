@@ -1,0 +1,91 @@
+/**
+ * Feuille de style ISOLÉE du site personnalisé Spirit ACS.
+ *
+ * Toutes les règles sont préfixées par `.spirit-acs` : elles ne peuvent donc
+ * jamais affecter le site standard des autres entreprises ni le thème global.
+ * On ne définit ici que la palette de marque Spirit (variables CSS scopées),
+ * la typographie d'affichage et quelques primitives réutilisées par les
+ * sections. Aucune directive Tailwind : du CSS pur, portable au build.
+ *
+ * Univers : automobile premium, sombre, turquoise + magenta sur fond bleu nuit.
+ */
+
+.spirit-acs {
+  /* Fonds sombres */
+  --spirit-navy: #06131c;
+  --spirit-navy-2: #0a2130;
+  --spirit-navy-3: #0d2a3b;
+  --spirit-ink: #06131c;
+
+  /* Accents de marque */
+  --spirit-teal: #17b3c9;
+  --spirit-teal-strong: #0e94a8;
+  --spirit-pink: #e51e7a;
+  --spirit-pink-strong: #c4136a;
+
+  /* Sections claires */
+  --spirit-paper: #eef2f4;
+  --spirit-paper-2: #ffffff;
+
+  /* Texte */
+  --spirit-fg: #f4f8fa;
+  --spirit-muted: #9fb1bc;
+
+  background-color: var(--spirit-navy);
+  color: var(--spirit-fg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Titres d'affichage : Oswald (condensé, industriel premium), en capitales. */
+.spirit-acs .spirit-title {
+  font-family: var(--font-spirit-display), "Oswald", system-ui, sans-serif;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 0.98;
+}
+
+.spirit-acs .spirit-eyebrow {
+  font-family: var(--font-spirit-display), "Oswald", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--spirit-teal);
+}
+
+/* Filet accent (barre rose) placé au-dessus des titres de section. */
+.spirit-acs .spirit-rule {
+  display: block;
+  width: 3rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--spirit-pink);
+}
+
+/* Décalage d'ancre pour compenser l'en-tête fixe (défilement fluide propre). */
+.spirit-acs [data-spirit-anchor] {
+  scroll-margin-top: 6.5rem;
+}
+
+/* Défilement fluide vers les ancres, scopé à Spirit (jamais global). */
+:root:has(.spirit-acs) {
+  scroll-behavior: smooth;
+}
+
+/* Étiquette AVANT/APRÈS surchargée pour rester cohérente avec la marque. */
+.spirit-acs .spirit-badge-teal {
+  background: var(--spirit-navy);
+  color: var(--spirit-fg);
+}
+
+/* Respect de prefers-reduced-motion pour les transitions purement CSS. */
+@media (prefers-reduced-motion: reduce) {
+  .spirit-acs * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
