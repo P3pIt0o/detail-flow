@@ -363,9 +363,18 @@ const REFUND_ERROR_FR: Record<string, string> = {
   exceeds_refundable: "Le montant dépasse le montant encore remboursable.",
   payment_not_found: "Paiement introuvable.",
   missing_stripe_context: "Configuration Stripe indisponible pour ce paiement.",
-  stripe_error: "Stripe a refusé le remboursement. Vérifiez votre solde et réessayez.",
   invalid_idempotency_key: "Requête invalide. Rechargez la page et réessayez.",
   internal_error: "Une erreur est survenue. Merci de réessayer.",
+  // Messages basés sur le CODE réellement renvoyé par Stripe (jamais un message
+  // de solde par défaut).
+  insufficient_funds:
+    "Solde Stripe insuffisant sur le compte connecté pour effectuer ce remboursement. Réessayez une fois le solde suffisant.",
+  already_refunded_stripe: "Ce paiement a déjà été remboursé côté Stripe.",
+  amount_too_large: "Le montant dépasse ce qui peut être remboursé pour ce paiement.",
+  no_application_fee: "Aucune commission à rembourser sur ce paiement.",
+  idempotency_conflict: "Une demande identique est déjà en cours. Rechargez la page.",
+  temporary: "Erreur temporaire chez Stripe. Merci de réessayer dans un instant.",
+  stripe_error: "Le remboursement a échoué. Si le problème persiste, contactez le support.",
 }
 
 export async function refundPaymentAction(input: RefundActionInput): Promise<RefundActionResult> {

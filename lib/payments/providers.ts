@@ -69,14 +69,16 @@ const stripeProvider: PaymentProvider = {
     const stripe = getStripe()
     const amountCents = options?.amountCents
     // Direct Charge : le remboursement se fait DANS LE CONTEXTE du compte
-    // connecté. `refund_application_fee` reprend la commission éventuelle.
+    // connecté. `refund_application_fee` N'EST envoyé QUE si l'appelant confirme
+    // une commission strictement positive (sinon Stripe rejette la requête même
+    // avec un solde suffisant). Aucune commission n'est inventée.
     // `idempotencyKey` (STABLE) garantit qu'un double clic / retry ne crée
     // qu'UN seul remboursement chez Stripe.
     const refund = await stripe.refunds.create(
       {
         payment_intent: paymentIntentId,
         ...(amountCents != null ? { amount: amountCents } : {}),
-        refund_application_fee: true,
+        ...(options?.refundApplicationFee ? { refund_application_fee: true } : {}),
       },
       {
         stripeAccount: connectedAccountId,

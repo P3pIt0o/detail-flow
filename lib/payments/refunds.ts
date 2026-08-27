@@ -10,6 +10,10 @@ import {
   computePaymentRefundAggregate,
   RESERVING_REFUND_STATUSES,
   REFUNDABLE_PAYMENT_STATUSES,
+  shouldRefundApplicationFee,
+  extractSafeStripeError,
+  classifyStripeRefundError,
+  type SafeStripeError,
   type RefundStatus,
 } from "./refund-logic"
 
@@ -263,6 +267,8 @@ export async function requestRefund(input: {
     .select({
       stripeAccountId: companies.stripeAccountId,
       paymentIntentId: sql<string | null>`${payments.meta}->>'paymentIntentId'`,
+      // Commission plateforme réellement prélevée sur ce paiement (0 par défaut).
+      applicationFeeCents: payments.platformFeeAmountCents,
     })
     .from(payments)
     .innerJoin(companies, eq(companies.id, payments.companyId))
@@ -275,10 +281,16 @@ export async function requestRefund(input: {
     return { ok: false, error: "missing_stripe_context" }
   }
 
+  // On ne demande la restitution de la commission QUE si une application fee
+  // strictement positive existe sur le paiement. Sinon Stripe rejette la
+  // requête (cause de l'échec observé). Aucune commission inventée.
+  const refundApplicationFee = shouldRefundApplicationFee(ctx.applicationFeeCents)
+
   try {
     const res = await provider.refundPayment(ctx.paymentIntentId, ctx.stripeAccountId, {
       amountCents,
       idempotencyKey,
+      refundApplicationFee,
     })
     const status = mapStripeRefundStatus(res.providerStatus)
     await db
@@ -297,10 +309,15 @@ export async function requestRefund(input: {
 
     return { ok: true, refundId: refundRowId, status }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.log("[v0] requestRefund: échec Stripe:", msg)
-    await markRefundFailed(refundRowId, "stripe_error")
-    return { ok: false, error: "stripe_error" }
+    // Erreur Stripe → on extrait des champs SÛRS (type/code/decline_code/
+    // requestId, jamais de donnée sensible) et on classe vers un code applicatif
+    // précis (solde insuffisant, déjà remboursé, temporaire, générique…).
+    const safe = extractSafeStripeError(e)
+    const rawMessage = e instanceof Error ? e.message : String(e)
+    const code = classifyStripeRefundError(safe, rawMessage)
+    console.log("[v0] requestRefund: échec Stripe:", { code, ...safe })
+    await markRefundFailed(refundRowId, code, safe)
+    return { ok: false, error: code }
   }
 }
 
@@ -310,14 +327,22 @@ class RefundError extends Error {
   }
 }
 
-async function markRefundFailed(refundId: number, code: string): Promise<void> {
+async function markRefundFailed(refundId: number, code: string, safe?: SafeStripeError): Promise<void> {
+  // On stocke le code applicatif ET, si disponibles, les champs Stripe SÛRS
+  // (type/code/decline_code/requestId). Jamais uniquement "stripe_error", et
+  // jamais de donnée sensible (clé API, carte, e-mail, identité).
+  const payload: Record<string, unknown> = { error: code }
+  if (safe) {
+    const stripeInfo = Object.fromEntries(Object.entries(safe).filter(([, v]) => v != null))
+    if (Object.keys(stripeInfo).length > 0) payload.stripe = stripeInfo
+  }
   await db
     .update(refunds)
     .set({
       status: "failed",
       failedAt: new Date(),
       updatedAt: new Date(),
-      meta: sql`coalesce(${refunds.meta}, '{}'::jsonb) || ${JSON.stringify({ error: code })}::jsonb`,
+      meta: sql`coalesce(${refunds.meta}, '{}'::jsonb) || ${JSON.stringify(payload)}::jsonb`,
     })
     .where(eq(refunds.id, refundId))
 }

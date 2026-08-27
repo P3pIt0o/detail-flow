@@ -62,6 +62,13 @@ export type RefundOptions = {
   amountCents?: number
   /** Clé d'idempotence STABLE (anti double création côté provider). */
   idempotencyKey?: string
+  /**
+   * Restituer la commission plateforme (Direct Charges). À n'activer QUE si une
+   * application fee strictement positive existe sur le paiement — sinon Stripe
+   * rejette la requête (« There is no application fee to refund »). Jamais de
+   * commission inventée.
+   */
+  refundApplicationFee?: boolean
 }
 
 /** Résultat générique d'un remboursement provider. */
