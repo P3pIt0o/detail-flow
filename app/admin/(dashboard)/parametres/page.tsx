@@ -1,4 +1,6 @@
 import type { Metadata } from "next"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries"
@@ -33,29 +35,28 @@ import { getTenantPaymentConfig } from "@/lib/payments/config"
 import { getSmsBalance } from "@/lib/sms/credits"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
+import { findCategoryByTab } from "@/lib/admin/settings-nav"
+import { withTenant } from "@/lib/tenant-link"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
-// Onglets valides : un ?tab= inconnu retombe sur "business" (jamais de panneau vide).
-const SETTINGS_TABS = [
-  "business", "site", "gallery", "reviews", "custom-requests", "appearance",
-  "travel", "hours", "timeoff", "planning", "payments", "promo", "invoicing",
-  "sms", "security", "data", "support",
-] as const
-
 export default async function ParametresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; tenant?: string }>
 }) {
   const { tenant } = await requireCompanyMember()
-  // Deep-link d'onglet (ex. depuis l'onboarding). Uncontrolled : l'utilisateur
-  // peut toujours changer d'onglet librement ensuite.
-  const { tab } = await searchParams
-  const initialTab = tab && (SETTINGS_TABS as readonly string[]).includes(tab) ? tab : "business"
+  // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
+  const { tab, tenant: tenantParam } = await searchParams
+  // Catégorie active déduite de l'onglet historique. Un ?tab= inconnu (ou absent)
+  // renvoie null => on affiche la page d'accueil à 6 catégories.
+  const activeCategory = findCategoryByTab(tab)
+  const activeTab = activeCategory && tab ? tab : undefined
+  const CategoryIcon = activeCategory?.icon
 
   const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
     await Promise.all([
@@ -84,266 +85,281 @@ export default async function ParametresPage({
   const revolutUrl = process.env.REVOLUT_PAYMENT_URL ?? null
   const revolutQrSrc = process.env.REVOLUT_PAYMENT_QR_URL ?? null
 
+  // Avancement de facturation calculé UNE fois : réutilisé par la carte de la
+  // catégorie facturation ET l'indicateur de la carte d'accueil.
+  const billingSetup = computeBillingSetup({
+    country: (tenant.country ?? "FR").toUpperCase(),
+    confirmed: Boolean(fullSettings?.billingProfileConfirmedAt),
+    legalForm: fullSettings?.legalForm,
+    legalRegistrationNumber:
+      fullSettings?.legalRegistrationNumber ??
+      ((tenant.country ?? "FR").toUpperCase() === "FR" ? fullSettings?.invoiceSiret : ""),
+    vatNumber: fullSettings?.vatNumber,
+    vatStatus: fullSettings?.vatStatus,
+    vatEnabled: fullSettings?.vatEnabled ?? false,
+    vatExemptNote: fullSettings?.vatExemptNote,
+    defaultCurrency: fullSettings?.defaultCurrency,
+    invoiceCompanyAddress: fullSettings?.invoiceCompanyAddress,
+    invoiceIban: fullSettings?.invoiceIban,
+    invoiceDueDays: fullSettings?.invoiceDueDays,
+    invoicePrefix: fullSettings?.invoicePrefix,
+    frBusinessCategory: fullSettings?.frBusinessCategory,
+  })
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-balance">Paramètres</h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Configurez votre activité : déplacement, horaires, congés, planning et acompte.
+          Personnalisez DetailFlow selon le fonctionnement de votre entreprise.
         </p>
       </div>
 
-      <Tabs defaultValue={initialTab} className="w-full">
-        {/* Barre d'onglets : une seule ligne, défilement horizontal sur mobile. */}
-        <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-          <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 p-1">
-            <TabsTrigger value="business" className="flex-none px-3 py-1.5">
-              Entreprise
-            </TabsTrigger>
-            <TabsTrigger value="site" className="flex-none px-3 py-1.5">
-              Site public
-            </TabsTrigger>
-            <TabsTrigger value="gallery" className="flex-none px-3 py-1.5">
-              Galerie
-            </TabsTrigger>
-            <TabsTrigger value="reviews" className="flex-none px-3 py-1.5">
-              Avis
-            </TabsTrigger>
-            <TabsTrigger value="custom-requests" className="flex-none px-3 py-1.5">
-              Demandes
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex-none px-3 py-1.5">
-              Apparence
-            </TabsTrigger>
-            <TabsTrigger value="travel" className="flex-none px-3 py-1.5">
-              Déplacement
-            </TabsTrigger>
-            <TabsTrigger value="hours" className="flex-none px-3 py-1.5">
-              Horaires
-            </TabsTrigger>
-            <TabsTrigger value="timeoff" className="flex-none px-3 py-1.5">
-              Congés
-            </TabsTrigger>
-            <TabsTrigger value="planning" className="flex-none px-3 py-1.5">
-              Planning &amp; acompte
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="flex-none px-3 py-1.5">
-              Paiements
-            </TabsTrigger>
-            <TabsTrigger value="promo" className="flex-none px-3 py-1.5">
-              Codes promo
-            </TabsTrigger>
-            <TabsTrigger value="sms" className="flex-none px-3 py-1.5">
-              Rappels SMS
-            </TabsTrigger>
-            <TabsTrigger value="invoicing" className="flex-none px-3 py-1.5">
-              Facturation
-            </TabsTrigger>
-            <TabsTrigger value="security" className="flex-none px-3 py-1.5">
-              Sécurité
-            </TabsTrigger>
-            <TabsTrigger value="data" className="flex-none px-3 py-1.5">
-              Mes données
-            </TabsTrigger>
-            <TabsTrigger value="support" className="flex-none px-3 py-1.5">
-              Support
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="business" className="mt-6">
-          <BusinessContact
-            businessName={settings.businessName ?? ""}
-            businessEmail={settings.businessEmail ?? ""}
-            businessPhone={settings.businessPhone ?? ""}
-          />
-        </TabsContent>
-        <TabsContent value="site" className="mt-6">
-          <SiteBranding
-            logoPathname={tenant.logoUrl ?? null}
-            cgv={tenant.cgv ?? ""}
-            socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
-            hero={{
-              heroTitle: tenant.heroTitle ?? "",
-              heroHighlight: tenant.heroHighlight ?? "",
-              heroSubtitle: tenant.heroSubtitle ?? "",
-              heroCtaPrimary: tenant.heroCtaPrimary ?? "",
-              heroCtaSecondary: tenant.heroCtaSecondary ?? "",
-            }}
-          />
-          <div className="mt-10 border-t border-border pt-8">
-            <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
-            <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
-          </div>
-          <div className="mt-10 border-t border-border pt-8">
-            <SectionOrderSettings
-              items={resolveSectionOrder(tenant.siteContent).map((key) => ({
-                key,
-                label: HOME_SECTION_LABELS[key],
-              }))}
-            />
-          </div>
-        </TabsContent>
-        <TabsContent value="gallery" className="mt-6">
-          <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
-        </TabsContent>
-        <TabsContent value="reviews" className="mt-6">
-          <ReviewSettings items={reviewItems} />
-        </TabsContent>
-        <TabsContent value="custom-requests" className="mt-6">
-          <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
-        </TabsContent>
-        <TabsContent value="appearance" className="mt-6">
-          <AppearanceSettings
-            brandPrimary={tenant.brandPrimary ?? null}
-            brandSecondary={tenant.brandSecondary ?? null}
-          />
-        </TabsContent>
-        <TabsContent value="travel" className="mt-6">
-          <TravelSettings
-            businessAddress={settings.businessAddress ?? ""}
-            freeDistanceKm={Number.parseFloat(settings.freeDistanceKm)}
-            pricePerKmCents={settings.pricePerKmCents}
-            maxDistanceKm={Number.parseFloat(settings.maxDistanceKm)}
-            roundTrip={settings.roundTrip}
-            hasCoords={Boolean(settings.businessLat && settings.businessLng)}
-          />
-        </TabsContent>
-        <TabsContent value="hours" className="mt-6">
-          <HoursSettings hours={hours} />
-        </TabsContent>
-        <TabsContent value="timeoff" className="mt-6">
-          <TimeOffSettings periods={timeOff} />
-        </TabsContent>
-        <TabsContent value="planning" className="mt-6">
-          <PlanningSettings
-            maxVehiclesPerDay={settings.maxVehiclesPerDay}
-            slotIntervalMin={settings.slotIntervalMin}
-            bufferMin={settings.bufferMin}
-            minNoticeHours={settings.minNoticeHours}
-            depositType={settings.depositType === "fixed" ? "fixed" : settings.depositType === "none" ? "none" : "percent"}
-            depositValue={settings.depositValue}
-            depositMethods={(fullSettings?.depositMethods ?? "").split(",").filter(Boolean)}
-            depositInstructions={fullSettings?.depositInstructions ?? ""}
-            vacationMode={settings.vacationMode}
-            vacationMessage={settings.vacationMessage ?? ""}
-          />
-        </TabsContent>
-        <TabsContent value="payments" className="mt-6">
-          <PaymentsSettings
-            connected={paymentConfig.connected}
-            chargesEnabled={paymentConfig.chargesEnabled}
-            detailsSubmitted={paymentConfig.detailsSubmitted}
-            paymentsEnabled={paymentConfig.paymentsEnabled}
-            paymentMode={paymentConfig.paymentMode}
-            feePercent={paymentConfig.feePercent}
-            depositConfigured={settings.depositType !== "none" && settings.depositValue > 0}
-            depositSummary={
-              settings.depositType === "fixed"
-                ? `${(settings.depositValue / 100).toFixed(2)} €`
-                : settings.depositType === "percent"
-                  ? `${settings.depositValue} %`
-                  : "non configuré"
-            }
-          />
-        </TabsContent>
-        <TabsContent value="promo" className="mt-6">
-          <PromoSettings codes={promoCodesList} />
-        </TabsContent>
-        <TabsContent value="sms" className="mt-6">
-          <SmsSettings
-            featureEnabled={smsFeatureEnabled}
-            balance={smsBalance.balance}
-            betaBonusGranted={Boolean(smsCreditRow[0]?.betaBonusGrantedAt)}
-            enabled={settings.smsRemindersEnabled}
-            offsetHours={settings.smsReminderOffsetHours}
-            template={settings.smsReminderTemplate ?? ""}
-            defaultTemplate={SMS_DEFAULT_TEMPLATE}
-            revolutUrl={revolutUrl}
-            revolutQrSrc={revolutQrSrc}
-          />
-        </TabsContent>
-        <TabsContent value="invoicing" className="mt-6 space-y-6">
-          {/* Carte d'avancement de la configuration de facturation, calculée à
-              partir des données RÉELLES du profil (aucune case cochée à la main). */}
-          <BillingSetupCard
-            data={computeBillingSetup({
-              country: (tenant.country ?? "FR").toUpperCase(),
-              confirmed: Boolean(fullSettings?.billingProfileConfirmedAt),
-              legalForm: fullSettings?.legalForm,
-              legalRegistrationNumber:
-                fullSettings?.legalRegistrationNumber ??
-                ((tenant.country ?? "FR").toUpperCase() === "FR" ? fullSettings?.invoiceSiret : ""),
-              vatNumber: fullSettings?.vatNumber,
-              vatStatus: fullSettings?.vatStatus,
-              vatEnabled: fullSettings?.vatEnabled ?? false,
-              vatExemptNote: fullSettings?.vatExemptNote,
-              defaultCurrency: fullSettings?.defaultCurrency,
-              invoiceCompanyAddress: fullSettings?.invoiceCompanyAddress,
-              invoiceIban: fullSettings?.invoiceIban,
-              invoiceDueDays: fullSettings?.invoiceDueDays,
-              invoicePrefix: fullSettings?.invoicePrefix,
-              frBusinessCategory: fullSettings?.frBusinessCategory,
-            })}
-          />
-          <SellerBillingProfile
-            country={(tenant.country ?? "FR").toUpperCase()}
-            confirmed={Boolean(fullSettings?.billingProfileConfirmedAt)}
-            legalForm={fullSettings?.legalForm ?? ""}
-            legalRegistrationNumber={
-              fullSettings?.legalRegistrationNumber ??
-              // Fallback FR uniquement : affiche proprement l'ancien invoiceSiret.
-              ((tenant.country ?? "FR").toUpperCase() === "FR" ? (fullSettings?.invoiceSiret ?? "") : "")
-            }
-            vatNumber={fullSettings?.vatNumber ?? ""}
-            vatStatus={fullSettings?.vatStatus ?? "unknown"}
-            frBusinessCategory={fullSettings?.frBusinessCategory ?? "unknown"}
-            defaultCurrency={fullSettings?.defaultCurrency ?? ""}
-          />
-          <InvoicingSettings
-            invoiceCompanyAddress={fullSettings?.invoiceCompanyAddress ?? ""}
-            invoiceSiret={fullSettings?.invoiceSiret ?? ""}
-            invoiceIban={fullSettings?.invoiceIban ?? ""}
-            invoiceBic={fullSettings?.invoiceBic ?? ""}
-            vatEnabled={fullSettings?.vatEnabled ?? false}
-            vatRate={fullSettings?.vatRate ?? "20"}
-            vatExemptNote={fullSettings?.vatExemptNote ?? "TVA non applicable, art. 293 B du CGI"}
-            invoicePrefix={fullSettings?.invoicePrefix ?? "FAC"}
-            invoiceDueDays={fullSettings?.invoiceDueDays ?? 30}
-            invoiceFooterNote={fullSettings?.invoiceFooterNote ?? ""}
-            invoiceLegalMentions={fullSettings?.invoiceLegalMentions ?? ""}
-            invoiceEmailSubject={fullSettings?.invoiceEmailSubject ?? ""}
-            invoiceEmailBody={fullSettings?.invoiceEmailBody ?? ""}
-            invoiceLogoPathname={fullSettings?.invoiceLogoPathname ?? null}
-            sellerCountry={(tenant.country ?? "FR").toUpperCase()}
-            sellerVatStatus={fullSettings?.vatStatus ?? "unknown"}
-          />
-        </TabsContent>
-        <TabsContent value="security" className="mt-6">
-          <SecuritySettings />
-        </TabsContent>
-        <TabsContent value="support" className="mt-6">
-          <SupportForm />
-        </TabsContent>
-        <TabsContent value="data" className="mt-6">
-          <div className="max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-6">
-            <div>
-              <h2 className="text-lg font-semibold">Vos données vous appartiennent</h2>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
-                Exportez à tout moment l&apos;intégralité de vos données professionnelles (clients, véhicules,
-                réservations, prestations, devis, factures et paramètres) aux formats standard CSV et JSON. L&apos;archive
-                ne contient aucune donnée de connexion ou de sécurité.
-              </p>
-            </div>
-            <a
-              href="/admin/export"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
+      {!activeCategory ? (
+        // Accueil : 6 cartes (grille sur ordinateur, liste verticale sur mobile).
+        <SettingsCategoryGrid tenantParam={tenantParam ?? null} billingPercent={billingSetup.percent} />
+      ) : (
+        <div className="space-y-6">
+          {/* En-tête de catégorie + retour */}
+          <div className="space-y-3">
+            <Link
+              href={withTenant("/admin/parametres", tenantParam ?? null)}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Télécharger mes donn��es (.zip)
-            </a>
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Retour aux paramètres
+            </Link>
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                {CategoryIcon && <CategoryIcon className="size-5" aria-hidden="true" />}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">{activeCategory.label}</h2>
+                <p className="text-sm text-muted-foreground text-pretty">{activeCategory.description}</p>
+              </div>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          <Tabs defaultValue={activeTab} className="w-full">
+            {/* Navigation secondaire légère, uniquement si plusieurs sous-sections.
+                Les pastilles passent à la ligne : aucune barre coupée sur mobile. */}
+            {activeCategory.subTabs.length > 1 && (
+              <TabsList className="flex h-auto flex-wrap justify-start gap-1 p-1">
+                {activeCategory.subTabs.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value} className="flex-none px-3 py-1.5">
+                    {t.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
+
+            {/* ENTREPRISE */}
+            {activeCategory.id === "entreprise" && (
+              <TabsContent value="business" className="mt-6">
+                <BusinessContact
+                  businessName={settings.businessName ?? ""}
+                  businessEmail={settings.businessEmail ?? ""}
+                  businessPhone={settings.businessPhone ?? ""}
+                />
+              </TabsContent>
+            )}
+
+            {/* RÉSERVATIONS */}
+            {activeCategory.id === "reservations" && (
+              <>
+                <TabsContent value="hours" className="mt-6">
+                  <HoursSettings hours={hours} />
+                </TabsContent>
+                <TabsContent value="timeoff" className="mt-6">
+                  <TimeOffSettings periods={timeOff} />
+                </TabsContent>
+                <TabsContent value="planning" className="mt-6">
+                  <PlanningSettings
+                    maxVehiclesPerDay={settings.maxVehiclesPerDay}
+                    slotIntervalMin={settings.slotIntervalMin}
+                    bufferMin={settings.bufferMin}
+                    minNoticeHours={settings.minNoticeHours}
+                    depositType={settings.depositType === "fixed" ? "fixed" : settings.depositType === "none" ? "none" : "percent"}
+                    depositValue={settings.depositValue}
+                    depositMethods={(fullSettings?.depositMethods ?? "").split(",").filter(Boolean)}
+                    depositInstructions={fullSettings?.depositInstructions ?? ""}
+                    vacationMode={settings.vacationMode}
+                    vacationMessage={settings.vacationMessage ?? ""}
+                  />
+                </TabsContent>
+                <TabsContent value="travel" className="mt-6">
+                  <TravelSettings
+                    businessAddress={settings.businessAddress ?? ""}
+                    freeDistanceKm={Number.parseFloat(settings.freeDistanceKm)}
+                    pricePerKmCents={settings.pricePerKmCents}
+                    maxDistanceKm={Number.parseFloat(settings.maxDistanceKm)}
+                    roundTrip={settings.roundTrip}
+                    hasCoords={Boolean(settings.businessLat && settings.businessLng)}
+                  />
+                </TabsContent>
+              </>
+            )}
+
+            {/* SITE PUBLIC */}
+            {activeCategory.id === "site" && (
+              <>
+                <TabsContent value="site" className="mt-6">
+                  <SiteBranding
+                    logoPathname={tenant.logoUrl ?? null}
+                    cgv={tenant.cgv ?? ""}
+                    socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+                    hero={{
+                      heroTitle: tenant.heroTitle ?? "",
+                      heroHighlight: tenant.heroHighlight ?? "",
+                      heroSubtitle: tenant.heroSubtitle ?? "",
+                      heroCtaPrimary: tenant.heroCtaPrimary ?? "",
+                      heroCtaSecondary: tenant.heroCtaSecondary ?? "",
+                    }}
+                  />
+                  <div className="mt-10 border-t border-border pt-8">
+                    <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
+                    <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+                  </div>
+                  <div className="mt-10 border-t border-border pt-8">
+                    <SectionOrderSettings
+                      items={resolveSectionOrder(tenant.siteContent).map((key) => ({
+                        key,
+                        label: HOME_SECTION_LABELS[key],
+                      }))}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value="appearance" className="mt-6">
+                  <AppearanceSettings
+                    brandPrimary={tenant.brandPrimary ?? null}
+                    brandSecondary={tenant.brandSecondary ?? null}
+                  />
+                </TabsContent>
+                <TabsContent value="gallery" className="mt-6">
+                  <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
+                </TabsContent>
+                <TabsContent value="reviews" className="mt-6">
+                  <ReviewSettings items={reviewItems} />
+                </TabsContent>
+                <TabsContent value="custom-requests" className="mt-6">
+                  <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
+                </TabsContent>
+              </>
+            )}
+
+            {/* PAIEMENTS ET FACTURATION */}
+            {activeCategory.id === "billing" && (
+              <>
+                <TabsContent value="payments" className="mt-6">
+                  <PaymentsSettings
+                    connected={paymentConfig.connected}
+                    chargesEnabled={paymentConfig.chargesEnabled}
+                    detailsSubmitted={paymentConfig.detailsSubmitted}
+                    paymentsEnabled={paymentConfig.paymentsEnabled}
+                    paymentMode={paymentConfig.paymentMode}
+                    feePercent={paymentConfig.feePercent}
+                    depositConfigured={settings.depositType !== "none" && settings.depositValue > 0}
+                    depositSummary={
+                      settings.depositType === "fixed"
+                        ? `${(settings.depositValue / 100).toFixed(2)} €`
+                        : settings.depositType === "percent"
+                          ? `${settings.depositValue} %`
+                          : "non configuré"
+                    }
+                  />
+                </TabsContent>
+                <TabsContent value="invoicing" className="mt-6 space-y-6">
+                  {/* Carte d'avancement de la configuration de facturation, calculée à
+                      partir des données RÉELLES du profil (aucune case cochée à la main). */}
+                  <BillingSetupCard data={billingSetup} />
+                  <SellerBillingProfile
+                    country={(tenant.country ?? "FR").toUpperCase()}
+                    confirmed={Boolean(fullSettings?.billingProfileConfirmedAt)}
+                    legalForm={fullSettings?.legalForm ?? ""}
+                    legalRegistrationNumber={
+                      fullSettings?.legalRegistrationNumber ??
+                      // Fallback FR uniquement : affiche proprement l'ancien invoiceSiret.
+                      ((tenant.country ?? "FR").toUpperCase() === "FR" ? (fullSettings?.invoiceSiret ?? "") : "")
+                    }
+                    vatNumber={fullSettings?.vatNumber ?? ""}
+                    vatStatus={fullSettings?.vatStatus ?? "unknown"}
+                    frBusinessCategory={fullSettings?.frBusinessCategory ?? "unknown"}
+                    defaultCurrency={fullSettings?.defaultCurrency ?? ""}
+                  />
+                  <InvoicingSettings
+                    invoiceCompanyAddress={fullSettings?.invoiceCompanyAddress ?? ""}
+                    invoiceSiret={fullSettings?.invoiceSiret ?? ""}
+                    invoiceIban={fullSettings?.invoiceIban ?? ""}
+                    invoiceBic={fullSettings?.invoiceBic ?? ""}
+                    vatEnabled={fullSettings?.vatEnabled ?? false}
+                    vatRate={fullSettings?.vatRate ?? "20"}
+                    vatExemptNote={fullSettings?.vatExemptNote ?? "TVA non applicable, art. 293 B du CGI"}
+                    invoicePrefix={fullSettings?.invoicePrefix ?? "FAC"}
+                    invoiceDueDays={fullSettings?.invoiceDueDays ?? 30}
+                    invoiceFooterNote={fullSettings?.invoiceFooterNote ?? ""}
+                    invoiceLegalMentions={fullSettings?.invoiceLegalMentions ?? ""}
+                    invoiceEmailSubject={fullSettings?.invoiceEmailSubject ?? ""}
+                    invoiceEmailBody={fullSettings?.invoiceEmailBody ?? ""}
+                    invoiceLogoPathname={fullSettings?.invoiceLogoPathname ?? null}
+                    sellerCountry={(tenant.country ?? "FR").toUpperCase()}
+                    sellerVatStatus={fullSettings?.vatStatus ?? "unknown"}
+                  />
+                </TabsContent>
+                <TabsContent value="promo" className="mt-6">
+                  <PromoSettings codes={promoCodesList} />
+                </TabsContent>
+              </>
+            )}
+
+            {/* COMMUNICATIONS */}
+            {activeCategory.id === "communications" && (
+              <TabsContent value="sms" className="mt-6">
+                <SmsSettings
+                  featureEnabled={smsFeatureEnabled}
+                  balance={smsBalance.balance}
+                  betaBonusGranted={Boolean(smsCreditRow[0]?.betaBonusGrantedAt)}
+                  enabled={settings.smsRemindersEnabled}
+                  offsetHours={settings.smsReminderOffsetHours}
+                  template={settings.smsReminderTemplate ?? ""}
+                  defaultTemplate={SMS_DEFAULT_TEMPLATE}
+                  revolutUrl={revolutUrl}
+                  revolutQrSrc={revolutQrSrc}
+                />
+              </TabsContent>
+            )}
+
+            {/* COMPTE ET ASSISTANCE */}
+            {activeCategory.id === "account" && (
+              <>
+                <TabsContent value="security" className="mt-6">
+                  <SecuritySettings />
+                </TabsContent>
+                <TabsContent value="data" className="mt-6">
+                  <div className="max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-6">
+                    <div>
+                      <h2 className="text-lg font-semibold">Vos données vous appartiennent</h2>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
+                        Exportez à tout moment l&apos;intégralité de vos données professionnelles (clients, véhicules,
+                        réservations, prestations, devis, factures et paramètres) aux formats standard CSV et JSON. L&apos;archive
+                        ne contient aucune donnée de connexion ou de sécurité.
+                      </p>
+                    </div>
+                    <a
+                      href="/admin/export"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
+                    >
+                      Télécharger mes données (.zip)
+                    </a>
+                  </div>
+                </TabsContent>
+                <TabsContent value="support" className="mt-6">
+                  <SupportForm />
+                </TabsContent>
+              </>
+            )}
+          </Tabs>
+        </div>
+      )}
     </div>
   )
 }

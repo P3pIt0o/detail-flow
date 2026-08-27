@@ -32,7 +32,6 @@ const NAV = [
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/prestations", label: "Prestations", icon: Sparkles },
   { href: "/admin/produits", label: "Produits", icon: Package },
-  { href: "/admin/boitier", label: "Boîtier", icon: Cpu },
   { href: "/admin/parametres", label: "Paramètres", icon: Settings },
 ]
 
@@ -114,6 +113,22 @@ export function AdminSidebar({
             >
               <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
               Super-admin
+            </Link>
+            {/* Accès technique au Boîtier : masqué du menu normal, conservé pour
+                le super-admin (aucune route/donnée supprimée). */}
+            <Link
+              href={withTenant("/admin/boitier")}
+              onClick={() => setOpen(false)}
+              aria-current={isActive("/admin/boitier") ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive("/admin/boitier")
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Cpu className="size-4 shrink-0" aria-hidden="true" />
+              Boîtier
             </Link>
           </>
         )}
