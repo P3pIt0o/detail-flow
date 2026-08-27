@@ -2,9 +2,11 @@
 
 import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, Upload, ImageIcon, Trash2 } from "lucide-react"
+import { Loader2, Save, Upload, ImageIcon, Trash2, ExternalLink, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { saveInvoicingSettings } from "@/app/admin/(dashboard)/parametres/actions"
+import { FieldHelp } from "@/components/admin/settings/field-help"
+import { getExemptionMentions } from "@/lib/billing/exemption-mentions"
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
@@ -26,6 +28,10 @@ type Props = {
   invoiceEmailSubject: string
   invoiceEmailBody: string
   invoiceLogoPathname: string | null
+  // Contexte du profil vendeur (lecture seule) pour proposer des mentions
+  // d'exonération adaptées. Optionnels pour rétrocompatibilité.
+  sellerCountry?: string
+  sellerVatStatus?: string
 }
 
 export function InvoicingSettings(props: Props) {
@@ -50,6 +56,12 @@ export function InvoicingSettings(props: Props) {
   const [emailSubject, setEmailSubject] = useState(props.invoiceEmailSubject)
   const [emailBody, setEmailBody] = useState(props.invoiceEmailBody)
   const [logoPathname, setLogoPathname] = useState<string | null>(props.invoiceLogoPathname)
+
+  // Propositions de mentions d'exonération (PURE) selon pays + statut vendeur.
+  const exemption = getExemptionMentions({
+    country: props.sellerCountry,
+    vatStatus: props.sellerVatStatus ?? (props.vatEnabled ? "subject" : "exempt"),
+  })
 
   async function handleUpload(file: File) {
     setError(null)
@@ -161,7 +173,7 @@ export function InvoicingSettings(props: Props) {
       <div className={cardClass}>
         <h2 className="mb-4 text-base font-semibold text-foreground">Coordonnées légales</h2>
         <div className="space-y-4">
-          <div>
+          <div id="inv-address" className="scroll-mt-24 rounded-lg transition-colors">
             <label className={labelClass}>Adresse de facturation</label>
             <textarea
               value={companyAddress}
@@ -181,7 +193,7 @@ export function InvoicingSettings(props: Props) {
               <input value={siret} onChange={(e) => setSiret(e.target.value)} className={inputClass} placeholder="123 456 789 00012" />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div id="inv-bank" className="grid scroll-mt-24 gap-4 rounded-lg transition-colors sm:grid-cols-2">
             <div>
               <label className={labelClass}>IBAN</label>
               <input value={iban} onChange={(e) => setIban(e.target.value)} className={inputClass} placeholder="FR76 ..." />
@@ -212,14 +224,69 @@ export function InvoicingSettings(props: Props) {
             <input value={vatRate} onChange={(e) => setVatRate(e.target.value)} className={inputClass} placeholder="20" inputMode="decimal" />
           </div>
         ) : (
-          <div className="mt-4">
-            <label className={labelClass}>Mention d'exonération</label>
+          <div id="inv-vat" className="mt-4 scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Mention d&apos;exonération
+              <FieldHelp field="exemptionMention" />
+            </label>
+
+            {/* Propositions adaptées au pays + statut. Jamais appliquées
+                automatiquement : l'utilisateur clique « Utiliser cette mention »
+                et peut toujours modifier le texte ensuite. */}
+            {exemption.applicable && exemption.proposals.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {exemption.proposals.map((p, i) => (
+                  <div key={i} className="rounded-lg border border-border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground">{p.caseLabel}</p>
+                        <p className="mt-0.5 truncate font-mono text-sm text-foreground">{p.mention}</p>
+                        <p className="mt-1 text-xs text-muted-foreground leading-relaxed text-pretty">
+                          {p.explanation}
+                        </p>
+                        {p.source && (
+                          <a
+                            href={p.source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                          >
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" /> {p.source.label}
+                          </a>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => {
+                          setVatExemptNote(p.mention)
+                          setNotice("Mention insérée. Vous pouvez la modifier, puis enregistrer.")
+                        }}
+                      >
+                        <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Utiliser
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {exemption.note && (
+              <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 text-pretty">
+                {exemption.note}
+              </p>
+            )}
+
             <input
               value={vatExemptNote}
               onChange={(e) => setVatExemptNote(e.target.value)}
               className={inputClass}
               placeholder="TVA non applicable, art. 293 B du CGI"
             />
+            <p className="mt-1 text-xs text-muted-foreground text-pretty">
+              La mention reste entièrement modifiable. Adaptez-la à votre situation réelle.
+            </p>
           </div>
         )}
       </div>
@@ -228,13 +295,19 @@ export function InvoicingSettings(props: Props) {
       <div className={cardClass}>
         <h2 className="mb-4 text-base font-semibold text-foreground">Numérotation &amp; échéance</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Préfixe de numéro</label>
+          <div id="inv-numbering" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Préfixe de numéro
+              <FieldHelp field="numbering" />
+            </label>
             <input value={prefix} onChange={(e) => setPrefix(e.target.value)} className={inputClass} placeholder="FAC" />
             <p className="mt-1 text-xs text-muted-foreground">Exemple : {(prefix || "FAC").toUpperCase()}-{new Date().getFullYear()}-0001</p>
           </div>
-          <div>
-            <label className={labelClass}>Délai de paiement (jours)</label>
+          <div id="inv-duedays" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Délai de paiement (jours)
+              <FieldHelp field="paymentTerms" />
+            </label>
             <input value={dueDays} onChange={(e) => setDueDays(e.target.value)} className={inputClass} inputMode="numeric" placeholder="30" />
           </div>
         </div>
@@ -254,7 +327,11 @@ export function InvoicingSettings(props: Props) {
             />
           </div>
           <div>
-            <label className={labelClass}>Mentions légales</label>
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Mentions légales
+              <FieldHelp field="lateFees" label="Pénalités de retard" />
+              <FieldHelp field="fixedIndemnity" label="Indemnité forfaitaire" />
+            </label>
             <textarea
               value={legalMentions}
               onChange={(e) => setLegalMentions(e.target.value)}
