@@ -55,15 +55,17 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
   }
 
   return (
-    <section className="relative flex min-h-[540px] items-center overflow-hidden bg-[var(--spirit-navy)] lg:min-h-[600px]">
+    <section className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] sm:items-center lg:min-h-[600px]">
       <div className="absolute inset-0 -z-10">
         <Image src="/hero.png" alt="" fill priority sizes="100vw" className="object-cover object-center" />
-        {/* Assombrissement maîtrisé : plus dense à gauche pour le texte, base sombre pour la transition. */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--spirit-navy)] via-[var(--spirit-navy)]/80 to-[var(--spirit-navy)]/20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-transparent to-[var(--spirit-navy)]/30" />
+        {/* MOBILE : assombrissement vertical (bas) → la photo reste visible en haut, texte lisible en bas. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/70 to-[var(--spirit-navy)]/20 sm:hidden" />
+        {/* DESKTOP : assombrissement horizontal (gauche) pour le bloc de texte aligné à gauche. */}
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-[var(--spirit-navy)] via-[var(--spirit-navy)]/80 to-[var(--spirit-navy)]/20 sm:block" />
+        <div className="absolute inset-0 hidden bg-gradient-to-t from-[var(--spirit-navy)] via-transparent to-[var(--spirit-navy)]/30 sm:block" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
         <div className="max-w-xl">
           <Reveal>
             <p className="spirit-eyebrow">Detailing automobile</p>
