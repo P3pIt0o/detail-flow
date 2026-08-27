@@ -13,6 +13,7 @@ import { BookingNotes } from "@/components/admin/booking-notes"
 import { BookingEditDialog } from "@/components/admin/booking-edit-dialog"
 import { BookingDeleteButton } from "@/components/admin/booking-delete-button"
 import { formatPrice, formatDuration, formatDateLong } from "@/lib/format"
+import { withTenant } from "@/lib/tenant-link"
 import type { BookingStatus } from "@/lib/booking/status"
 
 export const metadata: Metadata = { title: "Détail réservation" }
@@ -20,11 +21,14 @@ export const dynamic = "force-dynamic"
 
 export default async function ReservationDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tenant?: string }>
 }) {
   await requireAdmin()
   const { id } = await params
+  const { tenant } = await searchParams
   const numId = Number(id)
   if (!Number.isInteger(numId)) notFound()
 
@@ -41,7 +45,7 @@ export default async function ReservationDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/admin/reservations"
+        href={withTenant("/admin/reservations", tenant ?? null)}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Retour aux réservations

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { withTenant } from "@/lib/tenant-link"
 import { deleteBookingAction } from "@/app/admin/(dashboard)/reservations/[id]/actions"
 
 /**
@@ -14,6 +15,9 @@ import { deleteBookingAction } from "@/app/admin/(dashboard)/reservations/[id]/a
  */
 export function BookingDeleteButton({ bookingId }: { bookingId: number }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) au retour vers la liste après suppression.
+  const tenantParam = searchParams.get("tenant")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -26,7 +30,7 @@ export function BookingDeleteButton({ bookingId }: { bookingId: number }) {
         setError(res.error)
         return
       }
-      router.push("/admin/reservations")
+      router.push(withTenant("/admin/reservations", tenantParam))
       router.refresh()
     })
   }

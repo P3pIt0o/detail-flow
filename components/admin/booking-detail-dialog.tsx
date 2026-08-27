@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Calendar, Clock, Car, MapPin, Phone, Mail, Euro } from "lucide-react"
 import {
   Dialog,
@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/admin/status-badge"
 import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
+import { withTenant } from "@/lib/tenant-link"
 import type { CalendarBooking } from "@/lib/admin/types"
 
 // Dialogue de détail rapide (calendrier). Pour le détail complet avec lignes,
@@ -27,6 +28,9 @@ export function BookingDetailDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) vers le détail complet. Jamais un companyId.
+  const tenantParam = searchParams.get("tenant")
   if (!booking) return null
 
   return (
@@ -74,7 +78,7 @@ export function BookingDetailDialog({
 
         <button
           type="button"
-          onClick={() => router.push(`/admin/reservations/${booking.id}`)}
+          onClick={() => router.push(withTenant(`/admin/reservations/${booking.id}`, tenantParam))}
           className="mt-1 text-left text-sm font-medium text-primary hover:underline"
         >
           Voir le détail complet →

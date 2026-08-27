@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BOOKING_STATUS_META, type BookingStatus } from "@/lib/booking/status"
 import { formatPrice, formatDateShort } from "@/lib/format"
+import { withTenant } from "@/lib/tenant-link"
 import { cn } from "@/lib/utils"
 
 type Row = {
@@ -30,6 +31,12 @@ const FILTERS: { value: BookingStatus | "all"; label: string }[] = [
 
 export function ReservationsTable({ rows }: { rows: Row[] }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Tenant courant (slug) porté par ?tenant= en aperçu. On le conserve à chaque
+  // navigation vers le détail pour rester sur la même entreprise. Ce n'est jamais
+  // un companyId : le serveur résout toujours l'entreprise via requireCompanyId().
+  const tenantParam = searchParams.get("tenant")
+  const bookingHref = (id: number) => withTenant(`/admin/reservations/${id}`, tenantParam)
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<BookingStatus | "all">("all")
 
@@ -96,12 +103,12 @@ export function ReservationsTable({ rows }: { rows: Row[] }) {
               filtered.map((r) => (
                 <tr
                   key={r.id}
-                  onClick={() => router.push(`/admin/reservations/${r.id}`)}
+                  onClick={() => router.push(bookingHref(r.id))}
                   className="cursor-pointer transition-colors hover:bg-muted/40"
                 >
                   <td className="px-4 py-3">
                     <Link
-                      href={`/admin/reservations/${r.id}`}
+                      href={bookingHref(r.id)}
                       className="block"
                       onClick={(e) => e.stopPropagation()}
                     >

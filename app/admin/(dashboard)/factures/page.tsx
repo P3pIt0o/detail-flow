@@ -5,12 +5,18 @@ import { requireAdmin } from "@/lib/admin"
 import { getInvoiceList } from "@/lib/invoice/queries"
 import { invoiceStatusMeta } from "@/lib/invoice/calc"
 import { formatMoney, formatDateShort } from "@/lib/format"
+import { withTenant } from "@/lib/tenant-link"
 
 export const metadata: Metadata = { title: "Factures" }
 export const dynamic = "force-dynamic"
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string }>
+}) {
   await requireAdmin()
+  const { tenant } = await searchParams
   const invoices = await getInvoiceList()
 
   return (
@@ -50,7 +56,7 @@ export default async function InvoicesPage() {
                   <tr key={inv.id} className="border-b border-border last:border-0 hover:bg-muted/40">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/factures/${inv.id}`} className="font-mono font-medium text-primary hover:underline">
+                        <Link href={withTenant(`/admin/factures/${inv.id}`, tenant ?? null)} className="font-mono font-medium text-primary hover:underline">
                           {inv.number ?? "Brouillon"}
                         </Link>
                         {inv.documentType === "credit_note" && (

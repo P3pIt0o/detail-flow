@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Download,
   Mail,
@@ -28,6 +28,7 @@ import { getTaxTreatmentLabel } from "@/lib/invoice/tax-treatment"
 import { invoiceStatusMeta, PAYMENT_METHOD_LABEL } from "@/lib/invoice/calc"
 import { addInvoicePayment, createCreditNote, sendInvoiceEmail } from "@/lib/invoice/actions"
 import { CREDITABLE_INVOICE_STATUSES } from "@/lib/invoice/credit"
+import { withTenant } from "@/lib/tenant-link"
 import type {
   InvoiceRow,
   InvoiceItemRow,
@@ -99,6 +100,9 @@ export function InvoiceView({
   const customerTypeLabel =
     invoice.customerType === "business" ? "Entreprise" : invoice.customerType === "individual" ? "Particulier" : null
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) sur toutes les navigations facture/avoir.
+  const tenantParam = searchParams.get("tenant")
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -195,7 +199,7 @@ export function InvoiceView({
         return
       }
       // Redirige vers le BROUILLON d'avoir créé (éditable avant émission).
-      router.push(`/admin/factures/${res.data.invoiceId}`)
+      router.push(withTenant(`/admin/factures/${res.data.invoiceId}`, tenantParam))
     })
   }
 
@@ -225,7 +229,7 @@ export function InvoiceView({
           {isCredit && originalInvoice && (
             <p className="mt-1 text-sm">
               <Link
-                href={`/admin/factures/${originalInvoice.id}`}
+                href={withTenant(`/admin/factures/${originalInvoice.id}`, tenantParam)}
                 className="inline-flex items-center gap-1 text-primary hover:underline"
               >
                 Rectifie la facture {originalInvoice.number ?? `#${originalInvoice.id}`}
@@ -400,7 +404,7 @@ export function InvoiceView({
                 {creditNotes.map((cn) => (
                   <li key={cn.id} className="flex items-center justify-between text-sm">
                     <Link
-                      href={`/admin/factures/${cn.id}`}
+                      href={withTenant(`/admin/factures/${cn.id}`, tenantParam)}
                       className="inline-flex items-center gap-1 text-primary hover:underline"
                     >
                       {cn.number ?? "Brouillon d'avoir"}

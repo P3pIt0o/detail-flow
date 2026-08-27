@@ -11,6 +11,7 @@ import {
   settings as settingsTable,
 } from "@/lib/db/schema"
 import { getAdminServices, getPriceMatrix } from "@/lib/admin/catalog-queries"
+import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceDetail, getInvoiceList } from "@/lib/invoice/queries"
 import { buildCompanyExport } from "@/lib/export/build"
 

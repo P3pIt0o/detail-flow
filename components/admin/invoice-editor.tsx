@@ -1,9 +1,10 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Plus, Trash2, Save, FileCheck2, CircleCheck, Loader2, AlertCircle, Car, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { withTenant } from "@/lib/tenant-link"
 import { formatMoney, getDisplayCurrencyCode } from "@/lib/format"
 import {
   computeInvoice,
@@ -66,6 +67,9 @@ export function InvoiceEditor({
   // Code affiché dans les labels de saisie (visuel uniquement).
   const displayCurrency = getDisplayCurrencyCode(invoice.currencyCode)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) au retour vers la liste des factures.
+  const tenantParam = searchParams.get("tenant")
   const [pending, startTransition] = useTransition()
   const [issuing, startIssue] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -274,7 +278,7 @@ export function InvoiceEditor({
     startTransition(async () => {
       const res = await deleteDraftInvoice(invoice.id)
       if (!res.ok) setError(res.error)
-      else router.push("/admin/factures")
+      else router.push(withTenant("/admin/factures", tenantParam))
     })
   }
 

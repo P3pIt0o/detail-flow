@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { Pencil } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatPrice, formatDateShort } from "@/lib/format"
+import { withTenant } from "@/lib/tenant-link"
 
 type Client = {
   key: string
@@ -20,6 +22,9 @@ type Client = {
 }
 
 export function ClientsTable({ clients }: { clients: Client[] }) {
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) vers la fiche client. Jamais un companyId.
+  const tenantParam = searchParams.get("tenant")
   const [query, setQuery] = useState("")
 
   const filtered = useMemo(() => {
@@ -98,7 +103,7 @@ export function ClientsTable({ clients }: { clients: Client[] }) {
                   <td className="px-4 py-3 text-right">
                     {c.clientId != null ? (
                       <Link
-                        href={`/admin/clients/${c.clientId}`}
+                        href={withTenant(`/admin/clients/${c.clientId}`, tenantParam)}
                         className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                         aria-label={`Modifier ${c.name}`}
                       >

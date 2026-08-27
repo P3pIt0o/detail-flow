@@ -6,18 +6,22 @@ import { requireCompanyMember } from "@/lib/admin"
 import { getInvoiceDetail } from "@/lib/invoice/queries"
 import { InvoiceEditor } from "@/components/admin/invoice-editor"
 import { InvoiceView } from "@/components/admin/invoice-view"
+import { withTenant } from "@/lib/tenant-link"
 
 export const metadata: Metadata = { title: "Facture" }
 export const dynamic = "force-dynamic"
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tenant?: string }>
 }) {
   // Garde d'auth/tenant (l'accès à la facture est scopé companyId dans getInvoiceDetail).
   await requireCompanyMember()
   const { id } = await params
+  const { tenant } = await searchParams
   const numId = Number(id)
   if (!Number.isInteger(numId)) notFound()
 
@@ -27,7 +31,7 @@ export default async function InvoiceDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/admin/factures"
+        href={withTenant("/admin/factures", tenant ?? null)}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Retour aux factures

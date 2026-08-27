@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { FileText, FilePlus2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { withTenant } from "@/lib/tenant-link"
 import { createInvoiceFromBooking } from "@/lib/invoice/actions"
 
 /**
@@ -27,6 +28,9 @@ export function InvoiceButton({
   onNavigate?: () => void
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Conserve le tenant courant (slug) à l'ouverture de la facture.
+  const tenantParam = searchParams.get("tenant")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -34,7 +38,7 @@ export function InvoiceButton({
 
   function go(id: number) {
     onNavigate?.()
-    router.push(`/admin/factures/${id}`)
+    router.push(withTenant(`/admin/factures/${id}`, tenantParam))
   }
 
   if (existingInvoiceId) {
