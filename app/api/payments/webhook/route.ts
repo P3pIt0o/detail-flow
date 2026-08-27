@@ -8,7 +8,8 @@ import {
   getStripeAccountIdForCompany,
   syncConnectAccountFlagsByAccountId,
 } from "@/lib/payments/queries"
-import { sendPaymentReceivedEmails } from "@/lib/email/notifications"
+import { sendPaymentReceivedEmails, sendRefundConfirmationEmail } from "@/lib/email/notifications"
+import { applyStripeRefundEvent } from "@/lib/payments/refunds"
 
 /**
  * ============================================================================
@@ -133,6 +134,56 @@ export async function POST(req: NextRequest) {
       case "checkout.session.expired": {
         const session = event.data.object as { id: string }
         await settlePaymentCancelled(session.id)
+        break
+      }
+
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed": {
+        // Objet Refund Stripe. En Direct Charges, `event.account` = compte
+        // connecté propriétaire → sert à résoudre le tenant SANS jamais faire
+        // confiance à un companyId du navigateur.
+        const refund = event.data.object as {
+          id: string
+          payment_intent?: string | null
+          status?: string | null
+          amount?: number | null
+        }
+        const applied = await applyStripeRefundEvent({
+          externalRefundId: refund.id,
+          paymentIntentId: typeof refund.payment_intent === "string" ? refund.payment_intent : null,
+          providerStatus: refund.status ?? null,
+          amountCents: typeof refund.amount === "number" ? refund.amount : null,
+          connectedAccountId: eventAccount,
+        })
+        // Email client UNE SEULE FOIS, uniquement quand le remboursement DEVIENT
+        // effectif (claim atomique côté refunds.meta). Non bloquant.
+        if (applied.justSucceeded && applied.refundId != null && applied.companyId != null) {
+          await sendRefundConfirmationEmail(applied.refundId, applied.companyId)
+        }
+        break
+      }
+
+      case "charge.refunded": {
+        // Réconciliation : un Charge peut porter plusieurs remboursements. On
+        // rejoue chacun (idempotent par externalRefundId + recompute d'agrégat).
+        const charge = event.data.object as {
+          payment_intent?: string | null
+          refunds?: { data?: { id: string; status?: string | null; amount?: number | null }[] } | null
+        }
+        const list = charge.refunds?.data ?? []
+        for (const r of list) {
+          const applied = await applyStripeRefundEvent({
+            externalRefundId: r.id,
+            paymentIntentId: typeof charge.payment_intent === "string" ? charge.payment_intent : null,
+            providerStatus: r.status ?? null,
+            amountCents: typeof r.amount === "number" ? r.amount : null,
+            connectedAccountId: eventAccount,
+          })
+          if (applied.justSucceeded && applied.refundId != null && applied.companyId != null) {
+            await sendRefundConfirmationEmail(applied.refundId, applied.companyId)
+          }
+        }
         break
       }
 

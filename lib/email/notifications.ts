@@ -15,9 +15,11 @@ import {
   reminderEmail,
   paymentReceivedClientEmail,
   paymentReceivedProEmail,
+  refundConfirmationClientEmail,
   type BookingEmailData,
 } from "./templates"
 import { claimPaymentEmail, markPaymentEmail, type PaymentEmailRecipient } from "@/lib/payments/queries"
+import { claimRefundEmail, markRefundEmail } from "@/lib/payments/refunds"
 
 /** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
 function isValidEmail(value: string | null | undefined): value is string {
@@ -266,6 +268,50 @@ export async function sendPaymentReceivedEmails(
 ): Promise<void> {
   await dispatchPaymentEmail(bookingId, companyId, "client")
   await dispatchPaymentEmail(bookingId, companyId, "pro")
+}
+
+/**
+ * Email CLIENT de confirmation d'un remboursement — déclenché UNIQUEMENT depuis
+ * le webhook Stripe signé (jamais au simple clic). Idempotence DURABLE via
+ * `refunds.meta.emailClient` (claim atomique) : un seul email par remboursement,
+ * même en cas de rejeu ou d'événements concurrents. NON BLOQUANT : un échec
+ * d'email n'annule jamais le remboursement.
+ */
+export async function sendRefundConfirmationEmail(refundId: number, companyId: number): Promise<void> {
+  const claim = await claimRefundEmail(refundId, companyId)
+  if (!claim) {
+    // Déjà envoyé / en cours / non "succeeded" : rien à faire (idempotent).
+    return
+  }
+  try {
+    const loaded = await loadBookingEmailData(claim.bookingId)
+    if (!loaded) {
+      await markRefundEmail(refundId, "failed")
+      return
+    }
+    const { data, customerEmail, proEmail } = loaded
+    if (!isValidEmail(customerEmail)) {
+      await markRefundEmail(refundId, "invalid")
+      return
+    }
+    const remainingPaidCents = Math.max(0, claim.grossAmountCents - claim.amountCents)
+    const mail = refundConfirmationClientEmail(data, {
+      amountCents: claim.amountCents,
+      fullyRefunded: claim.fullyRefunded,
+      remainingPaidCents,
+    })
+    const res = await sendEmail({
+      to: customerEmail,
+      subject: mail.subject,
+      html: mail.html,
+      fromName: data.businessName,
+      replyTo: proEmail ?? undefined,
+    })
+    await markRefundEmail(refundId, res.ok ? "sent" : "failed")
+  } catch (e) {
+    await markRefundEmail(refundId, "failed").catch(() => {})
+    console.log("[v0] sendRefundConfirmationEmail a échoué:", e instanceof Error ? e.message : e)
+  }
 }
 
 /** Email envoyé au client lors d'un changement de statut par l'admin. */

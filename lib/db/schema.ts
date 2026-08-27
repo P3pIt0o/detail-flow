@@ -1153,3 +1153,55 @@ export const paymentEvents = pgTable("payment_events", {
   type: text("type"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
+
+/**
+ * Un remboursement rattaché à un `payment`. Chaque remboursement est une
+ * OPÉRATION DISTINCTE : le paiement d'origine n'est jamais modifié/supprimé,
+ * seuls ses agrégats (`refundedAmountCents`/`refundedAt`/`status`) sont
+ * recalculés à partir des lignes `refunds` réellement `succeeded`.
+ * Montants en centimes entiers. Persistance requise via
+ * `scripts/refunds-table-migration.sql` (migration additive, non exécutée ici).
+ */
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    paymentId: integer("paymentId")
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    bookingId: integer("bookingId")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("stripe"),
+    // Identifiant Stripe du remboursement (re_...), connu après appel/webhook.
+    externalRefundId: text("externalRefundId"),
+    amountCents: integer("amountCents").notNull(),
+    currency: text("currency").notNull().default("EUR"),
+    // Motif obligatoire (jamais de donnée bancaire/personnelle sensible).
+    reason: text("reason"),
+    // requested | pending | succeeded | failed | canceled
+    status: text("status").notNull().default("pending"),
+    // Traçabilité de l'opérateur (id user), sans donnée personnelle client.
+    initiatedByUserId: text("initiatedByUserId"),
+    // Clé d'idempotence STABLE (anti double clic / double création).
+    idempotencyKey: text("idempotencyKey"),
+    meta: jsonb("meta"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    succeededAt: timestamp("succeededAt"),
+    failedAt: timestamp("failedAt"),
+    canceledAt: timestamp("canceledAt"),
+  },
+  (t) => ({
+    byCompany: index("refunds_companyId_idx").on(t.companyId),
+    byPayment: index("refunds_paymentId_idx").on(t.paymentId),
+    byBooking: index("refunds_bookingId_idx").on(t.bookingId),
+    // Idempotence webhook : un remboursement Stripe ne peut exister qu'une fois.
+    uniqExternal: unique("refunds_external_key").on(t.provider, t.externalRefundId),
+    // Idempotence création : un double clic réutilise la clé => une seule ligne.
+    uniqIdem: unique("refunds_idempotency_key").on(t.idempotencyKey),
+  }),
+)
