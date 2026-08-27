@@ -8,6 +8,9 @@ import {
   computePaymentRefundAggregate,
   RESERVING_REFUND_STATUSES,
   REFUNDABLE_PAYMENT_STATUSES,
+  shouldRefundApplicationFee,
+  extractSafeStripeError,
+  classifyStripeRefundError,
 } from "@/lib/payments/refund-logic"
 import { computeMonthlyFinancials } from "@/lib/admin/financials"
 
@@ -355,5 +358,125 @@ describe("structure — migration refunds préparée mais additive (non destruct
   it("garantit l'idempotence par contraintes d'unicité (externalRefundId, idempotencyKey)", () => {
     expect(sql).toContain("refunds_external_key")
     expect(sql).toContain("refunds_idempotency_key")
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  Correctif — application fee & observabilité d'erreur Stripe               */
+/* -------------------------------------------------------------------------- */
+
+describe("refund_application_fee — n'est demandé que si une commission > 0 existe", () => {
+  it("application fee POSITIVE → on demande la restitution de la commission", () => {
+    expect(shouldRefundApplicationFee(50)).toBe(true)
+    expect(shouldRefundApplicationFee(1)).toBe(true)
+  })
+
+  it("application fee NULLE (0) → on ne demande PAS la restitution", () => {
+    // Cause exacte du bug : refund_application_fee envoyé alors que fee = 0.
+    expect(shouldRefundApplicationFee(0)).toBe(false)
+  })
+
+  it("application fee ABSENTE (null/undefined) → on ne demande PAS la restitution", () => {
+    expect(shouldRefundApplicationFee(null)).toBe(false)
+    expect(shouldRefundApplicationFee(undefined)).toBe(false)
+  })
+
+  it("le provider n'envoie refund_application_fee QUE si l'option est vraie", () => {
+    const src = read("lib/payments/providers.ts")
+    expect(src).toContain("options?.refundApplicationFee ? { refund_application_fee: true } : {}")
+    // Ne doit plus jamais être forcé à true inconditionnellement.
+    expect(src).not.toMatch(/refund_application_fee:\s*true,/)
+  })
+
+  it("le moteur pilote le flag depuis la commission réellement stockée sur le paiement", () => {
+    const src = read("lib/payments/refunds.ts")
+    expect(src).toContain("shouldRefundApplicationFee(ctx.applicationFeeCents)")
+    expect(src).toContain("platformFeeAmountCents")
+    expect(src).toContain("refundApplicationFee,")
+  })
+})
+
+describe("observabilité — champs Stripe SÛRS uniquement (jamais de donnée sensible)", () => {
+  it("extractSafeStripeError ne conserve que type/code/decline_code/requestId", () => {
+    const safe = extractSafeStripeError({
+      type: "invalid_request_error",
+      code: "balance_insufficient",
+      decline_code: "generic_decline",
+      requestId: "req_123",
+      // champs sensibles / superflus à NE PAS conserver :
+      message: "Sensitive raw message with email@example.com",
+      param: "amount",
+      headers: { authorization: "Bearer sk_live_xxx" },
+    })
+    expect(safe).toEqual({
+      type: "invalid_request_error",
+      code: "balance_insufficient",
+      declineCode: "generic_decline",
+      requestId: "req_123",
+    })
+    // Aucune fuite de message / clé / e-mail.
+    expect(JSON.stringify(safe)).not.toContain("email@example.com")
+    expect(JSON.stringify(safe)).not.toContain("sk_live")
+  })
+
+  it("champs manquants → non renseignés (undefined), jamais inventés", () => {
+    expect(extractSafeStripeError({})).toEqual({
+      type: undefined,
+      code: undefined,
+      declineCode: undefined,
+      requestId: undefined,
+    })
+  })
+
+  it("le moteur enregistre le code Stripe sécurisé (jamais uniquement 'stripe_error')", () => {
+    const src = read("lib/payments/refunds.ts")
+    expect(src).toContain("extractSafeStripeError(e)")
+    expect(src).toContain("classifyStripeRefundError(safe, rawMessage)")
+    expect(src).toContain("markRefundFailed(refundRowId, code, safe)")
+    // markRefundFailed sérialise les champs sûrs sous meta.stripe.
+    expect(src).toContain("payload.stripe = stripeInfo")
+  })
+})
+
+describe("classifyStripeRefundError — message de solde UNIQUEMENT si Stripe le confirme", () => {
+  it("balance_insufficient → insufficient_funds", () => {
+    expect(classifyStripeRefundError({ code: "balance_insufficient" })).toBe("insufficient_funds")
+  })
+
+  it("erreur générique SANS code solde → stripe_error (jamais insufficient_funds)", () => {
+    expect(classifyStripeRefundError({ type: "invalid_request_error" }, "Something went wrong")).toBe("stripe_error")
+    expect(classifyStripeRefundError({})).not.toBe("insufficient_funds")
+  })
+
+  it("charge déjà remboursée → already_refunded_stripe", () => {
+    expect(classifyStripeRefundError({ code: "charge_already_refunded" })).toBe("already_refunded_stripe")
+  })
+
+  it("commission absente (message application fee) → no_application_fee", () => {
+    expect(classifyStripeRefundError({ type: "invalid_request_error" }, "There is no application fee to refund")).toBe(
+      "no_application_fee",
+    )
+  })
+
+  it("erreurs réseau/limite → temporary", () => {
+    expect(classifyStripeRefundError({ type: "api_connection_error" })).toBe("temporary")
+    expect(classifyStripeRefundError({ type: "rate_limit_error" })).toBe("temporary")
+  })
+})
+
+describe("structure — messages UI par code réel (plus de « solde » par défaut)", () => {
+  const src = read("app/admin/(dashboard)/reservations/[id]/actions.ts")
+
+  it("le message générique stripe_error ne parle PLUS de solde", () => {
+    const idx = src.indexOf("stripe_error:")
+    const line = src.slice(idx, idx + 120)
+    expect(line.toLowerCase()).not.toContain("solde")
+  })
+
+  it("le message de solde est réservé au code insufficient_funds", () => {
+    expect(src).toContain("insufficient_funds:")
+    const idx = src.indexOf("insufficient_funds:")
+    const line = src.slice(idx, idx + 160)
+    expect(line.toLowerCase()).toContain("solde")
   })
 })

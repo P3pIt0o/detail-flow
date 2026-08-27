@@ -126,6 +126,61 @@ export function computePaymentRefundAggregate(input: {
   return { refundedAmountCents, status: "partially_refunded", fullyRefunded: false }
 }
 
+/**
+ * Décide si l'on doit demander à Stripe la restitution de la commission
+ * plateforme (`refund_application_fee`). VRAI uniquement si une application fee
+ * STRICTEMENT POSITIVE existe sur le paiement. Nulle/absente ⇒ FAUX (sinon
+ * Stripe rejette la requête). Aucune commission n'est jamais inventée.
+ */
+export function shouldRefundApplicationFee(applicationFeeCents: number | null | undefined): boolean {
+  return Number(applicationFeeCents ?? 0) > 0
+}
+
+/**
+ * Informations d'erreur Stripe SÛRES à journaliser / stocker (jamais de clé API,
+ * de données de carte, d'e-mail ou d'information personnelle).
+ */
+export type SafeStripeError = {
+  type?: string
+  code?: string
+  declineCode?: string
+  requestId?: string
+}
+
+/** Extrait uniquement des champs non sensibles d'une erreur Stripe. */
+export function extractSafeStripeError(e: unknown): SafeStripeError {
+  const err = e as { type?: unknown; code?: unknown; decline_code?: unknown; requestId?: unknown }
+  const str = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : undefined)
+  return {
+    type: str(err?.type),
+    code: str(err?.code),
+    declineCode: str(err?.decline_code),
+    requestId: str(err?.requestId),
+  }
+}
+
+/**
+ * Traduit une erreur Stripe (champs sûrs + message) vers un CODE applicatif
+ * stable, utilisé pour choisir un message UI précis. On ne stocke jamais le
+ * message brut ; il ne sert qu'au classement. Le message de « solde insuffisant »
+ * n'est renvoyé QUE si Stripe le confirme (`balance_insufficient`).
+ */
+export function classifyStripeRefundError(safe: SafeStripeError, rawMessage?: string): string {
+  const code = safe.code
+  const type = safe.type
+  const msg = (rawMessage ?? "").toLowerCase()
+
+  if (code === "balance_insufficient") return "insufficient_funds"
+  if (code === "charge_already_refunded") return "already_refunded_stripe"
+  // Commission absente : ne devrait plus arriver (on n'envoie plus le flag sans
+  // fee > 0), mais on le classe proprement au cas où.
+  if (msg.includes("application fee")) return "no_application_fee"
+  if (msg.includes("greater than") || msg.includes("amount")) return "amount_too_large"
+  if (type === "idempotency_error") return "idempotency_conflict"
+  if (type === "rate_limit_error" || type === "api_connection_error" || type === "api_error") return "temporary"
+  return "stripe_error"
+}
+
 /** Libellé FR court pour l'affichage d'un statut de remboursement. */
 export function refundStatusLabel(status: RefundStatus): string {
   switch (status) {
