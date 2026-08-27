@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button"
 import { saveSellerBillingProfile } from "@/app/admin/(dashboard)/parametres/actions"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
 import { resolveRegulatoryGuidance, type RegulatoryStatus } from "@/lib/billing/regulatory-guidance"
+import {
+  getLegalForms,
+  resolveLegalFormSelection,
+  LEGAL_FORM_OTHER,
+  LEGAL_FORM_UNKNOWN,
+} from "@/lib/billing/legal-forms"
+import { FieldHelp } from "@/components/admin/settings/field-help"
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
@@ -52,6 +59,11 @@ export function SellerBillingProfile(props: Props) {
 
   const [country, setCountry] = useState((props.country || "FR").toUpperCase())
   const [legalForm, setLegalForm] = useState(props.legalForm)
+  // Sélection de forme juridique (liste). Initialisée depuis la valeur stockée :
+  // une valeur libre historique bascule sur « Autre » sans être perdue.
+  const [legalFormChoice, setLegalFormChoice] = useState(() =>
+    resolveLegalFormSelection(props.legalForm, props.country),
+  )
   const [legalNumber, setLegalNumber] = useState(props.legalRegistrationNumber)
   const [vatNumber, setVatNumber] = useState(props.vatNumber)
   const [vatStatus, setVatStatus] = useState(props.vatStatus || "unknown")
@@ -60,6 +72,9 @@ export function SellerBillingProfile(props: Props) {
 
   // Profil pays => libellés (SIRET / BCE / UID) adaptés au pays du VENDEUR.
   const profile = useMemo(() => getCountryProfile(country), [country])
+  // Formes juridiques proposées pour le pays courant.
+  const legalFormOptions = useMemo(() => getLegalForms(country), [country])
+  const legalFormHelp = legalFormOptions.find((o) => o.value === legalFormChoice)?.description ?? null
 
   // Informations réglementaires CONSULTATIVES : moteur pur alimenté UNIQUEMENT
   // par le profil vendeur (aucune facture / client / taxTreatment / montant).
@@ -80,6 +95,22 @@ export function SellerBillingProfile(props: Props) {
     setCountry(next)
     // Propose la devise du pays uniquement si aucune devise déjà saisie.
     if (!currency.trim()) setCurrency(CURRENCY_SUGGESTION[next] ?? "")
+    // Re-résout la sélection de forme juridique pour le nouveau pays sans perdre
+    // la valeur texte déjà saisie (bascule sur « Autre » si non listée).
+    setLegalFormChoice(resolveLegalFormSelection(legalForm, next))
+  }
+
+  // Sélection dans la liste des formes juridiques. Les valeurs listées
+  // renseignent directement `legalForm` ; « Autre » ouvre la saisie libre ;
+  // « Je ne sais pas » n'enferme pas et laisse une aide s'afficher.
+  function onLegalFormChoice(choice: string) {
+    setLegalFormChoice(choice)
+    if (choice === LEGAL_FORM_OTHER || choice === LEGAL_FORM_UNKNOWN) {
+      // Ne pas écraser une valeur libre déjà saisie lorsqu'on passe à « Autre ».
+      if (choice === LEGAL_FORM_UNKNOWN) setLegalForm("")
+      return
+    }
+    setLegalForm(choice)
   }
 
   function save() {
@@ -128,7 +159,7 @@ export function SellerBillingProfile(props: Props) {
 
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div id="bp-country" className="scroll-mt-24 rounded-lg transition-colors">
             <label className={labelClass}>Pays de l&apos;entreprise</label>
             <select value={country} onChange={(e) => onCountryChange(e.target.value)} className={inputClass}>
               {SUPPORTED_COUNTRIES.map((c) => (
@@ -138,20 +169,48 @@ export function SellerBillingProfile(props: Props) {
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Forme juridique</label>
-            <input
-              value={legalForm}
-              onChange={(e) => setLegalForm(e.target.value)}
-              className={inputClass}
-              placeholder="SASU, SPRL, Sàrl…"
-            />
+          <div id="bp-legalForm" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Forme juridique
+              <FieldHelp field="legalForm" />
+            </label>
+            <select value={legalFormChoice} onChange={(e) => onLegalFormChoice(e.target.value)} className={inputClass}>
+              <option value="">Sélectionner…</option>
+              {legalFormOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {legalFormHelp && (
+              <p className="mt-1 text-xs text-muted-foreground text-pretty">{legalFormHelp}</p>
+            )}
+            {/* Saisie libre uniquement pour « Autre forme juridique ». */}
+            {legalFormChoice === LEGAL_FORM_OTHER && (
+              <input
+                value={legalForm}
+                onChange={(e) => setLegalForm(e.target.value)}
+                className={`${inputClass} mt-2`}
+                placeholder="Saisissez votre forme juridique"
+              />
+            )}
+            {/* « Je ne sais pas » : on aide sans bloquer l'enregistrement. */}
+            {legalFormChoice === LEGAL_FORM_UNKNOWN && (
+              <p className="mt-2 rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground text-pretty">
+                Pas de souci : vous pouvez enregistrer sans forme juridique. Elle figure sur votre document
+                d&apos;immatriculation (Kbis en France, extrait BCE en Belgique, registre du commerce en Suisse).
+                Vous pourrez la compléter plus tard.
+              </p>
+            )}
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>{profile.sellerLegalIdLabel}</label>
+          <div id="bp-legalNumber" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              {profile.sellerLegalIdLabel}
+              <FieldHelp field="legalRegistrationNumber" label={profile.sellerLegalIdLabel} />
+            </label>
             <input
               value={legalNumber}
               onChange={(e) => setLegalNumber(e.target.value)}
@@ -161,8 +220,11 @@ export function SellerBillingProfile(props: Props) {
               }
             />
           </div>
-          <div>
-            <label className={labelClass}>{profile.vatNumberLabel}</label>
+          <div id="bp-vatNumber" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              {profile.vatNumberLabel}
+              <FieldHelp field="vatNumber" label={profile.vatNumberLabel} />
+            </label>
             <input
               value={vatNumber}
               onChange={(e) => setVatNumber(e.target.value)}
@@ -175,8 +237,11 @@ export function SellerBillingProfile(props: Props) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Situation TVA</label>
+          <div id="bp-vatStatus" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Situation TVA
+              <FieldHelp field="vatStatus" />
+            </label>
             <select value={vatStatus} onChange={(e) => setVatStatus(e.target.value)} className={inputClass}>
               <option value="subject">TVA facturée / redevable</option>
               <option value="exempt">TVA non facturée / franchise ou exonération</option>
@@ -186,8 +251,11 @@ export function SellerBillingProfile(props: Props) {
               Cette information ne détermine pas à elle seule vos obligations de facturation électronique.
             </p>
           </div>
-          <div>
-            <label className={labelClass}>Devise de facturation</label>
+          <div id="bp-currency" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Devise de facturation
+              <FieldHelp field="defaultCurrency" />
+            </label>
             <input
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -203,8 +271,11 @@ export function SellerBillingProfile(props: Props) {
 
         {/* Catégorie entreprise : UNIQUEMENT pour la France. Rien pour BE/CH. */}
         {country === "FR" && (
-          <div>
-            <label className={labelClass}>Catégorie pour le calendrier de facturation électronique</label>
+          <div id="bp-frCategory" className="scroll-mt-24 rounded-lg transition-colors">
+            <label className={`${labelClass} flex items-center gap-1.5`}>
+              Catégorie pour le calendrier de facturation électronique
+              <FieldHelp field="frBusinessCategory" />
+            </label>
             <select
               value={frBusinessCategory}
               onChange={(e) => setFrBusinessCategory(e.target.value)}
@@ -250,7 +321,7 @@ export function SellerBillingProfile(props: Props) {
         </div>
       )}
 
-      <Button onClick={save} disabled={pending} className="mt-5">
+      <Button id="bp-confirm" onClick={save} disabled={pending} className="mt-5 scroll-mt-24">
         {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
         Enregistrer et confirmer le profil
       </Button>

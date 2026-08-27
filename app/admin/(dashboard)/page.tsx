@@ -5,15 +5,20 @@ import {
   getUpcomingBookingsDetailed,
   getDashboardWeek,
   getPendingDepositCount,
+  getBookingCount,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
 import { getVisitStats } from "@/lib/analytics/queries"
+import { getSettings, getServices, getBusinessHours } from "@/lib/booking/queries"
+import { getFullSettings } from "@/lib/invoice/queries"
 import { formatPrice, formatDateShort } from "@/lib/format"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { DashboardWeek } from "@/components/admin/dashboard-week"
 import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
+import { OnboardingPanel } from "@/components/admin/onboarding-panel"
+import { computeOnboardingSteps } from "@/lib/onboarding/steps"
 import { withTenant } from "@/lib/tenant-link"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
 
 export const dynamic = "force-dynamic"
@@ -26,9 +31,34 @@ export default async function DashboardPage({
   const { tenant } = await searchParams
   const href = (path: string) => withTenant(path, tenant ?? null)
 
-  // companyId résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
+  // Contexte résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
   // l'isolation tenant et à l'évaluation des droits via le moteur central.
-  const companyId = await requireCompanyId()
+  // NB: `tenant` (ci-dessus) = slug d'URL ; `company` = entité résolue serveur.
+  const { tenant: company } = await requireCompanyMember()
+  const companyId = company.id
+
+  // Onboarding « Vos premiers pas » — signaux dérivés des données RÉELLES du
+  // tenant (aucune case cochée à la main). Toutes les lectures sont scopées au
+  // companyId résolu côté serveur.
+  const [obSettings, obServices, obHours, obFullSettings, obBookingCount] = await Promise.all([
+    getSettings(companyId),
+    getServices(companyId),
+    getBusinessHours(companyId),
+    getFullSettings(companyId),
+    getBookingCount(companyId),
+  ])
+  const nonEmpty = (v: string | null | undefined) => Boolean(v && v.trim())
+  const onboarding = computeOnboardingSteps({
+    companyInfoComplete:
+      nonEmpty(obSettings.businessName) && nonEmpty(obSettings.businessPhone) && nonEmpty(obSettings.businessAddress),
+    billingConfirmed: Boolean(obFullSettings?.billingProfileConfirmedAt),
+    hasService: obServices.length > 0,
+    hasAvailability: obHours.some((h) => h.isOpen),
+    publicSiteComplete: (nonEmpty(company.heroTitle) || nonEmpty(company.heroSubtitle)) && nonEmpty(obSettings.businessPhone),
+    hasBooking: obBookingCount > 0,
+  })
+  // Réécrit les liens relatifs en liens tenant-safe (jamais de companyId client).
+  const onboardingData = { ...onboarding, steps: onboarding.steps.map((s) => ({ ...s, href: href(s.href) })) }
 
   // Droits (moteur central). LEGACY (licensePlan = NULL) => true partout
   // (dashboard actuel strictement inchangé). Aucune décision `if (plan === ...)`.
@@ -99,6 +129,9 @@ export default async function DashboardPage({
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Tableau de bord</h1>
         <p className="mt-1 text-sm text-muted-foreground">Votre activité en un coup d&apos;œil.</p>
       </header>
+
+      {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
+      <OnboardingPanel data={onboardingData} />
 
       {/* 1. KPI principaux — zone PREMIUM (business_stats / profitability_analysis).
           Verrouillée proprement si aucune des deux features n'est incluse, sans

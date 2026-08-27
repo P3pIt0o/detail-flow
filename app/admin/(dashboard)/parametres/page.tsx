@@ -19,6 +19,8 @@ import { HoursSettings } from "@/components/admin/settings/hours-settings"
 import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
 import { InvoicingSettings } from "@/components/admin/settings/invoicing-settings"
 import { SellerBillingProfile } from "@/components/admin/settings/seller-billing-profile"
+import { BillingSetupCard } from "@/components/admin/settings/billing-setup-card"
+import { computeBillingSetup } from "@/lib/billing/setup-checklist"
 import { SecuritySettings } from "@/components/admin/settings/security-settings"
 import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
@@ -37,8 +39,23 @@ import { smsCredits } from "@/lib/db/schema"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
-export default async function ParametresPage() {
+// Onglets valides : un ?tab= inconnu retombe sur "business" (jamais de panneau vide).
+const SETTINGS_TABS = [
+  "business", "site", "gallery", "reviews", "custom-requests", "appearance",
+  "travel", "hours", "timeoff", "planning", "payments", "promo", "invoicing",
+  "sms", "security", "data", "support",
+] as const
+
+export default async function ParametresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const { tenant } = await requireCompanyMember()
+  // Deep-link d'onglet (ex. depuis l'onboarding). Uncontrolled : l'utilisateur
+  // peut toujours changer d'onglet librement ensuite.
+  const { tab } = await searchParams
+  const initialTab = tab && (SETTINGS_TABS as readonly string[]).includes(tab) ? tab : "business"
 
   const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
     await Promise.all([
@@ -76,7 +93,7 @@ export default async function ParametresPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="business" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         {/* Barre d'onglets : une seule ligne, défilement horizontal sur mobile. */}
         <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 p-1">
@@ -247,6 +264,28 @@ export default async function ParametresPage() {
           />
         </TabsContent>
         <TabsContent value="invoicing" className="mt-6 space-y-6">
+          {/* Carte d'avancement de la configuration de facturation, calculée à
+              partir des données RÉELLES du profil (aucune case cochée à la main). */}
+          <BillingSetupCard
+            data={computeBillingSetup({
+              country: (tenant.country ?? "FR").toUpperCase(),
+              confirmed: Boolean(fullSettings?.billingProfileConfirmedAt),
+              legalForm: fullSettings?.legalForm,
+              legalRegistrationNumber:
+                fullSettings?.legalRegistrationNumber ??
+                ((tenant.country ?? "FR").toUpperCase() === "FR" ? fullSettings?.invoiceSiret : ""),
+              vatNumber: fullSettings?.vatNumber,
+              vatStatus: fullSettings?.vatStatus,
+              vatEnabled: fullSettings?.vatEnabled ?? false,
+              vatExemptNote: fullSettings?.vatExemptNote,
+              defaultCurrency: fullSettings?.defaultCurrency,
+              invoiceCompanyAddress: fullSettings?.invoiceCompanyAddress,
+              invoiceIban: fullSettings?.invoiceIban,
+              invoiceDueDays: fullSettings?.invoiceDueDays,
+              invoicePrefix: fullSettings?.invoicePrefix,
+              frBusinessCategory: fullSettings?.frBusinessCategory,
+            })}
+          />
           <SellerBillingProfile
             country={(tenant.country ?? "FR").toUpperCase()}
             confirmed={Boolean(fullSettings?.billingProfileConfirmedAt)}
@@ -276,6 +315,8 @@ export default async function ParametresPage() {
             invoiceEmailSubject={fullSettings?.invoiceEmailSubject ?? ""}
             invoiceEmailBody={fullSettings?.invoiceEmailBody ?? ""}
             invoiceLogoPathname={fullSettings?.invoiceLogoPathname ?? null}
+            sellerCountry={(tenant.country ?? "FR").toUpperCase()}
+            sellerVatStatus={fullSettings?.vatStatus ?? "unknown"}
           />
         </TabsContent>
         <TabsContent value="security" className="mt-6">
