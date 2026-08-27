@@ -7,7 +7,7 @@ import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-re
 import { CompanyRowActions } from "@/components/super-admin/company-row-actions"
 import { LicensePanel } from "@/components/super-admin/license-panel"
 import { tenantAdminUrl, tenantPublicUrl } from "@/lib/tenant-shared"
-import { customSiteLabel } from "@/lib/custom-sites/registry"
+import { customSiteLabel, listRegisteredCustomSites } from "@/lib/custom-sites/registry"
 
 export type CompanyCardData = {
   id: number
@@ -109,7 +109,13 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
             {pending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
             Réinitialiser le mot de passe
           </button>
-          <CompanyRowActions companyId={company.id} companyName={company.name} status={company.status} />
+          <CompanyRowActions
+          companyId={company.id}
+          companyName={company.name}
+          status={company.status}
+          customSiteKey={company.customSiteKey}
+          customSiteOptions={listRegisteredCustomSites()}
+        />
         </div>
       </div>
 
