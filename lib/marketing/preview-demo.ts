@@ -243,10 +243,10 @@ export const DEMO_INVOICE: InvoiceRow = {
 }
 
 export const DEMO_INVOICE_ITEMS: InvoiceItemRow[] = [
-  { id: 1, invoiceId: 1, kind: "service", label: "Detailing complet", description: "SUV / 4x4 · BMW X3", quantity: 1, unitPriceCents: 39000, sortOrder: 0 },
-  { id: 2, invoiceId: 1, kind: "option", label: "Rénovation optiques de phares", description: null, quantity: 1, unitPriceCents: 4000, sortOrder: 1 },
-  { id: 3, invoiceId: 1, kind: "option", label: "Traitement anti-pluie pare-brise", description: null, quantity: 1, unitPriceCents: 2500, sortOrder: 2 },
-  { id: 4, invoiceId: 1, kind: "travel", label: "Déplacement (12 km)", description: null, quantity: 1, unitPriceCents: 1500, sortOrder: 3 },
+  { id: 1, invoiceId: 1, originalInvoiceItemId: null, kind: "service", label: "Detailing complet", description: "SUV / 4x4 · BMW X3", quantity: 1, unitPriceCents: 39000, sortOrder: 0 },
+  { id: 2, invoiceId: 1, originalInvoiceItemId: null, kind: "option", label: "Rénovation optiques de phares", description: null, quantity: 1, unitPriceCents: 4000, sortOrder: 1 },
+  { id: 3, invoiceId: 1, originalInvoiceItemId: null, kind: "option", label: "Traitement anti-pluie pare-brise", description: null, quantity: 1, unitPriceCents: 2500, sortOrder: 2 },
+  { id: 4, invoiceId: 1, originalInvoiceItemId: null, kind: "travel", label: "Déplacement (12 km)", description: null, quantity: 1, unitPriceCents: 1500, sortOrder: 3 },
 ]
 
 export const DEMO_INVOICE_PAYMENTS: InvoicePaymentRow[] = [
