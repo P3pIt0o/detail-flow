@@ -35,11 +35,26 @@ export function SiteTracker() {
     const visitorId = getVisitorId()
     if (!visitorId) return
 
+    // Le tenant est porté par `?tenant=<slug>` sur le domaine racine (routage
+    // multi-tenant de production) ET en aperçu/dev. Un `fetch("/api/track")`
+    // relatif PERD cette query → le middleware ne peut plus résoudre le tenant
+    // (x-tenant-slug vide) et la route répond 204 sans rien enregistrer. On
+    // reconduit donc explicitement `?tenant=` depuis l'URL courante. Sur un vrai
+    // sous-domaine ({slug}.detailflow.fr) il n'y a pas de query : l'hôte suffit,
+    // et l'URL reste `/api/track` sans query (comportement identique).
+    let url = "/api/track"
+    try {
+      const tenant = new URLSearchParams(window.location.search).get("tenant")
+      if (tenant) url = `/api/track?tenant=${encodeURIComponent(tenant)}`
+    } catch {
+      // Environnement sans window (défensif) : on garde l'URL relative simple.
+    }
+
     const controller = new AbortController()
     // Léger délai : évite de compter les prefetch/navigations instantanées et
     // les rebonds < 400ms qui ressemblent à du bruit.
     const t = setTimeout(() => {
-      fetch("/api/track", {
+      fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ visitorId, event: "pageview" }),
