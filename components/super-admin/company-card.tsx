@@ -7,6 +7,7 @@ import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-re
 import { CompanyRowActions } from "@/components/super-admin/company-row-actions"
 import { LicensePanel } from "@/components/super-admin/license-panel"
 import { tenantAdminUrl, tenantPublicUrl } from "@/lib/tenant-shared"
+import { customSiteLabel } from "@/lib/custom-sites/registry"
 
 export type CompanyCardData = {
   id: number
@@ -21,6 +22,7 @@ export type CompanyCardData = {
   ownerActivated: boolean
   licensePlan: string | null
   licenseGeneration: string | null
+  customSiteKey: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -124,6 +126,14 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
         <div>
           <p className="text-xs text-muted-foreground">Réservations</p>
           <p className="font-medium text-foreground">{company.bookingCount}</p>
+        </div>
+        <div>
+          {/* Site public : "Site standard" par défaut ; nom du site personnalisé
+              s'il est enregistré. Lecture seule (attribution via action serveur). */}
+          <p className="text-xs text-muted-foreground">Site public</p>
+          <p className="font-medium text-foreground">
+            {customSiteLabel(company.customSiteKey) ?? "Site standard"}
+          </p>
         </div>
       </div>
 

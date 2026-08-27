@@ -130,6 +130,24 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // comportement par défaut du composant Footer si le tenant n'a rien renseigné.
   const footerContent = resolveSiteContent(tenant?.siteContent).footer
 
+  // DISPATCH DE SHELL : un site personnalisé enregistré avec `ownShell` fournit
+  // sa PROPRE navigation/pied de page. On n'applique alors pas la Navbar/Footer
+  // standard, mais on CONSERVE le tracking et les gardes communes. Clé null ou
+  // inconnue => `null` => shell standard exact ci-dessous (aucune régression).
+  const customSite = await resolveCustomSite()
+  const useOwnShell = Boolean(customSite?.ownShell)
+
+  if (useOwnShell) {
+    return (
+      <div style={hasBrandColors ? brandStyle : undefined}>
+        {tenant && <SiteTracker />}
+        {contact.name && <StructuredData name={contact.name} contact={contact} />}
+        <main id="contenu">{children}</main>
+        <WhatsAppButton phone={contact.phoneRaw} />
+      </div>
+    )
+  }
+
   return (
     <div style={hasBrandColors ? brandStyle : undefined}>
       {/* Tracking analytics des pages publiques tenant uniquement (jamais admin,

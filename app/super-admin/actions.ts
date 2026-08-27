@@ -18,6 +18,7 @@ import { sendEmail } from "@/lib/email/send"
 import { smsCreditedEmail } from "@/lib/email/templates"
 import { tenantAdminUrl } from "@/lib/tenant-shared"
 import { setDefaultPlatformFeeBps } from "@/lib/payments/config"
+import { isRegisteredCustomSiteKey, customSiteLabel } from "@/lib/custom-sites/registry"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions de super-administration. TOUTES commencent par requireSuperAdmin().*/
@@ -415,6 +416,56 @@ export async function setCompanyFeeOverrideAction(
     return {
       ok: true,
       message: bps === null ? "Override retiré (commission globale appliquée)." : `Commission spécifique : ${percent} %.`,
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Site public personnalisé (customSiteKey)                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Attribue ou retire le site public personnalisé d'une entreprise.
+ *
+ * SÉCURITÉ / VALIDATION (toujours CÔTÉ SERVEUR) :
+ *  - Réservé au super-admin (requireSuperAdmin).
+ *  - `key === null` (ou vide) => retire la personnalisation => site STANDARD.
+ *  - Toute clé non enregistrée dans le registre est REFUSÉE (jamais écrite),
+ *    ce qui empêche d'inscrire une valeur arbitraire venue du navigateur.
+ *  - Additif et réversible : ne touche qu'à la colonne `customSiteKey`, ne
+ *    supprime aucune donnée et n'affecte aucun autre tenant.
+ */
+export async function setCustomSiteKeyAction(
+  companyId: number,
+  key: string | null,
+): Promise<ActionState> {
+  await requireSuperAdmin()
+  if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Entreprise invalide." }
+
+  const normalized = (key ?? "").trim()
+
+  // Clé fournie mais inconnue du registre => refus strict (aucune écriture).
+  if (normalized !== "" && !isRegisteredCustomSiteKey(normalized)) {
+    return { ok: false, error: "Clé de site personnalisé inconnue (non enregistrée)." }
+  }
+
+  const value = normalized === "" ? null : normalized
+
+  try {
+    await db
+      .update(companies)
+      .set({ customSiteKey: value, updatedAt: new Date() })
+      .where(eq(companies.id, companyId))
+    revalidatePath("/super-admin")
+    revalidatePath("/super-admin/companies")
+    return {
+      ok: true,
+      message:
+        value === null
+          ? "Site standard rétabli."
+          : `Site personnalisé attribué : ${customSiteLabel(value) ?? value}.`,
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }

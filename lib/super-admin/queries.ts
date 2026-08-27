@@ -34,6 +34,8 @@ export type CompanyRow = {
   /** Licence commerciale (null = tenant historique en accès LEGACY). */
   licensePlan: string | null
   licenseGeneration: string | null
+  /** Clé de site public personnalisé (null = site standard DetailFlow). */
+  customSiteKey: string | null
 }
 
 /** Liste toutes les entreprises avec quelques compteurs utiles. */
@@ -51,6 +53,7 @@ export async function listCompanies(): Promise<CompanyRow[]> {
       ownerEmail: companies.email,
       licensePlan: companies.licensePlan,
       licenseGeneration: companies.licenseGeneration,
+      customSiteKey: companies.customSiteKey,
       // Corrélation qualifiée explicitement (`"companies"."id"`) : les tables
       // internes (company_members, bookings, session) possèdent toutes une
       // colonne `id`, donc un `id` non qualifié serait ambigu / mal résolu.
