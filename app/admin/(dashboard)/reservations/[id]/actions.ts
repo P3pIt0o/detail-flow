@@ -25,7 +25,8 @@ import { revalidatePath } from "next/cache"
 import { eq, inArray, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
-import { requireCompanyMember } from "@/lib/admin"
+import { requireCompanyMember, requireCompanyRole } from "@/lib/admin"
+import { requestRefund } from "@/lib/payments/refunds"
 import { getSettings, getActiveBookingsForDate, countVehiclesForDate } from "@/lib/booking/queries"
 import { buildQuote } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
@@ -325,4 +326,74 @@ export async function deleteBookingAction(bookingId: number): Promise<DeleteBook
   revalidatePath("/admin/reservations")
   revalidatePath("/admin/calendrier")
   return { ok: true }
+}
+
+/* ============================================================================
+ *  ACTION SERVEUR — REMBOURSEMENT STRIPE (admin tenant)
+ * ============================================================================
+ *  Autorisation : OWNER/ADMIN uniquement (droit financier `payments.refund`) —
+ *  un EMPLOYEE ne peut pas rembourser. Le `companyId` et l'identité viennent
+ *  EXCLUSIVEMENT du contexte serveur (requireCompanyRole), jamais du navigateur.
+ *
+ *  Toute la logique financière (montant ≤ remboursable, verrou anti-concurrence,
+ *  idempotence, appel Stripe sur le compte connecté du tenant, statut final via
+ *  webhook) est déléguée à `requestRefund` (lib/payments/refunds.ts). Le
+ *  paiement d'origine et la réservation ne sont jamais supprimés.
+ * ========================================================================== */
+
+export type RefundActionInput = {
+  bookingId: number
+  paymentId: number
+  amountCents: number
+  reason: string
+  /** Clé d'idempotence STABLE générée par le client à l'ouverture du dialog. */
+  idempotencyKey: string
+}
+
+export type RefundActionResult =
+  | { ok: true; status: string; duplicate?: boolean }
+  | { ok: false; error: string }
+
+/** Messages FR simples (professionnels du detailing, pas des juristes). */
+const REFUND_ERROR_FR: Record<string, string> = {
+  reason_required: "Le motif du remboursement est obligatoire.",
+  invalid_amount: "Le montant à rembourser est invalide.",
+  payment_not_refundable: "Ce paiement ne peut pas être remboursé.",
+  already_refunded: "Ce paiement est déjà intégralement remboursé.",
+  exceeds_refundable: "Le montant dépasse le montant encore remboursable.",
+  payment_not_found: "Paiement introuvable.",
+  missing_stripe_context: "Configuration Stripe indisponible pour ce paiement.",
+  stripe_error: "Stripe a refusé le remboursement. Vérifiez votre solde et réessayez.",
+  invalid_idempotency_key: "Requête invalide. Rechargez la page et réessayez.",
+  internal_error: "Une erreur est survenue. Merci de réessayer.",
+}
+
+export async function refundPaymentAction(input: RefundActionInput): Promise<RefundActionResult> {
+  // Droit financier requis (OWNER/ADMIN). Un EMPLOYEE est refusé (notFound).
+  const { tenant, user } = await requireCompanyRole(["OWNER", "ADMIN"])
+  const companyId = tenant.id
+
+  if (!Number.isInteger(input.bookingId) || !Number.isInteger(input.paymentId)) {
+    return { ok: false, error: "Réservation ou paiement invalide." }
+  }
+  if (!input.reason || input.reason.trim().length === 0) {
+    return { ok: false, error: REFUND_ERROR_FR.reason_required }
+  }
+
+  const res = await requestRefund({
+    bookingId: input.bookingId,
+    paymentId: input.paymentId,
+    companyId,
+    amountCents: input.amountCents,
+    reason: input.reason,
+    initiatedByUserId: user.id,
+    idempotencyKey: input.idempotencyKey,
+  })
+
+  if (!res.ok) {
+    return { ok: false, error: REFUND_ERROR_FR[res.error] ?? REFUND_ERROR_FR.internal_error }
+  }
+
+  revalidatePath(`/admin/reservations/${input.bookingId}`)
+  return { ok: true, status: res.status, duplicate: res.duplicate }
 }

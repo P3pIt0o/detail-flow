@@ -65,18 +65,25 @@ const stripeProvider: PaymentProvider = {
     return { externalId: session.id, clientSecret: session.client_secret }
   },
 
-  async refundPayment(paymentIntentId, connectedAccountId, amountCents) {
+  async refundPayment(paymentIntentId, connectedAccountId, options) {
     const stripe = getStripe()
+    const amountCents = options?.amountCents
     // Direct Charge : le remboursement se fait DANS LE CONTEXTE du compte
     // connecté. `refund_application_fee` reprend la commission éventuelle.
-    await stripe.refunds.create(
+    // `idempotencyKey` (STABLE) garantit qu'un double clic / retry ne crée
+    // qu'UN seul remboursement chez Stripe.
+    const refund = await stripe.refunds.create(
       {
         payment_intent: paymentIntentId,
         ...(amountCents != null ? { amount: amountCents } : {}),
         refund_application_fee: true,
       },
-      { stripeAccount: connectedAccountId },
+      {
+        stripeAccount: connectedAccountId,
+        ...(options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+      },
     )
+    return { externalRefundId: refund.id, providerStatus: refund.status ?? null }
   },
 }
 

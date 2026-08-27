@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm"
 import {
   pgTable,
   text,
@@ -11,6 +12,7 @@ import {
   unique,
   index,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core"
 
 /* -------------------------------------------------------------------------- */
@@ -1153,3 +1155,66 @@ export const paymentEvents = pgTable("payment_events", {
   type: text("type"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 })
+
+/**
+ * Un remboursement rattaché à un `payment`. Chaque remboursement est une
+ * OPÉRATION DISTINCTE : le paiement d'origine n'est jamais modifié/supprimé,
+ * seuls ses agrégats (`refundedAmountCents`/`refundedAt`/`status`) sont
+ * recalculés à partir des lignes `refunds` réellement `succeeded`.
+ * Montants en centimes entiers. Persistance requise via
+ * `scripts/refunds-table-migration.sql` (migration additive, non exécutée ici).
+ */
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    paymentId: integer("paymentId")
+      .notNull()
+      .references(() => payments.id, { onDelete: "restrict" }),
+    bookingId: integer("bookingId")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "restrict" }),
+    provider: text("provider").notNull().default("stripe"),
+    // Identifiant Stripe du remboursement (re_...), connu après appel/webhook.
+    externalRefundId: text("externalRefundId"),
+    amountCents: integer("amountCents").notNull(),
+    currency: text("currency").notNull().default("EUR"),
+    // Motif obligatoire (jamais de donnée bancaire/personnelle sensible).
+    reason: text("reason").notNull(),
+    // requested | pending | succeeded | failed | canceled
+    status: text("status").notNull().default("pending"),
+    // Traçabilité de l'opérateur (id user), sans donnée personnelle client.
+    initiatedByUserId: text("initiatedByUserId"),
+    // Clé d'idempotence STABLE (anti double clic / double création).
+    idempotencyKey: text("idempotencyKey"),
+    meta: jsonb("meta").notNull().default({}),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    succeededAt: timestamp("succeededAt"),
+    failedAt: timestamp("failedAt"),
+    canceledAt: timestamp("canceledAt"),
+  },
+  (t) => ({
+    byCompany: index("refunds_companyId_idx").on(t.companyId),
+    byPayment: index("refunds_paymentId_idx").on(t.paymentId),
+    byBooking: index("refunds_bookingId_idx").on(t.bookingId),
+    // Filtres fréquents : par tenant + statut, et par tenant + date.
+    byCompanyStatus: index("refunds_company_status_idx").on(t.companyId, t.status),
+    byCompanyCreated: index("refunds_company_created_idx").on(t.companyId, t.createdAt),
+    // Idempotence webhook : un remboursement Stripe ne peut exister qu'une fois.
+    uniqExternal: unique("refunds_external_key").on(t.provider, t.externalRefundId),
+    // Idempotence création : un double clic réutilise la clé => une seule ligne.
+    uniqIdem: unique("refunds_idempotency_key").on(t.idempotencyKey),
+    // Garanties SQL alignées sur scripts/refunds-table-migration.sql.
+    amountPositive: check("refunds_amount_positive", sql`${t.amountCents} > 0`),
+    reasonLen: check("refunds_reason_len", sql`char_length(${t.reason}) between 1 and 500`),
+    statusValid: check(
+      "refunds_status_valid",
+      sql`${t.status} in ('requested', 'pending', 'succeeded', 'failed', 'canceled')`,
+    ),
+    currencyIso: check("refunds_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  }),
+)

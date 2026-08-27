@@ -789,3 +789,50 @@ export function smsCreditedEmail(opts: {
     }),
   }
 }
+
+/* ------------------------------ Remboursement ------------------------------ */
+
+/**
+ * Email CLIENT : confirmation d'un remboursement Stripe (envoyé UNIQUEMENT
+ * après confirmation du webhook, jamais au simple clic). Indique le montant, le
+ * caractère total/partiel, la référence, le moyen de paiement d'origine et un
+ * délai bancaire ESTIMATIF (jamais une promesse). Réutilise le layout de marque.
+ */
+export function refundConfirmationClientEmail(
+  b: BookingEmailData,
+  refund: { amountCents: number; fullyRefunded: boolean; remainingPaidCents?: number },
+) {
+  const kind = refund.fullyRefunded ? "intégralement remboursé" : "partiellement remboursé"
+  const remaining =
+    !refund.fullyRefunded && (refund.remainingPaidCents ?? 0) > 0
+      ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 4px;">
+           Montant restant réglé sur cette réservation :
+           <strong style="color:${INK};">${formatPrice(refund.remainingPaidCents ?? 0)}</strong>.
+         </p>`
+      : ""
+  return {
+    subject: `Remboursement confirmé — réservation ${b.reference}`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Votre remboursement est confirmé",
+      accent: STATUS_GREEN,
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Bonjour ${esc(b.customerName)}, votre paiement a été ${esc(kind)} pour un montant de
+          <strong style="color:${INK};">${formatPrice(refund.amountCents)}</strong>.
+        </p>
+        ${remaining}
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Le remboursement est effectué sur le moyen de paiement utilisé lors de votre règlement.
+          Le délai d&apos;apparition sur votre compte dépend de votre banque (généralement quelques
+          jours ouvrés).
+        </p>
+        <div style="background:${BG};border-radius:10px;padding:14px 18px;margin:8px 0 4px;">
+          <div style="font-size:13px;color:${MUTED};margin-bottom:2px;">Référence</div>
+          <div style="font-size:15px;font-weight:700;color:${INK};">${esc(b.reference)}</div>
+        </div>`,
+    }),
+  }
+}

@@ -56,12 +56,36 @@ export type CreatePaymentResult = {
   clientSecret: string
 }
 
+/** Options d'un remboursement provider. */
+export type RefundOptions = {
+  /** Montant à rembourser (centimes). Absent = remboursement intégral. */
+  amountCents?: number
+  /** Clé d'idempotence STABLE (anti double création côté provider). */
+  idempotencyKey?: string
+}
+
+/** Résultat générique d'un remboursement provider. */
+export type RefundResult = {
+  /** Identifiant du remboursement chez le provider (ex. Stripe `re_...`). */
+  externalRefundId: string
+  /** Statut BRUT du provider (traduit ensuite via mapStripeRefundStatus). */
+  providerStatus: string | null
+}
+
 /** Abstraction minimale d'un provider de paiement. */
 export interface PaymentProvider {
   readonly id: PaymentProviderId
   readonly capabilities: ProviderCapabilities
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>
-  refundPayment(externalId: string, connectedAccountId: string, amountCents?: number): Promise<void>
+  /**
+   * Rembourse (total ou partiel) un paiement chez le provider, DANS LE CONTEXTE
+   * du compte connecté (Direct Charges). Idempotent via `options.idempotencyKey`.
+   */
+  refundPayment(
+    externalId: string,
+    connectedAccountId: string,
+    options?: RefundOptions,
+  ): Promise<RefundResult>
 }
 
 /** Calcule la commission plateforme (centimes) à partir d'un taux en bps. */

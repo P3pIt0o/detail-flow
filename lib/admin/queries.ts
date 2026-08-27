@@ -1,8 +1,9 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases } from "@/lib/db/schema"
-import { and, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-orm"
+import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases, payments } from "@/lib/db/schema"
+import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
 import { requireCompanyId } from "@/lib/tenant"
+import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 
 /**
  * Lectures du dashboard administrateur — ISOLÉES PAR ENTREPRISE.
@@ -116,7 +117,7 @@ export async function getDashboardStats(companyId?: number) {
   const today = todayISO()
   const { start, end } = monthRange()
 
-  const [upcoming, pending, monthRevenue, monthCount, totalClients, monthProducts] = await Promise.all([
+  const [upcoming, pending, monthRevenue, monthCount, totalClients, monthProducts, monthPayments] = await Promise.all([
     // Réservations à venir (confirmées, à partir d'aujourd'hui)
     db
       .select({ n: count() })
@@ -168,19 +169,63 @@ export async function getDashboardStats(companyId?: number) {
           lte(productPurchases.purchaseDate, end),
         ),
       ),
+    // ENCAISSÉ : paiements réellement encaissés du tenant, retenus si leur date
+    // d'encaissement (paidAt) OU de remboursement (refundedAt) tombe dans le
+    // mois. Scopé companyId (isolation) + statuts réellement payés. Le calcul
+    // précis (anti double comptage, dates, exclusion frais) est délégué au
+    // helper PUR `computeMonthlyFinancials`.
+    db
+      .select({
+        grossAmountCents: payments.grossAmountCents,
+        refundedAmountCents: payments.refundedAmountCents,
+        status: payments.status,
+        paidAt: payments.paidAt,
+        refundedAt: payments.refundedAt,
+      })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.companyId, cid),
+          inArray(payments.status, [...COLLECTED_STATUSES]),
+          or(
+            sql`${payments.paidAt}::date >= ${start} and ${payments.paidAt}::date <= ${end}`,
+            sql`${payments.refundedAt}::date >= ${start} and ${payments.refundedAt}::date <= ${end}`,
+          ),
+        ),
+      ),
   ])
 
   const monthRevenueCents = Number(monthRevenue[0]?.total ?? 0)
   const monthProductsCents = Number(monthProducts[0]?.total ?? 0)
 
+  // Indicateurs financiers centralisés dans un helper PUR et typé.
+  const financials = computeMonthlyFinancials({
+    invoicedRevenueCents: monthRevenueCents,
+    productCostsCents: monthProductsCents,
+    payments: monthPayments as PaymentRow[],
+    start,
+    end,
+  })
+
   return {
     upcomingCount: upcoming[0]?.n ?? 0,
     pendingCount: pending[0]?.n ?? 0,
+    // `monthRevenueCents` = CA FACTURÉ (factures payées − avoirs). Nom de champ
+    // conservé pour compat (marketing/preview) ; le libellé UI devient
+    // « CA facturé ce mois ». Alias explicite ajouté ci-dessous.
     monthRevenueCents,
+    invoicedRevenueCents: financials.invoicedRevenueCents,
+    // ENCAISSÉ ce mois (paiements réels, par paidAt, brut de frais Stripe),
+    // net des remboursements réellement exécutés (par refundedAt).
+    collectedGrossCents: financials.collectedGrossCents,
+    refundedCents: financials.refundedCents,
+    collectedNetCents: financials.collectedNetCents,
+    // Frais de paiement : source fiable à venir → null (jamais 0 artificiel).
+    paymentFeesCents: financials.paymentFeesCents,
     monthBookingsCount: monthCount[0]?.n ?? 0,
     totalClients: Number(totalClients[0]?.n ?? 0),
-    // Charges produits/consommables + résultat estimé (CA - achats). Ne modifie
-    // pas le calcul du CA lui-même, qui reste basé sur les factures payées.
+    // Charges produits/consommables + résultat estimé (CA facturé − achats). Ne
+    // modifie pas le calcul du CA lui-même, basé sur les factures payées.
     monthProductsCents,
     monthResultCents: monthRevenueCents - monthProductsCents,
   }

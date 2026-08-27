@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Euro, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock } from "lucide-react"
+import { Euro, Wallet, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock } from "lucide-react"
 import {
   getDashboardStats,
   getUpcomingBookingsDetailed,
@@ -96,7 +96,11 @@ export default async function DashboardPage({
   const kpis: { label: string; value: string; icon: typeof Euro; accent: boolean }[] = []
   if (canStats && stats) {
     kpis.push(
-      { label: "CA du mois", value: formatPrice(stats.monthRevenueCents), icon: Euro, accent: true },
+      // « CA facturé » (factures émises − avoirs) et « Encaissé » (argent
+      // réellement reçu, par date de paiement, brut de frais Stripe, net des
+      // remboursements) sont deux notions DISTINCTES, jamais confondues.
+      { label: "CA facturé ce mois", value: formatPrice(stats.monthRevenueCents), icon: Euro, accent: true },
+      { label: "Encaissé ce mois", value: formatPrice(stats.collectedNetCents), icon: Wallet, accent: true },
       { label: "Dépenses produits", value: formatPrice(stats.monthProductsCents), icon: PackageMinus, accent: false },
     )
   }
@@ -155,9 +159,15 @@ export default async function DashboardPage({
               </div>
             ))}
           </div>
+          {canStats ? (
+            <p className="mt-2 text-[11px] text-muted-foreground text-pretty">
+              CA facturé = factures émises (moins avoirs). Encaissé = paiements réellement reçus ce mois (par date de
+              paiement), montant brut avant frais Stripe et net des remboursements. Ces deux montants sont distincts.
+            </p>
+          ) : null}
           {canProfit ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Bénéfice estimé = chiffre d&apos;affaires − dépenses produits du mois. Estimation indicative, non comptable.
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Bénéfice estimé = CA facturé − dépenses produits du mois. Estimation indicative, non comptable.
             </p>
           ) : null}
         </>
