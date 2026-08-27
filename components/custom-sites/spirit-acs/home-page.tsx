@@ -14,6 +14,7 @@
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import type { CustomRequestsConfig } from "@/lib/custom-requests"
 import { activeTypes } from "@/lib/custom-requests"
+import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritHero } from "./spirit-hero"
 import { SpiritReassurance } from "./spirit-reassurance"
@@ -23,7 +24,20 @@ import { SpiritApropos } from "./spirit-apropos"
 import { SpiritReservation } from "./spirit-reservation"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritFinalCta } from "./spirit-final-cta"
-import { SPIRIT_SECTIONS, type SpiritNavItem, type SpiritService, type SpiritResolvedContent } from "./tokens"
+import {
+  SPIRIT_SECTIONS,
+  SPIRIT_LOGO_FALLBACK,
+  type SpiritNavItem,
+  type SpiritService,
+  type SpiritResolvedContent,
+} from "./tokens"
+
+/** Renvoie la valeur seulement si le tenant l'a personnalisée (≠ défaut neutre du socle). */
+function nonDefault(value: string | null | undefined, fallback: string): string | null {
+  const v = (value ?? "").trim()
+  if (!v || v === fallback.trim()) return null
+  return v
+}
 
 export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // Chargement en parallèle — uniquement les données réellement affichées.
@@ -41,6 +55,19 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   const quoteEnabled = customRequests.enabled && activeTypes(customRequests).length > 0
 
   const brandName = contact.name?.trim() || data.tenant.name
+
+  // Logo RÉEL du tenant servi via la route sécurisée existante (le contrat
+  // expose un PATHNAME Blob, jamais une URL directe). Repli : logo Spirit
+  // officiel embarqué (jamais un faux logo typographique).
+  const logoSrc = data.tenant.logoUrl
+    ? `/api/company-logo?company=${encodeURIComponent(data.tenant.slug)}`
+    : SPIRIT_LOGO_FALLBACK
+
+  // Textes d'introduction : on n'affiche QUE le contenu réellement personnalisé
+  // par le tenant (on masque les phrases marketing par défaut du socle).
+  const servicesIntro = nonDefault(content.services.intro, SITE_CONTENT_DEFAULTS.services.intro)
+  const galleryIntro = nonDefault(content.gallery.intro, SITE_CONTENT_DEFAULTS.gallery.intro)
+  const reviewsIntro = nonDefault(content.reviews.intro, SITE_CONTENT_DEFAULTS.reviews.intro)
 
   // Prestations aminçies (sérialisables) pour le composant client.
   const services: SpiritService[] = servicesRaw.map((s) => ({
@@ -69,7 +96,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   return (
     <SpiritSiteShell
       brandName={brandName}
-      logoSrc={data.tenant.logoUrl}
+      logoSrc={logoSrc}
       navItems={navItems}
       reserveHref="/reservation"
       phone={contact.phone}
@@ -93,13 +120,13 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         <SpiritPrestations
           eyebrow={content.services.eyebrowEnabled ? content.services.eyebrow : null}
           title={content.services.titleEnabled ? content.services.title : null}
-          intro={content.services.intro}
+          intro={servicesIntro}
           services={services}
         />
       )}
 
       {hasGallery && content.gallery.enabled && (
-        <SpiritRealisations title={content.gallery.title} intro={content.gallery.intro} items={gallery} />
+        <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
       )}
 
       <SpiritApropos
@@ -111,7 +138,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
 
       <SpiritReservation />
 
-      {hasReviews && <SpiritAvis title={content.reviews.title} intro={content.reviews.intro} reviews={reviews} />}
+      {hasReviews && <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviews} />}
 
       <SpiritFinalCta title={content.contact.title} address={contact.address} quoteEnabled={quoteEnabled} />
     </SpiritSiteShell>

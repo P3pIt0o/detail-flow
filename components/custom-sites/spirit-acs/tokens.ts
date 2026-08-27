@@ -24,15 +24,23 @@ export const SPIRIT_SECTIONS = {
  * ces valeurs scopées, sans toucher au thème global des autres tenants.
  */
 export const SPIRIT_BTN_PRIMARY =
-  "bg-[var(--spirit-pink)] text-white shadow-none hover:bg-[var(--spirit-pink-strong)] hover:shadow-[0_12px_34px_-12px_var(--spirit-pink)]"
+  "h-12 rounded-sm bg-[var(--spirit-pink)] text-white shadow-none hover:bg-[var(--spirit-pink-strong)] hover:brightness-100 hover:shadow-[0_12px_30px_-14px_var(--spirit-pink)]"
 
 /** Bouton secondaire « contour clair » sur fond sombre (variant outline). */
 export const SPIRIT_BTN_GHOST =
-  "border-white/35 bg-transparent text-white hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
+  "h-12 rounded-sm border-white/35 bg-transparent text-white hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
 
 /** Bouton secondaire « contour sombre » sur fond clair (variant outline). */
 export const SPIRIT_BTN_GHOST_DARK =
-  "border-[color:var(--spirit-ink)]/20 bg-transparent text-[var(--spirit-ink)] hover:border-[var(--spirit-teal-strong)] hover:text-[var(--spirit-teal-strong)]"
+  "h-12 rounded-sm border-[color:var(--spirit-ink)]/25 bg-transparent text-[var(--spirit-ink)] hover:border-[var(--spirit-teal-strong)] hover:text-[var(--spirit-teal-strong)]"
+
+/**
+ * Logo Spirit officiel EMBARQUÉ (asset réel, repli quand le tenant n'a pas
+ * encore téléversé son logo). N'est jamais un faux logo typographique : c'est
+ * le logo de marque fourni. En production, le logo réel du tenant
+ * (`/api/company-logo`) reste prioritaire.
+ */
+export const SPIRIT_LOGO_FALLBACK = "/spirit-acs/logo.png"
 
 /**
  * Contenu éditable résolu des sections statiques (miroir de la valeur renvoyée

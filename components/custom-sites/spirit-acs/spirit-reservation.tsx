@@ -29,15 +29,15 @@ const STEPS = [
 export function SpiritReservation() {
   return (
     <section className="bg-[var(--spirit-paper-2)] text-[color:var(--spirit-ink)]">
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-16">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
           <div>
             <Reveal>
               <span className="spirit-rule" />
-              <h2 className="spirit-title mt-4 text-balance text-4xl sm:text-5xl">Réservez en quelques clics</h2>
+              <h2 className="spirit-title mt-4 text-balance text-3xl sm:text-4xl">Réservez en quelques clics</h2>
             </Reveal>
 
-            <ol className="mt-10 space-y-8">
+            <ol className="mt-8 space-y-6">
               {STEPS.map((step, i) => (
                 <Reveal key={step.title} delay={i * 0.08}>
                   <li className="flex gap-5">
@@ -57,7 +57,7 @@ export function SpiritReservation() {
           {/* Panneau d'invitation — pas de calendrier factice, redirige vers la
               vraie route de réservation. */}
           <Reveal direction="left">
-            <div className="rounded-2xl border border-[color:var(--spirit-ink)]/10 bg-[var(--spirit-paper)] p-8 sm:p-10">
+            <div className="rounded-md border border-[color:var(--spirit-ink)]/10 bg-[var(--spirit-paper)] p-8 sm:p-10">
               <p className="spirit-eyebrow !text-[color:var(--spirit-teal-strong)]">Réservation en ligne</p>
               <p className="mt-3 text-pretty text-lg leading-relaxed text-[color:var(--spirit-ink)]/80">
                 Prenez rendez-vous en direct : choisissez votre prestation, votre créneau et confirmez en quelques

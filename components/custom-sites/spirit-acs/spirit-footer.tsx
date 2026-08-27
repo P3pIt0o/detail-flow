@@ -30,7 +30,9 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, addre
   const year = new Date().getFullYear()
 
   return (
-    <footer className="border-t border-white/10 bg-[var(--spirit-navy)]">
+    <footer className="bg-[var(--spirit-navy)]">
+      {/* Fin filet d'accent (identité Spirit) séparant la page du pied de page. */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-[var(--spirit-teal)] via-[var(--spirit-pink)] to-[var(--spirit-teal)]" />
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           {/* Marque */}
