@@ -43,19 +43,19 @@ export function SpiritPrestations({ eyebrow, title, intro, services }: SpiritPre
       data-spirit-anchor
       className="bg-[var(--spirit-paper)] text-[color:var(--spirit-ink)]"
     >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
           <span className="spirit-rule" />
           {eyebrow && <p className="spirit-eyebrow mt-4 !text-[color:var(--spirit-teal-strong)]">{eyebrow}</p>}
           {title && (
-            <h2 className="spirit-title mt-2 text-balance text-4xl text-[color:var(--spirit-ink)] sm:text-5xl">
+            <h2 className="spirit-title mt-2 text-balance text-3xl text-[color:var(--spirit-ink)] sm:text-4xl">
               {title}
             </h2>
           )}
           {intro && <p className="mt-4 max-w-2xl text-pretty text-[color:var(--spirit-ink)]/70">{intro}</p>}
         </Reveal>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {services.map((service, i) => {
             const price = formatPrice(service.basePriceCents)
             const href = withTenant(`/reservation?service=${service.id}`, tenant)
@@ -63,7 +63,7 @@ export function SpiritPrestations({ eyebrow, title, intro, services }: SpiritPre
               <Reveal key={service.id} delay={Math.min(i, 3) * 0.08}>
                 <Link
                   href={href}
-                  className="group relative block aspect-[3/4] overflow-hidden rounded-xl bg-[var(--spirit-navy)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)] focus-visible:ring-offset-2"
+                  className="group relative block aspect-[4/3] overflow-hidden rounded-sm bg-[var(--spirit-navy)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)] focus-visible:ring-offset-2 sm:aspect-[3/4]"
                 >
                   <Image
                     src={service.image || "/services/default.png"}

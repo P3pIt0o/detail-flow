@@ -31,11 +31,11 @@ export function SpiritRealisations({ title, intro, items }: SpiritRealisationsPr
 
   return (
     <section id={SPIRIT_SECTIONS.realisations} data-spirit-anchor className="bg-[var(--spirit-navy)]">
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
           <Reveal direction="right">
             <span className="spirit-rule" />
-            <h2 className="spirit-title mt-4 text-balance text-4xl text-white sm:text-5xl">{title}</h2>
+            <h2 className="spirit-title mt-4 text-balance text-3xl text-white sm:text-4xl">{title}</h2>
             {intro && (
               <p className="mt-5 max-w-md text-pretty leading-relaxed text-[color:var(--spirit-muted)]">{intro}</p>
             )}
@@ -59,7 +59,7 @@ export function SpiritRealisations({ title, intro, items }: SpiritRealisationsPr
         </div>
 
         {rest.length > 0 && (
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {rest.map((item, i) => (
               <Reveal key={item.id} delay={Math.min(i, 3) * 0.08}>
                 <figure>

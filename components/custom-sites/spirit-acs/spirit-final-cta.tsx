@@ -13,6 +13,7 @@
 import { MapPin } from "lucide-react"
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
+import { SpiritSplash } from "./spirit-splash"
 import { SPIRIT_BTN_PRIMARY, SPIRIT_BTN_GHOST, SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritFinalCtaProps = {
@@ -26,11 +27,15 @@ export function SpiritFinalCta({ title, address, quoteEnabled }: SpiritFinalCtaP
     <section
       id={SPIRIT_SECTIONS.contact}
       data-spirit-anchor
-      className="relative overflow-hidden bg-[var(--spirit-navy-3)]"
+      className="relative overflow-hidden border-t border-white/10 bg-[var(--spirit-navy-3)]"
     >
-      <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-24">
+      {/* Décor « projection de lavage » de part et d'autre (purement décoratif). */}
+      <SpiritSplash className="pointer-events-none absolute -left-6 bottom-0 hidden h-44 w-52 sm:block" />
+      <SpiritSplash flip className="pointer-events-none absolute -right-6 bottom-0 hidden h-44 w-52 sm:block" />
+
+      <div className="relative mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
-          <h2 className="spirit-title text-balance text-4xl text-white sm:text-5xl">{title}</h2>
+          <h2 className="spirit-title text-balance text-3xl text-white sm:text-4xl">{title}</h2>
         </Reveal>
         <Reveal delay={0.1}>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

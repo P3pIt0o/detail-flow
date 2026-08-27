@@ -140,7 +140,7 @@ export function SpiritNavigation({
           <div className="hidden lg:block">
             <Link
               href={reserve}
-              className="inline-flex h-10 items-center justify-center rounded-full bg-[var(--spirit-pink)] px-6 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)]"
+              className="inline-flex h-10 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)]"
             >
               Réserver
             </Link>
@@ -184,7 +184,7 @@ export function SpiritNavigation({
                   <Link
                     href={reserve}
                     onClick={() => setOpen(false)}
-                    className="inline-flex w-full items-center justify-center rounded-full bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white"
+                    className="inline-flex w-full items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white"
                   >
                     Réserver
                   </Link>
