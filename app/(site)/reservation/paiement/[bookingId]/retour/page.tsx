@@ -3,8 +3,9 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { CheckCircle2, Clock } from "lucide-react"
 import { resolveRequestTenant } from "@/lib/tenant"
-import { bookingHasPaidPayment } from "@/lib/payments/queries"
+import { getBookingPaymentReturnInfo } from "@/lib/payments/queries"
 import { withTenant } from "@/lib/tenant-link"
+import { formatPrice, formatDateLong } from "@/lib/format"
 
 export const metadata: Metadata = {
   title: "Paiement",
@@ -30,7 +31,11 @@ export default async function PaiementRetourPage({
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
 
-  const paid = await bookingHasPaidPayment(id, tenant.id)
+  // Bornée au tenant : une réservation d'un autre tenant renvoie null → 404.
+  const info = await getBookingPaymentReturnInfo(id, tenant.id)
+  if (!info) notFound()
+
+  const paid = info.paid
 
   return (
     <section className="min-h-[70vh] bg-background py-16">
@@ -54,6 +59,35 @@ export default async function PaiementRetourPage({
             ? "Votre réservation est confirmée. Un email récapitulatif vous a été envoyé."
             : "Votre paiement est en cours de traitement. Vous recevrez un email de confirmation dès qu'il sera validé — inutile de payer à nouveau."}
         </p>
+
+        {paid ? (
+          <dl className="mx-auto mt-8 max-w-sm space-y-2 rounded-xl border border-border bg-card p-6 text-left text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Montant réglé</dt>
+              <dd className="font-semibold text-card-foreground">
+                {formatPrice(info.paidCents)}
+                {info.type === "deposit" ? " (acompte)" : ""}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Référence</dt>
+              <dd className="font-medium text-card-foreground">{info.reference}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Rendez-vous</dt>
+              <dd className="text-card-foreground">
+                <span className="capitalize">{formatDateLong(info.date)}</span> à {info.startTime}
+              </dd>
+            </div>
+            {info.remainingCents > 0 ? (
+              <div className="flex justify-between gap-3 border-t border-border pt-2">
+                <dt className="text-muted-foreground">Solde sur place</dt>
+                <dd className="text-card-foreground">{formatPrice(info.remainingCents)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+
         <div className="mt-8">
           <Link
             href={withTenant("/", tenant.slug)}

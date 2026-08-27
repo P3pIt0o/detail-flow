@@ -13,8 +13,37 @@ import {
   statusCancelledEmail,
   bookingUpdatedEmail,
   reminderEmail,
+  paymentReceivedClientEmail,
+  paymentReceivedProEmail,
   type BookingEmailData,
 } from "./templates"
+
+/** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
+function isValidEmail(value: string | null | undefined): value is string {
+  return typeof value === "string" && /\S+@\S+\.\S+/.test(value.trim())
+}
+
+/**
+ * Journal structuré NON SENSIBLE des notifications de paiement. Sert d'historique
+ * minimal (envoyé / échoué / ignoré / déjà traité) sans table dédiée. On ne
+ * journalise JAMAIS d'adresse email, de nom client, de téléphone ni de contenu :
+ * uniquement le rôle du destinataire, l'étape et un message technique borné.
+ */
+function logPayEmail(
+  level: "info" | "error",
+  step: string,
+  data: { bookingId: number; recipient?: "client" | "pro"; message?: string },
+) {
+  const payload = {
+    scope: "payments/email",
+    step,
+    bookingId: data.bookingId,
+    ...(data.recipient ? { recipient: data.recipient } : {}),
+    ...(data.message ? { message: data.message } : {}),
+  }
+  if (level === "error") console.error("[payments-email]", JSON.stringify(payload))
+  else console.log("[payments-email]", JSON.stringify(payload))
+}
 
 /** Charge une réservation + ses lignes + les réglages, prêts pour un email. */
 async function loadBookingEmailData(
@@ -123,6 +152,79 @@ export async function sendBookingCreatedEmails(bookingId: number): Promise<void>
     }
   } catch (e) {
     console.log("[v0] sendBookingCreatedEmails a échoué:", e instanceof Error ? e.message : e)
+  }
+}
+
+/**
+ * Emails envoyés APRÈS un paiement encaissé (déclenchés UNIQUEMENT depuis le
+ * webhook Stripe signé, jamais depuis la page de retour navigateur) :
+ *  - confirmation de paiement au client (montant, acompte/intégral, solde) ;
+ *  - notification d'encaissement au professionnel (si un email pro existe).
+ *
+ * Idempotence : l'appelant (webhook) ne déclenche cette fonction que lorsque le
+ * paiement vient réellement de passer à "paid" (`justPaid`). Un webhook rejoué
+ * n'appelle donc jamais cette fonction → aucun email en double.
+ *
+ * NON BLOQUANT : ne lève jamais. Un échec d'envoi est journalisé mais n'annule
+ * jamais le paiement (déjà persisté avant l'appel).
+ */
+export async function sendPaymentReceivedEmails(
+  bookingId: number,
+  payment: { amountCents: number; type: "deposit" | "full_payment" },
+): Promise<void> {
+  try {
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) {
+      logPayEmail("error", "booking_not_found", { bookingId })
+      return
+    }
+    const { data, customerEmail, proEmail } = loaded
+
+    const isDeposit = payment.type === "deposit"
+    const remainingCents = isDeposit ? Math.max(0, data.totalCents - payment.amountCents) : 0
+
+    // --- Client ---
+    if (isValidEmail(customerEmail)) {
+      const mail = paymentReceivedClientEmail(data, {
+        amountCents: payment.amountCents,
+        isDeposit,
+        remainingCents,
+      })
+      const res = await sendEmail({
+        to: customerEmail,
+        subject: mail.subject,
+        html: mail.html,
+        fromName: data.businessName,
+        replyTo: proEmail ?? undefined,
+      })
+      logPayEmail(res.ok ? "info" : "error", res.ok ? "client_sent" : res.skipped ? "client_skipped" : "client_failed", {
+        bookingId,
+        recipient: "client",
+        message: res.ok ? undefined : res.error,
+      })
+    } else {
+      // Adresse absente/invalide : on ne marque jamais "envoyé", on journalise.
+      logPayEmail("error", "client_email_invalid", { bookingId, recipient: "client" })
+    }
+
+    // --- Professionnel ---
+    if (isValidEmail(proEmail)) {
+      const mail = paymentReceivedProEmail(data, { amountCents: payment.amountCents, isDeposit })
+      const res = await sendEmail({
+        to: proEmail,
+        subject: mail.subject,
+        html: mail.html,
+        fromName: data.businessName,
+        replyTo: customerEmail,
+      })
+      logPayEmail(res.ok ? "info" : "error", res.ok ? "pro_sent" : res.skipped ? "pro_skipped" : "pro_failed", {
+        bookingId,
+        recipient: "pro",
+        message: res.ok ? undefined : res.error,
+      })
+    }
+  } catch (e) {
+    logPayEmail("error", "unexpected", { bookingId, message: e instanceof Error ? e.message : "unknown" })
   }
 }
 

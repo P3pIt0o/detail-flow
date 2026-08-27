@@ -45,6 +45,20 @@ export default async function PaiementPage({
   const amountCents = isDeposit ? booking.depositCents : booking.totalCents
   const remainingCents = isDeposit ? Math.max(0, booking.totalCents - booking.depositCents) : 0
 
+  // Snapshot promo durable enregistré sur la réservation (jamais recalculé).
+  const promo = booking.promoCodeSnapshot as { code?: string } | null
+  const promoCode = promo?.code ?? null
+  const discountCents = booking.discountCents ?? 0
+  // Prix initial = assiette avant remise et hors déplacement (services + options).
+  const initialCents = booking.subtotalCents ?? booking.servicesCents + booking.optionsCents
+  const travelFeeCents = booking.travelFeeCents ?? 0
+
+  // Montant minimum encaissable par Stripe (0,50 € pour EUR). En dessous, on
+  // n'ouvre PAS Stripe (qui refuserait) et on affiche une règle métier claire,
+  // sans jamais substituer silencieusement un autre montant.
+  const STRIPE_MIN_CENTS = 50
+  const belowStripeMin = amountCents < STRIPE_MIN_CENTS
+
   return (
     <section className="min-h-[70vh] bg-background py-12">
       <div className="mx-auto max-w-2xl px-4">
@@ -77,7 +91,25 @@ export default async function PaiementPage({
           </ul>
           <dl className="mt-4 space-y-1.5 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Total de la prestation</dt>
+              <dt className="text-muted-foreground">Prix initial</dt>
+              <dd className="text-card-foreground">{formatPrice(initialCents)}</dd>
+            </div>
+            {discountCents > 0 ? (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">
+                  {promoCode ? `Code promo ${promoCode}` : "Remise"}
+                </dt>
+                <dd className="text-primary">−{formatPrice(discountCents)}</dd>
+              </div>
+            ) : null}
+            {travelFeeCents > 0 ? (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Déplacement</dt>
+                <dd className="text-card-foreground">{formatPrice(travelFeeCents)}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between border-t border-border pt-2">
+              <dt className="text-muted-foreground">{discountCents > 0 ? "Total après remise" : "Total de la prestation"}</dt>
               <dd className="text-card-foreground">{formatPrice(booking.totalCents)}</dd>
             </div>
             {isDeposit ? (
@@ -93,9 +125,24 @@ export default async function PaiementPage({
           </dl>
         </div>
 
-        {/* Checkout embarqué Stripe */}
+        {/* Checkout embarqué Stripe — sauf si le montant est sous le minimum Stripe */}
         <div className="mt-8">
-          <PaymentCheckout bookingId={id} />
+          {belowStripeMin ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-border bg-muted/50 p-6 text-sm leading-relaxed text-muted-foreground"
+            >
+              <p className="font-semibold text-foreground">Paiement en ligne indisponible pour ce montant</p>
+              <p className="mt-2">
+                Le montant à régler ({formatPrice(amountCents)}) est inférieur au minimum accepté par notre
+                prestataire de paiement ({formatPrice(STRIPE_MIN_CENTS)}). Votre réservation reste enregistrée :
+                le règlement sera effectué directement auprès du professionnel. Aucun autre montant ne vous sera
+                prélevé en ligne.
+              </p>
+            </div>
+          ) : (
+            <PaymentCheckout bookingId={id} />
+          )}
         </div>
       </div>
     </section>

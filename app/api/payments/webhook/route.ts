@@ -8,6 +8,7 @@ import {
   getStripeAccountIdForCompany,
   syncConnectAccountFlagsByAccountId,
 } from "@/lib/payments/queries"
+import { sendPaymentReceivedEmails } from "@/lib/email/notifications"
 
 /**
  * ============================================================================
@@ -111,12 +112,23 @@ export async function POST(req: NextRequest) {
             // n'applique AUCUN paiement (aucune fuite de compte tenant A vers B).
             break
           }
-          await settlePaymentPaid({
+          const settled = await settlePaymentPaid({
             externalId: session.id,
             companyId,
             bookingId,
             paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
           })
+
+          // Emails déclenchés UNIQUEMENT sur la vraie transition pending→paid
+          // (idempotence liée à l'état, pas au retry) → un événement rejoué ne
+          // renvoie jamais d'email. Non bloquant : un échec d'email n'invalide
+          // jamais le paiement (déjà persisté) et ne fait pas échouer le webhook.
+          if (settled.justPaid) {
+            await sendPaymentReceivedEmails(bookingId, {
+              amountCents: settled.amountCents ?? 0,
+              type: settled.type ?? "full_payment",
+            })
+          }
         }
         break
       }

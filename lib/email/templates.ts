@@ -206,6 +206,71 @@ export function proNotificationEmail(b: BookingEmailData) {
   }
 }
 
+/* ------------------------- Paiement encaissé ------------------------- */
+
+const PAY_GREEN = "#16a34a"
+
+/** Détail d'un paiement encaissé (client & pro). */
+export type PaymentEmailInfo = {
+  /** Montant réellement encaissé (centimes). */
+  amountCents: number
+  /** true = acompte, false = paiement intégral. */
+  isDeposit: boolean
+  /** Solde restant dû sur place (centimes) — pertinent pour un acompte. */
+  remainingCents?: number
+}
+
+/** Email CLIENT : confirmation du paiement + rappel du rendez-vous. */
+export function paymentReceivedClientEmail(b: BookingEmailData, pay: PaymentEmailInfo) {
+  const kind = pay.isDeposit ? "acompte" : "paiement intégral"
+  const remaining =
+    pay.isDeposit && (pay.remainingCents ?? 0) > 0
+      ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 4px;">
+           Solde à régler sur place le jour du rendez-vous :
+           <strong style="color:${INK};">${formatPrice(pay.remainingCents ?? 0)}</strong>.
+         </p>`
+      : ""
+  return {
+    subject: `Paiement confirmé — réservation ${b.reference}`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Votre paiement est confirmé",
+      accent: PAY_GREEN,
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Bonjour ${esc(b.customerName)}, nous confirmons la bonne réception de votre ${esc(kind)} de
+          <strong style="color:${INK};">${formatPrice(pay.amountCents)}</strong>. Votre rendez-vous est confirmé.
+        </p>
+        ${remaining}
+        ${bookingSummary(b)}
+        ${manageBlock(b)}`,
+    }),
+  }
+}
+
+/** Email PRO : notification d'un paiement encaissé. */
+export function paymentReceivedProEmail(b: BookingEmailData, pay: PaymentEmailInfo) {
+  const kind = pay.isDeposit ? "Acompte" : "Paiement intégral"
+  return {
+    subject: `Paiement reçu — ${b.customerName} (${b.reference})`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Nouveau paiement reçu",
+      accent: PAY_GREEN,
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          <strong style="color:${INK};">${esc(b.customerName)}</strong> vient de régler
+          (${esc(kind)}) : <strong style="color:${INK};">${formatPrice(pay.amountCents)}</strong>.
+        </p>
+        ${bookingSummary(b)}`,
+    }),
+  }
+}
+
 /* ------------------------- Changements de statut ------------------------- */
 
 const STATUS_GREEN = "#16a34a"
