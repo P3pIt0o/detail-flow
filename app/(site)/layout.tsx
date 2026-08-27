@@ -7,6 +7,7 @@ import { SiteTracker } from "@/components/site/site-tracker"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact, type PublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
+import { resolveCustomSite } from "@/lib/custom-sites/server"
 import { siteConfig } from "@/config/site"
 
 /**
