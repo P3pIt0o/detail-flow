@@ -92,7 +92,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {hasServices && (
         <SpiritPrestations
           eyebrow={content.services.eyebrowEnabled ? content.services.eyebrow : null}
-          title={content.services.title}
+          title={content.services.titleEnabled ? content.services.title : null}
           intro={content.services.intro}
           services={services}
         />

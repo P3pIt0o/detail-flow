@@ -28,7 +28,7 @@ function formatPrice(cents: number): string {
 
 type SpiritPrestationsProps = {
   eyebrow: string | null
-  title: string
+  title: string | null
   intro: string | null
   services: SpiritService[]
 }
@@ -47,9 +47,11 @@ export function SpiritPrestations({ eyebrow, title, intro, services }: SpiritPre
         <Reveal>
           <span className="spirit-rule" />
           {eyebrow && <p className="spirit-eyebrow mt-4 !text-[color:var(--spirit-teal-strong)]">{eyebrow}</p>}
-          <h2 className="spirit-title mt-2 text-balance text-4xl text-[color:var(--spirit-ink)] sm:text-5xl">
-            {title}
-          </h2>
+          {title && (
+            <h2 className="spirit-title mt-2 text-balance text-4xl text-[color:var(--spirit-ink)] sm:text-5xl">
+              {title}
+            </h2>
+          )}
           {intro && <p className="mt-4 max-w-2xl text-pretty text-[color:var(--spirit-ink)]/70">{intro}</p>}
         </Reveal>
 

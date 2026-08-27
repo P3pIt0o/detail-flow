@@ -69,6 +69,11 @@
   scroll-margin-top: 6.5rem;
 }
 
+/* Défilement fluide vers les ancres, scopé à Spirit (jamais global). */
+:root:has(.spirit-acs) {
+  scroll-behavior: smooth;
+}
+
 /* Étiquette AVANT/APRÈS surchargée pour rester cohérente avec la marque. */
 .spirit-acs .spirit-badge-teal {
   background: var(--spirit-navy);
