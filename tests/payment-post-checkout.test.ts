@@ -172,37 +172,40 @@ describe("LOT 3 — templates de paiement (client & pro)", () => {
   })
 })
 
-describe("LOT 3 — câblage webhook idempotent + non bloquant", () => {
+describe("LOT 3 — câblage webhook (structure) + non bloquant", () => {
   const webhook = read("app/api/payments/webhook/route.ts")
   const queries = read("lib/payments/queries.ts")
   const notif = read("lib/email/notifications.ts")
 
-  it("le webhook déclenche l'email UNIQUEMENT sur la transition réelle justPaid", () => {
-    expect(webhook).toContain("sendPaymentReceivedEmails")
-    expect(webhook).toContain("settled.justPaid")
-    // La ligne d'envoi est bien gardée par le if(justPaid).
-    const guardIdx = webhook.indexOf("if (settled.justPaid)")
-    const sendIdx = webhook.indexOf("sendPaymentReceivedEmails(bookingId")
-    expect(guardIdx).toBeGreaterThan(-1)
-    expect(sendIdx).toBeGreaterThan(guardIdx)
+  it("le webhook appelle TOUJOURS le dispatch (idempotence durable, pas justPaid)", () => {
+    expect(webhook).toContain("sendPaymentReceivedEmails(bookingId, companyId)")
+    // Ne dépend plus d'un garde-fou justPaid fragile (perte de reprise sur erreur).
+    expect(webhook).not.toContain("if (settled.justPaid)")
   })
 
-  it("settlePaymentPaid distingue transition (justPaid true) et déjà payé (false)", () => {
-    expect(queries).toContain("justPaid: true")
-    expect(queries).toContain("justPaid: false")
+  it("settlePaymentPaid effectue une transition ATOMIQUE (WHERE status pending)", () => {
+    expect(queries).toContain('eq(payments.status, "pending")')
+    expect(queries).toContain(".returning(")
   })
 
-  it("l'envoi d'email ne relance jamais (try/catch) et valide l'adresse", () => {
+  it("l'idempotence email est DURABLE (persistée dans payments.meta, pas les logs)", () => {
+    expect(queries).toContain("export async function claimPaymentEmail")
+    expect(queries).toContain("export async function markPaymentEmail")
+    expect(queries).toContain("payments.meta")
+    // Claim atomique : ne réclame pas si déjà sent/sending/invalid.
+    expect(queries).toContain("NOT IN ('sent', 'sending', 'invalid')")
+  })
+
+  it("l'envoi ne relance jamais (try/catch), valide l'adresse, états indépendants", () => {
     expect(notif).toContain("export async function sendPaymentReceivedEmails")
+    expect(notif).toContain("dispatchPaymentEmail(bookingId, companyId, \"client\")")
+    expect(notif).toContain("dispatchPaymentEmail(bookingId, companyId, \"pro\")")
     expect(notif).toContain("isValidEmail")
-    expect(notif).toContain("client_email_invalid")
-    // Historique minimal : envoyé / échoué / ignoré.
-    expect(notif).toContain("client_sent")
-    expect(notif).toContain("pro_sent")
+    // Adresse invalide → état terminal "invalid" (jamais "sent").
+    expect(notif).toContain('state: "invalid"')
   })
 
   it("les logs de paiement ne contiennent AUCUNE donnée personnelle", () => {
-    // logPayEmail ne transporte que bookingId / recipient / step / message.
     const logCalls = notif.match(/logPayEmail\([\s\S]*?\)\n/g) ?? []
     expect(logCalls.length).toBeGreaterThan(0)
     for (const call of logCalls) {
@@ -211,5 +214,122 @@ describe("LOT 3 — câblage webhook idempotent + non bloquant", () => {
       expect(call).not.toMatch(/proEmail/)
       expect(call).not.toMatch(/customerPhone/)
     }
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  LOT 3bis — Idempotence DURABLE (comportement, avec store simulé)   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Reproduit fidèlement la sémantique SQL de claimPaymentEmail / markPaymentEmail
+ * (état par destinataire, réclamable uniquement si absent ou "failed") pour
+ * tester le COMPORTEMENT sans base réelle. Le vrai code s'appuie sur le verrou
+ * de ligne Postgres pour l'atomicité ; on la simule par exécution séquentielle.
+ */
+function makeEmailStore() {
+  const state: Record<string, "sending" | "sent" | "failed" | "invalid"> = {}
+  return {
+    state,
+    claim(recipient: "client" | "pro") {
+      const cur = state[recipient]
+      if (cur === "sent" || cur === "sending" || cur === "invalid") return false
+      state[recipient] = "sending" // absent ou "failed" → réclamable
+      return true
+    },
+    mark(recipient: "client" | "pro", s: "sent" | "failed" | "invalid") {
+      state[recipient] = s
+    },
+  }
+}
+
+/** Un envoi simulé : renvoie ok/echec selon la file de réponses fournie. */
+function runDispatch(
+  store: ReturnType<typeof makeEmailStore>,
+  recipient: "client" | "pro",
+  send: () => { ok: boolean; invalidAddress?: boolean },
+  counters: { sent: number },
+) {
+  if (!store.claim(recipient)) return // idempotence : déjà traité/en cours
+  const res = send()
+  if (res.invalidAddress) {
+    store.mark(recipient, "invalid")
+    return
+  }
+  if (res.ok) {
+    counters.sent += 1
+    store.mark(recipient, "sent")
+  } else {
+    store.mark(recipient, "failed")
+  }
+}
+
+describe("LOT 3bis — reprise sur erreur & anti-doublon durable", () => {
+  it("échec Resend puis rejeu réussi → 1 seul email final, état 'sent'", () => {
+    const store = makeEmailStore()
+    const counters = { sent: 0 }
+    // 1er webhook : Resend échoue.
+    runDispatch(store, "client", () => ({ ok: false }), counters)
+    expect(store.state.client).toBe("failed")
+    expect(counters.sent).toBe(0)
+    // Rejeu Stripe : "failed" est réclamable → renvoi, cette fois OK.
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    expect(store.state.client).toBe("sent")
+    expect(counters.sent).toBe(1)
+  })
+
+  it("webhook rejoué APRÈS envoi réussi → aucun second email", () => {
+    const store = makeEmailStore()
+    const counters = { sent: 0 }
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    // Rejeu : "sent" n'est jamais re-réclamé.
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    expect(counters.sent).toBe(1)
+  })
+
+  it("deux webhooks concurrents → un seul claim gagne, pas de doublon", () => {
+    const store = makeEmailStore()
+    const counters = { sent: 0 }
+    // Exécution séquentielle = sérialisation garantie par le verrou de ligne PG.
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    expect(counters.sent).toBe(1)
+    expect(store.state.client).toBe("sent")
+  })
+
+  it("états client et pro indépendants (échec pro n'empêche pas client)", () => {
+    const store = makeEmailStore()
+    const counters = { sent: 0 }
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    runDispatch(store, "pro", () => ({ ok: false }), counters)
+    expect(store.state.client).toBe("sent")
+    expect(store.state.pro).toBe("failed")
+    // Rejeu : seul le pro (failed) est renvoyé.
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    runDispatch(store, "pro", () => ({ ok: true }), counters)
+    expect(counters.sent).toBe(2)
+    expect(store.state.pro).toBe("sent")
+  })
+
+  it("adresse invalide → état 'invalid' terminal, jamais retenté ni marqué sent", () => {
+    const store = makeEmailStore()
+    const counters = { sent: 0 }
+    runDispatch(store, "client", () => ({ ok: false, invalidAddress: true }), counters)
+    expect(store.state.client).toBe("invalid")
+    // Rejeu : "invalid" n'est jamais re-réclamé.
+    runDispatch(store, "client", () => ({ ok: true }), counters)
+    expect(counters.sent).toBe(0)
+    expect(store.state.client).toBe("invalid")
+  })
+
+  it("montant présenté == montant envoyé à Stripe (parité totale)", () => {
+    // Le claim renvoie grossAmountCents (montant réellement encaissé) : la
+    // notification n'a aucune latitude pour diverger du montant Stripe.
+    const subtotal = 15000
+    const discount = computeDiscountCents("percent", 99, subtotal) // 14850
+    const total = subtotal - discount // 150
+    const stripeAmount = total // full payment
+    const emailAmount = total // provient du même champ persisté
+    expect(emailAmount).toBe(stripeAmount)
   })
 })

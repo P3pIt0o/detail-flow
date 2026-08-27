@@ -112,23 +112,20 @@ export async function POST(req: NextRequest) {
             // n'applique AUCUN paiement (aucune fuite de compte tenant A vers B).
             break
           }
-          const settled = await settlePaymentPaid({
+          await settlePaymentPaid({
             externalId: session.id,
             companyId,
             bookingId,
             paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
           })
 
-          // Emails déclenchés UNIQUEMENT sur la vraie transition pending→paid
-          // (idempotence liée à l'état, pas au retry) → un événement rejoué ne
-          // renvoie jamais d'email. Non bloquant : un échec d'email n'invalide
-          // jamais le paiement (déjà persisté) et ne fait pas échouer le webhook.
-          if (settled.justPaid) {
-            await sendPaymentReceivedEmails(bookingId, {
-              amountCents: settled.amountCents ?? 0,
-              type: settled.type ?? "full_payment",
-            })
-          }
+          // Emails de paiement : on APPELLE TOUJOURS le dispatch après une résa
+          // payée. L'idempotence ne repose plus sur `justPaid` (fragile : un
+          // échec Resend suivi d'un rejeu ne serait jamais retenté) mais sur un
+          // état DURABLE par destinataire (payments.meta). Ainsi : "sent" n'est
+          // jamais renvoyé, "failed" est retenté au rejeu, deux webhooks
+          // concurrents ne dupliquent pas (claim atomique). Non bloquant.
+          await sendPaymentReceivedEmails(bookingId, companyId)
         }
         break
       }
