@@ -2,16 +2,18 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Calendar, Clock, Mail, MapPin, Phone, User } from "lucide-react"
-import { requireAdmin } from "@/lib/admin"
+import { requireCompanyMember } from "@/lib/admin"
 import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceByBookingId } from "@/lib/invoice/queries"
 import { getServices, getVehicleTypes, getOptions } from "@/lib/booking/queries"
+import { getBookingRefundInfo } from "@/lib/payments/refunds"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
 import { BookingNotes } from "@/components/admin/booking-notes"
 import { BookingEditDialog } from "@/components/admin/booking-edit-dialog"
 import { BookingDeleteButton } from "@/components/admin/booking-delete-button"
+import { RefundPaymentDialog } from "@/components/admin/refund-payment-dialog"
 import { formatPrice, formatDuration, formatDateLong } from "@/lib/format"
 import { withTenant } from "@/lib/tenant-link"
 import type { BookingStatus } from "@/lib/booking/status"
@@ -26,7 +28,7 @@ export default async function ReservationDetailPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ tenant?: string }>
 }) {
-  await requireAdmin()
+  const { role, isSuperAdmin, tenant: currentTenant } = await requireCompanyMember()
   const { id } = await params
   const { tenant } = await searchParams
   const numId = Number(id)
@@ -41,6 +43,18 @@ export default async function ReservationDetailPage({
     getVehicleTypes(),
     getOptions(),
   ])
+
+  // Remboursements : droit financier réservé OWNER/ADMIN (et super-admin en
+  // assistance). Le contrôle est RÉ-appliqué côté serveur dans l'action ;
+  // ceci ne fait que masquer l'UI. Lecture bornée au tenant courant.
+  const canRefund = isSuperAdmin || role === "OWNER" || role === "ADMIN"
+  const refundInfo = canRefund ? await getBookingRefundInfo(booking.id, currentTenant.id) : { payments: [] }
+  const refundablePayments = refundInfo.payments
+  // Suggestion d'avoir : uniquement informative, jamais de création auto d'un
+  // document légal. Affichée si une facture existe ET qu'un remboursement a été
+  // enregistré sur la réservation.
+  const hasAnyRefund = refundablePayments.some((p) => p.refunds.length > 0)
+  const suggestCreditNote = Boolean(existingInvoice) && hasAnyRefund
 
   return (
     <div className="space-y-6">
@@ -81,6 +95,9 @@ export default async function ReservationDetailPage({
             bookingStatus={booking.status}
             existingInvoiceId={existingInvoice?.id ?? null}
           />
+          {canRefund && refundablePayments.length > 0 && (
+            <RefundPaymentDialog bookingId={booking.id} payments={refundablePayments} />
+          )}
           <BookingStatusActions bookingId={booking.id} status={booking.status as BookingStatus} />
           <BookingDeleteButton bookingId={booking.id} />
         </div>
@@ -178,6 +195,12 @@ export default async function ReservationDetailPage({
                 <Line label="Acompte demandé" value={formatPrice(booking.depositCents)} accent />
               )}
             </dl>
+            {suggestCreditNote && (
+              <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground text-pretty">
+                Un remboursement a été enregistré et une facture existe pour cette réservation. Pensez à créer un avoir
+                si nécessaire : le remboursement financier ne génère pas automatiquement de document comptable.
+              </p>
+            )}
           </section>
         </div>
       </div>

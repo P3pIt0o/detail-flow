@@ -49,6 +49,30 @@ function maskExternalId(id: string | null): string | null {
   return `${id.slice(0, 6)}…${id.slice(-4)}`
 }
 
+/** Code d'erreur Postgres pour « relation inexistante » (table absente). */
+function isUndefinedTable(e: unknown): boolean {
+  const code = (e as { code?: string })?.code
+  return code === "42P01"
+}
+
+/**
+ * Lecture DÉFENSIVE des remboursements : renvoie [] si la table `refunds`
+ * n'existe pas encore (migration additive non appliquée), pour ne jamais
+ * casser une page existante en production. Toute autre erreur est propagée.
+ */
+async function selectRefundRowsSafe(companyId: number, paymentIds: number[]) {
+  try {
+    return await db
+      .select()
+      .from(refunds)
+      .where(and(eq(refunds.companyId, companyId), inArray(refunds.paymentId, paymentIds)))
+      .orderBy(desc(refunds.createdAt))
+  } catch (e) {
+    if (isUndefinedTable(e)) return []
+    throw e
+  }
+}
+
 /**
  * Récapitulatif des remboursements d'une réservation, STRICTEMENT borné au
  * tenant (companyId issu du contexte serveur). Renvoie les paiements
@@ -82,11 +106,11 @@ export async function getBookingRefundInfo(
   if (payRows.length === 0) return { payments: [] }
 
   const paymentIds = payRows.map((p) => p.id)
-  const refundRows = await db
-    .select()
-    .from(refunds)
-    .where(and(eq(refunds.companyId, companyId), inArray(refunds.paymentId, paymentIds)))
-    .orderBy(desc(refunds.createdAt))
+  // RÉTROCOMPAT : la table `refunds` est ajoutée par une migration additive
+  // (scripts/refunds-table-migration.sql). Tant qu'elle n'est pas appliquée, la
+  // lecture ne doit JAMAIS casser le détail réservation existant → fallback à
+  // un historique vide. Le montant remboursable reste calculé depuis `payments`.
+  const refundRows = await selectRefundRowsSafe(companyId, paymentIds)
 
   const result: RefundablePayment[] = payRows.map((p) => {
     const rowsForPay = refundRows.filter((r) => r.paymentId === p.id)
