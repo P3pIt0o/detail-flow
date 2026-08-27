@@ -199,11 +199,24 @@ export async function getPendingDepositCount(companyId?: number): Promise<number
   const [row] = await db
     .select({ n: count() })
     .from(bookings)
-    .where(and(eq(bookings.companyId, cid), eq(bookings.status, "pending_deposit")))
+  .where(and(eq(bookings.companyId, cid), eq(bookings.status, "pending_deposit")))
   return row?.n ?? 0
-}
+  }
 
-/** Prochaines réservations (pour l'aperçu du tableau de bord). */
+  /**
+   * Nombre TOTAL de réservations (tous statuts) de l'entreprise. Léger (COUNT),
+   * utilisé par l'onboarding pour cocher « parcours de réservation testé ».
+   */
+  export async function getBookingCount(companyId?: number): Promise<number> {
+  const cid = companyId ?? (await requireCompanyId())
+  const [row] = await db
+  .select({ n: count() })
+  .from(bookings)
+  .where(eq(bookings.companyId, cid))
+  return row?.n ?? 0
+  }
+
+  /** Prochaines réservations (pour l'aperçu du tableau de bord). */
 export async function getUpcomingBookings(limit = 6, companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
   const today = todayISO()
