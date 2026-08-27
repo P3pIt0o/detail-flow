@@ -160,6 +160,16 @@ d("Validation de propriété d'une réservation", () => {
       .from(bookings)
       .where(and(eq(bookings.id, bk.id), eq(bookings.companyId, ctx.bId)))
     expect(fromB).toHaveLength(0)
+
+    // Reproduction du bug 404 : getBookingDetail() est le helper appelé par la
+    // page de détail. Le tenant courant est résolu côté serveur (companyId),
+    // jamais depuis le navigateur. Avec le companyId de A, la réservation est
+    // trouvée ; avec celui de B, elle ne l'est pas (déclencheur légitime du 404).
+    const detailA = await getBookingDetail(bk.id, ctx.aId)
+    expect(detailA?.booking.id).toBe(bk.id)
+
+    const detailB = await getBookingDetail(bk.id, ctx.bId)
+    expect(detailB).toBeNull()
   })
 })
 

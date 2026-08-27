@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { SceneContent, type Scene } from "./scenes"
 
@@ -33,7 +34,12 @@ export default async function CapturePage({
       {/* Masque le panneau de navigation dev pour des captures propres. */}
       <style>{`button[aria-label="Ouvrir le panneau de navigation dev"]{display:none!important}`}</style>
       <div data-capture-root className="mx-auto w-full max-w-5xl px-8 py-10">
-        <SceneContent scene={scene as Scene} />
+        {/* Suspense requis : certaines scènes rendent des composants produit
+            qui lisent useSearchParams (ex. tenant), ce qui exige une frontière
+            de suspense lors du prérendu statique de cette page. */}
+        <Suspense fallback={null}>
+          <SceneContent scene={scene as Scene} />
+        </Suspense>
       </div>
     </div>
   )
