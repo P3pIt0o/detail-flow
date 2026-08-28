@@ -51,6 +51,44 @@ export function SpiritNavigation({
   const tenant = useSearchParams().get("tenant")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<string | null>(items[0]?.id ?? null)
+  // En-tête réactif au défilement : `compact` (réduit) dès qu'on quitte le haut,
+  // `hidden` (escamoté vers le haut) quand on défile VERS LE BAS.
+  const [compact, setCompact] = useState(false)
+  const [hidden, setHidden] = useState(false)
+
+  // Masquage/réapparition au scroll (mobile animé, compact au retour vers le haut).
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    let lastY = window.scrollY
+    let ticking = false
+    const update = () => {
+      ticking = false
+      const y = window.scrollY
+      const delta = y - lastY
+      // Ignore les micro-mouvements (1–2 px) pour éviter tout clignotement.
+      if (Math.abs(delta) < 6) return
+      if (y <= 8) {
+        setCompact(false)
+        setHidden(false)
+      } else {
+        setCompact(true)
+        // Sous prefers-reduced-motion : header stable et toujours visible.
+        if (reduce) setHidden(false)
+        else if (delta > 0 && y > 100) setHidden(true)
+        else if (delta < 0) setHidden(false)
+      }
+      lastY = y
+    }
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true
+        requestAnimationFrame(update)
+      }
+    }
+    update()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   // Bloque le scroll du body quand le menu mobile est ouvert.
   useEffect(() => {
@@ -85,11 +123,20 @@ export function SpiritNavigation({
   const cta = ctaHref.startsWith("#") ? ctaHref : withTenant(ctaHref, tenant)
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50">
+    <header
+      className={`fixed inset-x-0 top-0 z-50 transition-transform duration-[250ms] ease-out motion-reduce:transition-none ${
+        hidden && !open ? "-translate-y-full" : "translate-y-0"
+      }`}
+    >
       {/* Barre supérieure turquoise — ville + téléphone réels uniquement
-          (jamais l'adresse postale exacte). */}
+          (jamais l'adresse postale exacte). Escamotée en mode compact pour
+          gagner de la hauteur sur mobile. */}
       {(city || phone) && (
-        <div className="bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)]">
+        <div
+          className={`overflow-hidden bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)] transition-[height] duration-[250ms] ease-out motion-reduce:transition-none ${
+            compact ? "h-0" : "h-9"
+          }`}
+        >
           <div className="mx-auto flex h-9 max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-4 text-xs font-medium sm:px-6 lg:justify-start lg:px-8">
             {city && (
               <span className="flex items-center gap-1.5">
@@ -107,21 +154,26 @@ export function SpiritNavigation({
         </div>
       )}
 
-      {/* Barre principale blanche */}
+      {/* Barre principale blanche — hauteur animée (normale ↔ compacte). */}
       <div className="border-b border-black/5 bg-white shadow-sm">
         <nav
-          className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-24 lg:px-8"
+          className={`mx-auto flex max-w-7xl items-center justify-between px-4 transition-[height] duration-[250ms] ease-out motion-reduce:transition-none sm:px-6 lg:h-24 lg:px-8 ${
+            compact ? "h-[68px]" : "h-[84px]"
+          }`}
           aria-label="Navigation principale Spirit"
         >
           <Link href={withTenant("/", tenant)} className="flex items-center" aria-label={`${brandName} — accueil`}>
             {logoSrc ? (
               // Logo officiel Spirit à canal alpha réel : `object-contain`,
-              // largeur auto, aucun fond ni cadre artificiel.
+              // largeur auto, aucun fond ni cadre artificiel. Hauteur animée
+              // (compacte au défilement) — le logo lui-même n'est pas modifié.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoSrc || "/placeholder.svg"}
                 alt={brandName}
-                className="h-16 w-auto max-w-[220px] object-contain lg:h-20"
+                className={`w-auto max-w-[220px] object-contain transition-[height] duration-[250ms] ease-out motion-reduce:transition-none lg:h-20 ${
+                  compact ? "h-12" : "h-[68px]"
+                }`}
               />
             ) : (
               <span className="spirit-title text-2xl text-[color:var(--spirit-ink)]">{brandName}</span>

@@ -101,11 +101,12 @@ describe("WhatsApp — composant partagé, normalisé, câblé", () => {
     expect(btn).toMatch(/concernant mon véhicule/)
   })
 
-  it("est monté dans le shell public commun, y compris pour les sites à shell propre (Spirit)", () => {
+  it("est monté pour les tenants standards (layout) ; les sites à shell propre le montent via leur shell", () => {
     const layout = read("app/(site)/layout.tsx")
-    const mounts = layout.match(/<WhatsAppButton/g) ?? []
-    // Une occurrence pour le shell standard + une pour le shell personnalisé.
-    expect(mounts.length).toBeGreaterThanOrEqual(2)
+    // Le layout ne rend plus que la branche standard (le shell Spirit monte le sien).
     expect(layout).toMatch(/phone=\{contact\.phoneRaw\}/)
+    // Le site Spirit monte bien son propre bouton WhatsApp.
+    const shell = read(`${SPIRIT}/site-shell.tsx`)
+    expect(shell).toMatch(/<WhatsAppButton/)
   })
 })

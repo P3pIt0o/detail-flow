@@ -61,15 +61,26 @@ export async function submitCustomRequest(
   const customerEmail = str(formData.get("customerEmail"), 160)
   const customerPhone = str(formData.get("customerPhone"), 40)
   const description = str(formData.get("description"), 4000)
+  // Type de client (facultatif) : présent uniquement quand le formulaire active
+  // le choix Particulier/Professionnel (site Spirit). Absent = comportement
+  // standard historique inchangé.
+  const customerType = str(formData.get("customerType"), 20)
   // Numéro d'entreprise / identifiant légal : information libre du prospect.
-  // Jamais validé, jamais interprété (aucune déduction pays / type d'entreprise).
-  const customerLegalRegistrationNumber = str(formData.get("customerLegalRegistrationNumber"), 60)
+  // On normalise côté serveur (espaces, points, tirets, parenthèses, slashs)
+  // sans interpréter le pays ni le type d'entreprise. Limite de longueur raisonnable.
+  const customerLegalRegistrationNumber = str(formData.get("customerLegalRegistrationNumber"), 80)
+    .replace(/[\s.\-()/]/g, "")
+    .slice(0, 60)
 
   const errors: Record<string, string> = {}
   if (!customerName) errors.customerName = "Votre nom est requis."
   if (!/\S+@\S+\.\S+/.test(customerEmail)) errors.customerEmail = "Email invalide."
   if (!customerPhone) errors.customerPhone = "Votre téléphone est requis."
   if (description.length < 10) errors.description = "Merci de décrire votre besoin (10 caractères minimum)."
+  // Identifiant légal requis UNIQUEMENT si le prospect s'est déclaré professionnel.
+  if (customerType === "professionnel" && !customerLegalRegistrationNumber) {
+    errors.customerLegalRegistrationNumber = "Ce numéro est requis pour un professionnel (SIREN/SIRET ou BCE)."
+  }
   if (Object.keys(errors).length > 0) {
     return { status: "error", message: "Veuillez corriger les champs indiqués.", errors }
   }

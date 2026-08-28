@@ -156,8 +156,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <div style={hasBrandColors ? brandStyle : undefined}>
         {tenant && <SiteTracker />}
         {contact.name && <StructuredData name={contact.name} contact={contact} localityOnly />}
+        {/* Le bouton WhatsApp des sites à shell propre est monté PAR leur shell
+            (ex. SpiritSiteShell), afin de porter un message pré-rempli adapté à
+            l'univers du site. Il n'est donc pas rendu ici pour éviter un doublon. */}
         <main id="contenu">{children}</main>
-        <WhatsAppButton phone={contact.phoneRaw} />
       </div>
     )
   }

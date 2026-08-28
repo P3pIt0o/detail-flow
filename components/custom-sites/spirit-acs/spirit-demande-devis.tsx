@@ -55,7 +55,7 @@ export function SpiritDemandeDevis({ title, intro, types }: SpiritDemandeDevisPr
         {/* Colonne formulaire — vrai composant partagé, ré-habillé (scopé) */}
         <Reveal delay={0.1}>
           <div className="spirit-form-skin rounded-2xl bg-white p-6 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] sm:p-8">
-            <CustomRequestForm types={types} />
+            <CustomRequestForm types={types} audienceToggle />
           </div>
         </Reveal>
       </div>

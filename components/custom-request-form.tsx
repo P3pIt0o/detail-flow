@@ -29,10 +29,30 @@ function SubmitButton() {
   )
 }
 
-export function CustomRequestForm({ types }: { types: CustomRequestType[] }) {
+export function CustomRequestForm({
+  types,
+  /**
+   * Active le choix « Particulier / Professionnel » en tête de formulaire
+   * (opt-in). Laissé à `false` par défaut : le formulaire standard (/demande
+   * des autres tenants) reste STRICTEMENT inchangé — le champ identifiant légal
+   * y demeure facultatif et toujours visible, sans sélecteur d'audience.
+   */
+  audienceToggle = false,
+}: {
+  types: CustomRequestType[]
+  audienceToggle?: boolean
+}) {
   const [state, formAction] = useActionState(submitCustomRequest, initialState)
   const [selectedType, setSelectedType] = useState(types[0]?.key ?? "")
   const showFleet = isFleetType(selectedType)
+
+  // Audience : uniquement pertinente quand `audienceToggle` est actif.
+  // Par défaut « particulier » → le champ identifiant légal est masqué.
+  const [audience, setAudience] = useState<"particulier" | "professionnel">("particulier")
+  const isPro = audience === "professionnel"
+  // Champ identifiant légal : toujours visible en mode standard (facultatif) ;
+  // en mode audience, visible seulement pour un professionnel (obligatoire).
+  const showLegalField = audienceToggle ? isPro : true
 
   if (state.status === "success") {
     return (
@@ -78,6 +98,32 @@ export function CustomRequestForm({ types }: { types: CustomRequestType[] }) {
         </select>
         {state.errors?.typeKey && <p className="text-sm text-destructive">{state.errors.typeKey}</p>}
       </div>
+
+      {audienceToggle && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-foreground">Vous êtes :</legend>
+          <div role="radiogroup" aria-label="Type de client" className="grid grid-cols-2 gap-2">
+            {[
+              { value: "particulier", label: "Un particulier" },
+              { value: "professionnel", label: "Un professionnel" },
+            ].map((opt) => (
+              <label key={opt.value} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="customerType"
+                  value={opt.value}
+                  checked={audience === opt.value}
+                  onChange={() => setAudience(opt.value as "particulier" | "professionnel")}
+                  className="peer sr-only"
+                />
+                <span className="flex h-11 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+                  {opt.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
@@ -131,20 +177,29 @@ export function CustomRequestForm({ types }: { types: CustomRequestType[] }) {
         <Input id="frequency" name="frequency" placeholder="Ponctuel, mensuel, hebdomadaire…" />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="customerLegalRegistrationNumber">
-          Numéro d&apos;entreprise / identifiant légal (facultatif)
-        </Label>
-        <Input
-          id="customerLegalRegistrationNumber"
-          name="customerLegalRegistrationNumber"
-          maxLength={60}
-          autoComplete="off"
-        />
-        <p className="text-sm text-muted-foreground">
-          Par exemple : numéro BCE en Belgique ou SIREN/SIRET en France.
-        </p>
-      </div>
+      {showLegalField && (
+        <div className="space-y-2">
+          <Label htmlFor="customerLegalRegistrationNumber">
+            {audienceToggle ? "SIREN / SIRET ou numéro BCE" : "Numéro d'entreprise / identifiant légal (facultatif)"}
+          </Label>
+          <Input
+            id="customerLegalRegistrationNumber"
+            name="customerLegalRegistrationNumber"
+            maxLength={60}
+            autoComplete="off"
+            required={audienceToggle}
+            aria-invalid={audienceToggle && !!state.errors?.customerLegalRegistrationNumber}
+          />
+          <p className="text-sm text-muted-foreground">
+            {audienceToggle
+              ? "SIREN ou SIRET en France, numéro BCE en Belgique."
+              : "Par exemple : numéro BCE en Belgique ou SIREN/SIRET en France."}
+          </p>
+          {audienceToggle && state.errors?.customerLegalRegistrationNumber && (
+            <p className="text-sm text-destructive">{state.errors.customerLegalRegistrationNumber}</p>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="description">Décrivez votre besoin</Label>
