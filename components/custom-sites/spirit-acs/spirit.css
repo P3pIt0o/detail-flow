@@ -55,6 +55,14 @@
   color: var(--spirit-teal);
 }
 
+/* Tailles d'affichage responsives et compactes (clamp) — proche de la maquette. */
+.spirit-acs .spirit-h1 {
+  font-size: clamp(2.9rem, 7vw, 4.5rem);
+}
+.spirit-acs .spirit-h2 {
+  font-size: clamp(2.15rem, 5vw, 3.1rem);
+}
+
 /* Filet accent (barre rose) placé au-dessus des titres de section. */
 .spirit-acs .spirit-rule {
   display: block;
@@ -66,7 +74,43 @@
 
 /* Décalage d'ancre pour compenser l'en-tête fixe (défilement fluide propre). */
 .spirit-acs [data-spirit-anchor] {
-  scroll-margin-top: 6.5rem;
+  scroll-margin-top: 8rem;
+}
+
+/*
+ * Ré-habillage SCOPÉ des composants DetailFlow partagés RÉUTILISÉS (sans fork).
+ * On remappe uniquement les tokens de thème lus par ces composants, à l'échelle
+ * d'un conteneur Spirit précis — jamais globalement, jamais pour un autre tenant.
+ */
+
+/* Comparateur Avant/Après partagé : curseur + étiquette « Après » en rose Spirit. */
+.spirit-acs .spirit-compare {
+  --primary: var(--spirit-pink);
+  --primary-foreground: #ffffff;
+}
+
+/* Vrai formulaire « Demande personnalisée » : habillage clair + accents Spirit. */
+.spirit-acs .spirit-form-skin {
+  --background: #ffffff;
+  --foreground: var(--spirit-ink);
+  --card: #ffffff;
+  --card-foreground: var(--spirit-ink);
+  --primary: var(--spirit-pink);
+  --primary-foreground: #ffffff;
+  --border: rgba(6, 19, 28, 0.14);
+  --input: rgba(6, 19, 28, 0.2);
+  --ring: var(--spirit-teal);
+  --muted-foreground: rgba(6, 19, 28, 0.6);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  color: var(--spirit-ink);
+  color-scheme: light;
+}
+
+/* Le bouton d'envoi du formulaire partagé est en `rounded-full bg-primary` :
+   on garde le rose Spirit (via --primary ci-dessus), cohérent avec la marque. */
+.spirit-acs .spirit-form-skin :is(input, textarea, select)::placeholder {
+  color: rgba(6, 19, 28, 0.4);
 }
 
 /* Défilement fluide vers les ancres, scopé à Spirit (jamais global). */

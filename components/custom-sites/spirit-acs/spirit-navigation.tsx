@@ -28,7 +28,9 @@ type SpiritNavigationProps = {
   brandName: string
   logoSrc: string | null
   items: SpiritNavItem[]
-  reserveHref: string
+  /** Ancre in-page du CTA principal (ex. « #demande-devis »). */
+  ctaHref: string
+  ctaLabel: string
   address: string | null
   phone: string | null
   phoneRaw: string | null
@@ -38,7 +40,8 @@ export function SpiritNavigation({
   brandName,
   logoSrc,
   items,
-  reserveHref,
+  ctaHref,
+  ctaLabel,
   address,
   phone,
   phoneRaw,
@@ -75,7 +78,9 @@ export function SpiritNavigation({
     return () => observer.disconnect()
   }, [items])
 
-  const reserve = withTenant(reserveHref, tenant)
+  // Le CTA principal cible une ANCRE in-page (« Demander un devis »), pas une
+  // route. On conserve tout de même le tenant si jamais une route est passée.
+  const cta = ctaHref.startsWith("#") ? ctaHref : withTenant(ctaHref, tenant)
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
@@ -108,7 +113,11 @@ export function SpiritNavigation({
           <Link href={withTenant("/", tenant)} className="flex items-center gap-2" aria-label={`${brandName} — accueil`}>
             {logoSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoSrc || "/placeholder.svg"} alt={brandName} className="h-10 w-auto max-w-[160px] object-contain sm:h-12" />
+              <img
+                src={logoSrc || "/placeholder.svg"}
+                alt={brandName}
+                className="h-12 w-auto max-w-[180px] object-contain sm:h-14"
+              />
             ) : (
               <span className="spirit-title text-2xl text-[color:var(--spirit-ink)]">{brandName}</span>
             )}
@@ -138,12 +147,12 @@ export function SpiritNavigation({
 
           {/* CTA — bureau */}
           <div className="hidden lg:block">
-            <Link
-              href={reserve}
+            <a
+              href={cta}
               className="inline-flex h-10 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)]"
             >
-              Réserver
-            </Link>
+              {ctaLabel}
+            </a>
           </div>
 
           {/* Bouton menu — mobile */}
@@ -181,13 +190,13 @@ export function SpiritNavigation({
                   </li>
                 ))}
                 <li className="mt-3">
-                  <Link
-                    href={reserve}
+                  <a
+                    href={cta}
                     onClick={() => setOpen(false)}
                     className="inline-flex w-full items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white"
                   >
-                    Réserver
-                  </Link>
+                    {ctaLabel}
+                  </a>
                 </li>
               </ul>
             </motion.div>

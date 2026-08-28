@@ -11,10 +11,13 @@
 
 /** Ancres des sections (navigation par ancres + scroll-spy). */
 export const SPIRIT_SECTIONS = {
+  accueil: "accueil",
   prestations: "prestations",
   realisations: "realisations",
+  avantApres: "avant-apres",
   apropos: "apropos",
   avis: "avis",
+  demandeDevis: "demande-devis",
   contact: "contact",
 } as const
 
@@ -40,7 +43,18 @@ export const SPIRIT_BTN_GHOST_DARK =
  * le logo de marque fourni. En production, le logo réel du tenant
  * (`/api/company-logo`) reste prioritaire.
  */
-export const SPIRIT_LOGO_FALLBACK = "/spirit-acs/logo.png"
+export const SPIRIT_LOGO_FALLBACK = "/spirit-acs/spirit-logo.png"
+
+/**
+ * Boutons « ancre » (liens internes à la longue page). Rectangulaires et nets,
+ * dans l'esprit de la maquette. `CtaButton` sert aux liens de ROUTE (tenant
+ * préservé) ; pour les ancres in-page on utilise un simple <a> stylé.
+ */
+export const SPIRIT_ANCHOR_PRIMARY =
+  "inline-flex h-12 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-7 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)]"
+
+export const SPIRIT_ANCHOR_OUTLINE =
+  "inline-flex h-12 items-center justify-center rounded-sm border border-[color:var(--spirit-teal)]/60 px-7 text-sm font-semibold uppercase tracking-wide text-[var(--spirit-teal)] transition-colors hover:border-[var(--spirit-teal)] hover:bg-[color:var(--spirit-teal)]/10"
 
 /**
  * Contenu éditable résolu des sections statiques (miroir de la valeur renvoyée
