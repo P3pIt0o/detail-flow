@@ -25,6 +25,12 @@ export type PublicContact = {
   phoneRaw: string | null
   /** Adresse complète sur une ligne. */
   address: string | null
+  /**
+   * Ville seule (sans rue ni code postal). Permet à un site public de
+   * n'exposer que la localité (ex. site Spirit) sans révéler l'adresse exacte,
+   * tout en gardant l'adresse complète disponible pour l'administration.
+   */
+  city: string | null
   /** Site web éventuel de l'entreprise. */
   website: string | null
   /** Contenu éditable du Hero (null = fallback neutre géré par le composant). */
@@ -43,6 +49,7 @@ const EMPTY: PublicContact = {
   phone: null,
   phoneRaw: null,
   address: null,
+  city: null,
   website: null,
   hero: { title: null, highlight: null, subtitle: null, ctaPrimary: null, ctaSecondary: null },
 }
@@ -74,6 +81,9 @@ async function buildForTenant(tenant: Tenant): Promise<PublicContact> {
       .join(", ") || null
   const address = clean(s?.businessAddress) ?? companyAddress
   const name = clean(s?.businessName) ?? clean(tenant.name)
+  // Ville seule issue de la fiche entreprise (jamais dérivée de l'adresse
+  // libre pour éviter tout parsing hasardeux). `null` si non renseignée.
+  const city = clean(tenant.city)
 
   return {
     name,
@@ -81,6 +91,7 @@ async function buildForTenant(tenant: Tenant): Promise<PublicContact> {
     phone,
     phoneRaw: phone ? phone.replace(/[^\d+]/g, "") : null,
     address,
+    city,
     website: clean(tenant.websiteUrl),
     hero: {
       title: clean(tenant.heroTitle),

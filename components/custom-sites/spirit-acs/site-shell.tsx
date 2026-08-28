@@ -34,7 +34,8 @@ type SpiritSiteShellProps = {
   phone: string | null
   phoneRaw: string | null
   email: string | null
-  address: string | null
+  /** Ville seule (Spirit n'expose jamais l'adresse postale exacte). */
+  city: string | null
   footerTagline: string | null
 }
 
@@ -48,7 +49,7 @@ export function SpiritSiteShell({
   phone,
   phoneRaw,
   email,
-  address,
+  city,
   footerTagline,
 }: SpiritSiteShellProps) {
   return (
@@ -59,13 +60,14 @@ export function SpiritSiteShell({
         items={navItems}
         ctaHref={ctaHref}
         ctaLabel={ctaLabel}
-        address={address}
+        city={city}
         phone={phone}
         phoneRaw={phoneRaw}
       />
 
-      {/* Décalage sous l'en-tête fixe (barre turquoise + barre principale). */}
-      <div className="pt-16">{children}</div>
+      {/* Décalage sous l'en-tête fixe = barre turquoise (h-9 = 36px) + barre
+          principale (h-20 → lg:h-24). */}
+      <div className="pt-[116px] lg:pt-[132px]">{children}</div>
 
       <SpiritFooter
         brandName={brandName}
@@ -73,7 +75,7 @@ export function SpiritSiteShell({
         phone={phone}
         phoneRaw={phoneRaw}
         email={email}
-        address={address}
+        city={city}
         tagline={footerTagline}
       />
     </div>

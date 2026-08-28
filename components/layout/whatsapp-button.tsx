@@ -10,6 +10,10 @@
 
 import { useState, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
+import { toWhatsAppDigits } from "@/lib/phone"
+
+/** Message pré-rempli par défaut (neutre, aucun nom de tenant). */
+const DEFAULT_WHATSAPP_MESSAGE = "Bonjour, je souhaite obtenir des renseignements concernant mon véhicule."
 
 function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -36,10 +40,12 @@ export function WhatsAppButton({ phone, message }: WhatsAppButtonProps = {}) {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
-  // N'affiche rien si le tenant n'a pas renseigné de numéro.
-  const digits = (phone ?? "").replace(/[^\d]/g, "")
+  // N'affiche rien si le tenant n'a pas renseigné de numéro valide.
+  // Normalisation FR : « 06 99 90 13 03 » → « 33699901303 » (format wa.me).
+  const digits = toWhatsAppDigits(phone)
   if (!digits) return null
-  const href = message ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : `https://wa.me/${digits}`
+  const text = (message ?? DEFAULT_WHATSAPP_MESSAGE).trim()
+  const href = `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
 
   return (
     <AnimatePresence>
@@ -48,13 +54,20 @@ export function WhatsAppButton({ phone, message }: WhatsAppButtonProps = {}) {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Nous contacter sur WhatsApp"
+          aria-label="Contacter sur WhatsApp"
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.6 }}
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          className="fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/40"
+          // Zone tactile 56px (>44px). Respect des safe-areas mobiles (encoche
+          // / barre gestuelle) via les insets env(). z-40 : sous les overlays
+          // critiques, au-dessus du contenu.
+          style={{
+            bottom: "calc(1.25rem + env(safe-area-inset-bottom))",
+            right: "calc(1.25rem + env(safe-area-inset-right))",
+          }}
+          className="fixed z-40 flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-black/40"
         >
           <WhatsAppIcon className="size-7" />
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#25D366] opacity-20" />

@@ -2,42 +2,41 @@
  * Hero sombre automobile de Spirit ACS.
  *
  * Le titre / sous-titre proviennent du CONTENU DU TENANT (Hero éditable), avec
- * un repli NEUTRE si non renseigné (aucune donnée commerciale inventée). CTA
- * principal vers la vraie route /reservation (tenant conservé via CtaButton) ;
- * CTA secondaire vers l'ancre des prestations (défilement fluide).
+ * un repli NEUTRE si non renseigné (aucune donnée commerciale inventée).
  *
- * Image de fond : asset réel du dépôt (`/hero.png`), chargé en priorité et
- * dimensionné (fill) pour éviter tout décalage de mise en page (CLS).
+ * CTA (ancres in-page uniquement — jamais /reservation) :
+ *  - principal   : « Demander un devis » → #demande-devis (formulaire réel) ;
+ *  - secondaire  : « Voir nos réalisations » → #realisations (si galerie).
+ *
+ * Image de fond : photo dédiée Spirit (spirit-hero-v2.webp), chargée en
+ * priorité et dimensionnée (fill) pour éviter tout décalage de mise en page
+ * (CLS). Réservée à Spirit ACS — ne remplace pas les Hero des autres tenants.
  */
 
 import Image from "next/image"
-import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
-import { SPIRIT_BTN_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritHeroProps = {
   title: string | null
   highlight: string | null
   subtitle: string | null
-  ctaPrimary: string | null
-  ctaSecondary: string | null
-  hasServices: boolean
+  /** Le CTA principal ne pointe vers #demande-devis que si le module est actif. */
+  quoteEnabled: boolean
+  /** Le CTA secondaire n'apparaît que si une galerie de réalisations existe. */
+  hasGallery: boolean
 }
 
 const DEFAULTS = {
   title: "Prenez soin de votre véhicule",
   subtitle:
-    "Nettoyage, polissage, protection : un detailing réalisé avec exigence. Réservez votre créneau en ligne en quelques instants.",
-  ctaPrimary: "Réserver en ligne",
-  ctaSecondary: "Découvrir nos prestations",
+    "Nettoyage, polissage, protection céramique : un detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
 }
 
-export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondary, hasServices }: SpiritHeroProps) {
+export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGallery }: SpiritHeroProps) {
   const displayTitle = title?.trim() || DEFAULTS.title
   const h = title?.trim() ? (highlight ?? "").trim() : ""
   const displaySubtitle = subtitle?.trim() || DEFAULTS.subtitle
-  const primaryLabel = ctaPrimary?.trim() || DEFAULTS.ctaPrimary
-  const secondaryLabel = ctaSecondary?.trim() || DEFAULTS.ctaSecondary
 
   // Met en couleur la portion « highlight » si elle est présente dans le titre.
   let titleNode: React.ReactNode = displayTitle
@@ -62,12 +61,12 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
     >
       <div className="absolute inset-0 z-0">
         <Image
-          src="/spirit-acs/hero.jpg"
+          src="/custom-sites/spirit-acs/spirit-hero-v2.webp"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[60%_center] sm:object-center"
+          className="object-cover object-[72%_center] sm:object-center"
         />
         {/* MOBILE : assombrissement vertical (bas) → la photo reste visible en haut, texte lisible en bas. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/60 to-[var(--spirit-navy)]/15 sm:hidden" />
@@ -90,15 +89,17 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
           </Reveal>
           <Reveal delay={0.24}>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <CtaButton href="/reservation" className={SPIRIT_BTN_PRIMARY}>
-                {primaryLabel}
-              </CtaButton>
-              {hasServices && (
+              {quoteEnabled && (
+                <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={SPIRIT_ANCHOR_PRIMARY}>
+                  Demander un devis
+                </a>
+              )}
+              {hasGallery && (
                 <a
-                  href={`#${SPIRIT_SECTIONS.prestations}`}
-                  className="inline-flex h-12 items-center justify-center rounded-sm border border-white/35 px-7 text-sm font-medium text-white transition-colors hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
+                  href={`#${SPIRIT_SECTIONS.realisations}`}
+                  className="inline-flex h-12 items-center justify-center rounded-sm border border-white/35 px-7 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
                 >
-                  {secondaryLabel}
+                  Voir nos réalisations
                 </a>
               )}
             </div>

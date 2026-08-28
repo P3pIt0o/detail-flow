@@ -18,10 +18,8 @@ import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritHero } from "./spirit-hero"
 import { SpiritReassurance } from "./spirit-reassurance"
-import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritApropos } from "./spirit-apropos"
-import { SpiritReservation } from "./spirit-reservation"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritFinalCta } from "./spirit-final-cta"
@@ -29,7 +27,6 @@ import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
   type SpiritNavItem,
-  type SpiritService,
   type SpiritResolvedContent,
 } from "./tokens"
 
@@ -42,10 +39,11 @@ function nonDefault(value: string | null | undefined, fallback: string): string 
 
 export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // Chargement en parallèle — uniquement les données réellement affichées.
-  const [contact, contentRaw, servicesRaw, gallery, reviews, customRequestsRaw] = await Promise.all([
+  // (Spirit n'affiche PAS de section « prestations » : on ne charge donc pas
+  // le catalogue de services ici.)
+  const [contact, contentRaw, gallery, reviews, customRequestsRaw] = await Promise.all([
     data.getContact(),
     data.getContent(),
-    data.getServices(),
     data.getGallery(),
     data.getReviews(),
     data.getCustomRequestsConfig(),
@@ -69,26 +67,15 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
 
   // Textes d'introduction : on n'affiche QUE le contenu réellement personnalisé
   // par le tenant (on masque les phrases marketing par défaut du socle).
-  const servicesIntro = nonDefault(content.services.intro, SITE_CONTENT_DEFAULTS.services.intro)
   const galleryIntro = nonDefault(content.gallery.intro, SITE_CONTENT_DEFAULTS.gallery.intro)
   const reviewsIntro = nonDefault(content.reviews.intro, SITE_CONTENT_DEFAULTS.reviews.intro)
 
-  // Prestations aminçies (sérialisables) pour le composant client.
-  const services: SpiritService[] = servicesRaw.map((s) => ({
-    id: Number(s.id),
-    name: String(s.name),
-    description: (s.description as string | null) ?? null,
-    image: s.image,
-    basePriceCents: Number(s.basePriceCents ?? 0),
-  }))
-
-  const hasServices = services.length > 0
   const hasGallery = gallery.length > 0
   const hasReviews = reviews.length > 0 && content.reviews.enabled
 
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
+  // Spirit n'expose PAS de lien « Prestations » (section retirée).
   const navItems: SpiritNavItem[] = [
-    hasServices ? { id: SPIRIT_SECTIONS.prestations, label: "Prestations" } : null,
     hasGallery ? { id: SPIRIT_SECTIONS.realisations, label: "Réalisations" } : null,
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
@@ -96,12 +83,13 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
     { id: SPIRIT_SECTIONS.contact, label: "Contact" },
   ].filter((i): i is SpiritNavItem => i !== null)
 
-  // CTA d'en-tête : « Demander un devis » (ancre in-page) si le module est
-  // actif, sinon repli sur la découverte des prestations / réalisations.
+  // CTA d'en-tête : « Demander un devis » (ancre in-page) vers le vrai
+  // formulaire. Repli sur les réalisations puis le contact si le module devis
+  // est désactivé — jamais vers /reservation.
   const headerCta = quoteEnabled
     ? { href: `#${SPIRIT_SECTIONS.demandeDevis}`, label: "Demander un devis" }
-    : hasServices
-      ? { href: `#${SPIRIT_SECTIONS.prestations}`, label: "Nos prestations" }
+    : hasGallery
+      ? { href: `#${SPIRIT_SECTIONS.realisations}`, label: "Voir nos réalisations" }
       : { href: `#${SPIRIT_SECTIONS.contact}`, label: "Nous contacter" }
 
   const footerTagline = content.footer.tagline?.trim() || null
@@ -116,28 +104,18 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       phone={contact.phone}
       phoneRaw={contact.phoneRaw}
       email={contact.email}
-      address={contact.address}
+      city={contact.city}
       footerTagline={footerTagline}
     >
       <SpiritHero
         title={contact.hero.title}
         highlight={contact.hero.highlight}
         subtitle={contact.hero.subtitle}
-        ctaPrimary={contact.hero.ctaPrimary}
-        ctaSecondary={contact.hero.ctaSecondary}
-        hasServices={hasServices}
+        quoteEnabled={quoteEnabled}
+        hasGallery={hasGallery}
       />
 
       <SpiritReassurance />
-
-      {hasServices && (
-        <SpiritPrestations
-          eyebrow={content.services.eyebrowEnabled ? content.services.eyebrow : null}
-          title={content.services.titleEnabled ? content.services.title : null}
-          intro={servicesIntro}
-          services={services}
-        />
-      )}
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
@@ -150,15 +128,13 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         buttonHref={content.about.buttonHref?.trim() || null}
       />
 
-      <SpiritReservation />
-
       {quoteEnabled && (
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
       )}
 
       {hasReviews && <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviews} />}
 
-      <SpiritFinalCta title={content.contact.title} address={contact.address} quoteEnabled={quoteEnabled} />
+      <SpiritFinalCta title={content.contact.title} city={contact.city} quoteEnabled={quoteEnabled} />
     </SpiritSiteShell>
   )
 }

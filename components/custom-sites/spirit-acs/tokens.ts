@@ -38,12 +38,13 @@ export const SPIRIT_BTN_GHOST_DARK =
   "h-12 rounded-sm border-[color:var(--spirit-ink)]/25 bg-transparent text-[var(--spirit-ink)] hover:border-[var(--spirit-teal-strong)] hover:text-[var(--spirit-teal-strong)]"
 
 /**
- * Logo Spirit officiel EMBARQUÉ (asset réel, repli quand le tenant n'a pas
- * encore téléversé son logo). N'est jamais un faux logo typographique : c'est
- * le logo de marque fourni. En production, le logo réel du tenant
- * (`/api/company-logo`) reste prioritaire.
+ * Logo Spirit officiel EMBARQUÉ (PNG à canal alpha RÉEL — fond détouré, aucun
+ * faux damier). Sert de repli quand le tenant n'a pas encore téléversé son
+ * logo. Jamais un logo typographique recréé : c'est le logo de marque fourni.
+ * En production, le logo réel du tenant (`logoUrl` / `/api/company-logo`)
+ * reste prioritaire.
  */
-export const SPIRIT_LOGO_FALLBACK = "/spirit-acs/spirit-logo.png"
+export const SPIRIT_LOGO_FALLBACK = "/custom-sites/spirit-acs/spirit-logo.png"
 
 /**
  * Boutons « ancre » (liens internes à la longue page). Rectangulaires et nets,
