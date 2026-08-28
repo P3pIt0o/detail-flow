@@ -30,7 +30,11 @@ export function SpiritRealisations({ title, intro, items }: SpiritRealisationsPr
   const [featured, ...rest] = items
 
   return (
-    <section id={SPIRIT_SECTIONS.realisations} data-spirit-anchor className="bg-[var(--spirit-navy)]">
+    <section
+      id={SPIRIT_SECTIONS.realisations}
+      data-spirit-anchor
+      className="spirit-compare bg-[var(--spirit-navy)]"
+    >
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
           <Reveal direction="right">

@@ -55,14 +55,24 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
   }
 
   return (
-    <section className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] sm:items-center lg:min-h-[600px]">
+    <section
+      id={SPIRIT_SECTIONS.accueil}
+      data-spirit-anchor
+      className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] sm:items-center lg:min-h-[600px]"
+    >
       <div className="absolute inset-0 -z-10">
-        <Image src="/hero.png" alt="" fill priority sizes="100vw" className="object-cover object-center" />
+        <Image
+          src="/spirit-acs/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[60%_center] sm:object-center"
+        />
         {/* MOBILE : assombrissement vertical (bas) → la photo reste visible en haut, texte lisible en bas. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/70 to-[var(--spirit-navy)]/20 sm:hidden" />
-        {/* DESKTOP : assombrissement horizontal (gauche) pour le bloc de texte aligné à gauche. */}
-        <div className="absolute inset-0 hidden bg-gradient-to-r from-[var(--spirit-navy)] via-[var(--spirit-navy)]/80 to-[var(--spirit-navy)]/20 sm:block" />
-        <div className="absolute inset-0 hidden bg-gradient-to-t from-[var(--spirit-navy)] via-transparent to-[var(--spirit-navy)]/30 sm:block" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/60 to-[var(--spirit-navy)]/15 sm:hidden" />
+        {/* DESKTOP : zone texte sombre à gauche (fondu court), voiture RÉVÉLÉE au centre-droit. */}
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-[var(--spirit-navy)] from-20% via-transparent via-50% to-transparent sm:block" />
       </div>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
@@ -71,7 +81,7 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
             <p className="spirit-eyebrow">Detailing automobile</p>
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="spirit-title mt-4 text-balance text-4xl text-white sm:text-5xl lg:text-6xl">{titleNode}</h1>
+            <h1 className="spirit-title spirit-h1 mt-4 text-balance leading-[1.02] text-white">{titleNode}</h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="mt-5 max-w-lg text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)] sm:text-lg">

@@ -29,7 +29,8 @@ type SpiritSiteShellProps = {
   brandName: string
   logoSrc: string | null
   navItems: SpiritNavItem[]
-  reserveHref: string
+  ctaHref: string
+  ctaLabel: string
   phone: string | null
   phoneRaw: string | null
   email: string | null
@@ -42,7 +43,8 @@ export function SpiritSiteShell({
   brandName,
   logoSrc,
   navItems,
-  reserveHref,
+  ctaHref,
+  ctaLabel,
   phone,
   phoneRaw,
   email,
@@ -55,7 +57,8 @@ export function SpiritSiteShell({
         brandName={brandName}
         logoSrc={logoSrc}
         items={navItems}
-        reserveHref={reserveHref}
+        ctaHref={ctaHref}
+        ctaLabel={ctaLabel}
         address={address}
         phone={phone}
         phoneRaw={phoneRaw}

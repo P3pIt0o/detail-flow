@@ -13,7 +13,7 @@
 
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import type { CustomRequestsConfig } from "@/lib/custom-requests"
-import { activeTypes } from "@/lib/custom-requests"
+import { activeTypes, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritHero } from "./spirit-hero"
@@ -22,6 +22,7 @@ import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritApropos } from "./spirit-apropos"
 import { SpiritReservation } from "./spirit-reservation"
+import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritFinalCta } from "./spirit-final-cta"
 import {
@@ -52,7 +53,10 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
 
   const content = contentRaw as SpiritResolvedContent
   const customRequests = customRequestsRaw as CustomRequestsConfig
-  const quoteEnabled = customRequests.enabled && activeTypes(customRequests).length > 0
+  const quoteTypes = customRequests.enabled ? activeTypes(customRequests) : []
+  const quoteEnabled = quoteTypes.length > 0
+  // Titre / intro réels du module « Demande personnalisée » (mêmes que /demande).
+  const quoteTexts = quoteEnabled ? resolveCustomRequestTexts(customRequests) : null
 
   const brandName = contact.name?.trim() || data.tenant.name
 
@@ -88,8 +92,17 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
     hasGallery ? { id: SPIRIT_SECTIONS.realisations, label: "Réalisations" } : null,
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
+    quoteEnabled ? { id: SPIRIT_SECTIONS.demandeDevis, label: "Devis" } : null,
     { id: SPIRIT_SECTIONS.contact, label: "Contact" },
   ].filter((i): i is SpiritNavItem => i !== null)
+
+  // CTA d'en-tête : « Demander un devis » (ancre in-page) si le module est
+  // actif, sinon repli sur la découverte des prestations / réalisations.
+  const headerCta = quoteEnabled
+    ? { href: `#${SPIRIT_SECTIONS.demandeDevis}`, label: "Demander un devis" }
+    : hasServices
+      ? { href: `#${SPIRIT_SECTIONS.prestations}`, label: "Nos prestations" }
+      : { href: `#${SPIRIT_SECTIONS.contact}`, label: "Nous contacter" }
 
   const footerTagline = content.footer.tagline?.trim() || null
 
@@ -98,7 +111,8 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       brandName={brandName}
       logoSrc={logoSrc}
       navItems={navItems}
-      reserveHref="/reservation"
+      ctaHref={headerCta.href}
+      ctaLabel={headerCta.label}
       phone={contact.phone}
       phoneRaw={contact.phoneRaw}
       email={contact.email}
@@ -137,6 +151,10 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       />
 
       <SpiritReservation />
+
+      {quoteEnabled && (
+        <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
+      )}
 
       {hasReviews && <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviews} />}
 

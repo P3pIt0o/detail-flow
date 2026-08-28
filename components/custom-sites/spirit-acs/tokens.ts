@@ -12,6 +12,7 @@
 /** Ancres des sections (navigation par ancres + scroll-spy). */
 export const SPIRIT_SECTIONS = {
   accueil: "accueil",
+  prestations: "prestations",
   realisations: "realisations",
   avantApres: "avant-apres",
   apropos: "apropos",

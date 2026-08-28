@@ -3,8 +3,9 @@
  * l'éclat à votre véhicule ? »).
  *
  * - CTA principal : réservation (route réelle /reservation).
- * - CTA secondaire : demande de devis (route réelle /demande) UNIQUEMENT si la
- *   fonctionnalité « Demandes personnalisées » est activée pour le tenant.
+ * - CTA secondaire : ancre vers la section « Demander un devis » de la page
+ *   (formulaire réel embarqué) UNIQUEMENT si la fonctionnalité « Demandes
+ *   personnalisées » est activée pour le tenant.
  * - Ligne d'infos : localisation réelle si disponible (aucune donnée inventée).
  *
  * Sert aussi d'ancre `contact`. Le contexte tenant est conservé par CtaButton.
@@ -14,7 +15,7 @@ import { MapPin } from "lucide-react"
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSplash } from "./spirit-splash"
-import { SPIRIT_BTN_PRIMARY, SPIRIT_BTN_GHOST, SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_BTN_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritFinalCtaProps = {
   title: string
@@ -43,9 +44,12 @@ export function SpiritFinalCta({ title, address, quoteEnabled }: SpiritFinalCtaP
               Réserver mon créneau
             </CtaButton>
             {quoteEnabled && (
-              <CtaButton href="/demande" variant="outline" size="lg" className={SPIRIT_BTN_GHOST}>
+              <a
+                href={`#${SPIRIT_SECTIONS.demandeDevis}`}
+                className="inline-flex h-12 items-center justify-center rounded-sm border border-white/35 px-8 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
+              >
                 Demander un devis
-              </CtaButton>
+              </a>
             )}
           </div>
         </Reveal>

@@ -104,6 +104,13 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   color: var(--spirit-ink);
+  color-scheme: light;
+}
+
+/* Le bouton d'envoi du formulaire partagé est en `rounded-full bg-primary` :
+   on garde le rose Spirit (via --primary ci-dessus), cohérent avec la marque. */
+.spirit-acs .spirit-form-skin :is(input, textarea, select)::placeholder {
+  color: rgba(6, 19, 28, 0.4);
 }
 
 /* Défilement fluide vers les ancres, scopé à Spirit (jamais global). */
