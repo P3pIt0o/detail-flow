@@ -32,16 +32,20 @@ describe("Spirit — suppression des prestations et de la réservation", () => {
 })
 
 describe("Spirit — aucun CTA vers /reservation, ancres correctes", () => {
-  it("le hero utilise les ancres devis + réalisations, pas /reservation", () => {
+  // On cible un lien de ROUTE réel (`"/reservation"` entre guillemets), pas la
+  // simple occurrence du mot dans un commentaire de documentation.
+  const routeReservation = /["'`]\/reservation/
+
+  it("le hero utilise les ancres devis + réalisations, pas la route /reservation", () => {
     const hero = read(`${SPIRIT}/spirit-hero.tsx`)
     expect(hero).toMatch(/demandeDevis/)
     expect(hero).toMatch(/realisations/)
-    expect(hero).not.toMatch(/\/reservation/)
+    expect(hero).not.toMatch(routeReservation)
   })
 
-  it("le CTA final ne pointe plus vers /reservation", () => {
+  it("le CTA final ne pointe plus vers la route /reservation", () => {
     const cta = read(`${SPIRIT}/spirit-final-cta.tsx`)
-    expect(cta).not.toMatch(/\/reservation/)
+    expect(cta).not.toMatch(routeReservation)
     expect(cta).toMatch(/demandeDevis/)
   })
 })

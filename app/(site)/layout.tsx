@@ -83,7 +83,21 @@ export async function generateMetadata(): Promise<Metadata> {
 // Données structurées Schema.org (LocalBusiness) pour un SEO local optimal.
 // Uniquement sur les pages publiques, et UNIQUEMENT à partir des coordonnées
 // réelles du tenant (aucune donnée statique).
-function StructuredData({ name, contact }: { name: string; contact: PublicContact }) {
+function StructuredData({
+  name,
+  contact,
+  localityOnly = false,
+}: {
+  name: string
+  contact: PublicContact
+  /**
+   * Si vrai, n'expose QUE la ville dans les données structurées (jamais
+   * l'adresse postale exacte). Utilisé par les sites personnalisés (ownShell)
+   * qui limitent volontairement leur présentation publique à la localité.
+   */
+  localityOnly?: boolean
+}) {
+  const addressValue = localityOnly ? contact.city : contact.address
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "AutoWash",
@@ -91,7 +105,7 @@ function StructuredData({ name, contact }: { name: string; contact: PublicContac
     ...(contact.phoneRaw ? { telephone: contact.phoneRaw } : {}),
     ...(contact.email ? { email: contact.email } : {}),
     ...(contact.website ? { url: contact.website } : {}),
-    ...(contact.address ? { address: contact.address } : {}),
+    ...(addressValue ? { address: addressValue } : {}),
   }
   return (
     <script
@@ -141,7 +155,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     return (
       <div style={hasBrandColors ? brandStyle : undefined}>
         {tenant && <SiteTracker />}
-        {contact.name && <StructuredData name={contact.name} contact={contact} />}
+        {contact.name && <StructuredData name={contact.name} contact={contact} localityOnly />}
         <main id="contenu">{children}</main>
         <WhatsAppButton phone={contact.phoneRaw} />
       </div>
