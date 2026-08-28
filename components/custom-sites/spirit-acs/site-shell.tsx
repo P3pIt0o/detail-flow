@@ -70,8 +70,10 @@ export function SpiritSiteShell({
       />
 
       {/* Décalage sous l'en-tête fixe = barre turquoise (h-9 = 36px) + barre
-          principale (h-20 → lg:h-24). */}
-      <div className="pt-[116px] lg:pt-[132px]">{children}</div>
+          principale normale (h-[84px] → lg:h-24). L'en-tête se compacte/escamote
+          au défilement sans provoquer de saut : le décalage reste calé sur la
+          hauteur NORMALE (le mode réduit ne fait que libérer de l'espace). */}
+      <div className="pt-[120px] lg:pt-[132px]">{children}</div>
 
       <SpiritFooter
         brandName={brandName}

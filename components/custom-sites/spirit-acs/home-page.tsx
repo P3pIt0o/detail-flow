@@ -21,6 +21,7 @@ import { SpiritReassurance } from "./spirit-reassurance"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritApropos } from "./spirit-apropos"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
+import { SpiritSectionDivider } from "./spirit-section-divider"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritFinalCta } from "./spirit-final-cta"
 import {
@@ -115,11 +116,17 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         hasGallery={hasGallery}
       />
 
+      {/* Hero sombre → suite : filet d'accent discret (deux sections sombres). */}
+      <SpiritSectionDivider variant="accent" />
+
       <SpiritReassurance />
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
       )}
+
+      {/* Réalisations/sombre → « À propos »/clair : fondu sombre vers clair. */}
+      <SpiritSectionDivider variant="darkToLight" />
 
       <SpiritApropos
         title={content.about.title}
@@ -128,11 +135,17 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         buttonHref={content.about.buttonHref?.trim() || null}
       />
 
+      {/* Partie claire → formulaire/sombre : fondu clair vers sombre. */}
+      {quoteEnabled && <SpiritSectionDivider variant="lightToDark" />}
+
       {quoteEnabled && (
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
       )}
 
       {hasReviews && <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviews} />}
+
+      {/* Formulaire/avis → CTA final : filet d'accent (sections sombres). */}
+      <SpiritSectionDivider variant="accent" />
 
       <SpiritFinalCta title={content.contact.title} city={contact.city} quoteEnabled={quoteEnabled} />
     </SpiritSiteShell>
