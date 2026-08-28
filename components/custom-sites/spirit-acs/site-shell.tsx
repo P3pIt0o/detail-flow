@@ -12,8 +12,12 @@ import type { ReactNode } from "react"
 import { Oswald } from "next/font/google"
 import { SpiritNavigation } from "./spirit-navigation"
 import { SpiritFooter } from "./spirit-footer"
+import { WhatsAppButton } from "@/components/layout/whatsapp-button"
 import type { SpiritNavItem } from "./tokens"
 import "./spirit.css"
+
+/** Message WhatsApp pré-rempli propre à Spirit (univers detailing / prestations). */
+const SPIRIT_WHATSAPP_MESSAGE = "Bonjour, je souhaite obtenir des renseignements sur vos prestations."
 
 // Police d'affichage condensée (univers automobile premium), exposée via une
 // variable CSS scopée au conteneur Spirit uniquement.
@@ -78,6 +82,12 @@ export function SpiritSiteShell({
         city={city}
         tagline={footerTagline}
       />
+
+      {/* Bouton WhatsApp partagé : numéro RÉEL du tenant (phoneRaw), normalisé
+          par le helper commun, masqué automatiquement si aucun numéro valide.
+          Message pré-rempli propre à l'univers Spirit. Rendu bas-droite,
+          au-dessus du contenu (z-40), sans chevaucher les futurs widgets. */}
+      <WhatsAppButton phone={phoneRaw} message={SPIRIT_WHATSAPP_MESSAGE} />
     </div>
   )
 }

@@ -51,6 +51,44 @@ export function SpiritNavigation({
   const tenant = useSearchParams().get("tenant")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<string | null>(items[0]?.id ?? null)
+  // En-tête réactif au défilement : `compact` (réduit) dès qu'on quitte le haut,
+  // `hidden` (escamoté vers le haut) quand on défile VERS LE BAS.
+  const [compact, setCompact] = useState(false)
+  const [hidden, setHidden] = useState(false)
+
+  // Masquage/réapparition au scroll (mobile animé, compact au retour vers le haut).
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    let lastY = window.scrollY
+    let ticking = false
+    const update = () => {
+      ticking = false
+      const y = window.scrollY
+      const delta = y - lastY
+      // Ignore les micro-mouvements (1–2 px) pour éviter tout clignotement.
+      if (Math.abs(delta) < 6) return
+      if (y <= 8) {
+        setCompact(false)
+        setHidden(false)
+      } else {
+        setCompact(true)
+        // Sous prefers-reduced-motion : header stable et toujours visible.
+        if (reduce) setHidden(false)
+        else if (delta > 0 && y > 100) setHidden(true)
+        else if (delta < 0) setHidden(false)
+      }
+      lastY = y
+    }
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true
+        requestAnimationFrame(update)
+      }
+    }
+    update()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   // Bloque le scroll du body quand le menu mobile est ouvert.
   useEffect(() => {
