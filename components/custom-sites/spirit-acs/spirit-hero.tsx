@@ -60,7 +60,7 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
       data-spirit-anchor
       className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] sm:items-center lg:min-h-[600px]"
     >
-      <div className="absolute inset-0 -z-10">
+      <div className="absolute inset-0 z-0">
         <Image
           src="/spirit-acs/hero.jpg"
           alt=""
@@ -75,7 +75,7 @@ export function SpiritHero({ title, highlight, subtitle, ctaPrimary, ctaSecondar
         <div className="absolute inset-0 hidden bg-gradient-to-r from-[var(--spirit-navy)] from-20% via-transparent via-50% to-transparent sm:block" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
         <div className="max-w-xl">
           <Reveal>
             <p className="spirit-eyebrow">Detailing automobile</p>
