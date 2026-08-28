@@ -22,6 +22,7 @@ import { useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import { Menu, X, MapPin, Phone } from "lucide-react"
 import { withTenant } from "@/lib/tenant-link"
+import { toTelHref } from "@/lib/phone"
 import type { SpiritNavItem } from "./tokens"
 
 type SpiritNavigationProps = {
@@ -31,7 +32,8 @@ type SpiritNavigationProps = {
   /** Ancre in-page du CTA principal (ex. « #demande-devis »). */
   ctaHref: string
   ctaLabel: string
-  address: string | null
+  /** Ville seule (jamais l'adresse postale exacte). */
+  city: string | null
   phone: string | null
   phoneRaw: string | null
 }
@@ -42,7 +44,7 @@ export function SpiritNavigation({
   items,
   ctaHref,
   ctaLabel,
-  address,
+  city,
   phone,
   phoneRaw,
 }: SpiritNavigationProps) {
@@ -84,18 +86,19 @@ export function SpiritNavigation({
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
-      {/* Barre supérieure turquoise — infos de contact réelles uniquement */}
-      {(address || phone) && (
+      {/* Barre supérieure turquoise — ville + téléphone réels uniquement
+          (jamais l'adresse postale exacte). */}
+      {(city || phone) && (
         <div className="bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)]">
           <div className="mx-auto flex h-9 max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-4 text-xs font-medium sm:px-6 lg:justify-start lg:px-8">
-            {address && (
+            {city && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="size-3.5" aria-hidden="true" />
-                {address}
+                {city}
               </span>
             )}
             {phone && (
-              <a href={`tel:${phoneRaw ?? phone}`} className="flex items-center gap-1.5 hover:underline">
+              <a href={toTelHref(phoneRaw ?? phone) ?? "#"} className="flex items-center gap-1.5 hover:underline">
                 <Phone className="size-3.5" aria-hidden="true" />
                 {phone}
               </a>

@@ -34,7 +34,8 @@ type SpiritSiteShellProps = {
   phone: string | null
   phoneRaw: string | null
   email: string | null
-  address: string | null
+  /** Ville seule (Spirit n'expose jamais l'adresse postale exacte). */
+  city: string | null
   footerTagline: string | null
 }
 
@@ -48,7 +49,7 @@ export function SpiritSiteShell({
   phone,
   phoneRaw,
   email,
-  address,
+  city,
   footerTagline,
 }: SpiritSiteShellProps) {
   return (
@@ -59,7 +60,7 @@ export function SpiritSiteShell({
         items={navItems}
         ctaHref={ctaHref}
         ctaLabel={ctaLabel}
-        address={address}
+        city={city}
         phone={phone}
         phoneRaw={phoneRaw}
       />
@@ -73,7 +74,7 @@ export function SpiritSiteShell({
         phone={phone}
         phoneRaw={phoneRaw}
         email={email}
-        address={address}
+        city={city}
         tagline={footerTagline}
       />
     </div>

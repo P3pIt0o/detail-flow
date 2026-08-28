@@ -14,6 +14,7 @@ import { useSearchParams } from "next/navigation"
 import { Phone, Mail, MapPin } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
+import { toTelHref } from "@/lib/phone"
 
 type SpiritFooterProps = {
   brandName: string
@@ -21,11 +22,12 @@ type SpiritFooterProps = {
   phone: string | null
   phoneRaw: string | null
   email: string | null
-  address: string | null
+  /** Ville seule (jamais l'adresse postale exacte). */
+  city: string | null
   tagline: string | null
 }
 
-export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, address, tagline }: SpiritFooterProps) {
+export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city, tagline }: SpiritFooterProps) {
   const tenant = useSearchParams().get("tenant")
   const year = new Date().getFullYear()
 
@@ -48,11 +50,14 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, addre
             {tagline && <p className="mt-4 max-w-xs text-sm leading-relaxed text-[color:var(--spirit-muted)]">{tagline}</p>}
           </div>
 
-          {/* Pages publiques */}
+          {/* Pages publiques — Spirit n'expose ni « Prestations » ni les liens
+              de réservation (parcours retiré de ce site). */}
           <nav aria-label="Pied de page — pages">
             <h2 className="spirit-eyebrow">Navigation</h2>
             <ul className="mt-4 space-y-3">
-              {siteConfig.nav.map((item) => (
+              {siteConfig.nav
+                .filter((item) => item.href !== "/prestations" && !item.href.startsWith("/reservation"))
+                .map((item) => (
                 <li key={item.href}>
                   <Link
                     href={withTenant(item.href, tenant)}
@@ -88,7 +93,7 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, addre
             <ul className="mt-4 space-y-3 text-sm text-[color:var(--spirit-muted)]">
               {phone && (
                 <li>
-                  <a href={`tel:${phoneRaw ?? phone}`} className="flex items-start gap-2 transition-colors hover:text-white">
+                  <a href={toTelHref(phoneRaw ?? phone) ?? "#"} className="flex items-start gap-2 transition-colors hover:text-white">
                     <Phone className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
                     {phone}
                   </a>
@@ -102,10 +107,10 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, addre
                   </a>
                 </li>
               )}
-              {address && (
+              {city && (
                 <li className="flex items-start gap-2">
                   <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
-                  {address}
+                  {city}
                 </li>
               )}
             </ul>
@@ -115,6 +120,24 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, addre
         <div className="mt-12 border-t border-white/10 pt-6 text-center text-sm text-[color:var(--spirit-muted)]">
           <p>
             &copy; {year} {brandName}. Tous droits réservés.
+          </p>
+          {/* Signature discrète. DetailFlow renvoie à son site officiel ;
+              SiteAlpha reste du texte (aucune URL officielle configurée). */}
+          <p className="mt-2 text-xs text-[color:var(--spirit-muted)]/70">
+            Site créé par{" "}
+            {siteConfig.seo.url ? (
+              <a
+                href={siteConfig.seo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline-offset-2 transition-colors hover:text-white hover:underline"
+              >
+                DetailFlow
+              </a>
+            ) : (
+              "DetailFlow"
+            )}{" "}
+            &middot; Géré par SiteAlpha
           </p>
         </div>
       </div>

@@ -2,28 +2,25 @@
  * CTA final de Spirit ACS (maquette : bandeau sombre « Prêt à redonner de
  * l'éclat à votre véhicule ? »).
  *
- * - CTA principal : réservation (route réelle /reservation).
- * - CTA secondaire : ancre vers la section « Demander un devis » de la page
- *   (formulaire réel embarqué) UNIQUEMENT si la fonctionnalité « Demandes
- *   personnalisées » est activée pour le tenant.
- * - Ligne d'infos : localisation réelle si disponible (aucune donnée inventée).
+ * - CTA principal : ancre vers la section « Demander un devis » (formulaire
+ *   réel embarqué) si la fonctionnalité est active — jamais vers /reservation.
+ * - Ligne d'infos : ville réelle si disponible (jamais l'adresse exacte).
  *
- * Sert aussi d'ancre `contact`. Le contexte tenant est conservé par CtaButton.
+ * Sert aussi d'ancre `contact`.
  */
 
 import { MapPin } from "lucide-react"
-import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSplash } from "./spirit-splash"
-import { SPIRIT_BTN_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritFinalCtaProps = {
   title: string
-  address: string | null
+  city: string | null
   quoteEnabled: boolean
 }
 
-export function SpiritFinalCta({ title, address, quoteEnabled }: SpiritFinalCtaProps) {
+export function SpiritFinalCta({ title, city, quoteEnabled }: SpiritFinalCtaProps) {
   return (
     <section
       id={SPIRIT_SECTIONS.contact}
@@ -38,26 +35,20 @@ export function SpiritFinalCta({ title, address, quoteEnabled }: SpiritFinalCtaP
         <Reveal>
           <h2 className="spirit-title text-balance text-3xl text-white sm:text-4xl">{title}</h2>
         </Reveal>
-        <Reveal delay={0.1}>
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <CtaButton href="/reservation" size="lg" className={SPIRIT_BTN_PRIMARY}>
-              Réserver mon créneau
-            </CtaButton>
-            {quoteEnabled && (
-              <a
-                href={`#${SPIRIT_SECTIONS.demandeDevis}`}
-                className="inline-flex h-12 items-center justify-center rounded-sm border border-white/35 px-8 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
-              >
+        {quoteEnabled && (
+          <Reveal delay={0.1}>
+            <div className="mt-9 flex justify-center">
+              <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={SPIRIT_ANCHOR_PRIMARY}>
                 Demander un devis
               </a>
-            )}
-          </div>
-        </Reveal>
-        {address && (
+            </div>
+          </Reveal>
+        )}
+        {city && (
           <Reveal delay={0.16}>
             <p className="mt-8 flex items-center justify-center gap-2 text-sm text-[color:var(--spirit-muted)]">
               <MapPin className="size-4 text-[var(--spirit-teal)]" aria-hidden="true" />
-              {address}
+              {city}
             </p>
           </Reveal>
         )}
