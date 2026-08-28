@@ -53,7 +53,7 @@ export function SpiritSiteShell({
   footerTagline,
 }: SpiritSiteShellProps) {
   return (
-    <div className={`spirit-acs ${spiritDisplay.variable} min-h-screen font-sans`}>
+    <div className={`spirit-acs ${spiritDisplay.variable} min-h-screen overflow-x-clip font-sans`}>
       <SpiritNavigation
         brandName={brandName}
         logoSrc={logoSrc}
