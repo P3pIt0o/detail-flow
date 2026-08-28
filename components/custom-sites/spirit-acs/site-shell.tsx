@@ -65,8 +65,9 @@ export function SpiritSiteShell({
         phoneRaw={phoneRaw}
       />
 
-      {/* Décalage sous l'en-tête fixe (barre turquoise + barre principale). */}
-      <div className="pt-16">{children}</div>
+      {/* Décalage sous l'en-tête fixe = barre turquoise (h-9 = 36px) + barre
+          principale (h-20 → lg:h-24). */}
+      <div className="pt-[116px] lg:pt-[132px]">{children}</div>
 
       <SpiritFooter
         brandName={brandName}

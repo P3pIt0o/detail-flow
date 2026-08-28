@@ -8,8 +8,9 @@
  *  - principal   : « Demander un devis » → #demande-devis (formulaire réel) ;
  *  - secondaire  : « Voir nos réalisations » → #realisations (si galerie).
  *
- * Image de fond : asset réel du dépôt, chargé en priorité et dimensionné
- * (fill) pour éviter tout décalage de mise en page (CLS).
+ * Image de fond : photo dédiée Spirit (spirit-hero-v2.webp), chargée en
+ * priorité et dimensionnée (fill) pour éviter tout décalage de mise en page
+ * (CLS). Réservée à Spirit ACS — ne remplace pas les Hero des autres tenants.
  */
 
 import Image from "next/image"
@@ -60,12 +61,12 @@ export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGaller
     >
       <div className="absolute inset-0 z-0">
         <Image
-          src="/spirit-acs/hero.jpg"
+          src="/custom-sites/spirit-acs/spirit-hero-v2.webp"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[60%_center] sm:object-center"
+          className="object-cover object-[72%_center] sm:object-center"
         />
         {/* MOBILE : assombrissement vertical (bas) → la photo reste visible en haut, texte lisible en bas. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/60 to-[var(--spirit-navy)]/15 sm:hidden" />

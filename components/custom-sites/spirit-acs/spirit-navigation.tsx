@@ -110,16 +110,18 @@ export function SpiritNavigation({
       {/* Barre principale blanche */}
       <div className="border-b border-black/5 bg-white shadow-sm">
         <nav
-          className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
+          className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-24 lg:px-8"
           aria-label="Navigation principale Spirit"
         >
-          <Link href={withTenant("/", tenant)} className="flex items-center gap-2" aria-label={`${brandName} — accueil`}>
+          <Link href={withTenant("/", tenant)} className="flex items-center" aria-label={`${brandName} — accueil`}>
             {logoSrc ? (
+              // Logo officiel Spirit à canal alpha réel : `object-contain`,
+              // largeur auto, aucun fond ni cadre artificiel.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoSrc || "/placeholder.svg"}
                 alt={brandName}
-                className="h-12 w-auto max-w-[180px] object-contain sm:h-14"
+                className="h-16 w-auto max-w-[220px] object-contain lg:h-20"
               />
             ) : (
               <span className="spirit-title text-2xl text-[color:var(--spirit-ink)]">{brandName}</span>

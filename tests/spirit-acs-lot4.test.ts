@@ -17,6 +17,32 @@ const root = process.cwd()
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
 const SPIRIT = "components/custom-sites/spirit-acs"
 
+describe("Spirit — assets (photo Hero + logo officiel)", () => {
+  it("le hero utilise la nouvelle photo dédiée en WebP", () => {
+    const hero = read(`${SPIRIT}/spirit-hero.tsx`)
+    expect(hero).toMatch(/\/custom-sites\/spirit-acs\/spirit-hero-v2\.webp/)
+    expect(hero).toMatch(/priority/)
+    expect(existsSync(path.join(root, "public/custom-sites/spirit-acs/spirit-hero-v2.webp"))).toBe(true)
+  })
+
+  it("le logo de repli pointe vers le nouvel asset et l'ancien fichier à damier est supprimé", () => {
+    const tokens = read(`${SPIRIT}/tokens.ts`)
+    expect(tokens).toMatch(/\/custom-sites\/spirit-acs\/spirit-logo\.png/)
+    expect(tokens).not.toMatch(/["'`]\/spirit-acs\/spirit-logo\.png/)
+    expect(existsSync(path.join(root, "public/custom-sites/spirit-acs/spirit-logo.png"))).toBe(true)
+    // Anciens assets génériques retirés.
+    expect(existsSync(path.join(root, "public/spirit-acs/spirit-logo.png"))).toBe(false)
+    expect(existsSync(path.join(root, "public/spirit-acs/hero.jpg"))).toBe(false)
+  })
+
+  it("le logo officiel possède un vrai canal alpha (PNG RGBA, pas de damier incrusté)", () => {
+    const buf = readFileSync(path.join(root, "public/custom-sites/spirit-acs/spirit-logo.png"))
+    // Signature PNG + IHDR colorType (offset 25) === 6 (RGBA).
+    expect(buf.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a")
+    expect(buf[25]).toBe(6)
+  })
+})
+
 describe("Spirit — suppression des prestations et de la réservation", () => {
   it("ne contient plus les composants prestations / réservation", () => {
     expect(existsSync(path.join(root, SPIRIT, "spirit-prestations.tsx"))).toBe(false)
