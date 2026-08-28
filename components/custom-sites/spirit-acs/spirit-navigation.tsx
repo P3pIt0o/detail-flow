@@ -28,7 +28,9 @@ type SpiritNavigationProps = {
   brandName: string
   logoSrc: string | null
   items: SpiritNavItem[]
-  reserveHref: string
+  /** Ancre in-page du CTA principal (ex. « #demande-devis »). */
+  ctaHref: string
+  ctaLabel: string
   address: string | null
   phone: string | null
   phoneRaw: string | null
@@ -38,7 +40,8 @@ export function SpiritNavigation({
   brandName,
   logoSrc,
   items,
-  reserveHref,
+  ctaHref,
+  ctaLabel,
   address,
   phone,
   phoneRaw,
