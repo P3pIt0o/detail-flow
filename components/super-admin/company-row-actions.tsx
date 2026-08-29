@@ -5,6 +5,7 @@ import { MoreHorizontal, AlertTriangle, Loader2, Check } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -111,18 +112,25 @@ export function CompanyRowActions({
           {/* Site public : attribuer/retirer un site personnalisé. Chaque item
               appelle setCustomSiteKeyAction (validée côté serveur). La liste des
               sites provient du registre : elle affichera automatiquement les
-              futures clés (aucune valeur codée en dur ici). */}
-          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Site public</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => run(() => setCustomSiteKeyAction(companyId, null))}>
-            <Check className={`size-4 ${customSiteKey == null ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
-            Site standard
-          </DropdownMenuItem>
-          {customSiteOptions.map((opt) => (
-            <DropdownMenuItem key={opt.key} onClick={() => run(() => setCustomSiteKeyAction(companyId, opt.key))}>
-              <Check className={`size-4 ${customSiteKey === opt.key ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
-              {opt.name}
+              futures clés (aucune valeur codée en dur ici).
+
+              IMPORTANT : DropdownMenuLabel (base-ui Menu.GroupLabel) DOIT être
+              rendu dans un DropdownMenuGroup (Menu.Group), sinon base-ui lève
+              « MenuGroupContext is missing » à l'ouverture du menu (page noire
+              « This page couldn't load »). */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Site public</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => run(() => setCustomSiteKeyAction(companyId, null))}>
+              <Check className={`size-4 ${customSiteKey == null ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
+              Site standard
             </DropdownMenuItem>
-          ))}
+            {customSiteOptions.map((opt) => (
+              <DropdownMenuItem key={opt.key} onClick={() => run(() => setCustomSiteKeyAction(companyId, opt.key))}>
+                <Check className={`size-4 ${customSiteKey === opt.key ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
+                {opt.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteOpen(true)}>
             Supprimer définitivement
