@@ -9,7 +9,8 @@ import path from "node:path"
  *  1. choix Particulier/Professionnel + champ légal conditionnel ;
  *  2. bouton WhatsApp partagé monté dans le shell Spirit (message prestations) ;
  *  3. header Spirit animé/compact au défilement ;
- *  4. SpiritSectionDivider limité au site Spirit ;
+ *  4. transitions éditoriales (séparateurs décoratifs supprimés), header compact,
+ *     bandeau de réassurance premium, simplification admin Spirit ;
  *  - non-régression : autres tenants inchangés (toggle opt-in, cycle intact).
  */
 
@@ -112,27 +113,88 @@ describe("Spirit — header animé/compact au défilement", () => {
   })
 })
 
-describe("Spirit — séparateurs de sections limités à Spirit", () => {
-  it("le composant SpiritSectionDivider existe et est décoratif (aria-hidden)", () => {
-    const divider = read(`${SPIRIT}/spirit-section-divider.tsx`)
-    expect(divider).toMatch(/aria-hidden="true"/)
-    expect(divider).toMatch(/darkToLight|lightToDark|accent/)
-  })
-
-  it("les trois variantes sont stylées dans la CSS SCOPÉE Spirit uniquement", () => {
-    const css = read(`${SPIRIT}/spirit.css`)
-    for (const v of ["darkToLight", "lightToDark", "accent"]) {
-      expect(css).toMatch(new RegExp(`\\.spirit-acs \\.spirit-divider--${v}`))
-    }
-    // Aucune fuite hors du scope Spirit (toutes les règles divider sont préfixées).
-    expect(css).not.toMatch(/^\s*\.spirit-divider/m)
-  })
-
-  it("les séparateurs sont utilisés dans la page Spirit, pas ailleurs", () => {
-    expect(read(`${SPIRIT}/home-page.tsx`)).toMatch(/SpiritSectionDivider/)
-    // Le composant reste dans le dossier Spirit (non générique).
-    expect(existsSync(path.join(root, SPIRIT, "spirit-section-divider.tsx"))).toBe(true)
+describe("Spirit — transitions éditoriales (séparateurs décoratifs supprimés)", () => {
+  it("le composant décoratif SpiritSectionDivider n'existe plus", () => {
+    expect(existsSync(path.join(root, SPIRIT, "spirit-section-divider.tsx"))).toBe(false)
     expect(existsSync(path.join(root, "components/ui/spirit-section-divider.tsx"))).toBe(false)
+  })
+
+  it("la page Spirit n'utilise plus de séparateur décoratif", () => {
+    const home = read(`${SPIRIT}/home-page.tsx`)
+    expect(home).not.toMatch(/SpiritSectionDivider/)
+  })
+
+  it("la CSS Spirit ne contient plus de lignes à points / gouttes décoratives", () => {
+    const css = read(`${SPIRIT}/spirit.css`)
+    expect(css).not.toMatch(/spirit-divider/)
+    expect(css).not.toMatch(/spirit-drop-in|spirit-divider-in/)
+  })
+
+  it("les transitions restent éditoriales : trait rose au-dessus des titres (spirit-rule)", () => {
+    const css = read(`${SPIRIT}/spirit.css`)
+    expect(css).toMatch(/\.spirit-acs \.spirit-rule/)
+  })
+})
+
+describe("Spirit — header compact premium", () => {
+  const nav = () => read(`${SPIRIT}/spirit-navigation.tsx`)
+
+  it("hauteurs compactes (barre principale ≤ 76px, mode réduit 60px) et transition courte", () => {
+    const src = nav()
+    expect(src).toMatch(/h-\[76px\]/)
+    expect(src).toMatch(/h-\[60px\]/)
+    // Transition courte (180–240ms) → duration-200.
+    expect(src).toMatch(/duration-200/)
+  })
+
+  it("le décalage du shell suit la hauteur compacte (pas de grand bloc blanc)", () => {
+    expect(read(`${SPIRIT}/site-shell.tsx`)).toMatch(/pt-\[112px\] lg:pt-\[116px\]/)
+  })
+})
+
+describe("Spirit — bandeau de réassurance premium (3 engagements)", () => {
+  const band = () => read(`${SPIRIT}/spirit-reassurance.tsx`)
+
+  it("icônes fines sans fond carré (strokeWidth fin, pas de rounded-sm/bg derrière l'icône)", () => {
+    const src = band()
+    expect(src).toMatch(/strokeWidth=\{1\.5\}/)
+    expect(src).not.toMatch(/rounded-sm bg-\[var\(--spirit-teal\)\]/)
+  })
+
+  it("bande bleu nuit, 3 colonnes desktop avec séparateurs (divide)", () => {
+    const src = band()
+    expect(src).toMatch(/spirit-navy-2/)
+    expect(src).toMatch(/sm:grid-cols-3/)
+    expect(src).toMatch(/divide-/)
+  })
+})
+
+describe("Admin — simplification Spirit (réglages standard sans effet masqués)", () => {
+  const page = () => read("app/admin/(dashboard)/parametres/page.tsx")
+
+  it("détecte le site Spirit et filtre l'onglet Apparence", () => {
+    const src = page()
+    expect(src).toMatch(/customSiteKey === "spirit-acs"/)
+    expect(src).toMatch(/filter\(\(t\) => t\.value !== "appearance"\)/)
+  })
+
+  it("masque pour Spirit l'ordre des sections et l'onglet Apparence ; regroupe le contenu", () => {
+    const src = page()
+    expect(src).toMatch(/\{!isSpiritSite && \(\s*<TabsContent value="appearance"/)
+    expect(src).toMatch(/Contenu du site Spirit ACS/)
+    expect(src).toMatch(/simplified=\{isSpiritSite\}/)
+  })
+
+  it("SiteBranding et PublicSiteContent acceptent un mode simplifié opt-in (défaut false)", () => {
+    const branding = read("components/admin/settings/site-branding.tsx")
+    expect(branding).toMatch(/simplified\?\:\s*boolean/)
+    expect(branding).toMatch(/simplified = false/)
+    // Logo et libellés CTA Hero masqués en simplifié.
+    expect(branding).toMatch(/\{!simplified && \(/)
+
+    const content = read("components/admin/settings/public-site-content.tsx")
+    expect(content).toMatch(/simplified\?\:\s*boolean/)
+    expect(content).toMatch(/simplified = false/)
   })
 })
 

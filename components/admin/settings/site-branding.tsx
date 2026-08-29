@@ -37,9 +37,21 @@ type Props = {
   socialLinks?: Record<string, string> | null
   /** Contenu actuel du Hero de la vitrine (valeurs vides = fallback neutre). */
   hero: HeroValues
+  /**
+   * Mode simplifié (site à shell personnalisé, ex. Spirit) : masque les réglages
+   * standard sans effet sur ce site — logo standard et libellés de boutons Hero.
+   * Par défaut `false` : les autres tenants restent strictement inchangés.
+   */
+  simplified?: boolean
 }
 
-export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socialLinks, hero }: Props) {
+export function SiteBranding({
+  logoPathname: initialLogo,
+  cgv: initialCgv,
+  socialLinks,
+  hero,
+  simplified = false,
+}: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
@@ -201,34 +213,37 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socia
               className={inputClass}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="heroCtaPrimary" className={labelClass}>
-                Bouton principal <span className="text-muted-foreground">(optionnel)</span>
-              </label>
-              <input
-                id="heroCtaPrimary"
-                type="text"
-                value={heroValues.heroCtaPrimary}
-                onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaPrimary: e.target.value }))}
-                placeholder="Réserver"
-                className={inputClass}
-              />
+          {/* Libellés des boutons Hero : sans effet sur le site Spirit (CTA fixes). */}
+          {!simplified && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="heroCtaPrimary" className={labelClass}>
+                  Bouton principal <span className="text-muted-foreground">(optionnel)</span>
+                </label>
+                <input
+                  id="heroCtaPrimary"
+                  type="text"
+                  value={heroValues.heroCtaPrimary}
+                  onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaPrimary: e.target.value }))}
+                  placeholder="Réserver"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label htmlFor="heroCtaSecondary" className={labelClass}>
+                  Bouton secondaire <span className="text-muted-foreground">(optionnel)</span>
+                </label>
+                <input
+                  id="heroCtaSecondary"
+                  type="text"
+                  value={heroValues.heroCtaSecondary}
+                  onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaSecondary: e.target.value }))}
+                  placeholder="Voir les prestations"
+                  className={inputClass}
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="heroCtaSecondary" className={labelClass}>
-                Bouton secondaire <span className="text-muted-foreground">(optionnel)</span>
-              </label>
-              <input
-                id="heroCtaSecondary"
-                type="text"
-                value={heroValues.heroCtaSecondary}
-                onChange={(e) => setHeroValues((p) => ({ ...p, heroCtaSecondary: e.target.value }))}
-                placeholder="Voir les prestations"
-                className={inputClass}
-              />
-            </div>
-          </div>
+          )}
         </div>
         {heroError && (
           <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
@@ -250,7 +265,9 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socia
         </Button>
       </div>
 
-      {/* Logo du site public */}
+      {/* Logo du site public — masqué pour les sites à shell personnalisé (Spirit),
+          qui utilisent leur propre logo intégré et n'exploitent pas ce réglage. */}
+      {!simplified && (
       <div className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo du site public</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
@@ -295,6 +312,7 @@ export function SiteBranding({ logoPathname: initialLogo, cgv: initialCgv, socia
           </div>
         </div>
       </div>
+      )}
 
       {/* CGV */}
       <div className={cardClass}>
