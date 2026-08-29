@@ -16,6 +16,12 @@ const labelClass = "mb-1.5 block text-sm font-medium text-foreground"
 type Props = {
   /** Contenu résolu (fusion des valeurs enregistrées + valeurs par défaut). */
   content: Required<{ [K in keyof SiteContent]: Required<SiteContent[K]> }>
+  /**
+   * Mode simplifié (site à shell personnalisé, ex. Spirit) : masque les sections
+   * non rendues par ce site — « Pourquoi nous choisir » et intro « Prestations ».
+   * Par défaut `false` : les autres tenants conservent toutes les sections.
+   */
+  simplified?: boolean
 }
 
 /**
@@ -30,7 +36,7 @@ type Props = {
  * des sections correspondantes. Un champ laissé vide retombe automatiquement
  * sur un texte par défaut neutre (voir lib/site-content.ts).
  */
-export function PublicSiteContent({ content }: Props) {
+export function PublicSiteContent({ content, simplified = false }: Props) {
   const router = useRouter()
   const [values, setValues] = useState<SiteContent>(content)
   const [pending, startTransition] = useTransition()
@@ -118,7 +124,8 @@ export function PublicSiteContent({ content }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* Pourquoi nous choisir */}
+        {/* Pourquoi nous choisir — masqué en mode simplifié (non rendu par Spirit). */}
+        {!simplified && (
         <AccordionItem value="whyUs" className="rounded-2xl border border-border bg-card px-4">
           <AccordionTrigger className="text-base font-semibold text-foreground">
             Pourquoi nous choisir
@@ -164,7 +171,11 @@ export function PublicSiteContent({ content }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* Prestations (intro) */}
+        )}
+
+        {/* Prestations (intro) — masqué en mode simplifié (Spirit n'a pas de
+            section Prestations sur son site). */}
+        {!simplified && (
         <AccordionItem value="services" className="rounded-2xl border border-border bg-card px-4">
           <AccordionTrigger className="text-base font-semibold text-foreground">Prestations</AccordionTrigger>
           <AccordionContent className="space-y-4 pt-2">
@@ -215,6 +226,8 @@ export function PublicSiteContent({ content }: Props) {
             </div>
           </AccordionContent>
         </AccordionItem>
+
+        )}
 
         {/* Galerie */}
         <AccordionItem value="gallery" className="rounded-2xl border border-border bg-card px-4">

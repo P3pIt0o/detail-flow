@@ -124,8 +124,8 @@ export function SpiritNavigation({
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-transform duration-[250ms] ease-out motion-reduce:transition-none ${
-        hidden && !open ? "-translate-y-full" : "translate-y-0"
+      className={`fixed inset-x-0 top-0 z-50 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${
+        hidden && !open ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
       }`}
     >
       {/* Barre supérieure turquoise — ville + téléphone réels uniquement
@@ -133,7 +133,7 @@ export function SpiritNavigation({
           gagner de la hauteur sur mobile. */}
       {(city || phone) && (
         <div
-          className={`overflow-hidden bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)] transition-[height] duration-[250ms] ease-out motion-reduce:transition-none ${
+          className={`overflow-hidden bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)] transition-[height] duration-200 ease-out motion-reduce:transition-none ${
             compact ? "h-0" : "h-9"
           }`}
         >
@@ -154,11 +154,16 @@ export function SpiritNavigation({
         </div>
       )}
 
-      {/* Barre principale blanche — hauteur animée (normale ↔ compacte). */}
-      <div className="border-b border-black/5 bg-white shadow-sm">
+      {/* Barre principale blanche — compacte et premium ; ombre discrète accentuée
+          au défilement, sans grand vide blanc. */}
+      <div
+        className={`border-b border-black/5 bg-white transition-shadow duration-200 ${
+          compact ? "shadow-[0_6px_20px_-12px_rgba(15,23,42,0.35)]" : "shadow-sm"
+        }`}
+      >
         <nav
-          className={`mx-auto flex max-w-7xl items-center justify-between px-4 transition-[height] duration-[250ms] ease-out motion-reduce:transition-none sm:px-6 lg:h-24 lg:px-8 ${
-            compact ? "h-[68px]" : "h-[84px]"
+          className={`mx-auto flex max-w-7xl items-center justify-between px-4 transition-[height] duration-200 ease-out motion-reduce:transition-none sm:px-6 lg:h-20 lg:px-8 ${
+            compact ? "h-[60px]" : "h-[76px]"
           }`}
           aria-label="Navigation principale Spirit"
         >
@@ -171,8 +176,8 @@ export function SpiritNavigation({
               <img
                 src={logoSrc || "/placeholder.svg"}
                 alt={brandName}
-                className={`w-auto max-w-[220px] object-contain transition-[height] duration-[250ms] ease-out motion-reduce:transition-none lg:h-20 ${
-                  compact ? "h-12" : "h-[68px]"
+                className={`w-auto max-w-[180px] object-contain transition-[height] duration-200 ease-out motion-reduce:transition-none lg:h-16 ${
+                  compact ? "h-10" : "h-14"
                 }`}
               />
             ) : (

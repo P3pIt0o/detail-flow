@@ -60,6 +60,16 @@ export default async function ParametresPage({
   const activeTab = activeCategory && tab ? tab : undefined
   const CategoryIcon = activeCategory?.icon
 
+  // Site Spirit ACS : shell 100 % personnalisé. On masque UNIQUEMENT pour lui les
+  // réglages du site standard sans effet (couleurs, ordre des sections, logo
+  // standard, libellés de boutons Hero, sections « Pourquoi nous choisir » et
+  // intro « Prestations » non rendues). Les autres tenants restent inchangés.
+  const isSpiritSite = tenant.customSiteKey === "spirit-acs"
+  const visibleSubTabs =
+    activeCategory && isSpiritSite && activeCategory.id === "site"
+      ? activeCategory.subTabs.filter((t) => t.value !== "appearance")
+      : (activeCategory?.subTabs ?? [])
+
   const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
     await Promise.all([
       getSettings(),
@@ -162,9 +172,9 @@ export default async function ParametresPage({
           <Tabs defaultValue={activeTab} className="w-full">
             {/* Navigation secondaire légère, uniquement si plusieurs sous-sections.
                 Les pastilles passent à la ligne : aucune barre coupée sur mobile. */}
-            {activeCategory.subTabs.length > 1 && (
+            {visibleSubTabs.length > 1 && (
               <TabsList className="flex h-auto flex-wrap justify-start gap-1 p-1">
-                {activeCategory.subTabs.map((t) => (
+                {visibleSubTabs.map((t) => (
                   <TabsTrigger key={t.value} value={t.value} className="flex-none px-3 py-1.5">
                     {t.label}
                   </TabsTrigger>
@@ -223,6 +233,16 @@ export default async function ParametresPage({
             {activeCategory.id === "site" && (
               <>
                 <TabsContent value="site" className="mt-6">
+                  {isSpiritSite && (
+                    <div className="mb-6 rounded-2xl border border-border bg-muted/30 p-4">
+                      <h2 className="text-lg font-semibold text-foreground">Contenu du site Spirit ACS</h2>
+                      <p className="mt-1 text-sm text-muted-foreground text-pretty">
+                        Votre site utilise un modèle personnalisé. Seuls les textes réellement affichés sont
+                        modifiables ici : les réglages du modèle standard (couleurs, logo, ordre des sections) sont
+                        masqués car ils n&apos;ont aucun effet sur votre site.
+                      </p>
+                    </div>
+                  )}
                   <SiteBranding
                     logoPathname={tenant.logoUrl ?? null}
                     cgv={tenant.cgv ?? ""}
@@ -234,26 +254,33 @@ export default async function ParametresPage({
                       heroCtaPrimary: tenant.heroCtaPrimary ?? "",
                       heroCtaSecondary: tenant.heroCtaSecondary ?? "",
                     }}
+                    simplified={isSpiritSite}
                   />
                   <div className="mt-10 border-t border-border pt-8">
-                    <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
-                    <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+                    {!isSpiritSite && (
+                      <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
+                    )}
+                    <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} simplified={isSpiritSite} />
                   </div>
-                  <div className="mt-10 border-t border-border pt-8">
-                    <SectionOrderSettings
-                      items={resolveSectionOrder(tenant.siteContent).map((key) => ({
-                        key,
-                        label: HOME_SECTION_LABELS[key],
-                      }))}
+                  {!isSpiritSite && (
+                    <div className="mt-10 border-t border-border pt-8">
+                      <SectionOrderSettings
+                        items={resolveSectionOrder(tenant.siteContent).map((key) => ({
+                          key,
+                          label: HOME_SECTION_LABELS[key],
+                        }))}
+                      />
+                    </div>
+                  )}
+                </TabsContent>
+                {!isSpiritSite && (
+                  <TabsContent value="appearance" className="mt-6">
+                    <AppearanceSettings
+                      brandPrimary={tenant.brandPrimary ?? null}
+                      brandSecondary={tenant.brandSecondary ?? null}
                     />
-                  </div>
-                </TabsContent>
-                <TabsContent value="appearance" className="mt-6">
-                  <AppearanceSettings
-                    brandPrimary={tenant.brandPrimary ?? null}
-                    brandSecondary={tenant.brandSecondary ?? null}
-                  />
-                </TabsContent>
+                  </TabsContent>
+                )}
                 <TabsContent value="gallery" className="mt-6">
                   <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
                 </TabsContent>
