@@ -134,15 +134,34 @@ describe("saveReviewsSourceConfig", () => {
       call += 1
       // 1er appel : check colonnes -> 2 colonnes présentes.
       if (call === 1) return { rows: [{ column_name: "reviews_source" }, { column_name: "google_place_id" }] }
-      return { rows: [] }
+      // 2e appel : l'UPDATE touche bien la ligne du tenant (rowCount = 1).
+      return { rows: [], rowCount: 1 }
     }
     const res = await saveReviewsSourceConfig(9, "manual", null)
     expect(res.ok).toBe(true)
     const joined = execCalls.map((c) => c.text).join(" ")
     expect(/UPDATE settings/i.test(joined)).toBe(true)
+    // ANTI-RÉGRESSION : la table settings utilise des identifiants camelCase
+    // QUOTÉS. On doit référencer "companyId"/"updatedAt" (et jamais les variantes
+    // snake_case company_id/updated_at qui n'existent pas -> cause du bug).
+    expect(joined).toContain('"companyId"')
+    expect(joined).toContain('"updatedAt"')
+    expect(/\bcompany_id\b/.test(joined)).toBe(false)
+    expect(/\bupdated_at\b/.test(joined)).toBe(false)
     // GARANTIE anti-suppression : aucune requête destructive sur les avis.
     expect(/DELETE/i.test(joined)).toBe(false)
     expect(/DROP|TRUNCATE/i.test(joined)).toBe(false)
+  })
+
+  it("échoue proprement si aucune ligne settings n'est mise à jour (tenant introuvable)", async () => {
+    let call = 0
+    execImpl = () => {
+      call += 1
+      if (call === 1) return { rows: [{ column_name: "reviews_source" }, { column_name: "google_place_id" }] }
+      return { rows: [], rowCount: 0 } // aucune ligne pour ce tenant
+    }
+    const res = await saveReviewsSourceConfig(999, "manual", null)
+    expect(res.ok).toBe(false)
   })
 })
 

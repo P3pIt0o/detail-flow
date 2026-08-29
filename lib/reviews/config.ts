@@ -47,8 +47,13 @@ function normalizeSource(value: unknown): ReviewsSource {
 export async function getReviewsSourceConfig(companyId: number): Promise<ReviewsSourceConfig> {
   if (!Number.isInteger(companyId) || companyId <= 0) return DEFAULT_REVIEWS_CONFIG
   try {
+    // NOTE : la table `settings` utilise des identifiants camelCase QUOTÉS
+    // (`"companyId"`, `"updatedAt"`), tandis que les colonnes ajoutées par la
+    // migration sont en snake_case non quoté (`reviews_source`,
+    // `google_place_id`). Il FAUT donc quoter `"companyId"` ici, sinon Postgres
+    // cherche une colonne `company_id` inexistante et lève une erreur.
     const result = await db.execute(
-      sql`SELECT reviews_source, google_place_id FROM settings WHERE company_id = ${companyId} LIMIT 1`,
+      sql`SELECT reviews_source, google_place_id FROM settings WHERE "companyId" = ${companyId} LIMIT 1`,
     )
     const row = (result as unknown as { rows?: Array<Record<string, unknown>> }).rows?.[0]
     if (!row) return DEFAULT_REVIEWS_CONFIG
@@ -109,11 +114,24 @@ export async function saveReviewsSourceConfig(
   }
 
   try {
-    await db.execute(
-      sql`UPDATE settings SET reviews_source = ${src}, google_place_id = ${placeId}, updated_at = NOW() WHERE company_id = ${companyId}`,
+    // Identifiants camelCase QUOTÉS (`"updatedAt"`, `"companyId"`) : voir la note
+    // dans getReviewsSourceConfig. Les colonnes de la migration restent en
+    // snake_case non quoté. Écriture strictement limitée à la ligne du tenant
+    // (`WHERE "companyId" = ${companyId}`), companyId résolu côté serveur.
+    const res = await db.execute(
+      sql`UPDATE settings SET reviews_source = ${src}, google_place_id = ${placeId}, "updatedAt" = NOW() WHERE "companyId" = ${companyId}`,
     )
+    // Aucune ligne mise à jour => settings du tenant absent : on le signale
+    // clairement dans les logs plutôt que de laisser croire à un succès.
+    const rowCount = (res as unknown as { rowCount?: number }).rowCount ?? 0
+    if (rowCount === 0) {
+      console.log("[v0] saveReviewsSourceConfig: aucune ligne settings pour companyId", companyId)
+      return { ok: false, error: "Configuration du tenant introuvable." }
+    }
     return { ok: true }
   } catch (e) {
+    // Log le vrai message (colonne manquante, contrainte, etc.) pour diagnostic,
+    // tout en renvoyant un message propre au tenant.
     console.log("[v0] saveReviewsSourceConfig error:", e instanceof Error ? e.message : e)
     return { ok: false, error: "Erreur lors de l'enregistrement de la source des avis." }
   }
