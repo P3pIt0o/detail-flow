@@ -1,8 +1,11 @@
 import type { Metadata } from "next"
-import { getPublicReviews } from "@/lib/catalog-queries"
+import { notFound } from "next/navigation"
+import { resolveRequestTenant } from "@/lib/tenant"
+import { resolveTenantReviews } from "@/lib/reviews/public"
 import { PageHeader } from "@/components/layout/page-header"
 import { ReviewCard } from "@/components/review-card"
 import { StarRating } from "@/components/ui/star-rating"
+import { GoogleReviewsSection } from "@/components/reviews/google-reviews-section"
 import { CtaSection } from "@/components/sections/cta-section"
 import { Reveal } from "@/components/ui/reveal"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
@@ -18,8 +21,29 @@ export default async function AvisPage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
   await requireWebsiteFeature()
 
-  // Avis visibles du tenant courant (DB).
-  const reviews = await getPublicReviews()
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
+
+  // Source décidée par le tenant (centralisée). Jamais les deux à la fois.
+  const resolved = await resolveTenantReviews(tenant.id)
+
+  // --- Source Google : section dédiée (masquée proprement en cas de panne). ---
+  if (resolved.source === "google") {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Avis clients"
+          title="Ce que disent nos clients"
+          description="La confiance de nos clients est notre plus belle récompense. Voici leurs retours d'expérience."
+        />
+        {resolved.data && <GoogleReviewsSection details={resolved.data} />}
+        <CtaSection />
+      </>
+    )
+  }
+
+  // --- Source manuelle (défaut) : rendu historique strictement identique. ---
+  const reviews = resolved.reviews
   // Moyenne calculée à partir des avis (arrondie à une décimale).
   const average =
     reviews.length > 0 ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10 : 0

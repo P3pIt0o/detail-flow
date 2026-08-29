@@ -12,8 +12,10 @@ import { SectionOrderSettings } from "@/components/admin/settings/section-order-
 import { resolveSiteContent, resolveSectionOrder, HOME_SECTION_LABELS } from "@/lib/site-content"
 import { GallerySettings } from "@/components/admin/settings/gallery-settings"
 import { listGalleryItems } from "./gallery-actions"
-import { ReviewSettings } from "@/components/admin/settings/review-settings"
+import { ReviewsSourceSettings } from "@/components/admin/settings/reviews-source-settings"
 import { listReviews } from "./review-actions"
+import { getReviewsSourceConfig } from "@/lib/reviews/config"
+import { getGooglePlaceDetails } from "@/lib/reviews/google-places"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { TravelSettings } from "@/components/admin/settings/travel-settings"
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
@@ -74,6 +76,23 @@ export default async function ParametresPage({
         .limit(1),
       listPromoCodes(),
     ])
+
+  // Source des avis (manuel/Google) + aperçu de l'établissement Google enregistré.
+  // Défensif : sans migration ou hors Google, on reste en manuel sans aperçu.
+  const reviewsSourceConfig = await getReviewsSourceConfig(tenant.id)
+  let googlePlacePreview = null
+  if (reviewsSourceConfig.source === "google" && reviewsSourceConfig.googlePlaceId) {
+    const res = await getGooglePlaceDetails(reviewsSourceConfig.googlePlaceId)
+    if (res.ok) {
+      googlePlacePreview = {
+        placeId: res.data.placeId,
+        name: res.data.name,
+        rating: res.data.rating,
+        userRatingCount: res.data.userRatingCount,
+        googleMapsUri: res.data.googleMapsUri,
+      }
+    }
+  }
 
   // Droit d'ACTIVER/UTILISER les SMS (feature sms). LEGACY => true (inchangé).
   // Purement indicatif pour l'UI : la sécurité reste côté serveur (actions + cron).
@@ -239,7 +258,11 @@ export default async function ParametresPage({
                   <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
                 </TabsContent>
                 <TabsContent value="reviews" className="mt-6">
-                  <ReviewSettings items={reviewItems} />
+                  <ReviewsSourceSettings
+                    items={reviewItems}
+                    initialSource={reviewsSourceConfig.source}
+                    initialPreview={googlePlacePreview}
+                  />
                 </TabsContent>
                 <TabsContent value="custom-requests" className="mt-6">
                   <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />

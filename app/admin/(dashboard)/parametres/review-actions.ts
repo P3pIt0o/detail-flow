@@ -5,6 +5,18 @@ import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { reviews } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import {
+  getReviewsSourceConfig,
+  saveReviewsSourceConfig,
+  type ReviewsSource,
+  type ReviewsSourceConfig,
+} from "@/lib/reviews/config"
+import {
+  searchGooglePlaces,
+  getGooglePlaceDetails,
+  googleErrorMessage,
+  type GooglePlaceCandidate,
+} from "@/lib/reviews/google-places"
 
 export type ReviewActionResult = { ok: boolean; error?: string }
 
@@ -175,5 +187,92 @@ export async function deleteReview(id: number): Promise<ReviewActionResult> {
   } catch (e) {
     console.log("[v0] deleteReview error:", e instanceof Error ? e.message : e)
     return { ok: false, error: e instanceof Error ? e.message : "Erreur lors de la suppression." }
+  }
+}
+
+/* ==========================================================================
+ * SOURCE DES AVIS (manuel vs Google)
+ *
+ * Toutes ces actions résolvent le tenant via requireCompanyMember() (session +
+ * appartenance vérifiées côté serveur). Le navigateur ne fournit JAMAIS de
+ * companyId : un tenant ne peut donc lire/écrire que SA propre configuration.
+ * La clé Google reste strictement serveur (module @/lib/reviews/google-places).
+ * ======================================================================== */
+
+/** Aperçu léger d'un établissement Google pour l'admin (jamais persisté). */
+export type GooglePlacePreview = {
+  placeId: string
+  name: string
+  rating: number | null
+  userRatingCount: number | null
+  googleMapsUri: string | null
+}
+
+/** Lit la config de source d'avis du tenant connecté. */
+export async function getReviewsSource(): Promise<ReviewsSourceConfig> {
+  const { tenant } = await requireCompanyMember()
+  return getReviewsSourceConfig(tenant.id)
+}
+
+/**
+ * Recherche d'établissements Google (admin uniquement). Renvoie une erreur
+ * lisible plutôt que de « throw ». La clé API n'est jamais renvoyée.
+ */
+export async function searchGooglePlacesAction(
+  query: string,
+): Promise<{ ok: true; candidates: GooglePlaceCandidate[] } | { ok: false; error: string }> {
+  await requireCompanyMember() // garde d'accès (membre d'un tenant)
+  const res = await searchGooglePlaces(query)
+  if (!res.ok) return { ok: false, error: googleErrorMessage(res.error) }
+  return { ok: true, candidates: res.data }
+}
+
+/** Aperçu d'un établissement précis (validation du Place ID incluse). */
+export async function getGooglePlacePreviewAction(
+  placeId: string,
+): Promise<{ ok: true; preview: GooglePlacePreview } | { ok: false; error: string }> {
+  await requireCompanyMember()
+  const res = await getGooglePlaceDetails(placeId, { revalidateSeconds: 0 })
+  if (!res.ok) return { ok: false, error: googleErrorMessage(res.error) }
+  const { placeId: id, name, rating, userRatingCount, googleMapsUri } = res.data
+  return { ok: true, preview: { placeId: id, name, rating, userRatingCount, googleMapsUri } }
+}
+
+/**
+ * Enregistre la source des avis du tenant connecté.
+ *
+ * - En mode Google, le Place ID est VALIDÉ auprès de Google avant sauvegarde
+ *   (refus si invalide/introuvable).
+ * - Ne supprime JAMAIS les avis manuels : changer de source ne fait que
+ *   masquer l'autre source côté public.
+ */
+export async function saveReviewsSource(
+  source: ReviewsSource,
+  googlePlaceId: string | null,
+): Promise<ReviewActionResult & { migrationRequired?: boolean }> {
+  try {
+    const { tenant } = await requireCompanyMember()
+
+    if (source === "google") {
+      const placeId = (googlePlaceId ?? "").trim()
+      if (!placeId) return { ok: false, error: "Sélectionnez un établissement Google avant d'enregistrer." }
+      // Validation serveur du Place ID (évite d'enregistrer un identifiant mort).
+      const check = await getGooglePlaceDetails(placeId, { revalidateSeconds: 0 })
+      if (!check.ok) return { ok: false, error: googleErrorMessage(check.error) }
+
+      const saved = await saveReviewsSourceConfig(tenant.id, "google", placeId)
+      if (!saved.ok) return { ok: false, error: saved.error, migrationRequired: saved.migrationRequired }
+      revalidate()
+      return { ok: true }
+    }
+
+    // Retour au mode manuel : les avis manuels existants réapparaissent tels quels.
+    const saved = await saveReviewsSourceConfig(tenant.id, "manual", null)
+    if (!saved.ok) return { ok: false, error: saved.error, migrationRequired: saved.migrationRequired }
+    revalidate()
+    return { ok: true }
+  } catch (e) {
+    console.log("[v0] saveReviewsSource error:", e instanceof Error ? e.message : e)
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur lors de l'enregistrement." }
   }
 }
