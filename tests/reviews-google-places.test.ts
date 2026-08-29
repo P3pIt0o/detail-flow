@@ -99,10 +99,17 @@ describe("Place ID invalide", () => {
 
 describe("classification des erreurs HTTP", () => {
   it("403 (API non activée) => not_configured", async () => {
-    mockFetchOnce({ ok: false, status: 403, text: "API has not been used" })
+    mockFetchOnce({ ok: false, status: 403, text: "API has not been used in project" })
     const res = await getGooglePlaceDetails("ChIJabcdefghij")
     expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.error).toBe("temporary" as never) // sera raffiné ci-dessous
+    if (!res.ok) expect(res.error).toBe("not_configured")
+  })
+
+  it("403 (facturation indisponible) => quota", async () => {
+    mockFetchOnce({ ok: false, status: 403, text: "billing has not been enabled" })
+    const res = await getGooglePlaceDetails("ChIJabcdefghij")
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error).toBe("quota")
   })
 
   it("429 => quota", async () => {

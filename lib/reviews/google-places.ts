@@ -83,8 +83,10 @@ function classifyHttpError(status: number, body: string): GooglePlacesErrorKind 
   if (status === 404) return "not_found"
   if (status === 429) return "quota"
   if (status === 403) {
-    // 403 = clé invalide, API non activée, ou facturation/quota indisponible.
-    if (/billing|quota|not been used|disabled/i.test(body)) return "quota"
+    // 403 : on distingue facturation/quota indisponible (billing/quota) de
+    // « API non activée / clé restreinte » (API not enabled/disabled/not used),
+    // qui relève d'un défaut de configuration à corriger dans l'admin.
+    if (/billing|quota|rate limit/i.test(body)) return "quota"
     return "not_configured"
   }
   return "temporary"
