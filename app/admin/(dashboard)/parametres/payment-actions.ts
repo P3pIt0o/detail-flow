@@ -18,6 +18,7 @@ import { companies } from "@/lib/db/schema"
 import { requireCompanyMember, requireCompanyRole } from "@/lib/admin"
 import { createOnboardingLink, syncConnectAccountStatus, createExpressLoginLink } from "@/lib/payments/connect"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { normalizePaymentMode, type PaymentMode } from "@/lib/payments/mode"
 import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 
 export type PaymentActionResult = { ok: boolean; error?: string; url?: string }
@@ -76,11 +77,11 @@ export async function openStripeDashboard(): Promise<PaymentActionResult> {
  */
 export async function savePaymentSettings(input: {
   paymentsEnabled: boolean
-  paymentMode: "none" | "deposit" | "full"
+  paymentMode: PaymentMode
 }): Promise<PaymentActionResult> {
   const { tenant } = await requireCompanyRole(["OWNER", "ADMIN"])
 
-  const mode = ["none", "deposit", "full"].includes(input.paymentMode) ? input.paymentMode : "none"
+  const mode = normalizePaymentMode(input.paymentMode)
 
   // Contrôle de licence (feature online_payments) — uniquement pour ACTIVER.
   // La désactivation reste toujours possible. LEGACY (licensePlan = NULL) =>

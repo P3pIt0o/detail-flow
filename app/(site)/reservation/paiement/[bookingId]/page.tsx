@@ -6,6 +6,8 @@ import { getBookingByReference } from "@/lib/booking/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { formatPrice, formatDateLong } from "@/lib/format"
 import { PaymentCheckout } from "@/components/booking/payment-checkout"
+import { PaymentModeChoice } from "@/components/booking/payment-mode-choice"
+import { STRIPE_MIN_CENTS } from "@/lib/payments/mode"
 
 export const metadata: Metadata = {
   title: "Paiement de votre réservation",
@@ -41,9 +43,12 @@ export default async function PaiementPage({
   }
 
   const { booking, items } = data
+  const isChoice = cfg.paymentMode === "choice"
   const isDeposit = cfg.paymentMode === "deposit"
-  const amountCents = isDeposit ? booking.depositCents : booking.totalCents
-  const remainingCents = isDeposit ? Math.max(0, booking.totalCents - booking.depositCents) : 0
+  // Acompte plafonné au total (jamais > total), cohérent avec le serveur.
+  const depositCents = Math.min(booking.depositCents, booking.totalCents)
+  const amountCents = isDeposit ? depositCents : booking.totalCents
+  const remainingCents = Math.max(0, booking.totalCents - depositCents)
 
   // Snapshot promo durable enregistré sur la réservation (jamais recalculé).
   const promo = booking.promoCodeSnapshot as { code?: string } | null
@@ -56,8 +61,10 @@ export default async function PaiementPage({
   // Montant minimum encaissable par Stripe (0,50 € pour EUR). En dessous, on
   // n'ouvre PAS Stripe (qui refuserait) et on affiche une règle métier claire,
   // sans jamais substituer silencieusement un autre montant.
-  const STRIPE_MIN_CENTS = 50
   const belowStripeMin = amountCents < STRIPE_MIN_CENTS
+  // Mode "choice" : disponibilité de chaque option (encaissable en ligne).
+  const depositAvailable = depositCents >= STRIPE_MIN_CENTS
+  const fullAvailable = booking.totalCents >= STRIPE_MIN_CENTS
 
   return (
     <section className="min-h-[70vh] bg-background py-12">
@@ -118,16 +125,32 @@ export default async function PaiementPage({
                 <dd className="text-card-foreground">{formatPrice(remainingCents)}</dd>
               </div>
             ) : null}
-            <div className="mt-1 flex justify-between border-t border-border pt-2 text-base font-semibold">
-              <dt className="text-card-foreground">{isDeposit ? "Acompte à payer maintenant" : "À payer maintenant"}</dt>
-              <dd className="text-primary">{formatPrice(amountCents)}</dd>
-            </div>
+            {!isChoice ? (
+              <div className="mt-1 flex justify-between border-t border-border pt-2 text-base font-semibold">
+                <dt className="text-card-foreground">{isDeposit ? "Acompte à payer maintenant" : "À payer maintenant"}</dt>
+                <dd className="text-primary">{formatPrice(amountCents)}</dd>
+              </div>
+            ) : (
+              <p className="mt-1 border-t border-border pt-3 text-sm text-muted-foreground">
+                Choisissez ci-dessous de régler l&apos;acompte ou la totalité.
+              </p>
+            )}
           </dl>
         </div>
 
         {/* Checkout embarqué Stripe — sauf si le montant est sous le minimum Stripe */}
         <div className="mt-8">
-          {belowStripeMin ? (
+          {isChoice ? (
+            <PaymentModeChoice
+              bookingId={id}
+              depositLabel={formatPrice(depositCents)}
+              totalLabel={formatPrice(booking.totalCents)}
+              remainingLabel={formatPrice(remainingCents)}
+              depositAvailable={depositAvailable && depositCents > 0}
+              fullAvailable={fullAvailable}
+              belowMinLabel={`Montant inférieur au minimum accepté en ligne (${formatPrice(STRIPE_MIN_CENTS)})`}
+            />
+          ) : belowStripeMin ? (
             <div
               role="alert"
               className="rounded-xl border border-border bg-muted/50 p-6 text-sm leading-relaxed text-muted-foreground"

@@ -11,7 +11,14 @@ import { startBookingCheckout } from "@/app/(site)/reservation/paiement/checkout
  * Stripe.js doit être chargé pour le compte connecté du professionnel.
  * Aucune donnée bancaire ne transite par DetailFlow : Stripe gère la saisie.
  */
-export function PaymentCheckout({ bookingId }: { bookingId: number }) {
+export function PaymentCheckout({
+  bookingId,
+  chosenType,
+}: {
+  bookingId: number
+  /** Choix client transmis en mode "choice" (sinon le mode tenant décide). */
+  chosenType?: "deposit" | "full_payment"
+}) {
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "paid" | "error">("loading")
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +28,7 @@ export function PaymentCheckout({ bookingId }: { bookingId: number }) {
     let cancelled = false
     const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     ;(async () => {
-      const res = await startBookingCheckout(bookingId)
+      const res = await startBookingCheckout(bookingId, chosenType)
       if (cancelled) return
       if (!res.ok) {
         setError(res.error)
@@ -45,7 +52,7 @@ export function PaymentCheckout({ bookingId }: { bookingId: number }) {
     return () => {
       cancelled = true
     }
-  }, [bookingId])
+  }, [bookingId, chosenType])
 
   const fetchClientSecret = useCallback(async () => clientSecret ?? "", [clientSecret])
 

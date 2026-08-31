@@ -34,10 +34,16 @@ export type StartCheckoutResult =
  * Renvoie le clientSecret Stripe + le compte connecté (nécessaire à Stripe.js
  * en mode Connect). Idempotent : si déjà payé, on le signale.
  */
-export async function startBookingCheckout(bookingId: number): Promise<StartCheckoutResult> {
+export async function startBookingCheckout(
+  bookingId: number,
+  chosenType?: "deposit" | "full_payment",
+): Promise<StartCheckoutResult> {
   const tenant = await resolveRequestTenant()
   if (!tenant) return { ok: false, error: "Tenant introuvable." }
   if (!Number.isInteger(bookingId) || bookingId <= 0) return { ok: false, error: "Réservation invalide." }
+  // Choix client borné aux deux valeurs connues (le mode tenant fait autorité
+  // côté serveur ; ce choix n'a d'effet qu'en mode "choice").
+  const safeChosen = chosenType === "deposit" || chosenType === "full_payment" ? chosenType : undefined
 
   // Contrôle de licence (feature online_payments) — droit d'UTILISER le
   // paiement en ligne. LEGACY (licensePlan = NULL) => autorisé (inchangé).
@@ -60,7 +66,7 @@ export async function startBookingCheckout(bookingId: number): Promise<StartChec
   const returnUrl = await absoluteUrl(
     withTenant(`/reservation/paiement/${bookingId}/retour?session_id={CHECKOUT_SESSION_ID}`, tenant.slug),
   )
-  const res = await createBookingCheckout({ bookingId, companyId: tenant.id, returnUrl })
+  const res = await createBookingCheckout({ bookingId, companyId: tenant.id, returnUrl, chosenType: safeChosen })
   if (!res.ok) return { ok: false, error: res.error }
   if ("alreadyPaid" in res) return { ok: true, alreadyPaid: true }
 
