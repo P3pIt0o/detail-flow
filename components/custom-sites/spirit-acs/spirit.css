@@ -116,6 +116,21 @@
   color: rgba(6, 19, 28, 0.4);
 }
 
+/* Avis Google partagés (GoogleReviewsSection) réutilisés dans le thème sombre
+   Spirit : on remappe les tokens sémantiques lus par ce composant vers la
+   palette Spirit, à l'échelle de cette section uniquement (jamais global). */
+.spirit-acs .spirit-reviews-google {
+  --background: var(--spirit-navy-2);
+  --foreground: var(--spirit-fg);
+  --muted: var(--spirit-navy-3);
+  --muted-foreground: var(--spirit-muted);
+  --card: var(--spirit-navy-3);
+  --card-foreground: var(--spirit-fg);
+  --border: rgba(255, 255, 255, 0.1);
+  --primary: var(--spirit-pink);
+  --primary-foreground: #ffffff;
+}
+
 /* Défilement fluide vers les ancres, scopé à Spirit (jamais global). */
 :root:has(.spirit-acs) {
   scroll-behavior: smooth;

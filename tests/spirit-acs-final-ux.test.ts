@@ -108,7 +108,10 @@ describe("Spirit — header animé/compact au défilement", () => {
 
   it("ferme le menu au clic et bloque le scroll du body à l'ouverture", () => {
     const src = nav()
-    expect(src).toMatch(/onClick=\{\(\) => setOpen\(false\)\}/)
+    // Les liens/CTA in-page passent par un handler partagé qui ferme le menu
+    // (setOpen(false)) puis défile avec l'offset d'en-tête ; le verrou de scroll
+    // du body à l'ouverture du menu est conservé.
+    expect(src).toMatch(/setOpen\(false\)/)
     expect(src).toMatch(/document\.body\.style\.overflow/)
   })
 })
