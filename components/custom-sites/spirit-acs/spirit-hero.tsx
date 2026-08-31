@@ -14,6 +14,7 @@
  */
 
 import Image from "next/image"
+import { Star } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
 
@@ -27,6 +28,13 @@ type SpiritHeroProps = {
   hasGallery: boolean
   /** Ville réelle du tenant, affichée en accroche (jamais l'adresse exacte). */
   city?: string | null
+  /**
+   * Note GLOBALE Google RÉELLE (agrégée par Google), ou null si indisponible /
+   * aucun établissement configuré → la note est alors masquée (rien inventé).
+   */
+  googleRating?: number | null
+  /** Lien vers la fiche Google (rend la note cliquable). */
+  googleUrl?: string | null
 }
 
 const DEFAULTS = {
@@ -35,8 +43,23 @@ const DEFAULTS = {
     "Nettoyage, polissage, protection céramique : un detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
 }
 
-export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGallery, city }: SpiritHeroProps) {
+export function SpiritHero({
+  title,
+  highlight,
+  subtitle,
+  quoteEnabled,
+  hasGallery,
+  city,
+  googleRating,
+  googleUrl,
+}: SpiritHeroProps) {
   const displayCity = (city ?? "").trim() || null
+  // Note Google réelle formatée à la française (« 5,0 »). Affichée uniquement si
+  // une vraie note agrégée est fournie ; sinon la note est masquée.
+  const hasRating = typeof googleRating === "number" && Number.isFinite(googleRating)
+  const ratingLabel = hasRating
+    ? googleRating.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : null
   const displayTitle = title?.trim() || DEFAULTS.title
   const h = title?.trim() ? (highlight ?? "").trim() : ""
   const displaySubtitle = subtitle?.trim() || DEFAULTS.subtitle
@@ -113,6 +136,41 @@ export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGaller
                   Voir nos réalisations
                 </a>
               )}
+            </div>
+          </Reveal>
+
+          {/* Présentation Google COMPACTE, sous les boutons et alignée à gauche
+              sur leur bord (même conteneur max-w-xl). La note est la vraie note
+              agrégée Google (masquée si indisponible, jamais recalculée ni mise
+              en dur) et renvoie vers la fiche Google (attribution). Les mentions
+              de service sont des descripteurs éditoriaux neutres (même classe
+              que le bandeau de réassurance), sans chiffre ni label. */}
+          <Reveal delay={0.32}>
+            <div className="mt-6 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-[color:var(--spirit-muted)]">
+              {ratingLabel &&
+                (googleUrl ? (
+                  <a
+                    href={googleUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Note ${ratingLabel} sur 5 sur Google — voir la fiche`}
+                    className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
+                  >
+                    <span className="font-semibold text-white">{ratingLabel}</span>
+                    <Star className="size-4 fill-[var(--spirit-pink)] text-[var(--spirit-pink)]" aria-hidden="true" />
+                    <span>sur Google</span>
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="font-semibold text-white">{ratingLabel}</span>
+                    <Star className="size-4 fill-[var(--spirit-pink)] text-[var(--spirit-pink)]" aria-hidden="true" />
+                    <span>sur Google</span>
+                  </span>
+                ))}
+              {ratingLabel && <span aria-hidden="true" className="text-[color:var(--spirit-muted)]/50">·</span>}
+              <span>Service sur mesure</span>
+              <span aria-hidden="true" className="text-[color:var(--spirit-muted)]/50">·</span>
+              <span>Atelier &amp; domicile</span>
             </div>
           </Reveal>
         </div>
