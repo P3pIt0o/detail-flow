@@ -425,6 +425,12 @@ export const services = pgTable(
     durationMin: integer("durationMin").notNull().default(60),
     sortOrder: integer("sortOrder").notNull().default(0),
     visible: boolean("visible").notNull().default(true),
+    // Badge « Mise en avant » (LOT C). Additif & nullable → NULL = aucun badge
+    // (comportement historique préservé pour toutes les prestations existantes).
+    // Type : "bestseller" | "most_booked" | "recommended" | "new" | "custom".
+    highlightKind: text("highlightKind"),
+    // Libellé affiché quand highlightKind = "custom" (≤ 30 caractères, échappé).
+    highlightLabel: text("highlightLabel"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => ({

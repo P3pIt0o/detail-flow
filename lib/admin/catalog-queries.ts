@@ -28,6 +28,9 @@ export async function getAdminServices(companyId?: number) {
     durationMin: s.durationMin,
     baseDurationMin: s.durationMin,
     visible: s.visible,
+    // Badge « Mise en avant » (LOT C) — null = aucun badge.
+    highlightKind: s.highlightKind ?? null,
+    highlightLabel: s.highlightLabel ?? null,
   }))
 }
 

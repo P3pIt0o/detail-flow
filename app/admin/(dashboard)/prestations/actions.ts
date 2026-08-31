@@ -15,6 +15,7 @@ import {
   isPrivateServiceImage,
   serviceImagePrefix,
 } from "@/lib/service-image"
+import { normalizeHighlight } from "@/lib/services/highlight"
 
 export type ActionResult = {
   ok: boolean
@@ -107,6 +108,9 @@ export async function saveService(input: {
   durationMin: number
   visible: boolean
   image?: string | null
+  // Badge « Mise en avant » (LOT C). Facultatif : absent = inchangé/aucun.
+  highlightKind?: string | null
+  highlightLabel?: string | null
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
 
@@ -116,6 +120,11 @@ export async function saveService(input: {
       error: "Le nom est requis.",
     }
   }
+
+  // Normalisation + validation serveur du badge (type autorisé, libellé custom
+  // borné à 30 caractères, texte échappé côté rendu). Une valeur inconnue ou un
+  // custom vide → aucun badge (jamais de badge fantôme).
+  const highlight = normalizeHighlight(input.highlightKind, input.highlightLabel)
 
   /**
    * Images acceptées :
@@ -154,6 +163,8 @@ export async function saveService(input: {
     ),
     visible: input.visible,
     image,
+    highlightKind: highlight.highlightKind,
+    highlightLabel: highlight.highlightLabel,
   }
 
   /* ----------------------------- MODIFICATION ----------------------------- */
