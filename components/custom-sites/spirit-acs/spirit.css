@@ -72,10 +72,12 @@
   background: var(--spirit-pink);
 }
 
-/* Décalage d'ancre pour compenser l'en-tête fixe compact (barre turquoise +
-   barre principale ≈ 116px) : le titre ne passe jamais sous l'en-tête. */
-.spirit-acs [data-spirit-anchor] {
-  scroll-margin-top: 7.5rem;
+/* Décalage d'ancre pour compenser l'en-tête fixe immersif (72 px mobile /
+   80 px bureau) : aucun titre ni champ ne passe jamais sous l'en-tête. Couvre
+   toutes les sections ancrées de la page longue, pas seulement le hero. */
+.spirit-acs [data-spirit-anchor],
+.spirit-acs section[id] {
+  scroll-margin-top: 6rem;
 }
 
 /*

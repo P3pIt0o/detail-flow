@@ -38,17 +38,33 @@ export async function generateMetadata(): Promise<Metadata> {
     return t ? t : null
   }
 
+  // Clé de site personnalisé (ex. « spirit-acs ») : permet un repli SEO enrichi
+  // et localisé UNIQUEMENT quand le tenant n'a pas personnalisé ses textes.
+  const customSite = await resolveCustomSite()
+  const city = clean(tenant.city)
+  const isSpirit = customSite?.key === "spirit-acs"
+
   const name = clean(tenant.name) ?? siteConfig.brand.name
   // `heroTitle` contient déjà le titre complet ; `heroHighlight` n'est qu'un
   // fragment mis en avant DANS ce titre (pas un suffixe) → ne pas le concaténer.
-  const title = clean(tenant.heroTitle) ?? name
+  // Repli localisé Spirit (le titre éditable du tenant reste PRIORITAIRE) :
+  // « Detailing automobile à {ville} | {nom} ». Aucune prestation inventée.
+  const spiritFallbackTitle = city
+    ? `Detailing automobile à ${city} | ${name}`
+    : `Detailing automobile | ${name}`
+  const title = clean(tenant.heroTitle) ?? (isSpirit ? spiritFallbackTitle : name)
 
   // Texte de présentation réellement personnalisé (jamais les défauts injectés).
   const rawContent = (tenant.siteContent ?? null) as SiteContent | null
+  // Repli de description : localisé pour Spirit, générique sinon. Ne cite aucune
+  // prestation non confirmée, invite à demander un devis.
+  const spiritFallbackDesc = `${name} — detailing et entretien automobile${
+    city ? ` à ${city}` : ""
+  }. Demandez votre devis personnalisé en ligne.`
   const description =
     clean(tenant.heroSubtitle) ??
     clean(rawContent?.about?.text) ??
-    `${name} — detailing et entretien automobile. Réservez votre créneau en ligne.`
+    (isSpirit ? spiritFallbackDesc : `${name} — detailing et entretien automobile. Réservez votre créneau en ligne.`)
 
   // Base absolue publique + URL réelle du tenant (forme partagée ?tenant=slug).
   const base = siteConfig.seo.url.replace(/\/+$/, "")
@@ -87,6 +103,8 @@ function StructuredData({
   name,
   contact,
   localityOnly = false,
+  canonicalUrl,
+  image,
 }: {
   name: string
   contact: PublicContact
@@ -96,15 +114,25 @@ function StructuredData({
    * qui limitent volontairement leur présentation publique à la localité.
    */
   localityOnly?: boolean
+  /**
+   * URL publique canonique du site (ex. www.detailflow.fr/?tenant=slug).
+   * Sert de `url` LocalBusiness quand le tenant n'a pas de site web externe.
+   */
+  canonicalUrl?: string | null
+  /** Logo/visuel officiel du tenant (URL absolue) pour `image`/`logo`. */
+  image?: string | null
 }) {
   const addressValue = localityOnly ? contact.city : contact.address
+  // Site web propre du tenant s'il existe, sinon URL canonique du site public.
+  const url = contact.website ?? canonicalUrl ?? null
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "AutoWash",
     name,
     ...(contact.phoneRaw ? { telephone: contact.phoneRaw } : {}),
     ...(contact.email ? { email: contact.email } : {}),
-    ...(contact.website ? { url: contact.website } : {}),
+    ...(url ? { url } : {}),
+    ...(image ? { image, logo: image } : {}),
     ...(addressValue ? { address: addressValue } : {}),
   }
   return (
@@ -122,6 +150,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const tenant = await getCurrentTenant()
   const brandName = tenant?.name
   const logoSrc = tenant?.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
+
+  // URL publique canonique + logo absolu du tenant (données réelles) pour les
+  // données structurées LocalBusiness. Aucun hostname arbitraire : on réutilise
+  // le domaine canonique validé de siteConfig + la forme partagée ?tenant=slug.
+  const seoBase = siteConfig.seo.url.replace(/\/+$/, "")
+  const canonicalUrl = tenant ? `${seoBase}/?tenant=${encodeURIComponent(tenant.slug)}` : undefined
+  const logoImageUrl =
+    tenant?.logoUrl ? `${seoBase}/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
 
   // Coordonnées publiques réelles du tenant (jamais de données statiques).
   const contact = await getPublicContact()
@@ -155,7 +191,15 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     return (
       <div style={hasBrandColors ? brandStyle : undefined}>
         {tenant && <SiteTracker />}
-        {contact.name && <StructuredData name={contact.name} contact={contact} localityOnly />}
+        {contact.name && (
+          <StructuredData
+            name={contact.name}
+            contact={contact}
+            localityOnly
+            canonicalUrl={canonicalUrl}
+            image={logoImageUrl}
+          />
+        )}
         {/* Le bouton WhatsApp des sites à shell propre est monté PAR leur shell
             (ex. SpiritSiteShell), afin de porter un message pré-rempli adapté à
             l'univers du site. Il n'est donc pas rendu ici pour éviter un doublon. */}

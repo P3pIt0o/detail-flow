@@ -25,6 +25,8 @@ type SpiritHeroProps = {
   quoteEnabled: boolean
   /** Le CTA secondaire n'apparaît que si une galerie de réalisations existe. */
   hasGallery: boolean
+  /** Ville réelle du tenant, affichée en accroche (jamais l'adresse exacte). */
+  city?: string | null
 }
 
 const DEFAULTS = {
@@ -33,7 +35,8 @@ const DEFAULTS = {
     "Nettoyage, polissage, protection céramique : un detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
 }
 
-export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGallery }: SpiritHeroProps) {
+export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGallery, city }: SpiritHeroProps) {
+  const displayCity = (city ?? "").trim() || null
   const displayTitle = title?.trim() || DEFAULTS.title
   const h = title?.trim() ? (highlight ?? "").trim() : ""
   const displaySubtitle = subtitle?.trim() || DEFAULTS.subtitle
@@ -57,7 +60,7 @@ export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGaller
     <section
       id={SPIRIT_SECTIONS.accueil}
       data-spirit-anchor
-      className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] sm:items-center lg:min-h-[600px]"
+      className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] sm:items-center lg:min-h-[600px] lg:pt-20"
     >
       <div className="absolute inset-0 z-0">
         <Image
@@ -77,7 +80,15 @@ export function SpiritHero({ title, highlight, subtitle, quoteEnabled, hasGaller
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
         <div className="max-w-xl">
           <Reveal>
-            <p className="spirit-eyebrow">Detailing automobile</p>
+            <p className="spirit-eyebrow">
+              Detailing automobile
+              {displayCity && (
+                <>
+                  {" "}
+                  <span aria-hidden="true">·</span> {displayCity}
+                </>
+              )}
+            </p>
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="spirit-title spirit-h1 mt-4 text-balance leading-[1.02] text-white">{titleNode}</h1>
