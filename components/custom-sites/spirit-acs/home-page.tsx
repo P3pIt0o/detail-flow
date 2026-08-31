@@ -106,6 +106,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       email={contact.email}
       city={contact.city}
       footerTagline={footerTagline}
+      immersive
     >
       <SpiritHero
         title={contact.hero.title}
@@ -113,6 +114,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         subtitle={contact.hero.subtitle}
         quoteEnabled={quoteEnabled}
         hasGallery={hasGallery}
+        city={contact.city}
       />
 
       {/* Transitions ÉDITORIALES : alternance franche navy / blanc cassé, sans

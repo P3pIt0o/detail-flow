@@ -1,26 +1,29 @@
 "use client"
 
 /**
- * Navigation du site Spirit ACS.
+ * Navigation du site Spirit ACS — en-tête IMMERSIF superposé à la photo.
  *
- * - Barre supérieure turquoise : localisation réelle du tenant (masquée si
- *   aucune adresse n'est renseignée — aucune donnée inventée).
- * - Barre principale blanche, fixe, avec logo réel, liens d'ancres et CTA
- *   « Réserver » vers la vraie route /reservation.
- * - Scroll-spy accessible (IntersectionObserver, pas d'écouteur de scroll
- *   coûteux) : la section visible est mise en évidence dans le menu.
- * - Menu mobile animé et accessible.
+ * - Mode `immersive` (accueil, hero photographique) : fond TRANSPARENT en haut
+ *   avec un voile sombre discret pour la lisibilité, puis fond bleu nuit opaque
+ *   (#06131c) au défilement (~70 px). Seuls le fond et l'ombre changent — aucun
+ *   saut de mise en page, hauteur stable.
+ * - Mode non immersif (pages sans hero photo) : fond bleu nuit constant.
+ * - En-tête TOUJOURS visible (plus d'escamotage au scroll).
+ * - Texte, logo et icônes en blanc dans les deux états (fond sombre / photo).
+ * - Scroll-spy accessible (IntersectionObserver, pas d'écouteur coûteux).
+ * - Menu mobile bleu nuit : verrouillage du scroll, fermeture au clic/Échap,
+ *   focus géré, navigation clavier.
+ * - `prefers-reduced-motion` respecté (transitions neutralisées via la CSS).
  *
  * Le contexte tenant (`?tenant=` en aperçu) est conservé sur les liens de
  * route via `withTenant` + `useSearchParams`, comme le reste du dépôt.
  */
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { Menu, X, MapPin, Phone } from "lucide-react"
+import { Menu, X, Phone } from "lucide-react"
 import { withTenant } from "@/lib/tenant-link"
 import { toTelHref } from "@/lib/phone"
 import type { SpiritNavItem } from "./tokens"
@@ -32,10 +35,13 @@ type SpiritNavigationProps = {
   /** Ancre in-page du CTA principal (ex. « #demande-devis »). */
   ctaHref: string
   ctaLabel: string
-  /** Ville seule (jamais l'adresse postale exacte). */
-  city: string | null
   phone: string | null
   phoneRaw: string | null
+  /**
+   * Superposition à un hero photographique : transparent en haut → bleu nuit
+   * au scroll. `false` (défaut) = bleu nuit constant (pages sans hero photo).
+   */
+  immersive?: boolean
 }
 
 export function SpiritNavigation({
@@ -44,40 +50,25 @@ export function SpiritNavigation({
   items,
   ctaHref,
   ctaLabel,
-  city,
   phone,
   phoneRaw,
+  immersive = false,
 }: SpiritNavigationProps) {
   const tenant = useSearchParams().get("tenant")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<string | null>(items[0]?.id ?? null)
-  // En-tête réactif au défilement : `compact` (réduit) dès qu'on quitte le haut,
-  // `hidden` (escamoté vers le haut) quand on défile VERS LE BAS.
-  const [compact, setCompact] = useState(false)
-  const [hidden, setHidden] = useState(false)
+  // `scrolled` : l'en-tête a quitté le haut de page → fond bleu nuit opaque.
+  const [scrolled, setScrolled] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  // Masquage/réapparition au scroll (mobile animé, compact au retour vers le haut).
+  // Fond opaque dès qu'on quitte le haut de page (seuil 70 px). Écouteur passif
+  // + requestAnimationFrame : aucun coût de rendu au défilement.
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    let lastY = window.scrollY
     let ticking = false
     const update = () => {
       ticking = false
-      const y = window.scrollY
-      const delta = y - lastY
-      // Ignore les micro-mouvements (1–2 px) pour éviter tout clignotement.
-      if (Math.abs(delta) < 6) return
-      if (y <= 8) {
-        setCompact(false)
-        setHidden(false)
-      } else {
-        setCompact(true)
-        // Sous prefers-reduced-motion : header stable et toujours visible.
-        if (reduce) setHidden(false)
-        else if (delta > 0 && y > 100) setHidden(true)
-        else if (delta < 0) setHidden(false)
-      }
-      lastY = y
+      setScrolled(window.scrollY > 70)
     }
     const onScroll = () => {
       if (!ticking) {
@@ -95,6 +86,23 @@ export function SpiritNavigation({
     document.body.style.overflow = open ? "hidden" : ""
     return () => {
       document.body.style.overflow = ""
+    }
+  }, [open])
+
+  // Accessibilité menu mobile : fermeture avec Échap + gestion du focus.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("keydown", onKey)
+    // Place le focus dans le panneau ouvert (premier lien).
+    const firstLink = panelRef.current?.querySelector<HTMLElement>("a")
+    firstLink?.focus()
+    return () => {
+      document.removeEventListener("keydown", onKey)
+      // Rend le focus au bouton déclencheur à la fermeture.
+      toggleRef.current?.focus()
     }
   }, [open])
 
@@ -121,67 +129,46 @@ export function SpiritNavigation({
   // Le CTA principal cible une ANCRE in-page (« Demander un devis »), pas une
   // route. On conserve tout de même le tenant si jamais une route est passée.
   const cta = ctaHref.startsWith("#") ? ctaHref : withTenant(ctaHref, tenant)
+  const telHref = toTelHref(phoneRaw ?? phone)
+
+  // Fond opaque si l'en-tête n'est pas immersif OU si l'on a défilé.
+  const solid = !immersive || scrolled
 
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none ${
-        hidden && !open ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
-      }`}
-    >
-      {/* Barre supérieure turquoise — ville + téléphone réels uniquement
-          (jamais l'adresse postale exacte). Escamotée en mode compact pour
-          gagner de la hauteur sur mobile. */}
-      {(city || phone) && (
-        <div
-          className={`overflow-hidden bg-[var(--spirit-teal)] text-[color:var(--spirit-navy)] transition-[height] duration-200 ease-out motion-reduce:transition-none ${
-            compact ? "h-0" : "h-9"
-          }`}
-        >
-          <div className="mx-auto flex h-9 max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-4 text-xs font-medium sm:px-6 lg:justify-start lg:px-8">
-            {city && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="size-3.5" aria-hidden="true" />
-                {city}
-              </span>
-            )}
-            {phone && (
-              <a href={toTelHref(phoneRaw ?? phone) ?? "#"} className="flex items-center gap-1.5 hover:underline">
-                <Phone className="size-3.5" aria-hidden="true" />
-                {phone}
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Barre principale blanche — compacte et premium ; ombre discrète accentuée
-          au défilement, sans grand vide blanc. */}
+    <header className="fixed inset-x-0 top-0 z-50">
       <div
-        className={`border-b border-black/5 bg-white transition-shadow duration-200 ${
-          compact ? "shadow-[0_6px_20px_-12px_rgba(15,23,42,0.35)]" : "shadow-sm"
+        className={`relative transition-[background-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${
+          solid
+            ? "bg-[var(--spirit-navy)]/95 shadow-[0_8px_30px_-16px_rgba(0,0,0,0.7)] backdrop-blur-sm"
+            : "bg-transparent"
         }`}
       >
+        {/* Voile sombre discret en haut de page (mode immersif, non défilé) :
+            garantit la lisibilité du logo/menu sur la photo claire. */}
+        {!solid && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-24 bg-gradient-to-b from-black/45 to-transparent"
+          />
+        )}
+
         <nav
-          className={`mx-auto flex max-w-7xl items-center justify-between px-4 transition-[height] duration-200 ease-out motion-reduce:transition-none sm:px-6 lg:h-20 lg:px-8 ${
-            compact ? "h-[60px]" : "h-[76px]"
-          }`}
+          className="relative mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-20 lg:px-8"
           aria-label="Navigation principale Spirit"
         >
           <Link href={withTenant("/", tenant)} className="flex items-center" aria-label={`${brandName} — accueil`}>
             {logoSrc ? (
-              // Logo officiel Spirit à canal alpha réel : `object-contain`,
-              // largeur auto, aucun fond ni cadre artificiel. Hauteur animée
-              // (compacte au défilement) — le logo lui-même n'est pas modifié.
+              // Logo officiel Spirit à canal alpha réel (voiture rose + texte
+              // blanc) : lisible sur fond sombre sans filtre ni cartouche.
+              // `object-contain`, hauteur fixe, jamais déformé.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoSrc || "/placeholder.svg"}
                 alt={brandName}
-                className={`w-auto max-w-[180px] object-contain transition-[height] duration-200 ease-out motion-reduce:transition-none lg:h-16 ${
-                  compact ? "h-10" : "h-14"
-                }`}
+                className="h-11 w-auto max-w-[160px] object-contain lg:h-14"
               />
             ) : (
-              <span className="spirit-title text-2xl text-[color:var(--spirit-ink)]">{brandName}</span>
+              <span className="spirit-title text-2xl text-white">{brandName}</span>
             )}
           </Link>
 
@@ -193,9 +180,7 @@ export function SpiritNavigation({
                   href={`#${it.id}`}
                   aria-current={active === it.id ? "true" : undefined}
                   className={`relative rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors ${
-                    active === it.id
-                      ? "text-[color:var(--spirit-teal-strong)]"
-                      : "text-[color:var(--spirit-ink)]/70 hover:text-[color:var(--spirit-ink)]"
+                    active === it.id ? "text-[color:var(--spirit-teal)]" : "text-white/80 hover:text-white"
                   }`}
                 >
                   {it.label}
@@ -217,27 +202,43 @@ export function SpiritNavigation({
             </a>
           </div>
 
-          {/* Bouton menu — mobile */}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="flex size-10 items-center justify-center rounded-md text-[color:var(--spirit-ink)] lg:hidden"
-            aria-expanded={open}
-            aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
-          >
-            {open ? <X className="size-6" /> : <Menu className="size-6" />}
-          </button>
+          {/* Actions — mobile : téléphone (si dispo) + bouton menu, blancs,
+              zones tactiles ≥ 44×44 px. */}
+          <div className="flex items-center gap-1 lg:hidden">
+            {telHref && (
+              <a
+                href={telHref}
+                className="flex size-11 items-center justify-center rounded-md text-white"
+                aria-label={`Appeler ${brandName}`}
+              >
+                <Phone className="size-5" aria-hidden="true" />
+              </a>
+            )}
+            <button
+              ref={toggleRef}
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="flex size-11 items-center justify-center rounded-md text-white"
+              aria-expanded={open}
+              aria-controls="spirit-mobile-menu"
+              aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
+            >
+              {open ? <X className="size-6" /> : <Menu className="size-6" />}
+            </button>
+          </div>
         </nav>
 
-        {/* Menu mobile */}
+        {/* Menu mobile — panneau bleu nuit */}
         <AnimatePresence>
           {open && (
             <motion.div
+              ref={panelRef}
+              id="spirit-mobile-menu"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="overflow-hidden border-t border-black/5 bg-white lg:hidden"
+              className="overflow-hidden border-t border-white/10 bg-[var(--spirit-navy)] lg:hidden"
             >
               <ul className="flex flex-col gap-1 px-4 py-4">
                 {items.map((it) => (
@@ -245,7 +246,7 @@ export function SpiritNavigation({
                     <a
                       href={`#${it.id}`}
                       onClick={() => setOpen(false)}
-                      className="block rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-wide text-[color:var(--spirit-ink)]/80 hover:bg-black/5 hover:text-[color:var(--spirit-ink)]"
+                      className="block rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-wide text-white/85 hover:bg-white/5 hover:text-white"
                     >
                       {it.label}
                     </a>

@@ -41,6 +41,13 @@ type SpiritSiteShellProps = {
   /** Ville seule (Spirit n'expose jamais l'adresse postale exacte). */
   city: string | null
   footerTagline: string | null
+  /**
+   * L'accueil possède un hero photographique : l'en-tête s'y superpose
+   * (transparent en haut → bleu nuit au scroll) sans réserver de bande au-dessus.
+   * `false` (défaut) : en-tête bleu nuit constant + décalage sous l'en-tête,
+   * pour les pages Spirit sans hero photo.
+   */
+  immersive?: boolean
 }
 
 export function SpiritSiteShell({
@@ -55,6 +62,7 @@ export function SpiritSiteShell({
   email,
   city,
   footerTagline,
+  immersive = false,
 }: SpiritSiteShellProps) {
   return (
     <div className={`spirit-acs ${spiritDisplay.variable} min-h-screen overflow-x-clip font-sans`}>
@@ -64,16 +72,17 @@ export function SpiritSiteShell({
         items={navItems}
         ctaHref={ctaHref}
         ctaLabel={ctaLabel}
-        city={city}
         phone={phone}
         phoneRaw={phoneRaw}
+        immersive={immersive}
       />
 
-      {/* Décalage sous l'en-tête fixe = barre turquoise (h-9 = 36px) + barre
-          principale normale (h-[76px] → lg:h-20 = 80px). L'en-tête se compacte
-          /escamote au défilement sans provoquer de saut : le décalage reste calé
-          sur la hauteur NORMALE (le mode réduit ne fait que libérer de l'espace). */}
-      <div className="pt-[112px] lg:pt-[116px]">{children}</div>
+      {/* Mode immersif : la photo du hero démarre EN HAUT, derrière l'en-tête
+          fixe (aucune bande réservée). Le hero gère lui-même son espacement
+          interne pour ne jamais passer sous l'en-tête.
+          Mode non immersif : décalage égal à la hauteur de l'en-tête bleu nuit
+          (72 px mobile / 80 px bureau) pour ne pas masquer le contenu. */}
+      <div className={immersive ? "" : "pt-[72px] lg:pt-20"}>{children}</div>
 
       <SpiritFooter
         brandName={brandName}
