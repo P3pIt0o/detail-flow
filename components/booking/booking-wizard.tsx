@@ -86,7 +86,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
 
   // Brouillon (LOT B, point 3) : sauvegarde/reprise. `restoreResolved` garantit
   // qu'on n'écrase JAMAIS un brouillon restauré avec les valeurs vides du montage.
-  const { restored, hydrated, remember, setRemember, save, clear } = useBookingDraft(tenant)
+  const { restored, hydrated, remember, setRemember, save, markPendingPayment, clear } = useBookingDraft(tenant)
   const [restoreResolved, setRestoreResolved] = useState(false)
 
   // S'il n'y a rien à restaurer, on autorise la sauvegarde dès l'hydratation.

@@ -69,6 +69,27 @@ export type BookingDraft = {
   savedAt: number
 }
 
+/**
+ * Décide OÙ persister le brouillon (y compris `pendingPayment`), selon la règle
+ * de consentement unique du LOT B :
+ *  - localStorage 24 h UNIQUEMENT si le client a explicitement consenti
+ *    (`remember`) ET que localStorage est disponible ;
+ *  - sinon sessionStorage (reprise tant que l'onglet reste ouvert) ;
+ *  - sinon `null` (aucun Storage : fonctionnement mémoire, non persistant).
+ * Fonction PURE pour être testable sans DOM. Utilisée à l'identique par la
+ * sauvegarde du brouillon ET par la bascule « en attente de paiement », afin
+ * que `pendingPayment` suive EXACTEMENT la même politique de consentement.
+ */
+export function chooseDraftStorage(
+  remember: boolean,
+  canLocal: boolean,
+  canSession: boolean,
+): "localStorage" | "sessionStorage" | null {
+  if (remember && canLocal) return "localStorage"
+  if (canSession) return "sessionStorage"
+  return null
+}
+
 /** Construit une clé de stockage isolée par tenant + version de formulaire. */
 export function buildDraftKey(tenant: string | null | undefined, version = BOOKING_FORM_VERSION): string {
   const t = (tenant ?? "_").trim() || "_"

@@ -6,6 +6,7 @@ import {
   serializeDraft,
   parseDraft,
   isDraftMeaningful,
+  chooseDraftStorage,
   DRAFT_MAX_AGE_MS,
   type BookingDraft,
 } from "@/lib/booking/draft"
@@ -66,10 +67,11 @@ export type UseBookingDraft = {
   /** Enregistre l'état courant (appelé à chaque changement, après hydratation). */
   save: (state: DraftState) => void
   /**
-   * Marque la réservation comme créée et en attente de paiement. Persiste en
-   * localStorage (sans exiger le consentement 24 h) afin que le client
-   * retrouve « Reprendre le paiement » même après fermeture de l'onglet
-   * pendant le checkout Stripe. Ne stocke aucune donnée bancaire.
+   * Marque la réservation comme créée et en attente de paiement. Suit LA MÊME
+   * règle de consentement que le brouillon : sessionStorage par défaut (reprise
+   * possible tant que l'onglet reste ouvert), et localStorage 24 h UNIQUEMENT si
+   * le client a explicitement coché « mémoriser sur cet appareil » (reprise
+   * possible après fermeture de l'onglet). Ne stocke aucune donnée bancaire.
    */
   markPendingPayment: (state: DraftState, pending: { reference: string; payPath: string }) => void
   /** Efface le brouillon (confirmation réelle, abandon explicite, expiration). */
@@ -129,11 +131,12 @@ export function useBookingDraft(tenant: string | null): UseBookingDraft {
     (state: DraftState) => {
       const raw = serializeDraft(state)
       memoryRef.current = raw
-      if (remember && canLocal.current) {
+      const target = chooseDraftStorage(remember, canLocal.current, canSession.current)
+      if (target === "localStorage") {
         writeRaw("localStorage", key, raw)
         // On évite le doublon session pour ne pas ressusciter un brouillon effacé.
         if (canSession.current) removeRaw("sessionStorage", key)
-      } else if (canSession.current) {
+      } else if (target === "sessionStorage") {
         writeRaw("sessionStorage", key, raw)
       }
     },
@@ -144,16 +147,19 @@ export function useBookingDraft(tenant: string | null): UseBookingDraft {
     (state: DraftState, pending: { reference: string; payPath: string }) => {
       const raw = serializeDraft({ ...state, pendingPayment: pending })
       memoryRef.current = raw
-      // On privilégie localStorage pour survivre à la fermeture d'onglet
-      // pendant Stripe. Si indisponible, on retombe sur la session.
-      if (canLocal.current) {
+      // Même politique de consentement que `save` : localStorage 24 h SEULEMENT
+      // avec accord explicite (survit à la fermeture d'onglet). Sinon session
+      // (reprise possible uniquement tant que l'onglet reste ouvert). Aucune
+      // donnée bancaire n'est stockée dans les deux cas.
+      const target = chooseDraftStorage(remember, canLocal.current, canSession.current)
+      if (target === "localStorage") {
         writeRaw("localStorage", key, raw)
         if (canSession.current) removeRaw("sessionStorage", key)
-      } else if (canSession.current) {
+      } else if (target === "sessionStorage") {
         writeRaw("sessionStorage", key, raw)
       }
     },
-    [key],
+    [key, remember],
   )
 
   const clear = useCallback(() => {

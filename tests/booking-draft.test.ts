@@ -4,6 +4,7 @@ import {
   serializeDraft,
   parseDraft,
   isDraftMeaningful,
+  chooseDraftStorage,
   BOOKING_FORM_VERSION,
   DRAFT_MAX_AGE_MS,
   type BookingDraft,
@@ -183,5 +184,30 @@ describe("pendingPayment — reprise du paiement d'une réservation existante", 
     const old = Date.now() - DRAFT_MAX_AGE_MS - 1000
     const raw = serializeDraft(baseState({ pendingPayment: pending }), old)
     expect(parseDraft(raw, { maxAgeMs: DRAFT_MAX_AGE_MS })).toBeNull()
+  })
+})
+
+describe("chooseDraftStorage — consentement unique (brouillon ET pendingPayment)", () => {
+  it("SANS consentement : session par défaut (jamais localStorage)", () => {
+    expect(chooseDraftStorage(false, true, true)).toBe("sessionStorage")
+  })
+
+  it("SANS consentement et sans session : aucun stockage persistant (mémoire)", () => {
+    // Cas mode privé/quota : on ne promet aucune reprise après fermeture.
+    expect(chooseDraftStorage(false, true, false)).toBeNull()
+  })
+
+  it("AVEC consentement explicite : localStorage 24 h (survit à la fermeture)", () => {
+    expect(chooseDraftStorage(true, true, true)).toBe("localStorage")
+  })
+
+  it("AVEC consentement mais localStorage indisponible : repli sur session", () => {
+    // On ne force jamais localStorage ; on dégrade proprement en session.
+    expect(chooseDraftStorage(true, false, true)).toBe("sessionStorage")
+  })
+
+  it("aucun Storage disponible : null (fonctionnement mémoire, non persistant)", () => {
+    expect(chooseDraftStorage(true, false, false)).toBeNull()
+    expect(chooseDraftStorage(false, false, false)).toBeNull()
   })
 })
