@@ -65,7 +65,7 @@ export async function validatePromoCodeAction(input: {
   const res = await validatePromoCode({
     companyId: tenant.id,
     code: input.code,
-    eligibleSubtotalCents: quote.eligibleSubtotalCents,
+    quote,
   })
   if (!res.valid) return { ok: false, reason: res.reason }
   return {
@@ -211,10 +211,14 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     const promoRes = await validatePromoCode({
       companyId,
       code: promoCode,
-      eligibleSubtotalCents: quote.eligibleSubtotalCents,
+      quote,
     })
     if (!promoRes.valid) {
-      return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
+      const msg =
+        promoRes.reason === "not_applicable_services"
+          ? "Ce code ne s'applique pas à la prestation sélectionnée."
+          : "Code promo invalide ou indisponible."
+      return { ok: false, error: msg, code: "invalid" }
     }
     discountCents = Math.max(0, Math.min(promoRes.discountCents, quote.eligibleSubtotalCents))
     appliedPromo = {

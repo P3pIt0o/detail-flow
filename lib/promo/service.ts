@@ -63,6 +63,9 @@ export type PromoInvalidReason =
   | "min_order"
   | "invalid_config"
   | "no_eligible_amount"
+  // Code CIBLÉ « certaines prestations » : aucune prestation éligible dans le
+  // panier courant. Jamais de repli automatique en promo globale.
+  | "not_applicable_services"
 
 /** Normalise un code : trim + MAJUSCULES (source de vérité serveur). */
 export function normalizePromoCode(code: string): string {
@@ -70,12 +73,28 @@ export function normalizePromoCode(code: string): string {
 }
 
 /**
- * Sous-total éligible à la remise. Centralisé pour pouvoir plus tard restreindre
- * l'assiette (services/catégories/véhicules ciblés) sans toucher au moteur.
- * V1 : services + options (le déplacement n'est jamais remisé).
+ * Sous-total éligible à la remise, calculé SELON les règles du code.
+ *
+ *  - Promo GLOBALE (rules absent ou `serviceIds` vide) : comportement historique
+ *    INCHANGÉ → services + options (le déplacement n'est jamais remisé). Les
+ *    promotions existantes (rules = NULL) restent donc applicables à tout.
+ *  - Promo CIBLÉE « certaines prestations » (`rules.serviceIds` non vide) :
+ *    assiette = somme du PRIX PRESTATION des seules lignes éligibles. Les
+ *    options ET le déplacement sont EXCLUS par défaut (règle LOT C).
+ *
+ * Dans un panier mixte, seules les lignes dont le `serviceId` est ciblé entrent
+ * dans l'assiette : la remise ne touche jamais les lignes non éligibles.
  */
-export function computePromoEligibleSubtotal(quote: Pick<Quote, "servicesCents" | "optionsCents">): number {
-  return quote.servicesCents + quote.optionsCents
+export function computePromoEligibleSubtotal(
+  quote: Pick<Quote, "lines" | "servicesCents" | "optionsCents">,
+  rules?: PromoRules | null,
+): number {
+  const serviceIds = rules?.serviceIds
+  if (!serviceIds || serviceIds.length === 0) {
+    return quote.servicesCents + quote.optionsCents
+  }
+  const set = new Set(serviceIds)
+  return quote.lines.reduce((sum, l) => (set.has(l.serviceId) ? sum + l.priceCents : sum), 0)
 }
 
 /** Calcule la remise en centimes, bornée à [0, assiette éligible]. */
@@ -98,7 +117,8 @@ export function computeDiscountCents(
 export async function validatePromoCode(input: {
   companyId: number
   code: string
-  eligibleSubtotalCents: number
+  /** Devis courant : l'assiette éligible est recalculée ici selon les règles. */
+  quote: Pick<Quote, "lines" | "servicesCents" | "optionsCents">
   now?: Date
 }): Promise<PromoValidationResult> {
   const normalizedCode = normalizePromoCode(input.code)
@@ -117,7 +137,23 @@ export async function validatePromoCode(input: {
   if (row.startsAt && now < row.startsAt) return { valid: false, reason: "not_started" }
   if (row.endsAt && now > row.endsAt) return { valid: false, reason: "expired" }
   if (row.maxUses != null && row.usageCount >= row.maxUses) return { valid: false, reason: "max_uses" }
-  if (row.minOrderCents != null && input.eligibleSubtotalCents < row.minOrderCents) {
+
+  // Assiette éligible calculée CÔTÉ SERVEUR à partir des règles du code (jamais
+  // fournie par le navigateur) : globale (services+options) ou ciblée (prix des
+  // prestations visées, options/déplacement exclus).
+  const rules = (row.rules ?? null) as PromoRules | null
+  const targeted = Boolean(rules?.serviceIds && rules.serviceIds.length > 0)
+  const eligibleSubtotalCents = computePromoEligibleSubtotal(input.quote, rules)
+
+  // Code ciblé mais aucune prestation éligible dans le panier : refus explicite,
+  // jamais de bascule silencieuse en promo globale.
+  if (targeted && eligibleSubtotalCents <= 0) {
+    return { valid: false, reason: "not_applicable_services" }
+  }
+
+  // Minimum d'achat évalué sur l'ASSIETTE ÉLIGIBLE (documenté) : services+options
+  // pour une promo globale ; prix des prestations ciblées pour une promo ciblée.
+  if (row.minOrderCents != null && eligibleSubtotalCents < row.minOrderCents) {
     return { valid: false, reason: "min_order" }
   }
 
@@ -127,7 +163,8 @@ export async function validatePromoCode(input: {
     (type === "percent" && value >= 1 && value <= 100) || (type === "fixed" && value > 0)
   if (!configOk) return { valid: false, reason: "invalid_config" }
 
-  const discountCents = computeDiscountCents(type, value, input.eligibleSubtotalCents)
+  // Remise bornée à [0, assiette éligible] : remise fixe plafonnée, jamais négatif.
+  const discountCents = computeDiscountCents(type, value, eligibleSubtotalCents)
   if (discountCents <= 0) return { valid: false, reason: "no_eligible_amount" }
 
   return { valid: true, promoCodeId: row.id, normalizedCode, discountType: type, discountValue: value, discountCents }

@@ -167,7 +167,11 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
         })
       } else {
         setAppliedPromo(null)
-        setPromoError("Code promo invalide ou indisponible.")
+        setPromoError(
+          res.reason === "not_applicable_services"
+            ? "Ce code ne s'applique pas à la prestation sélectionnée."
+            : "Code promo invalide ou indisponible.",
+        )
       }
     } catch {
       setAppliedPromo(null)
