@@ -3,6 +3,7 @@ import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { services, vehicleTypes, options, servicePrices } from "@/lib/db/schema"
 import { requireCompanyId } from "@/lib/tenant"
+import { attachServiceHighlights } from "@/lib/services/highlight-store"
 
 /**
  * Lectures catalogue de l'admin — ISOLÉES PAR ENTREPRISE (`companyId`).
@@ -16,7 +17,7 @@ export async function getAdminServices(companyId?: number) {
     .from(services)
     .where(eq(services.companyId, cid))
     .orderBy(asc(services.sortOrder), asc(services.id))
-  return rows.map((s) => ({
+  const mapped = rows.map((s) => ({
     id: s.id,
     name: s.name,
     description: s.description ?? "",
@@ -28,10 +29,10 @@ export async function getAdminServices(companyId?: number) {
     durationMin: s.durationMin,
     baseDurationMin: s.durationMin,
     visible: s.visible,
-    // Badge « Mise en avant » (LOT C) — null = aucun badge.
-    highlightKind: s.highlightKind ?? null,
-    highlightLabel: s.highlightLabel ?? null,
   }))
+  // Badge « Mise en avant » (LOT C) — lu à part, tolérant à l'absence de schéma
+  // (null = aucun badge tant que la migration n'est pas appliquée).
+  return attachServiceHighlights(cid, mapped)
 }
 
 /** Types de véhicules pour l'admin. */

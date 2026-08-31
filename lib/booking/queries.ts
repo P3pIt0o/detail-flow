@@ -27,6 +27,7 @@ import {
 } from "@/lib/db/schema"
 import { and, asc, count, eq, inArray, ne } from "drizzle-orm"
 import { requireCompanyId, getCompanyIdOrNull } from "@/lib/tenant"
+import { attachServiceHighlights } from "@/lib/services/highlight-store"
 
 /** Statuts qui occupent réellement un créneau (bloquants). */
 export const BLOCKING_STATUSES = ["pending_deposit", "confirmed", "completed"]
@@ -120,11 +121,13 @@ export async function getCategories(companyId?: number) {
 /** Prestations visibles, triées. */
 export async function getServices(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
-  return db
+  const rows = await db
     .select()
     .from(services)
     .where(and(eq(services.companyId, cid), eq(services.visible, true)))
     .orderBy(asc(services.sortOrder))
+  // Badge « Mise en avant » (LOT C) : fusionné à part, tolérant au schéma absent.
+  return attachServiceHighlights(cid, rows)
 }
 
 /** Options visibles, triées. */

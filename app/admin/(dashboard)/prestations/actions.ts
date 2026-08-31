@@ -16,6 +16,7 @@ import {
   serviceImagePrefix,
 } from "@/lib/service-image"
 import { normalizeHighlight } from "@/lib/services/highlight"
+import { serviceHighlightColumnsExist, writeServiceHighlight } from "@/lib/services/highlight-store"
 
 export type ActionResult = {
   ok: boolean
@@ -125,6 +126,18 @@ export async function saveService(input: {
   // borné à 30 caractères, texte échappé côté rendu). Une valeur inconnue ou un
   // custom vide → aucun badge (jamais de badge fantôme).
   const highlight = normalizeHighlight(input.highlightKind, input.highlightLabel)
+  const wantsBadge = highlight.highlightKind !== null
+
+  // Garde-fou : si un badge est demandé mais que la migration n'est pas encore
+  // appliquée, on REFUSE explicitement plutôt que de simuler un succès. Les
+  // enregistrements SANS badge (cas ordinaire) restent toujours possibles.
+  if (wantsBadge && !(await serviceHighlightColumnsExist())) {
+    return {
+      ok: false,
+      error:
+        "La mise en avant sera disponible après la mise à jour de la base de données. Enregistrez sans badge pour le moment.",
+    }
+  }
 
   /**
    * Images acceptées :
@@ -163,8 +176,6 @@ export async function saveService(input: {
     ),
     visible: input.visible,
     image,
-    highlightKind: highlight.highlightKind,
-    highlightLabel: highlight.highlightLabel,
   }
 
   /* ----------------------------- MODIFICATION ----------------------------- */
@@ -206,6 +217,11 @@ export async function saveService(input: {
         ),
       )
 
+    // Badge « Mise en avant » (LOT C) écrit à part (colonnes hors schéma Drizzle).
+    // No-op silencieux si la migration n'est pas appliquée ET aucun badge demandé
+    // (le garde-fou plus haut a déjà bloqué le cas « badge demandé sans schéma »).
+    await writeServiceHighlight(tenant.id, input.id, highlight.highlightKind, highlight.highlightLabel)
+
     /**
      * Suppression de l'ancienne image privée
      * uniquement si elle a réellement été remplacée.
@@ -225,11 +241,21 @@ export async function saveService(input: {
   /* ------------------------------- CRÉATION ------------------------------- */
 
   else {
-    await db.insert(services).values({
-      ...values,
-      companyId: tenant.id,
-      slug: slugify(input.name),
-    })
+    const [created] = await db
+      .insert(services)
+      .values({
+        ...values,
+        companyId: tenant.id,
+        slug: slugify(input.name),
+      })
+      .returning({ id: services.id })
+
+    // Badge « Mise en avant » (LOT C) : écrit après création si demandé. Le
+    // garde-fou plus haut garantit qu'un badge n'est demandé que si le schéma
+    // le permet ; sinon `wantsBadge` est faux et l'appel est un no-op.
+    if (created && wantsBadge) {
+      await writeServiceHighlight(tenant.id, created.id, highlight.highlightKind, highlight.highlightLabel)
+    }
   }
 
   /**
