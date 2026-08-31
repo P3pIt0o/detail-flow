@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { withTenant } from "@/lib/tenant-link"
-import { Check, ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Loader2, AlertCircle, RotateCcw, History } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useBookingDraft } from "./use-booking-draft"
 import { StepVehicles } from "./step-vehicles"
 import { StepDateTime } from "./step-datetime"
 import { StepContact, type ContactData } from "./step-contact"
@@ -82,6 +83,42 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromoUI | null>(null)
   const [promoError, setPromoError] = useState<string | null>(null)
   const [promoLoading, setPromoLoading] = useState(false)
+
+  // Brouillon (LOT B, point 3) : sauvegarde/reprise. `restoreResolved` garantit
+  // qu'on n'écrase JAMAIS un brouillon restauré avec les valeurs vides du montage.
+  const { restored, hydrated, remember, setRemember, save, clear } = useBookingDraft(tenant)
+  const [restoreResolved, setRestoreResolved] = useState(false)
+
+  // S'il n'y a rien à restaurer, on autorise la sauvegarde dès l'hydratation.
+  useEffect(() => {
+    if (hydrated && !restored) setRestoreResolved(true)
+  }, [hydrated, restored])
+
+  // Auto-save (session par défaut, local 24 h si consentement) — uniquement
+  // après hydratation ET résolution de la reprise. Le promo n'est stocké que
+  // sous forme de texte saisi (jamais la remise, revalidée côté serveur).
+  useEffect(() => {
+    if (!hydrated || !restoreResolved) return
+    save({ step, vehicles, date, startTime, contact, promoInput })
+  }, [hydrated, restoreResolved, step, vehicles, date, startTime, contact, promoInput, save])
+
+  function applyRestore() {
+    if (!restored) return
+    if (Array.isArray(restored.vehicles) && restored.vehicles.length > 0) setVehicles(restored.vehicles)
+    setDate(restored.date)
+    setStartTime(restored.startTime)
+    setContact(restored.contact)
+    setPromoInput(restored.promoInput)
+    // La remise est réinitialisée : elle sera revalidée serveur si le client réapplique.
+    setAppliedPromo(null)
+    setStep(Math.min(restored.step, STEPS.length - 1))
+    setRestoreResolved(true)
+  }
+
+  function discardRestore() {
+    clear()
+    setRestoreResolved(true)
+  }
 
   const completeVehicles = vehicles.filter(isVehicleComplete)
 
@@ -178,6 +215,9 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
       })
 
       if (res.ok) {
+        // Réservation créée : le brouillon n'a plus lieu d'être (évite une
+        // reprise fantôme, y compris au retour Stripe).
+        clear()
         // Paiement en ligne activé par le pro → page de paiement DetailFlow.
         // Sinon, parcours actuel inchangé (page de confirmation).
         if (res.payUrl) {
@@ -203,6 +243,45 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
       <div>
+        {/* Reprise d'un brouillon (LOT B) : proposition explicite, jamais
+            d'écrasement automatique. Prix, promo et créneau seront revalidés. */}
+        {hydrated && restored && !restoreResolved && (
+          <div
+            role="region"
+            aria-label="Réservation en cours de saisie"
+            className="mb-6 rounded-xl border border-primary/40 bg-primary/10 p-4"
+          >
+            <div className="flex items-start gap-3">
+              <History className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-card-foreground">Reprendre votre réservation ?</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Nous avons retrouvé une réservation que vous aviez commencée. Le prix, le code promo et le créneau
+                  seront revérifiés avant le paiement.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={applyRestore}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    <History className="h-4 w-4" />
+                    Reprendre
+                  </button>
+                  <button
+                    type="button"
+                    onClick={discardRestore}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Recommencer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Indicateur d'étapes */}
         <ol className="mb-8 flex items-center gap-2">
           {STEPS.map((label, i) => (
@@ -356,6 +435,21 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
               )}
               {promoError && <p className="mt-1.5 text-xs text-destructive">{promoError}</p>}
             </div>
+
+            {/* Mémorisation sur l'appareil (LOT B) : opt-in explicite, 24 h.
+                Par défaut le brouillon reste en session (vidé à la fermeture). */}
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+              />
+              <span className="leading-relaxed">
+                Mémoriser ma réservation sur cet appareil pendant 24 h pour la reprendre plus tard. Aucune donnée de
+                paiement n&apos;est enregistrée.
+              </span>
+            </label>
 
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               En confirmant, vous acceptez nos conditions générales de vente. Un acompte pourra vous être demandé pour
