@@ -43,15 +43,22 @@ describe("Spirit — assets (photo Hero + logo officiel)", () => {
   })
 })
 
-describe("Spirit — suppression des prestations et de la réservation", () => {
-  it("ne contient plus les composants prestations / réservation", () => {
-    expect(existsSync(path.join(root, SPIRIT, "spirit-prestations.tsx"))).toBe(false)
+describe("Spirit — aucun catalogue en base ni parcours de réservation", () => {
+  // NB : une section « prestations » VITRINE (familles de services, statique,
+  // sans base ni tarif) a été (ré)introduite volontairement. Les invariants
+  // ci-dessous portent sur ce qui reste interdit : le parcours de RÉSERVATION
+  // et tout CATALOGUE branché en base (getServices).
+  it("ne contient plus de composant de réservation", () => {
     expect(existsSync(path.join(root, SPIRIT, "spirit-reservation.tsx"))).toBe(false)
   })
 
-  it("la page n'importe ni prestations ni réservation", () => {
+  it("la section prestations est une VITRINE statique (aucun accès base / catalogue)", () => {
+    const prest = read(`${SPIRIT}/spirit-prestations.tsx`)
+    expect(prest).not.toMatch(/getServices|drizzle|basePriceCents|from ["']@\/lib\/db/)
+  })
+
+  it("la page ne branche ni réservation ni catalogue de services en base", () => {
     const home = read(`${SPIRIT}/home-page.tsx`)
-    expect(home).not.toMatch(/SpiritPrestations/)
     expect(home).not.toMatch(/SpiritReservation/)
     expect(home).not.toMatch(/getServices/)
   })

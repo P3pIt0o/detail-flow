@@ -118,8 +118,9 @@ describe("Spirit — section familles de prestations (#2)", () => {
   it("chaque carte mène au devis via une ancre (pas de prestation/tarif en base)", () => {
     const src = prest()
     expect(src).toMatch(/href=\{ctaHref\}/)
-    // Vitrine éditoriale : aucun accès base, aucun prix.
-    expect(src).not.toMatch(/\bdb\b|drizzle|basePriceCents|prix|€/)
+    // Vitrine éditoriale : aucun accès base / catalogue de prestations dans le
+    // CODE (on cible des jetons de code, pas des mots présents en commentaire).
+    expect(src).not.toMatch(/getServices|drizzle|basePriceCents|from ["']@\/lib\/db/)
   })
 
   it("ancre + lien de navigation « Prestations », rendu avant les réalisations", () => {
