@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Calendar, Clock, Mail, MapPin, Phone, User } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, Mail, MapPin, Navigation, Phone, User } from "lucide-react"
+import { buildMapsDirectionsUrl, ADDRESS_INCOMPLETE_LABEL } from "@/lib/notifications/maps"
 import { requireCompanyMember } from "@/lib/admin"
 import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceByBookingId } from "@/lib/invoice/queries"
@@ -118,7 +119,27 @@ export default async function ReservationDetailPage({
                 label="Horaire"
                 value={`${booking.startTime} – ${booking.endTime} (${formatDuration(booking.totalDurationMin)})`}
               />
-              <Info icon={MapPin} label="Adresse" value={booking.address} className="sm:col-span-2" />
+              <div className="sm:col-span-2">
+                <Info icon={MapPin} label="Adresse" value={booking.address} />
+                {/* Itinéraire Google Maps (LOT D #2) : lien direct si l'adresse
+                    est exploitable, sinon mention non trompeuse. Le lien ne
+                    contient QUE l'adresse (aucune donnée personnelle). */}
+                {(() => {
+                  const mapsUrl = buildMapsDirectionsUrl(booking.address)
+                  return mapsUrl ? (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+                    >
+                      <Navigation className="h-4 w-4" /> Me rendre à l&apos;adresse
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">{ADDRESS_INCOMPLETE_LABEL}</p>
+                  )
+                })()}
+              </div>
             </div>
           </section>
 

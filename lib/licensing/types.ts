@@ -25,6 +25,10 @@ export const FEATURE_KEYS = [
   "online_payments",
   "sms",
   "automations",
+  // LOT D — automatisations orientées client, features dédiées (accordées à
+  // PRO/BUSINESS/FOUNDER). Séparées de `automations` pour une répartition fine.
+  "email_reminders",
+  "review_requests",
   "business_stats",
   "expense_management",
   "profitability_analysis",

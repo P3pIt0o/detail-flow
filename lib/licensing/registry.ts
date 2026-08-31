@@ -34,6 +34,9 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   online_payments: { key: "online_payments", label: "Paiements en ligne", generation: "LIFETIME_V1" },
   sms: { key: "sms", label: "Module SMS", generation: "LIFETIME_V1" },
   automations: { key: "automations", label: "Automatisations avancées", generation: "LIFETIME_V1" },
+  // LOT D — rappels RDV pro par email + demande d'avis Google après prestation.
+  email_reminders: { key: "email_reminders", label: "Rappels de rendez-vous", generation: "LIFETIME_V1" },
+  review_requests: { key: "review_requests", label: "Demandes d'avis Google", generation: "LIFETIME_V1" },
   business_stats: { key: "business_stats", label: "Statistiques métier", generation: "LIFETIME_V1" },
   expense_management: { key: "expense_management", label: "Gestion des dépenses", generation: "LIFETIME_V1" },
   profitability_analysis: {
@@ -151,6 +154,10 @@ export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
       business_stats: true,
       expense_management: true,
       profitability_analysis: true,
+      // LOT D — inclus dans Pro (validé). Business (allFeatures) et Founder
+      // (founderFeatures) les obtiennent automatiquement ; Essential/Free non.
+      email_reminders: true,
+      review_requests: true,
     },
     limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
   },
