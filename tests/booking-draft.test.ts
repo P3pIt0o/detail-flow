@@ -128,3 +128,60 @@ describe("promo — jamais la remise, seulement le texte saisi", () => {
     expect(raw).not.toContain("discountValue")
   })
 })
+
+describe("pendingPayment — reprise du paiement d'une réservation existante", () => {
+  const pending = { reference: "ABC123", payPath: "/reservation/paiement/42?ref=ABC123" }
+
+  it("round-trip : conserve référence + chemin de reprise", () => {
+    const raw = serializeDraft(baseState({ pendingPayment: pending }))
+    const parsed = parseDraft(raw)
+    expect(parsed?.pendingPayment).toEqual(pending)
+  })
+
+  it("une réservation en attente de paiement est TOUJOURS reprenable", () => {
+    // Même avec un formulaire par ailleurs vierge.
+    const raw = serializeDraft(baseState({ pendingPayment: pending }))
+    const parsed = parseDraft(raw)
+    expect(isDraftMeaningful(parsed)).toBe(true)
+  })
+
+  it("ne stocke aucune donnée bancaire", () => {
+    const raw = serializeDraft(baseState({ pendingPayment: pending }))
+    expect(raw.toLowerCase()).not.toMatch(/card|cvc|iban|secret|client_secret|pan/)
+  })
+
+  it("rejette un payPath externe (anti open-redirect)", () => {
+    const raw = serializeDraft(
+      baseState({ pendingPayment: { reference: "X", payPath: "https://evil.example/steal" } }),
+    )
+    expect(parseDraft(raw)?.pendingPayment).toBeNull()
+  })
+
+  it("rejette un payPath protocole-relatif //host", () => {
+    const raw = serializeDraft(baseState({ pendingPayment: { reference: "X", payPath: "//evil.example" } }))
+    expect(parseDraft(raw)?.pendingPayment).toBeNull()
+  })
+
+  it("rejette un payPath javascript:", () => {
+    const raw = serializeDraft(
+      baseState({ pendingPayment: { reference: "X", payPath: "/x?u=javascript:alert(1)" } }),
+    )
+    expect(parseDraft(raw)?.pendingPayment).toBeNull()
+  })
+
+  it("rejette un pending sans référence", () => {
+    const raw = serializeDraft(baseState({ pendingPayment: { reference: "", payPath: "/reservation/paiement/1" } }))
+    expect(parseDraft(raw)?.pendingPayment).toBeNull()
+  })
+
+  it("un brouillon sans pending reste rétrocompatible (pendingPayment = null)", () => {
+    const raw = serializeDraft(baseState())
+    expect(parseDraft(raw)?.pendingPayment).toBeNull()
+  })
+
+  it("un pending expiré (>24 h en local) n'est pas restauré", () => {
+    const old = Date.now() - DRAFT_MAX_AGE_MS - 1000
+    const raw = serializeDraft(baseState({ pendingPayment: pending }), old)
+    expect(parseDraft(raw, { maxAgeMs: DRAFT_MAX_AGE_MS })).toBeNull()
+  })
+})

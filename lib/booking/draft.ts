@@ -36,6 +36,20 @@ export const BOOKING_FORM_VERSION = 1
 /** Durée de mémorisation « sur cet appareil » (24 h), en millisecondes. */
 export const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Réservation DÉJÀ créée côté serveur et en attente de paiement en ligne.
+ * Permet de reprendre le PAIEMENT de la réservation existante (jamais d'en
+ * recréer une) si le client abandonne Stripe ou revient en arrière.
+ * Ne contient AUCUNE donnée bancaire : uniquement de quoi rouvrir la page de
+ * paiement (référence + chemin), que le serveur revalide de toute façon.
+ */
+export type DraftPendingPayment = {
+  /** Référence publique de la réservation créée. */
+  reference: string
+  /** Chemin RELATIF de reprise du paiement (jamais une URL absolue/externe). */
+  payPath: string
+}
+
 export type BookingDraft = {
   /** Version du format (doit valoir BOOKING_FORM_VERSION pour être accepté). */
   v: number
@@ -46,6 +60,11 @@ export type BookingDraft = {
   contact: DraftContact
   /** Texte du code promo saisi (JAMAIS le montant de remise, revalidé serveur). */
   promoInput: string
+  /**
+   * Présent uniquement quand une réservation a été créée et attend son
+   * paiement. Sa présence bascule la reprise en « Reprendre le paiement ».
+   */
+  pendingPayment?: DraftPendingPayment | null
   /** Horodatage d'enregistrement (epoch ms) pour le TTL 24 h. */
   savedAt: number
 }
@@ -63,6 +82,17 @@ export function serializeDraft(
 ): string {
   const draft: BookingDraft = { ...input, v: BOOKING_FORM_VERSION, savedAt: now }
   return JSON.stringify(draft)
+}
+
+/** Valide un chemin de reprise de paiement : relatif, interne, sans schéma. */
+function isSafePayPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//") &&
+    !value.includes("://") &&
+    !value.toLowerCase().includes("javascript:")
+  )
 }
 
 /**
@@ -111,8 +141,17 @@ export function parseDraft(
       notes: typeof contact.notes === "string" ? contact.notes : "",
     },
     promoInput: typeof d.promoInput === "string" ? d.promoInput : "",
+    pendingPayment: null,
     savedAt: d.savedAt as number,
   }
+
+  // pendingPayment est optionnel et strictement validé (fail-safe) : une valeur
+  // douteuse est simplement ignorée (le brouillon reste utilisable).
+  const pp = d.pendingPayment as Record<string, unknown> | null | undefined
+  if (pp && typeof pp === "object" && typeof pp.reference === "string" && pp.reference.trim() && isSafePayPath(pp.payPath)) {
+    draft.pendingPayment = { reference: pp.reference, payPath: pp.payPath }
+  }
+
   return draft
 }
 
@@ -123,6 +162,8 @@ export function parseDraft(
  */
 export function isDraftMeaningful(draft: BookingDraft | null): boolean {
   if (!draft) return false
+  // Une réservation en attente de paiement doit TOUJOURS pouvoir être reprise.
+  if (draft.pendingPayment) return true
   const c = draft.contact
   const hasContact = Boolean(c.name.trim() || c.email.trim() || c.phone.trim() || c.address.trim())
   const hasVehicleDetails = draft.vehicles.some(

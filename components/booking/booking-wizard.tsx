@@ -99,11 +99,21 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
   // sous forme de texte saisi (jamais la remise, revalidée côté serveur).
   useEffect(() => {
     if (!hydrated || !restoreResolved) return
+    // Tant qu'un paiement est en attente, on N'ÉCRASE PAS le brouillon avec un
+    // état sans pending : la reprise « payer la réservation existante » prime.
+    if (restored?.pendingPayment) return
     save({ step, vehicles, date, startTime, contact, promoInput })
-  }, [hydrated, restoreResolved, step, vehicles, date, startTime, contact, promoInput, save])
+  }, [hydrated, restoreResolved, step, vehicles, date, startTime, contact, promoInput, save, restored])
 
   function applyRestore() {
     if (!restored) return
+    // Réservation déjà créée et en attente de paiement : on reprend le PAIEMENT
+    // de la réservation EXISTANTE (jamais de recréation → aucun doublon). Le
+    // serveur revalide le montant/créneau ; le retour Stripe ne prouve rien.
+    if (restored.pendingPayment) {
+      router.push(withTenant(restored.pendingPayment.payPath, tenant))
+      return
+    }
     if (Array.isArray(restored.vehicles) && restored.vehicles.length > 0) setVehicles(restored.vehicles)
     setDate(restored.date)
     setStartTime(restored.startTime)
@@ -215,14 +225,22 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
       })
 
       if (res.ok) {
-        // Réservation créée : le brouillon n'a plus lieu d'être (évite une
-        // reprise fantôme, y compris au retour Stripe).
-        clear()
-        // Paiement en ligne activé par le pro → page de paiement DetailFlow.
-        // Sinon, parcours actuel inchangé (page de confirmation).
         if (res.payUrl) {
-          router.push(withTenant(`${res.payUrl}?ref=${encodeURIComponent(res.reference)}`, tenant))
+          // Paiement en ligne requis : la réservation EXISTE déjà. On NE vide
+          // PAS le brouillon — on le bascule en « attente de paiement » (avec
+          // la référence + le chemin de reprise). Ainsi, si le client abandonne
+          // Stripe ou revient en arrière, il retrouve « Reprendre le paiement »
+          // de CETTE réservation, sans jamais en recréer une (zéro doublon).
+          const payPath = `${res.payUrl}?ref=${encodeURIComponent(res.reference)}`
+          markPendingPayment(
+            { step, vehicles, date, startTime, contact, promoInput },
+            { reference: res.reference, payPath },
+          )
+          router.push(withTenant(payPath, tenant))
         } else {
+          // Aucun paiement en ligne : la confirmation est immédiate → le
+          // brouillon n'a plus lieu d'être.
+          clear()
           router.push(withTenant(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`, tenant))
         }
       } else {
@@ -254,10 +272,13 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
             <div className="flex items-start gap-3">
               <History className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-card-foreground">Reprendre votre réservation ?</p>
+                <p className="text-sm font-semibold text-card-foreground">
+                  {restored.pendingPayment ? "Finaliser le paiement de votre réservation ?" : "Reprendre votre réservation ?"}
+                </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Nous avons retrouvé une réservation que vous aviez commencée. Le prix, le code promo et le créneau
-                  seront revérifiés avant le paiement.
+                  {restored.pendingPayment
+                    ? "Votre réservation a bien été créée mais le paiement n'a pas été finalisé. Reprenez-le ci-dessous : le montant et le créneau seront revérifiés. Aucune réservation en double ne sera créée."
+                    : "Nous avons retrouvé une réservation que vous aviez commencée. Le prix, le code promo et le créneau seront revérifiés avant le paiement."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -266,7 +287,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
                     className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <History className="h-4 w-4" />
-                    Reprendre
+                    {restored.pendingPayment ? "Reprendre le paiement" : "Reprendre"}
                   </button>
                   <button
                     type="button"

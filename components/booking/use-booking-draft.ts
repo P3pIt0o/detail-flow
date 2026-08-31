@@ -65,6 +65,13 @@ export type UseBookingDraft = {
   setRemember: (value: boolean) => void
   /** Enregistre l'état courant (appelé à chaque changement, après hydratation). */
   save: (state: DraftState) => void
+  /**
+   * Marque la réservation comme créée et en attente de paiement. Persiste en
+   * localStorage (sans exiger le consentement 24 h) afin que le client
+   * retrouve « Reprendre le paiement » même après fermeture de l'onglet
+   * pendant le checkout Stripe. Ne stocke aucune donnée bancaire.
+   */
+  markPendingPayment: (state: DraftState, pending: { reference: string; payPath: string }) => void
   /** Efface le brouillon (confirmation réelle, abandon explicite, expiration). */
   clear: () => void
 }
@@ -133,6 +140,22 @@ export function useBookingDraft(tenant: string | null): UseBookingDraft {
     [key, remember],
   )
 
+  const markPendingPayment = useCallback(
+    (state: DraftState, pending: { reference: string; payPath: string }) => {
+      const raw = serializeDraft({ ...state, pendingPayment: pending })
+      memoryRef.current = raw
+      // On privilégie localStorage pour survivre à la fermeture d'onglet
+      // pendant Stripe. Si indisponible, on retombe sur la session.
+      if (canLocal.current) {
+        writeRaw("localStorage", key, raw)
+        if (canSession.current) removeRaw("sessionStorage", key)
+      } else if (canSession.current) {
+        writeRaw("sessionStorage", key, raw)
+      }
+    },
+    [key],
+  )
+
   const clear = useCallback(() => {
     memoryRef.current = null
     if (canSession.current) removeRaw("sessionStorage", key)
@@ -163,5 +186,5 @@ export function useBookingDraft(tenant: string | null): UseBookingDraft {
     [key, rememberKey],
   )
 
-  return { restored, hydrated, remember, setRemember, save, clear }
+  return { restored, hydrated, remember, setRemember, save, markPendingPayment, clear }
 }
