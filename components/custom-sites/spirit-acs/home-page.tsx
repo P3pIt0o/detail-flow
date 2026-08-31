@@ -22,7 +22,8 @@ import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritApropos } from "./spirit-apropos"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
-import { SpiritFinalCta } from "./spirit-final-cta"
+import { SpiritAvisGoogle } from "./spirit-avis-google"
+import { resolveTenantReviews } from "@/lib/reviews/public"
 import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
