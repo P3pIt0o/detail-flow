@@ -67,3 +67,30 @@ export async function resolveTenantReviews(
   const manual = opts?.manualReviews ?? (await getManualReviews(companyId))
   return { source: "manual", reviews: manual }
 }
+
+/**
+ * Note GLOBALE Google réelle d'un tenant (pour une présentation compacte type
+ * « 5,0 ★ sur Google »), INDÉPENDANTE de la source d'avis affichée.
+ *
+ * Réutilise strictement l'existant : Place ID configuré (`getReviewsSourceConfig`)
+ * + fiche Google en cache (`getGooglePlaceDetails`, revalidation ~1 h, clé
+ * `GOOGLE_MAPS_API_KEY` déjà présente). Aucune nouvelle API.
+ *
+ * - Renvoie la note AGRÉGÉE fournie par Google (jamais une moyenne recalculée
+ *   sur les seuls avis retournés, jamais une valeur en dur).
+ * - Renvoie `null` si aucun établissement Google n'est configuré ou si la note
+ *   est indisponible → l'appelant masque simplement la note (rien d'inventé).
+ * - `url` = lien vers la fiche Google (pour rendre la note cliquable).
+ *
+ * ISOLATION : `companyId` doit être résolu côté serveur.
+ */
+export async function getTenantGoogleRating(
+  companyId: number,
+  opts?: { revalidateSeconds?: number },
+): Promise<{ rating: number; url: string | null } | null> {
+  const config = await getReviewsSourceConfig(companyId)
+  if (!config.googlePlaceId) return null
+  const res = await getGooglePlaceDetails(config.googlePlaceId, { revalidateSeconds: opts?.revalidateSeconds })
+  if (!res.ok || typeof res.data.rating !== "number") return null
+  return { rating: res.data.rating, url: res.data.googleMapsUri }
+}

@@ -18,12 +18,13 @@ import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritHero } from "./spirit-hero"
 import { SpiritReassurance } from "./spirit-reassurance"
+import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritApropos } from "./spirit-apropos"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritAvisGoogle } from "./spirit-avis-google"
-import { resolveTenantReviews } from "@/lib/reviews/public"
+import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
 import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
@@ -90,15 +91,29 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // quelque chose à montrer (aucun espace vide, aucun placeholder).
   const hasReviews = content.reviews.enabled && (hasManualReviews || hasGoogleReviews)
 
+  // Note GLOBALE Google réelle pour la présentation compacte du hero,
+  // INDÉPENDANTE de la source d'avis affichée. Si les avis viennent déjà de
+  // Google, on réutilise la fiche déjà chargée (zéro appel supplémentaire) ;
+  // sinon on résout la note via le Place ID configuré (fiche en cache). Null si
+  // aucun établissement Google n'est configuré / note indisponible → masquée.
+  const googleRating =
+    reviewsResolved.source === "google" &&
+    reviewsResolved.data &&
+    typeof reviewsResolved.data.rating === "number"
+      ? { rating: reviewsResolved.data.rating, url: reviewsResolved.data.googleMapsUri }
+      : await getTenantGoogleRating(data.tenant.id)
+
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
-  // Spirit n'expose PAS de lien « Prestations » (section retirée).
-  const navItems: SpiritNavItem[] = [
+  // La section « Prestations » (familles de services) est toujours rendue.
+  const navItemsRaw: (SpiritNavItem | null)[] = [
+    { id: SPIRIT_SECTIONS.prestations, label: "Prestations" },
     hasGallery ? { id: SPIRIT_SECTIONS.realisations, label: "Réalisations" } : null,
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
     quoteEnabled ? { id: SPIRIT_SECTIONS.demandeDevis, label: "Devis" } : null,
     { id: SPIRIT_SECTIONS.contact, label: "Contact" },
-  ].filter((i): i is SpiritNavItem => i !== null)
+  ]
+  const navItems: SpiritNavItem[] = navItemsRaw.filter((i): i is SpiritNavItem => i !== null)
 
   // CTA d'en-tête : « Demander un devis » (ancre in-page) vers le vrai
   // formulaire. Repli sur les réalisations puis le contact si le module devis
@@ -132,12 +147,19 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         quoteEnabled={quoteEnabled}
         hasGallery={hasGallery}
         city={contact.city}
+        googleRating={googleRating?.rating ?? null}
+        googleUrl={googleRating?.url ?? null}
       />
 
       {/* Transitions ÉDITORIALES : alternance franche navy / blanc cassé, sans
           séparateur décoratif. Le rythme vertical et le trait rose au-dessus des
           titres suffisent à distinguer les sections. */}
       <SpiritReassurance />
+
+      {/* Familles de prestations — immédiatement APRÈS le bandeau de réassurance
+          et AVANT les réalisations (position imposée par la maquette). Chaque
+          carte mène au formulaire de devis existant (via headerCta). */}
+      <SpiritPrestations ctaHref={headerCta.href} />
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
