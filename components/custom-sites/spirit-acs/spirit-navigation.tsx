@@ -102,8 +102,8 @@ export function SpiritNavigation({
     return () => {
       document.removeEventListener("keydown", onKey)
       // Rend le focus au bouton déclencheur à la fermeture.
-      toggleRef.current?.focus()
-    }
+    toggleRef.current?.focus({ preventScroll: true })
+     }
   }, [open])
 
   // Scroll-spy : met en évidence la section la plus visible.
