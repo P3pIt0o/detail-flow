@@ -72,7 +72,23 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   const reviewsIntro = nonDefault(content.reviews.intro, SITE_CONTENT_DEFAULTS.reviews.intro)
 
   const hasGallery = gallery.length > 0
-  const hasReviews = reviews.length > 0 && content.reviews.enabled
+
+  // Avis : on passe désormais par le résolveur CENTRAL `resolveTenantReviews`
+  // (le même que le site standard `/avis`), au lieu de n'afficher que les avis
+  // manuels. Il respecte la SOURCE choisie par le tenant dans l'admin :
+  //   - « manuel » → avis DetailFlow saisis (déjà chargés, réutilisés) ;
+  //   - « google » → avis Google réels de la fiche (jamais un simple lien
+  //     supposé contenir des avis ; aucune donnée inventée).
+  // Isolation : `data.tenant.id` est le companyId résolu côté serveur.
+  const reviewsResolved = await resolveTenantReviews(data.tenant.id, { manualReviews: reviews })
+  const hasManualReviews = reviewsResolved.source === "manual" && reviewsResolved.reviews.length > 0
+  const hasGoogleReviews =
+    reviewsResolved.source === "google" &&
+    reviewsResolved.data != null &&
+    (typeof reviewsResolved.data.rating === "number" || reviewsResolved.data.reviews.length > 0)
+  // La section avis n'apparaît que si elle est activée ET qu'il y a réellement
+  // quelque chose à montrer (aucun espace vide, aucun placeholder).
+  const hasReviews = content.reviews.enabled && (hasManualReviews || hasGoogleReviews)
 
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
   // Spirit n'expose PAS de lien « Prestations » (section retirée).
@@ -138,9 +154,12 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
       )}
 
-      {hasReviews && <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviews} />}
-
-      <SpiritFinalCta title={content.contact.title} city={contact.city} quoteEnabled={quoteEnabled} />
+      {hasReviews && reviewsResolved.source === "manual" && (
+        <SpiritAvis title={content.reviews.title} intro={reviewsIntro} reviews={reviewsResolved.reviews} />
+      )}
+      {hasReviews && reviewsResolved.source === "google" && reviewsResolved.data && (
+        <SpiritAvisGoogle title={content.reviews.title} intro={reviewsIntro} details={reviewsResolved.data} />
+      )}
     </SpiritSiteShell>
   )
 }

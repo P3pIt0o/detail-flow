@@ -19,7 +19,7 @@
  * route via `withTenant` + `useSearchParams`, comme le reste du dépôt.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type MouseEvent } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
@@ -131,6 +131,25 @@ export function SpiritNavigation({
   const cta = ctaHref.startsWith("#") ? ctaHref : withTenant(ctaHref, tenant)
   const telHref = toTelHref(phoneRaw ?? phone)
 
+  // Défilement in-page ROBUSTE (bureau + mobile). Cause du bug : quand le menu
+  // mobile est ouvert, le body porte `overflow:hidden` et le panneau s'anime en
+  // sortie (AnimatePresence) — le saut d'ancre NATIF est alors annulé/clampé et
+  // le lien paraît « mort ». On ferme donc le menu, on LÈVE LE VERROU de scroll
+  // de façon synchrone, puis on défile nous-mêmes vers la cible (l'offset de
+  // l'en-tête fixe reste géré par `scroll-margin-top` en CSS). On ne touche
+  // qu'au hash : le contexte tenant (`?tenant=`) est intégralement conservé.
+  const handleAnchorClick = (e: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!href.startsWith("#")) return // lien de route : comportement standard
+    const target = document.getElementById(href.slice(1))
+    if (!target) return // aucune cible : on laisse le navigateur décider
+    e.preventDefault()
+    setOpen(false)
+    document.body.style.overflow = "" // lève immédiatement le verrou du menu
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" })
+    history.replaceState(null, "", href) // met à jour le hash sans saut brut
+  }
+
   // Fond opaque si l'en-tête n'est pas immersif OU si l'on a défilé.
   const solid = !immersive || scrolled
 
@@ -178,6 +197,7 @@ export function SpiritNavigation({
               <li key={it.id}>
                 <a
                   href={`#${it.id}`}
+                  onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
                   aria-current={active === it.id ? "true" : undefined}
                   className={`relative rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors ${
                     active === it.id ? "text-[color:var(--spirit-teal)]" : "text-white/80 hover:text-white"
@@ -196,6 +216,7 @@ export function SpiritNavigation({
           <div className="hidden lg:block">
             <a
               href={cta}
+              onClick={(e) => handleAnchorClick(e, cta)}
               className="inline-flex h-10 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)]"
             >
               {ctaLabel}
@@ -245,7 +266,7 @@ export function SpiritNavigation({
                   <li key={it.id}>
                     <a
                       href={`#${it.id}`}
-                      onClick={() => setOpen(false)}
+                      onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
                       className="block rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-wide text-white/85 hover:bg-white/5 hover:text-white"
                     >
                       {it.label}
@@ -255,7 +276,7 @@ export function SpiritNavigation({
                 <li className="mt-3">
                   <a
                     href={cta}
-                    onClick={() => setOpen(false)}
+                    onClick={(e) => handleAnchorClick(e, cta)}
                     className="inline-flex w-full items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white"
                   >
                     {ctaLabel}

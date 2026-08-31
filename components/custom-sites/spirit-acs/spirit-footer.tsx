@@ -15,6 +15,7 @@ import { Phone, Mail, MapPin } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
 import { toTelHref } from "@/lib/phone"
+import { SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritFooterProps = {
   brandName: string
@@ -87,8 +88,10 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
             </ul>
           </nav>
 
-          {/* Contact — coordonnées réelles uniquement */}
-          <div>
+          {/* Contact — coordonnées réelles uniquement. Porte l'ancre #contact
+              (destination du lien « Contact » de la navigation), rattachée aux
+              coordonnées existantes après le retrait du bloc final redondant. */}
+          <div id={SPIRIT_SECTIONS.contact} data-spirit-anchor className="scroll-mt-24">
             <h2 className="spirit-eyebrow">Contact</h2>
             <ul className="mt-4 space-y-3 text-sm text-[color:var(--spirit-muted)]">
               {phone && (
