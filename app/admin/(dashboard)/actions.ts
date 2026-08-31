@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { bookings } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { sendStatusChangeEmail } from "@/lib/email/notifications"
+import { stampBookingCompletedAt, clearBookingCompletedAt } from "@/lib/notifications/completion"
 import type { BookingStatus } from "@/lib/booking/status"
 
 /** Transitions de statut autorisées depuis le dashboard. */
@@ -43,6 +44,16 @@ export async function updateBookingStatus(
     .update(bookings)
     .set({ status: next, updatedAt: new Date() })
     .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, tenant.id)))
+
+  // Horodatage RÉEL de réalisation (LOT D) : posé au passage « terminé », effacé
+  // si l'on quitte ce statut. Défensif (colonne via migration séparée), scopé
+  // tenant, JAMAIS de modification du statut de paiement. La demande d'avis est
+  // déclenchée par la présence de completed_at (jamais par l'heure prévue seule).
+  if (next === "completed") {
+    await stampBookingCompletedAt(tenant.id, bookingId)
+  } else if (current === "completed" && next !== "completed") {
+    await clearBookingCompletedAt(tenant.id, bookingId)
+  }
 
   // Email au client pour les transitions qui le concernent (non bloquant).
   if (next === "confirmed" || next === "completed" || next === "cancelled") {

@@ -17,7 +17,15 @@ import {
   normalizeReminderOffset,
   normalizeReviewOffset,
   formatInTenantTimeZone,
+  tenantLocalToInstant,
+  sendWindowState,
+  MAX_SEND_LATENESS_MS,
 } from "@/lib/notifications/schedule"
+import {
+  normalizeEmail,
+  makeOptOutToken,
+  verifyOptOutToken,
+} from "@/lib/notifications/opt-out-token"
 
 describe("Maps directions helper (#2)", () => {
   it("encode l'adresse complète et impose le bon format sans point de départ", () => {
@@ -154,5 +162,79 @@ describe("Scheduling & timezone (#4)", () => {
     // 15 juillet 10:00 UTC => 12:00 à Paris (heure d'été, UTC+2)
     const summer = formatInTenantTimeZone(new Date("2026-07-15T10:00:00Z"), "Europe/Paris", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })
     expect(summer).toBe("12:00")
+  })
+})
+
+describe("Conversion heure locale tenant -> instant (#D2)", () => {
+  it("convertit une date+heure locale Paris en instant UTC (hiver = UTC+1)", () => {
+    // 15 janvier 14:30 à Paris (hiver) => 13:30 UTC
+    const inst = tenantLocalToInstant("2026-01-15", "14:30", "Europe/Paris")
+    expect(inst?.toISOString()).toBe("2026-01-15T13:30:00.000Z")
+  })
+
+  it("gère l'heure d'été (Paris = UTC+2)", () => {
+    // 15 juillet 14:30 à Paris (été) => 12:30 UTC
+    const inst = tenantLocalToInstant("2026-07-15", "14:30", "Europe/Paris")
+    expect(inst?.toISOString()).toBe("2026-07-15T12:30:00.000Z")
+  })
+
+  it("diffère d'un fuseau non-Paris (ex. Zurich identique à Paris, mais UTC ≠ local)", () => {
+    const paris = tenantLocalToInstant("2026-03-01", "09:00", "Europe/Paris")
+    const utc = tenantLocalToInstant("2026-03-01", "09:00", "UTC")
+    expect(paris).not.toBeNull()
+    expect(utc?.toISOString()).toBe("2026-03-01T09:00:00.000Z")
+    // Paris en hiver = UTC+1 => l'instant UTC est une heure plus tôt.
+    expect(paris!.getTime()).toBe(utc!.getTime() - 3600_000)
+  })
+
+  it("refuse des entrées invalides (jamais d'instant faux)", () => {
+    expect(tenantLocalToInstant("", "14:30", "Europe/Paris")).toBeNull()
+    expect(tenantLocalToInstant("2026-01-15", "99:99", "Europe/Paris")).toBeNull()
+    expect(tenantLocalToInstant("15/01/2026", "14:30", "Europe/Paris")).toBeNull()
+    expect(tenantLocalToInstant("2026-13-40", "14:30", "Europe/Paris")).toBeNull()
+  })
+})
+
+describe("Fenêtre d'envoi anti-rétroactif (#D2)", () => {
+  const sendAt = new Date("2026-03-15T08:00:00.000Z")
+
+  it("est 'early' avant l'instant d'envoi", () => {
+    expect(sendWindowState(new Date("2026-03-15T07:59:00Z"), sendAt)).toBe("early")
+  })
+
+  it("est 'due' dans la fenêtre de grâce", () => {
+    expect(sendWindowState(new Date("2026-03-15T08:00:00Z"), sendAt)).toBe("due")
+    expect(sendWindowState(new Date(sendAt.getTime() + MAX_SEND_LATENESS_MS), sendAt)).toBe("due")
+  })
+
+  it("est 'missed' au-delà de la grâce (aucun rattrapage rétroactif)", () => {
+    expect(sendWindowState(new Date(sendAt.getTime() + MAX_SEND_LATENESS_MS + 1), sendAt)).toBe("missed")
+    // Activation tardive de plusieurs jours => manqué, jamais envoyé en masse.
+    expect(sendWindowState(new Date("2026-03-20T08:00:00Z"), sendAt)).toBe("missed")
+  })
+})
+
+describe("Jetons d'opposition aux demandes d'avis (#D2)", () => {
+  const secret = "test-secret-please-change"
+
+  it("normalise l'email (minuscule, sans espaces)", () => {
+    expect(normalizeEmail("  Jean.Dupont@Example.COM ")).toBe("jean.dupont@example.com")
+    expect(normalizeEmail(null)).toBe("")
+  })
+
+  it("génère un jeton vérifiable pour le bon couple (tenant, email)", () => {
+    const t = makeOptOutToken(42, "client@example.com", secret)
+    expect(verifyOptOutToken(42, "client@example.com", t, secret)).toBe(true)
+    // Insensible à la casse/espaces de l'email grâce à la normalisation.
+    expect(verifyOptOutToken(42, "  Client@Example.com ", t, secret)).toBe(true)
+  })
+
+  it("refuse un jeton pour un autre tenant ou un autre email (anti-usurpation)", () => {
+    const t = makeOptOutToken(42, "client@example.com", secret)
+    expect(verifyOptOutToken(43, "client@example.com", t, secret)).toBe(false)
+    expect(verifyOptOutToken(42, "autre@example.com", t, secret)).toBe(false)
+    expect(verifyOptOutToken(42, "client@example.com", t, "mauvais-secret")).toBe(false)
+    expect(verifyOptOutToken(42, "client@example.com", "", secret)).toBe(false)
+    expect(verifyOptOutToken(42, "client@example.com", null, secret)).toBe(false)
   })
 })

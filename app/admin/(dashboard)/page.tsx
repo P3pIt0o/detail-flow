@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Euro, Wallet, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock } from "lucide-react"
+import { Euro, Wallet, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock, Navigation } from "lucide-react"
+import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
 import {
   getDashboardStats,
   getUpcomingBookingsDetailed,
@@ -264,6 +265,21 @@ export default async function DashboardPage({
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <span className="text-sm font-semibold text-foreground">{formatPrice(b.totalCents)}</span>
                   <StatusBadge status={b.status} />
+                  {(() => {
+                    const mapsUrl = buildMapsDirectionsUrl(b.address)
+                    return mapsUrl ? (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:underline"
+                        aria-label={`Itinéraire vers ${b.address}`}
+                      >
+                        <Navigation className="size-3.5" aria-hidden="true" />
+                        Itinéraire
+                      </a>
+                    ) : null
+                  })()}
                 </div>
               </li>
             ))}

@@ -13,6 +13,12 @@ const LEGACY_TABS = [
   "sms", "security", "data", "support",
 ]
 
+// Onglets AJOUTÉS (LOT D). Additifs : ne remplacent aucun onglet historique.
+const NEW_TABS = ["notifications"]
+
+// Ensemble attendu = historiques + nouveaux (aucun autre onglet orphelin).
+const EXPECTED_TABS = [...LEGACY_TABS, ...NEW_TABS]
+
 describe("settings navigation categories", () => {
   it("expose exactement 6 catégories", () => {
     expect(SETTINGS_CATEGORIES).toHaveLength(6)
@@ -31,8 +37,13 @@ describe("settings navigation categories", () => {
     for (const tab of LEGACY_TABS) {
       expect(ALL_SETTINGS_TABS).toContain(tab)
     }
-    // Et aucun onglet en trop / orphelin.
-    expect([...ALL_SETTINGS_TABS].sort()).toEqual([...LEGACY_TABS].sort())
+    // Et aucun onglet en trop / orphelin (historiques + nouveaux LOT D).
+    expect([...ALL_SETTINGS_TABS].sort()).toEqual([...EXPECTED_TABS].sort())
+  })
+
+  it("expose le nouvel onglet LOT D « notifications » dans Communications", () => {
+    expect(ALL_SETTINGS_TABS).toContain("notifications")
+    expect(findCategoryByTab("notifications")?.id).toBe("communications")
   })
 
   it("n'a aucun doublon d'onglet entre catégories", () => {
