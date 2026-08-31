@@ -70,6 +70,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS notification_outbox_dedup_idx
 CREATE INDEX IF NOT EXISTS notification_outbox_due_idx
   ON notification_outbox (status, send_at);
 
+-- 4) Oppositions aux demandes d'avis (RGPD / respect des refus) -------------
+-- Un client peut se désinscrire des demandes d'avis via le lien présent dans
+-- l'email. On mémorise l'opposition par (tenant, email normalisé) : aucune
+-- nouvelle demande d'avis ne lui sera envoyée. Additif, scopé tenant.
+CREATE TABLE IF NOT EXISTS notification_opt_outs (
+  id           serial PRIMARY KEY,
+  "companyId"  integer NOT NULL,
+  -- email normalisé (minuscule) ; jamais d'autre donnée personnelle
+  email        text NOT NULL,
+  -- "review_request" (extensible à d'autres types plus tard)
+  type         text NOT NULL DEFAULT 'review_request',
+  created_at   timestamp NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS notification_opt_outs_uniq_idx
+  ON notification_opt_outs ("companyId", email, type);
+
 -- ============================================================================
 -- ORDRE D'APPLICATION (avant publication) :
 --   1. Appliquer CE fichier sur la base cible (Neon) — idempotent, rejouable.

@@ -13,6 +13,8 @@ import {
   statusCancelledEmail,
   bookingUpdatedEmail,
   reminderEmail,
+  proReminderEmail,
+  reviewRequestEmail,
   paymentReceivedClientEmail,
   paymentReceivedProEmail,
   refundConfirmationClientEmail,
@@ -95,6 +97,7 @@ async function loadBookingEmailData(
   const data: BookingEmailData = {
     reference: booking.reference,
     customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
     date: typeof booking.date === "string" ? booking.date : String(booking.date),
     startTime: booking.startTime,
     endTime: booking.endTime,
@@ -399,6 +402,97 @@ export async function sendBookingUpdatedEmail(bookingId: number): Promise<void> 
     })
   } catch (e) {
     console.log("[v0] sendBookingUpdatedEmail a échoué:", e instanceof Error ? e.message : e)
+  }
+}
+
+/* ----------------------------- LOT D — envois ----------------------------- */
+
+/**
+ * Garde d'ENVOI RÉEL des notifications LOT D (rappel pro + demande d'avis).
+ *
+ * Par défaut DÉSACTIVÉ : aucun email réel n'est émis (ni pro, ni client). Le
+ * fournisseur est alors SIMULÉ (journalisé, jamais appelé). L'envoi réel n'est
+ * possible qu'en positionnant explicitement `NOTIFICATIONS_ENABLED=true` en
+ * production — hors périmètre de ce lot (non activé). Cela garantit qu'en
+ * Preview et tant que l'activation n'est pas décidée, rien n'est envoyé.
+ */
+export function notificationsRealSendEnabled(): boolean {
+  return process.env.NOTIFICATIONS_ENABLED === "true"
+}
+
+export type NotificationOutcome = {
+  state: "sent" | "simulated" | "failed" | "invalid"
+  providerMessageId?: string
+  reason?: string
+}
+
+/**
+ * Envoie (ou simule) le RAPPEL AU PROFESSIONNEL pour une réservation.
+ * Destinataire = email pro du tenant. Ne lève jamais.
+ */
+export async function sendProReminderEmail(bookingId: number): Promise<NotificationOutcome> {
+  try {
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) return { state: "failed", reason: "booking_not_found" }
+    const { data, customerEmail, proEmail } = loaded
+    void customerEmail
+    if (!isValidEmail(proEmail)) return { state: "invalid", reason: "no_pro_email" }
+
+    const mail = proReminderEmail(data)
+    if (!notificationsRealSendEnabled()) {
+      console.log("[notifications] pro_reminder SIMULÉ (envoi réel désactivé) booking", bookingId)
+      return { state: "simulated", providerMessageId: `simulated:${Date.now()}` }
+    }
+    const res = await sendEmail({
+      to: proEmail,
+      subject: mail.subject,
+      html: mail.html,
+      fromName: data.businessName,
+      replyTo: customerEmail,
+    })
+    return res.ok
+      ? { state: "sent", providerMessageId: res.id }
+      : { state: "failed", reason: res.error }
+  } catch (e) {
+    console.log("[v0] sendProReminderEmail a échoué:", e instanceof Error ? e.message : e)
+    return { state: "failed", reason: "exception" }
+  }
+}
+
+/**
+ * Envoie (ou simule) la DEMANDE D'AVIS AU CLIENT pour une réservation réalisée.
+ * `reviewUrl` est résolu/validé côté serveur par l'appelant (jamais fabriqué
+ * ici). `optOutUrl` porte le lien de désinscription signé. Ne lève jamais.
+ */
+export async function sendReviewRequestEmail(
+  bookingId: number,
+  opts: { reviewUrl: string; optOutUrl?: string | null },
+): Promise<NotificationOutcome> {
+  try {
+    if (!opts.reviewUrl) return { state: "invalid", reason: "no_review_link" }
+    const loaded = await loadBookingEmailData(bookingId)
+    if (!loaded) return { state: "failed", reason: "booking_not_found" }
+    const { data, customerEmail, proEmail } = loaded
+    if (!isValidEmail(customerEmail)) return { state: "invalid", reason: "no_customer_email" }
+
+    const mail = reviewRequestEmail(data, opts)
+    if (!notificationsRealSendEnabled()) {
+      console.log("[notifications] review_request SIMULÉ (envoi réel désactivé) booking", bookingId)
+      return { state: "simulated", providerMessageId: `simulated:${Date.now()}` }
+    }
+    const res = await sendEmail({
+      to: customerEmail,
+      subject: mail.subject,
+      html: mail.html,
+      fromName: data.businessName,
+      replyTo: proEmail ?? undefined,
+    })
+    return res.ok
+      ? { state: "sent", providerMessageId: res.id }
+      : { state: "failed", reason: res.error }
+  } catch (e) {
+    console.log("[v0] sendReviewRequestEmail a échoué:", e instanceof Error ? e.message : e)
+    return { state: "failed", reason: "exception" }
   }
 }
 

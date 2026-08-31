@@ -81,6 +81,104 @@ export function shouldScheduleReminder(
 }
 
 /**
+ * Fenêtre de garde ANTI-RÉTROACTIF (brief : « aucun envoi rétroactif massif »).
+ *
+ * Une notification n'est envoyable que si son instant d'envoi théorique est
+ * atteint MAIS pas dépassé de plus de `MAX_SEND_LATENESS_MS`. Si la fenêtre a
+ * été manquée (fonctionnalité activée trop tard, cron indisponible longtemps,
+ * import d'anciennes données…), on NE rattrape PAS : la tâche est marquée
+ * « ignorée » plutôt qu'envoyée en retard.
+ */
+export const MAX_SEND_LATENESS_MS = 2 * HOUR_MS
+
+/**
+ * L'instant `now` est-il dans la fenêtre d'envoi de `sendAt` ?
+ *  - trop tôt (`now < sendAt`)  => pas encore dû ;
+ *  - à l'heure (`sendAt <= now <= sendAt + grace`) => envoyable ;
+ *  - trop tard (`now > sendAt + grace`) => fenêtre manquée (ne pas rattraper).
+ */
+export type SendWindow = "early" | "due" | "missed"
+export function sendWindowState(now: Date, sendAt: Date, graceMs = MAX_SEND_LATENESS_MS): SendWindow {
+  const t = now.getTime()
+  const s = sendAt.getTime()
+  if (t < s) return "early"
+  if (t <= s + graceMs) return "due"
+  return "missed"
+}
+
+/**
+ * Convertit une date locale tenant (`YYYY-MM-DD` + `HH:MM`) exprimée dans un
+ * fuseau IANA en instant absolu (UTC `Date`).
+ *
+ * `bookings.date` (type date) et `bookings.startTime` (texte "HH:MM") décrivent
+ * une heure LOCALE au tenant, sans offset. Pour calculer un instant d'envoi
+ * correct (et le comparer à `now`), il faut résoudre l'offset du fuseau À CETTE
+ * DATE (gère été/hiver). Technique standard : on formate un instant candidat
+ * dans le fuseau cible, on mesure l'écart, puis on corrige (double passe pour
+ * les bords de changement d'heure). Renvoie `null` si les entrées sont
+ * invalides (jamais d'instant faux silencieux).
+ */
+export function tenantLocalToInstant(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string,
+): Date | null {
+  if (typeof dateStr !== "string" || typeof timeStr !== "string") return null
+  const dm = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const tm = timeStr.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!dm || !tm) return null
+  const [, ys, mos, ds] = dm
+  const [, hs, mis] = tm
+  const y = Number(ys)
+  const mo = Number(mos)
+  const d = Number(ds)
+  const h = Number(hs)
+  const mi = Number(mis)
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null
+
+  const naiveUTC = Date.UTC(y, mo - 1, d, h, mi, 0)
+
+  // Offset (ms) du fuseau au voisinage d'un instant donné : différence entre
+  // l'heure murale affichée dans ce fuseau et l'instant UTC réel.
+  const offsetAt = (instant: number): number => {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+    const parts = dtf.formatToParts(new Date(instant))
+    const map: Record<string, string> = {}
+    for (const p of parts) map[p.type] = p.value
+    const asUTC = Date.UTC(
+      Number(map.year),
+      Number(map.month) - 1,
+      Number(map.day),
+      Number(map.hour),
+      Number(map.minute),
+      Number(map.second),
+    )
+    return asUTC - instant
+  }
+
+  try {
+    // Double passe : la 1ʳᵉ estimation peut tomber du mauvais côté d'un
+    // changement d'heure ; la 2ᵉ corrige avec l'offset au bon instant.
+    const off1 = offsetAt(naiveUTC)
+    const ts1 = naiveUTC - off1
+    const off2 = offsetAt(ts1)
+    const ts2 = naiveUTC - off2
+    return new Date(ts2)
+  } catch {
+    return null
+  }
+}
+
+/**
  * Formate un instant dans le fuseau du tenant (affichage humain FR).
  * S'appuie sur `Intl` (fuseau IANA, ex. "Europe/Paris") : gère nativement les
  * changements d'heure été/hiver.
