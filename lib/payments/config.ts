@@ -2,6 +2,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { platformSettings, companies, payments } from "@/lib/db/schema"
 import { eq, sql, desc } from "drizzle-orm"
+import { normalizePaymentMode, type PaymentMode } from "./mode"
 
 /**
  * Commission plateforme DetailFlow.
@@ -46,7 +47,7 @@ export type TenantPaymentConfig = {
   chargesEnabled: boolean
   detailsSubmitted: boolean
   paymentsEnabled: boolean
-  paymentMode: "none" | "deposit" | "full"
+  paymentMode: PaymentMode
   feeBps: number
   /** Commission en pourcentage lisible (ex. "3" ou "2.5"). */
   feePercent: string
@@ -74,13 +75,13 @@ export async function getTenantPaymentConfig(companyId: number): Promise<TenantP
   ])
 
   const feeBps = resolvePlatformFeeBps({ platformFeeBps: row?.platformFeeBps ?? null }, defaultBps)
-  const mode = (row?.paymentMode as "none" | "deposit" | "full") ?? "none"
+  const mode = normalizePaymentMode(row?.paymentMode)
   return {
     connected: Boolean(row?.stripeAccountId),
     chargesEnabled: Boolean(row?.stripeChargesEnabled),
     detailsSubmitted: Boolean(row?.stripeDetailsSubmitted),
     paymentsEnabled: Boolean(row?.paymentsEnabled),
-    paymentMode: ["none", "deposit", "full"].includes(mode) ? mode : "none",
+    paymentMode: mode,
     feeBps,
     feePercent: formatBpsPercent(feeBps),
   }

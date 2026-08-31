@@ -82,7 +82,10 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     label: "Communications",
     description: "Gérez les messages et rappels envoyés automatiquement à vos clients.",
     icon: MessageSquare,
-    subTabs: [{ value: "sms", label: "Rappels SMS" }],
+    subTabs: [
+      { value: "sms", label: "Rappels SMS" },
+      { value: "notifications", label: "Rappels & avis" },
+    ],
   },
   {
     id: "account",

@@ -1,5 +1,6 @@
 import { formatPrice, formatMoney, formatDateLong, formatDuration } from "@/lib/format"
 import { parseDepositMethods } from "@/lib/booking/types"
+import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
 
 /**
  * Gabarits HTML des emails transactionnels.
@@ -16,6 +17,8 @@ const BG = "#f1f5f9"
 export type BookingEmailData = {
   reference: string
   customerName: string
+  /** Téléphone client (optionnel) — utilisé pour le rappel PRO (clic-pour-appeler). */
+  customerPhone?: string | null
   date: string
   startTime: string
   endTime: string
@@ -202,6 +205,83 @@ export function proNotificationEmail(b: BookingEmailData) {
           <strong style="color:${INK};">${esc(b.customerName)}</strong> vient de réserver.
         </p>
         ${bookingSummary(b)}`,
+    }),
+  }
+}
+
+/* --------------------- Rappel de RDV au professionnel --------------------- */
+
+/**
+ * Email de RAPPEL envoyé AU PROFESSIONNEL avant un rendez-vous confirmé (LOT D).
+ * Distinct du rappel client existant : destinataire = email pro du tenant.
+ * Inclut l'itinéraire Google Maps (adresse seule, aucune donnée perso dans le
+ * lien) et un lien clic-pour-appeler si le téléphone client est connu.
+ */
+export function proReminderEmail(b: BookingEmailData) {
+  const mapsUrl = buildMapsDirectionsUrl(b.address)
+  const phone = (b.customerPhone ?? "").trim()
+  const phoneLine = phone
+    ? `<p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 4px;">
+         Client : <a href="tel:${esc(phone.replace(/\s+/g, ""))}" style="color:${BRAND};text-decoration:none;font-weight:600;">${esc(phone)}</a>
+       </p>`
+    : ""
+  const mapsBlock = mapsUrl
+    ? ctaButton(mapsUrl, "Voir l'itinéraire")
+    : `<p style="text-align:center;font-size:13px;color:${MUTED};margin:16px 0 0;">Adresse à compléter</p>`
+
+  return {
+    subject: `Rappel — RDV ${b.customerName} le ${formatDateLong(b.date)} à ${b.startTime}`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Rappel de rendez-vous",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Vous avez un rendez-vous à venir avec
+          <strong style="color:${INK};">${esc(b.customerName)}</strong>.
+        </p>
+        ${phoneLine}
+        ${bookingSummary(b)}
+        ${mapsBlock}`,
+    }),
+  }
+}
+
+/* ---------------------- Demande d'avis Google (client) ---------------------- */
+
+/**
+ * Email de DEMANDE D'AVIS envoyé AU CLIENT après une prestation réalisée (LOT D).
+ * Contient le lien d'avis Google (validé/résolu côté serveur) et un lien de
+ * désinscription (respect des oppositions). Aucun avis n'est simulé : sans lien
+ * résolu, cet email n'est jamais généré (garde côté serveur).
+ */
+export function reviewRequestEmail(
+  b: BookingEmailData,
+  opts: { reviewUrl: string; optOutUrl?: string | null },
+) {
+  const optOut = opts.optOutUrl
+    ? `<p style="text-align:center;font-size:12px;line-height:1.6;color:${MUTED};margin:18px 0 0;">
+         Vous préférez ne plus recevoir ce type de message ?
+         <a href="${esc(opts.optOutUrl)}" style="color:${MUTED};">Se désinscrire</a>.
+       </p>`
+    : ""
+  return {
+    subject: `Votre avis compte — ${b.businessName}`,
+    html: layout({
+      businessName: b.businessName,
+      businessEmail: b.businessEmail,
+      businessPhone: b.businessPhone,
+      heading: "Merci pour votre confiance !",
+      accent: PAY_GREEN,
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          Bonjour ${esc(b.customerName)}, nous espérons que la prestation vous a
+          pleinement satisfait. Votre avis nous aiderait beaucoup et ne prend
+          qu'une minute.
+        </p>
+        ${ctaButton(opts.reviewUrl, "Laisser un avis", PAY_GREEN)}
+        ${optOut}`,
     }),
   }
 }

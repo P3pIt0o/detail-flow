@@ -14,7 +14,7 @@ import {
   savePaymentSettings,
 } from "@/app/admin/(dashboard)/parametres/payment-actions"
 
-type PaymentMode = "none" | "deposit" | "full"
+type PaymentMode = "none" | "deposit" | "full" | "choice"
 
 type Props = {
   connected: boolean
@@ -179,6 +179,16 @@ export function PaymentsSettings(props: Props) {
             onSelect={() => setMode("full")}
             title="Paiement intégral"
             desc="Le client règle la totalité de la prestation au moment de la réservation."
+          />
+          <ModeOption
+            active={mode === "choice"}
+            onSelect={() => setMode("choice")}
+            title="Laisser le client choisir"
+            desc={
+              props.depositConfigured
+                ? `Le client choisit entre l'acompte (${props.depositSummary}) et le paiement intégral au moment de la réservation.`
+                : "Le client pourra régler la totalité. Configurez un acompte dans l'onglet Planning & acompte pour proposer aussi l'acompte."
+            }
           />
         </fieldset>
 

@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from "drizzle-orm"
 import { getPaymentProvider } from "./providers"
 import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
 import { computePlatformFeeCents, type PaymentType } from "./types"
+import { normalizePaymentMode, resolveCheckoutType, type PaymentMode } from "./mode"
 
 /* -------------------------------------------------------------------------- */
 /*  Configuration paiement d'un tenant                                        */
@@ -17,7 +18,7 @@ export type CompanyPaymentConfig = {
   stripeChargesEnabled: boolean
   stripeDetailsSubmitted: boolean
   paymentsEnabled: boolean
-  paymentMode: "none" | "deposit" | "full"
+  paymentMode: PaymentMode
   platformFeeBps: number
   /** Vrai si tout est prêt pour encaisser un client en ligne. */
   canCollect: boolean
@@ -46,7 +47,7 @@ export async function getCompanyPaymentConfig(companyId: number): Promise<Compan
 
   const defaultBps = await getDefaultPlatformFeeBps()
   const feeBps = resolvePlatformFeeBps({ platformFeeBps: c.platformFeeBps }, defaultBps)
-  const mode = (c.paymentMode as CompanyPaymentConfig["paymentMode"]) ?? "none"
+  const mode = normalizePaymentMode(c.paymentMode)
   const canCollect =
     c.paymentsEnabled &&
     mode !== "none" &&
@@ -167,8 +168,10 @@ export async function createBookingCheckout(input: {
   bookingId: number
   companyId: number
   returnUrl: string
+  /** Choix client (mode "choice" uniquement) — revalidé côté serveur. */
+  chosenType?: PaymentType | null
 }): Promise<CreateCheckoutResult> {
-  const { bookingId, companyId, returnUrl } = input
+  const { bookingId, companyId, returnUrl, chosenType } = input
 
   const cfg = await getCompanyPaymentConfig(companyId)
   if (!cfg || !cfg.canCollect || !cfg.stripeAccountId) {
@@ -193,8 +196,14 @@ export async function createBookingCheckout(input: {
 
   if (await bookingHasPaidPayment(bookingId, companyId)) return { ok: true, alreadyPaid: true }
 
-  const type: PaymentType = cfg.paymentMode === "deposit" ? "deposit" : "full_payment"
-  const amountCents = type === "deposit" ? booking.depositCents : booking.totalCents
+  // Le TYPE encaissé fait autorité côté serveur (mode tenant) ; en mode "choice"
+  // seul, le choix client est pris en compte après revalidation (jamais de
+  // confiance aveugle). `null` = aucun paiement applicable.
+  const type = resolveCheckoutType(cfg.paymentMode, chosenType)
+  if (!type) return { ok: false, error: "Les paiements en ligne ne sont pas disponibles." }
+  // L'acompte n'excède JAMAIS le total (garde-fou même si le réglage dépasse).
+  const amountCents =
+    type === "deposit" ? Math.min(booking.depositCents, booking.totalCents) : booking.totalCents
   if (!amountCents || amountCents <= 0) {
     return { ok: false, error: "Montant à payer invalide." }
   }

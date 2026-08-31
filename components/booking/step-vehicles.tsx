@@ -4,6 +4,7 @@ import { Plus, Trash2, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatPrice, formatDuration } from "@/lib/format"
 import { VehicleCategoryHelp } from "./vehicle-category-help"
+import { ServiceHighlightBadge } from "@/components/service-highlight-badge"
 import {
   serviceLineTotals,
   newServiceLine,
@@ -217,7 +218,10 @@ export function StepVehicles({
                             )}
                           >
                             <span className="flex w-full items-center justify-between gap-2">
-                              <span className="text-sm font-medium text-card-foreground">{s.name}</span>
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="text-sm font-medium text-card-foreground">{s.name}</span>
+                                <ServiceHighlightBadge kind={s.highlightKind} label={s.highlightLabel} />
+                              </span>
                               {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
                             </span>
                             {cat && <span className="mt-0.5 text-xs text-muted-foreground">{cat.name}</span>}

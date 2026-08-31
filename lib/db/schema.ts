@@ -425,6 +425,11 @@ export const services = pgTable(
     durationMin: integer("durationMin").notNull().default(60),
     sortOrder: integer("sortOrder").notNull().default(0),
     visible: boolean("visible").notNull().default(true),
+    // NB : le badge « Mise en avant » (LOT C) est stocké dans les colonnes
+    // additives `highlightKind` / `highlightLabel` (migration séparée). Elles
+    // sont VOLONTAIREMENT absentes de ce schéma Drizzle pour ne pas casser les
+    // `select()` complets tant que la migration n'est pas appliquée. Lecture /
+    // écriture via lib/services/highlight-store.ts (tolérant à l'absence).
     createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => ({

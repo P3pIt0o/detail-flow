@@ -282,6 +282,10 @@ export type UpcomingBookingDetailed = {
   startTime: string
   status: string
   totalCents: number
+  /** Adresse d'intervention (LOT D : bouton itinéraire dans le cockpit). */
+  address: string
+  /** Téléphone client (LOT D : clic-pour-appeler). */
+  customerPhone: string | null
   /** Prestations distinctes (snapshot serviceName), toutes lignes confondues. */
   services: string[]
   /** Véhicules distincts (marque/modèle si renseignés), ordre d'apparition. */
@@ -309,6 +313,8 @@ export async function getUpcomingBookingsDetailed(
       startTime: bookings.startTime,
       status: bookings.status,
       totalCents: bookings.totalCents,
+      address: bookings.address,
+      customerPhone: bookings.customerPhone,
     })
     .from(bookings)
     .where(

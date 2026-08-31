@@ -23,6 +23,7 @@ import type { BookingSelection } from "@/lib/booking/types"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
@@ -64,7 +65,7 @@ export async function validatePromoCodeAction(input: {
   const res = await validatePromoCode({
     companyId: tenant.id,
     code: input.code,
-    eligibleSubtotalCents: quote.eligibleSubtotalCents,
+    quote,
   })
   if (!res.valid) return { ok: false, reason: res.reason }
   return {
@@ -210,10 +211,14 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     const promoRes = await validatePromoCode({
       companyId,
       code: promoCode,
-      eligibleSubtotalCents: quote.eligibleSubtotalCents,
+      quote,
     })
     if (!promoRes.valid) {
-      return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
+      const msg =
+        promoRes.reason === "not_applicable_services"
+          ? "Ce code ne s'applique pas à la prestation sélectionnée."
+          : "Code promo invalide ou indisponible."
+      return { ok: false, error: msg, code: "invalid" }
     }
     discountCents = Math.max(0, Math.min(promoRes.discountCents, quote.eligibleSubtotalCents))
     appliedPromo = {
@@ -361,12 +366,8 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
       if (result.conflict === "promo_unavailable") {
         return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
       }
-      return { ok: false, error: "Ce créneau vient d'être réservé. Merci d'en choisir un autre.", code: "slot_taken" }
+      return { ok: false, error: "Ce créneau vient d'être réserv��. Merci d'en choisir un autre.", code: "slot_taken" }
     }
-
-    // Emails transactionnels : confirmation au client + notification au pro.
-    // Non bloquant : un échec d'email n'invalide pas la réservation.
-    await sendBookingCreatedEmails(result.id)
 
     // Analytics (V1) : réservation terminée. companyId résolu côté serveur.
     // Non bloquant : un échec de compteur n'invalide jamais la réservation.
@@ -377,7 +378,28 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     // actuel inchangé (aucune dépendance à un provider).
     const paymentConfig = await getCompanyPaymentConfig(companyId)
     const canUsePayments = await canUseFeature(companyId, "online_payments")
-    if (canUsePayments && paymentConfig?.paymentsEnabled && paymentConfig.canCollect && paymentConfig.paymentMode !== "none") {
+    const mode = paymentConfig?.paymentMode ?? "none"
+    const paymentsReady =
+      canUsePayments && Boolean(paymentConfig?.paymentsEnabled) && Boolean(paymentConfig?.canCollect) && mode !== "none"
+
+    // Un paiement en ligne EFFECTIF sera-t-il demandé ? (mode actif + montant ≥
+    // minimum Stripe). Si OUI, la SEULE confirmation client/pro proviendra du
+    // webhook signé après encaissement : on N'ENVOIE PAS l'email de création
+    // (fin du double email). Si NON (tenant hors-ligne, ou montant sous le
+    // minimum Stripe non encaissable en ligne), on envoie la confirmation de
+    // création classique — comportement historique strictement préservé.
+    // Non bloquant : un échec d'email n'invalide jamais la réservation.
+    const requiresOnlinePayment = willRequireOnlinePayment({
+      paymentsReady,
+      mode,
+      depositCents: finalDepositCents,
+      totalCents: finalTotalCents,
+    })
+    if (!requiresOnlinePayment) {
+      await sendBookingCreatedEmails(result.id)
+    }
+
+    if (paymentsReady) {
       return { ok: true, reference: result.reference, payUrl: `/reservation/paiement/${result.id}` }
     }
 

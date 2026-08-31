@@ -13,6 +13,8 @@ export type ServiceRow = {
   image: string | null
   basePriceCents: number
   durationMin: number
+  highlightKind?: string | null
+  highlightLabel?: string | null
 }
 
 export type CategoryRow = { id: number; name: string; slug: string; description: string | null }

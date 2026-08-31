@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { Clock, ArrowRight } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
+import { ServiceHighlightBadge } from "@/components/service-highlight-badge"
 
 export type PublicService = {
   id: number
@@ -15,6 +16,8 @@ export type PublicService = {
   image: string | null
   basePriceCents: number
   durationMin: number
+  highlightKind?: string | null
+  highlightLabel?: string | null
 }
 
 const FALLBACK_IMAGE = "/services/default.png"
@@ -60,6 +63,11 @@ export function ServiceCard({ service }: { service: PublicService }) {
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
+        {/* Badge « Mise en avant » — coin haut-gauche, ne recouvre ni le prix,
+            ni les boutons, ni les zones tactiles (situés plus bas). */}
+        <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)]">
+          <ServiceHighlightBadge kind={service.highlightKind} label={service.highlightLabel} />
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-6">

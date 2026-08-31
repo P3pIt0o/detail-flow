@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Euro, Wallet, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock } from "lucide-react"
+import { Euro, Wallet, PackageMinus, TrendingUp, CalendarDays, ArrowRight, AlertCircle, Clock, Navigation } from "lucide-react"
+import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
 import {
   getDashboardStats,
   getUpcomingBookingsDetailed,
@@ -16,7 +17,9 @@ import { StatusBadge } from "@/components/admin/status-badge"
 import { DashboardWeek } from "@/components/admin/dashboard-week"
 import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
 import { OnboardingPanel } from "@/components/admin/onboarding-panel"
+import { SiteLinkCard } from "@/components/admin/site-link-card"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
+import { tenantPublicUrl } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
@@ -88,6 +91,16 @@ export default async function DashboardPage({
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
   const pendingRequests = requests.filter((r) => r.status === "new" || r.status === "proposal_sent").length
 
+  // Lien du site public (carte « Mon site internet »). URL résolue CÔTÉ SERVEUR
+  // via le résolveur existant : domaine racine + slug tenant. On n'expose que
+  // des liens absolus `https://` (jamais localhost/Preview/relatifs) ; en
+  // preview/local `tenantPublicUrl` renvoie un chemin relatif → on affiche
+  // l'état « non publié » plutôt qu'un faux lien. Un tenant suspendu/archivé
+  // n'est pas joignable publiquement → même état explicite.
+  const resolvedSiteUrl = tenantPublicUrl(company.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+  const siteReachable = company.status !== "SUSPENDED" && company.status !== "ARCHIVED"
+  const siteUrl = resolvedSiteUrl.startsWith("https://") && siteReachable ? resolvedSiteUrl : null
+
   // KPI : cartes compactes, période = mois en cours.
   //  - business_stats : CA, dépenses produits, nombre de rendez-vous ;
   //  - profitability_analysis : bénéfice estimé (CA − dépenses).
@@ -136,6 +149,11 @@ export default async function DashboardPage({
 
       {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
       <OnboardingPanel data={onboardingData} />
+
+      {/* Lien du site public — carte compacte (copier / ouvrir / partager). */}
+      <div className="mb-6">
+        <SiteLinkCard url={siteUrl} />
+      </div>
 
       {/* 1. KPI principaux — zone PREMIUM (business_stats / profitability_analysis).
           Verrouillée proprement si aucune des deux features n'est incluse, sans
@@ -247,6 +265,21 @@ export default async function DashboardPage({
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <span className="text-sm font-semibold text-foreground">{formatPrice(b.totalCents)}</span>
                   <StatusBadge status={b.status} />
+                  {(() => {
+                    const mapsUrl = buildMapsDirectionsUrl(b.address)
+                    return mapsUrl ? (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:underline"
+                        aria-label={`Itinéraire vers ${b.address}`}
+                      >
+                        <Navigation className="size-3.5" aria-hidden="true" />
+                        Itinéraire
+                      </a>
+                    ) : null
+                  })()}
                 </div>
               </li>
             ))}

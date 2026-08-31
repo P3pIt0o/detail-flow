@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { services, reviews } from "@/lib/db/schema"
 import { resolveRequestTenant } from "@/lib/tenant"
 import { resolveServiceImageSrc } from "@/lib/service-image"
+import { attachServiceHighlights } from "@/lib/services/highlight-store"
 import type { Review } from "@/config/content"
 
 const defaultServiceImages: Record<string, string> = {
@@ -91,7 +92,7 @@ export async function getPublicServices() {
     )
     .orderBy(asc(services.sortOrder), asc(services.id))
 
-  return rows.map((service) => {
+  const mapped = rows.map((service) => {
     const savedImage = service.image?.trim()
 
     const hasRealImage =
@@ -107,6 +108,10 @@ export async function getPublicServices() {
 
     return { ...service, image }
   })
+
+  // Badge « Mise en avant » (LOT C) : fusionné à part, tolérant au schéma absent
+  // (null = aucun badge tant que la migration n'est pas appliquée).
+  return attachServiceHighlights(tenant.id, mapped)
 }
 
 /**

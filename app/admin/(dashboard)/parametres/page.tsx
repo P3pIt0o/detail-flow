@@ -3,7 +3,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getSettings, getBusinessHours, getTimeOff } from "@/lib/booking/queries"
+import { getSettings, getBusinessHours, getTimeOff, getServices } from "@/lib/booking/queries"
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
 import { SiteBranding } from "@/components/admin/settings/site-branding"
@@ -30,6 +30,9 @@ import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
 import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
+import { NotificationsSettings } from "@/components/admin/settings/notifications-settings"
+import { getLotDSettings, lotDColumnsExist } from "@/lib/notifications/settings-store"
+import { resolveTenantReviewLink } from "@/lib/notifications/review-resolver"
 import { PromoSettings } from "@/components/admin/settings/promo-settings"
 import { listPromoCodes } from "./promo-actions"
 import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
@@ -70,22 +73,36 @@ export default async function ParametresPage({
       ? activeCategory.subTabs.filter((t) => t.value !== "appearance")
       : (activeCategory?.subTabs ?? [])
 
-  const [settings, hours, timeOff, fullSettings, galleryItems, reviewItems, smsBalance, smsCreditRow, promoCodesList] =
-    await Promise.all([
-      getSettings(),
-      getBusinessHours(),
-      getTimeOff(),
-      getFullSettings(),
-      listGalleryItems(),
-      listReviews(),
-      getSmsBalance(tenant.id),
-      db
-        .select({ betaBonusGrantedAt: smsCredits.betaBonusGrantedAt })
-        .from(smsCredits)
-        .where(eq(smsCredits.companyId, tenant.id))
-        .limit(1),
-      listPromoCodes(),
-    ])
+  const [
+    settings,
+    hours,
+    timeOff,
+    fullSettings,
+    galleryItems,
+    reviewItems,
+    smsBalance,
+    smsCreditRow,
+    promoCodesList,
+    servicesList,
+  ] = await Promise.all([
+    getSettings(),
+    getBusinessHours(),
+    getTimeOff(),
+    getFullSettings(),
+    listGalleryItems(),
+    listReviews(),
+    getSmsBalance(tenant.id),
+    db
+      .select({ betaBonusGrantedAt: smsCredits.betaBonusGrantedAt })
+      .from(smsCredits)
+      .where(eq(smsCredits.companyId, tenant.id))
+      .limit(1),
+    listPromoCodes(),
+    getServices(tenant.id),
+  ])
+
+  // Liste allégée des prestations du tenant pour le ciblage des codes promo.
+  const promoServiceOptions = servicesList.map((s) => ({ id: s.id, name: s.name }))
 
   // Source des avis (manuel/Google) + aperçu de l'établissement Google enregistré.
   // Défensif : sans migration ou hors Google, on reste en manuel sans aperçu.
@@ -107,6 +124,18 @@ export default async function ParametresPage({
   // Droit d'ACTIVER/UTILISER les SMS (feature sms). LEGACY => true (inchangé).
   // Purement indicatif pour l'UI : la sécurité reste côté serveur (actions + cron).
   const smsFeatureEnabled = await canUseFeature(tenant.id, "sms")
+
+  // Réglages LOT D (rappel pro + demande d'avis) + droits d'offre. Indicatif pour
+  // l'UI ; la garde réelle est côté serveur (actions + cron). Le lien d'avis
+  // effectif est résolu serveur (Place ID Google configuré) sans jamais l'inventer.
+  const [lotDSettings, lotDMigrationApplied, canEmailReminders, canReviewRequests, resolvedReviewLink] =
+    await Promise.all([
+      getLotDSettings(tenant.id),
+      lotDColumnsExist(),
+      canUseFeature(tenant.id, "email_reminders"),
+      canUseFeature(tenant.id, "review_requests"),
+      resolveTenantReviewLink(tenant.id),
+    ])
 
   // Config paiements du tenant (commission résolue côté serveur : override → global).
   const paymentConfig = await getTenantPaymentConfig(tenant.id)
@@ -356,7 +385,7 @@ export default async function ParametresPage({
                   />
                 </TabsContent>
                 <TabsContent value="promo" className="mt-6">
-                  <PromoSettings codes={promoCodesList} />
+                  <PromoSettings codes={promoCodesList} services={promoServiceOptions} />
                 </TabsContent>
               </>
             )}
@@ -374,6 +403,22 @@ export default async function ParametresPage({
                   defaultTemplate={SMS_DEFAULT_TEMPLATE}
                   revolutUrl={revolutUrl}
                   revolutQrSrc={revolutQrSrc}
+                />
+              </TabsContent>
+            )}
+            {activeCategory.id === "communications" && (
+              <TabsContent value="notifications" className="mt-6">
+                <NotificationsSettings
+                  canReminders={canEmailReminders}
+                  canReviews={canReviewRequests}
+                  migrationApplied={lotDMigrationApplied}
+                  proRecipient={settings.businessEmail ?? tenant.email ?? null}
+                  proReminderEnabled={lotDSettings.proReminderEnabled}
+                  proReminderOffsetHours={lotDSettings.proReminderOffsetHours}
+                  reviewRequestEnabled={lotDSettings.reviewRequestEnabled}
+                  reviewRequestOffsetHours={lotDSettings.reviewRequestOffsetHours}
+                  reviewRequestLink={lotDSettings.reviewRequestLink}
+                  resolvedReviewLink={resolvedReviewLink}
                 />
               </TabsContent>
             )}

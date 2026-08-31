@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label"
 import { formatPrice, formatDuration } from "@/lib/format"
 import { saveService, deleteService } from "@/app/admin/(dashboard)/prestations/actions"
 import { resolveServiceImageSrc, serviceImagePrefix } from "@/lib/service-image"
+import { ServiceHighlightBadge } from "@/components/service-highlight-badge"
+import { HIGHLIGHT_SELECT_OPTIONS, HIGHLIGHT_LABEL_MAX, type HighlightKind } from "@/lib/services/highlight"
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024 // 6 Mo
@@ -32,6 +34,8 @@ type Service = {
   basePriceCents: number
   durationMin: number
   visible: boolean
+  highlightKind: string | null
+  highlightLabel: string | null
 }
 
 export function ServicesManager({
@@ -77,6 +81,7 @@ export function ServicesManager({
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="truncate font-medium text-foreground">{s.name}</p>
+                  <ServiceHighlightBadge kind={s.highlightKind} label={s.highlightLabel} />
                   {!s.visible && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                       <EyeOff className="h-3 w-3" /> Masquée
@@ -258,6 +263,11 @@ function ServiceDialog({
   // `key` sur le dialogue (voir plus bas) réinitialise cet état à chaque
   // ouverture, donc l'image de départ correspond toujours à la prestation.
   const [image, setImage] = useState<string | null>(service?.image ?? null)
+  // Badge « Mise en avant » : type + libellé custom, initialisés depuis la
+  // prestation. "none" = aucun badge (défaut, jamais ajouté implicitement).
+  const initialKind = (service?.highlightKind as HighlightKind | null) ?? null
+  const [highlightKind, setHighlightKind] = useState<HighlightKind | "none">(initialKind ?? "none")
+  const [highlightLabel, setHighlightLabel] = useState<string>(service?.highlightLabel ?? "")
 
   function onSubmit(formData: FormData) {
     setError(null)
@@ -277,6 +287,9 @@ function ServiceDialog({
         durationMin: Number.isFinite(durationMin) ? durationMin : 0,
         visible,
         image,
+        // "none" => null (aucun badge). Le libellé n'est envoyé que pour custom.
+        highlightKind: highlightKind === "none" ? null : highlightKind,
+        highlightLabel: highlightKind === "custom" ? highlightLabel : null,
       })
       if (res.ok) onOpenChange(false)
       else setError(res.error ?? "Erreur")
@@ -332,6 +345,49 @@ function ServiceDialog({
             <Switch id="visible" name="visible" defaultChecked={service?.visible ?? true} />
             <Label htmlFor="visible">Visible sur le site</Label>
           </div>
+
+          {/* Badge « Mise en avant » — facultatif, aucun par défaut. */}
+          <div className="space-y-1.5 rounded-lg border border-border p-3">
+            <Label htmlFor="highlightKind">Mise en avant</Label>
+            <select
+              id="highlightKind"
+              value={highlightKind}
+              onChange={(e) => setHighlightKind(e.target.value as HighlightKind | "none")}
+              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {HIGHLIGHT_SELECT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+
+            {highlightKind === "custom" && (
+              <Input
+                aria-label="Libellé personnalisé du badge"
+                value={highlightLabel}
+                maxLength={HIGHLIGHT_LABEL_MAX}
+                onChange={(e) => setHighlightLabel(e.target.value)}
+                placeholder="Ex : Offre du moment"
+              />
+            )}
+
+            {/* Aperçu du badge tel qu'il apparaîtra sur le site. */}
+            {highlightKind !== "none" && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-xs text-muted-foreground">Aperçu :</span>
+                <ServiceHighlightBadge
+                  kind={highlightKind}
+                  label={highlightKind === "custom" ? highlightLabel : null}
+                />
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Libellé choisi manuellement ; veillez à ce qu&apos;il corresponde à votre activité.
+            </p>
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={pending}>
