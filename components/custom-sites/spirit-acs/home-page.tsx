@@ -81,7 +81,13 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   //   - « google » → avis Google réels de la fiche (jamais un simple lien
   //     supposé contenir des avis ; aucune donnée inventée).
   // Isolation : `data.tenant.id` est le companyId résolu côté serveur.
-  const reviewsResolved = await resolveTenantReviews(data.tenant.id, { manualReviews: reviews })
+  // languageCode: "fr" → avis Google en FRANÇAIS pour Spirit (texte localisé +
+  // dates relatives « il y a … »). N'affecte que Spirit ; les autres tenants
+  // n'envoient pas de langue et conservent leur comportement actuel.
+  const reviewsResolved = await resolveTenantReviews(data.tenant.id, {
+    manualReviews: reviews,
+    languageCode: "fr",
+  })
   const hasManualReviews = reviewsResolved.source === "manual" && reviewsResolved.reviews.length > 0
   const hasGoogleReviews =
     reviewsResolved.source === "google" &&
@@ -101,7 +107,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
     reviewsResolved.data &&
     typeof reviewsResolved.data.rating === "number"
       ? { rating: reviewsResolved.data.rating, url: reviewsResolved.data.googleMapsUri }
-      : await getTenantGoogleRating(data.tenant.id)
+      : await getTenantGoogleRating(data.tenant.id, { languageCode: "fr" })
 
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
   // La section « Prestations » (familles de services) est toujours rendue.
