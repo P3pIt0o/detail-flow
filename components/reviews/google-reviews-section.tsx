@@ -108,6 +108,16 @@ export function GoogleReviewsSection({
                 // retombé sur le texte d'origine, on n'affiche pas la mention.
                 const wasTranslated =
                   Boolean(r.text) && Boolean(r.originalText) && r.originalLanguageCode !== r.languageCode
+                // Date : on privilégie la description relative fournie par Google
+                // (en français quand le tenant demande languageCode="fr", ex.
+                // « il y a 10 mois ») ; à défaut seulement, on formate publishTime
+                // avec la locale fr-FR. Repli défensif : n'altère pas l'affichage
+                // quand la date relative est présente (autres tenants inchangés).
+                const displayDate =
+                  r.relativePublishTime ??
+                  (r.publishTime
+                    ? new Date(r.publishTime).toLocaleDateString("fr-FR", { year: "numeric", month: "long" })
+                    : null)
                 return (
                   <li
                     key={r.name}
@@ -151,9 +161,7 @@ export function GoogleReviewsSection({
                         ) : (
                           <p className="truncate font-semibold text-foreground">{r.authorName ?? "Client Google"}</p>
                         )}
-                        {r.relativePublishTime && (
-                          <p className="text-xs text-muted-foreground">{r.relativePublishTime}</p>
-                        )}
+                        {displayDate && <p className="text-xs text-muted-foreground">{displayDate}</p>}
                       </div>
                     </div>
 
