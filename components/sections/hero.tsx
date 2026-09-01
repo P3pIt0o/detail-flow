@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowRight, ShieldCheck } from "lucide-react"
 import { withTenant } from "@/lib/tenant-link"
+import { DEFAULT_HERO_OVERLAY, type HeroOverlay } from "@/lib/tenant-hero"
 
 const container = {
   hidden: {},
@@ -39,6 +40,8 @@ type HeroProps = {
   hero?: HeroContent | null
   /** Image de fond résolue côté serveur (slug tenant). Repli sur "/hero.png". */
   imageSrc?: string
+  /** Voile résolu côté serveur (slug tenant). Repli sur le voile historique. */
+  overlay?: HeroOverlay
 }
 
 // Valeurs par défaut NEUTRES (aucune donnée commerciale spécifique à un tenant).
@@ -70,7 +73,7 @@ function renderTitle(title: string, highlight: string | null) {
   )
 }
 
-export function Hero({ brandName, hero, imageSrc }: HeroProps) {
+export function Hero({ brandName, hero, imageSrc, overlay = DEFAULT_HERO_OVERLAY }: HeroProps) {
   const tenant = useSearchParams().get("tenant")
   const title = hero?.title?.trim() || HERO_DEFAULTS.title
   const highlight = hero?.title?.trim() ? hero?.highlight ?? null : HERO_DEFAULTS.highlight
@@ -82,8 +85,8 @@ export function Hero({ brandName, hero, imageSrc }: HeroProps) {
       {/* Arrière-plan */}
       <div className="absolute inset-0 -z-10">
         <Image src={imageSrc?.trim() || "/hero.png"} alt="" fill priority sizes="100vw" className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/90 to-transparent" />
+        <div className={`absolute inset-0 bg-gradient-to-t ${overlay.top}`} />
+        <div className={`absolute inset-0 bg-gradient-to-r ${overlay.left}`} />
       </div>
 
       <div className="mx-auto w-full max-w-7xl px-4 pt-24 sm:px-6 lg:px-8">
