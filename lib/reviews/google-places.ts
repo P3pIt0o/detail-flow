@@ -164,7 +164,7 @@ function looksLikePlaceId(placeId: string): boolean {
  */
 export async function getGooglePlaceDetails(
   placeId: string,
-  opts?: { revalidateSeconds?: number },
+  opts?: { revalidateSeconds?: number; languageCode?: string },
 ): Promise<GooglePlacesResult<GooglePlaceDetails>> {
   const apiKey = getApiKey()
   if (!apiKey) return { ok: false, error: "not_configured" }
@@ -174,8 +174,16 @@ export async function getGooglePlaceDetails(
 
   const revalidate = opts?.revalidateSeconds ?? 3600 // 1 h par défaut
 
+  // Langue des données renvoyées par Google (texte localisé des avis + dates
+  // relatives). OPTIONNELLE : par défaut aucune langue n'est imposée → Google
+  // choisit (comportement historique INCHANGÉ pour les appelants existants).
+  // Seuls les sites qui le demandent explicitement (ex. Spirit ACS → "fr")
+  // forcent la langue. La query distincte donne aussi une clé de cache distincte.
+  const languageCode = opts?.languageCode?.trim()
+  const query = languageCode ? `?languageCode=${encodeURIComponent(languageCode)}` : ""
+
   try {
-    const res = await fetch(`${PLACES_BASE}/places/${encodeURIComponent(id)}`, {
+    const res = await fetch(`${PLACES_BASE}/places/${encodeURIComponent(id)}${query}`, {
       method: "GET",
       headers: {
         "X-Goog-Api-Key": apiKey,

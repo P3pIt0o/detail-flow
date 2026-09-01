@@ -98,7 +98,16 @@ export function GoogleReviewsSection({
           <>
             <ul className={`mt-12 grid gap-6 ${COLUMN_CLASSES[columns]}`}>
               {reviews.map((r) => {
-                const wasTranslated = Boolean(r.originalText && r.originalLanguageCode !== r.languageCode)
+                // Priorité au texte LOCALISÉ (`text.text`, ex. la version
+                // française demandée par le tenant) ; repli sur `originalText`
+                // seulement si aucun texte localisé n'est fourni. On ne réécrit
+                // ni ne traduit rien nous-mêmes : ce sont les données Google.
+                const displayText = r.text ?? r.originalText
+                // « Traduit par Google » UNIQUEMENT quand le texte présenté est
+                // réellement la version localisée (≠ langue d'origine). Si on est
+                // retombé sur le texte d'origine, on n'affiche pas la mention.
+                const wasTranslated =
+                  Boolean(r.text) && Boolean(r.originalText) && r.originalLanguageCode !== r.languageCode
                 return (
                   <li
                     key={r.name}
@@ -152,9 +161,9 @@ export function GoogleReviewsSection({
                       <StarRating rating={Math.round(r.rating)} />
                     </div>
 
-                    {r.text && (
+                    {displayText && (
                       <blockquote className="mt-3 flex-1 text-pretty text-sm leading-relaxed text-foreground/90 [overflow-wrap:anywhere]">
-                        {r.text}
+                        {displayText}
                       </blockquote>
                     )}
 

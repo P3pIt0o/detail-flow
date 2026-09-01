@@ -146,7 +146,12 @@ export function SpiritHero({
               de service sont des descripteurs éditoriaux neutres (même classe
               que le bandeau de réassurance), sans chiffre ni label. */}
           <Reveal delay={0.32}>
-            <div className="mt-6 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-[color:var(--spirit-muted)]">
+            {/* UNE SEULE LIGNE garantie, y compris sur petit mobile :
+                - flex-nowrap + whitespace-nowrap → aucun retour à la ligne ;
+                - taille FLUIDE (clamp) → le texte rétrécit sur les petits écrans
+                  au lieu de déborder ou d'être tronqué (jamais de « … ») ;
+                - le hero a overflow-hidden : aucun défilement horizontal induit. */}
+            <div className="mt-6 flex flex-nowrap items-center gap-x-1.5 whitespace-nowrap text-[clamp(9px,2.9vw,0.875rem)] leading-tight text-[color:var(--spirit-muted)] sm:gap-x-2.5">
               {ratingLabel &&
                 (googleUrl ? (
                   <a
@@ -154,16 +159,16 @@ export function SpiritHero({
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`Note ${ratingLabel} sur 5 sur Google — voir la fiche`}
-                    className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
+                    className="inline-flex items-center gap-1 transition-colors hover:text-white sm:gap-1.5"
                   >
                     <span className="font-semibold text-white">{ratingLabel}</span>
-                    <Star className="size-4 fill-[var(--spirit-pink)] text-[var(--spirit-pink)]" aria-hidden="true" />
+                    <Star className="size-3.5 shrink-0 fill-[var(--spirit-pink)] text-[var(--spirit-pink)] sm:size-4" aria-hidden="true" />
                     <span>sur Google</span>
                   </a>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 sm:gap-1.5">
                     <span className="font-semibold text-white">{ratingLabel}</span>
-                    <Star className="size-4 fill-[var(--spirit-pink)] text-[var(--spirit-pink)]" aria-hidden="true" />
+                    <Star className="size-3.5 shrink-0 fill-[var(--spirit-pink)] text-[var(--spirit-pink)] sm:size-4" aria-hidden="true" />
                     <span>sur Google</span>
                   </span>
                 ))}

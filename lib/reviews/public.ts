@@ -49,13 +49,15 @@ async function getManualReviews(companyId: number): Promise<Review[]> {
  */
 export async function resolveTenantReviews(
   companyId: number,
-  opts?: { manualReviews?: Review[]; googleRevalidateSeconds?: number },
+  opts?: { manualReviews?: Review[]; googleRevalidateSeconds?: number; languageCode?: string },
 ): Promise<TenantReviewsResolved> {
   const config = await getReviewsSourceConfig(companyId)
 
   if (config.source === "google" && config.googlePlaceId) {
     const res = await getGooglePlaceDetails(config.googlePlaceId, {
       revalidateSeconds: opts?.googleRevalidateSeconds,
+      // Langue optionnelle (ex. "fr" pour Spirit) — non fournie par défaut.
+      languageCode: opts?.languageCode,
     })
     if (res.ok) {
       return { source: "google", data: res.data, error: null, placeId: config.googlePlaceId }
@@ -86,11 +88,14 @@ export async function resolveTenantReviews(
  */
 export async function getTenantGoogleRating(
   companyId: number,
-  opts?: { revalidateSeconds?: number },
+  opts?: { revalidateSeconds?: number; languageCode?: string },
 ): Promise<{ rating: number; url: string | null } | null> {
   const config = await getReviewsSourceConfig(companyId)
   if (!config.googlePlaceId) return null
-  const res = await getGooglePlaceDetails(config.googlePlaceId, { revalidateSeconds: opts?.revalidateSeconds })
+  const res = await getGooglePlaceDetails(config.googlePlaceId, {
+    revalidateSeconds: opts?.revalidateSeconds,
+    languageCode: opts?.languageCode,
+  })
   if (!res.ok || typeof res.data.rating !== "number") return null
   return { rating: res.data.rating, url: res.data.googleMapsUri }
 }
