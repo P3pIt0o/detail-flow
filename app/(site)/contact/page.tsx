@@ -5,6 +5,7 @@ import { Reveal } from "@/components/ui/reveal"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
 import { getPublicContact, getPublicHours } from "@/lib/public-contact"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
+import { resolveCustomSite } from "@/lib/custom-sites/server"
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -17,10 +18,24 @@ export default async function ContactPage() {
   await requireWebsiteFeature()
 
   // Coordonnées + horaires réels du tenant (aucune donnée statique).
-  const [contact, hours] = await Promise.all([getPublicContact(), getPublicHours()])
+  const [contact, hours, customSite] = await Promise.all([
+    getPublicContact(),
+    getPublicHours(),
+    resolveCustomSite(),
+  ])
   const whatsappHref = contact.phoneRaw
     ? `https://wa.me/${contact.phoneRaw.replace(/[^\d]/g, "")}`
     : null
+
+  // Adresse cliquable vers Google Maps — UNIQUEMENT pour le site Spirit ACS.
+  // Les autres tenants conservent EXACTEMENT le comportement actuel (adresse
+  // non cliquable). On utilise strictement la valeur d'adresse RÉELLE affichée
+  // (adresse complète si disponible, sinon la ville enregistrée), jamais une
+  // valeur inventée ou codée en dur.
+  const addressMapsHref =
+    customSite?.key === "spirit-acs" && contact.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address)}`
+      : null
   return (
     <>
       <PageHeader
@@ -51,7 +66,11 @@ export default async function ContactPage() {
                   </ContactRow>
                 )}
                 {contact.address && (
-                  <ContactRow icon={MapPin} label="Adresse">
+                  <ContactRow
+                    icon={MapPin}
+                    label="Adresse"
+                    {...(addressMapsHref ? { href: addressMapsHref, external: true } : {})}
+                  >
                     {contact.address}
                   </ContactRow>
                 )}
@@ -126,7 +145,7 @@ function ContactRow({
     <a
       href={href}
       {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-      className="block rounded-xl transition-colors hover:bg-card/60"
+      className="block rounded-xl transition-colors hover:bg-card/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {content}
     </a>
