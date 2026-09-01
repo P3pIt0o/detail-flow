@@ -28,7 +28,7 @@ import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
 import { getCurrentTenant } from "@/lib/tenant"
-import { getTenantHeroImage } from "@/lib/tenant-hero"
+import { getTenantHeroImage, getTenantHeroOverlay } from "@/lib/tenant-hero"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
@@ -58,6 +58,9 @@ export default async function HomePage() {
   // serveur), jamais de l'URL. Repli sur l'image par défaut pour tout autre
   // tenant et pour la vitrine racine sans tenant.
   const heroImage = getTenantHeroImage(tenant?.slug)
+  // Voile du Hero résolu côté serveur par slug. Historique par défaut ; réduit
+  // uniquement pour justcleandetailing. Aucun autre tenant n'est affecté.
+  const heroOverlay = getTenantHeroOverlay(tenant?.slug)
 
   // Chaque section conserve sa logique interne d'activation/masquage ; seul
   // l'ORDRE change ici. La section Contact reste masquée si elle est désactivée.
@@ -75,7 +78,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} />
+      <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} overlay={heroOverlay} />
       {order.map((key) => sections[key])}
     </>
   )
