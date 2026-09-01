@@ -37,6 +37,11 @@ type HeroProps = {
   brandName?: string | null
   /** Textes personnalisés du tenant courant (base de données). */
   hero?: HeroContent | null
+  /**
+   * Image de fond résolue CÔTÉ SERVEUR à partir de l'entreprise (slug validé),
+   * jamais de l'URL. Repli sur l'image par défaut si non fournie.
+   */
+  imageSrc?: string | null
 }
 
 // Valeurs par défaut NEUTRES (aucune donnée commerciale spécifique à un tenant).
@@ -68,8 +73,9 @@ function renderTitle(title: string, highlight: string | null) {
   )
 }
 
-export function Hero({ brandName, hero }: HeroProps) {
+export function Hero({ brandName, hero, imageSrc }: HeroProps) {
   const tenant = useSearchParams().get("tenant")
+  const bgSrc = imageSrc?.trim() || "/hero.png"
   const title = hero?.title?.trim() || HERO_DEFAULTS.title
   const highlight = hero?.title?.trim() ? hero?.highlight ?? null : HERO_DEFAULTS.highlight
   const subtitle = hero?.subtitle?.trim() || HERO_DEFAULTS.subtitle
@@ -77,11 +83,26 @@ export function Hero({ brandName, hero }: HeroProps) {
   const ctaSecondary = hero?.ctaSecondary?.trim() || HERO_DEFAULTS.ctaSecondary
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-hidden">
-      {/* Arrière-plan */}
+      {/* Arrière-plan : image responsive (object-cover). La voiture reste le
+          sujet principal via object-position ajusté par breakpoint. Chargée en
+          priorité (LCP). Les couleurs de l'image ne sont pas modifiées ; seuls
+          des voiles CSS sont superposés pour la lisibilité des textes. */}
       <div className="absolute inset-0 -z-10">
-        <Image src="/hero.png" alt="" fill priority sizes="100vw" className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/90 to-transparent" />
+        <Image
+          src={bgSrc}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center md:object-[center_35%]"
+        />
+        {/* Voile global assombri (lisibilité générale). */}
+        <div className="absolute inset-0 bg-background/40" />
+        {/* Dégradé vertical : base sombre → haut plus clair, évite un ciel/
+            bâtiments trop lumineux derrière la navigation. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/85 to-background/55" />
+        {/* Dégradé horizontal plus sombre derrière le titre et les boutons. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
       </div>
 
       <div className="mx-auto w-full max-w-7xl px-4 pt-24 sm:px-6 lg:px-8">
