@@ -27,6 +27,8 @@ import { getPublicContact } from "@/lib/public-contact"
 import { getPublicSiteContent, getPublicSectionOrder, type HomeSectionKey } from "@/lib/site-content"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
+import { getCurrentTenant } from "@/lib/tenant"
+import { getTenantHeroImage } from "@/lib/tenant-hero"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
@@ -45,11 +47,17 @@ export default async function HomePage() {
     }
   }
 
-  const [contact, content, order] = await Promise.all([
+  const [tenant, contact, content, order] = await Promise.all([
+    getCurrentTenant(),
     getPublicContact(),
     getPublicSiteContent(),
     getPublicSectionOrder(),
   ])
+
+  // Image de fond du Hero résolue à partir de l'ENTREPRISE (slug validé côté
+  // serveur), jamais de l'URL. Repli sur l'image par défaut pour tout autre
+  // tenant et pour la vitrine racine sans tenant.
+  const heroImage = getTenantHeroImage(tenant?.slug)
 
   // Chaque section conserve sa logique interne d'activation/masquage ; seul
   // l'ORDRE change ici. La section Contact reste masquée si elle est désactivée.
@@ -67,7 +75,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero brandName={contact.name} hero={contact.hero} />
+      <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} />
       {order.map((key) => sections[key])}
     </>
   )
