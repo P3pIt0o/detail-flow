@@ -40,7 +40,7 @@ type SpiritHeroProps = {
 const DEFAULTS = {
   title: "Prenez soin de votre véhicule",
   subtitle:
-    "Nettoyage, polissage, protection céramique : un detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
+  "Nettoyage, polissage, protection céramique :\nun detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
 }
 
 export function SpiritHero({
@@ -117,9 +117,9 @@ export function SpiritHero({
             <h1 className="spirit-title spirit-h1 mt-4 text-balance leading-[1.02] text-white">{titleNode}</h1>
           </Reveal>
           <Reveal delay={0.16}>
-            <p className="mt-5 max-w-lg text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)] sm:text-lg">
-              {displaySubtitle}
-            </p>
+            <p className="mt-5 max-w-lg whitespace-pre-line text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)] sm:text-lg">
+  {displaySubtitle}
+</p>
           </Reveal>
           <Reveal delay={0.24}>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
