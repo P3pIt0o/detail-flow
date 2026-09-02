@@ -83,7 +83,7 @@ export function SpiritHero({
     <section
       id={SPIRIT_SECTIONS.accueil}
       data-spirit-anchor
-      className="relative flex min-h-[560px] items-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] sm:items-center lg:min-h-[600px] lg:pt-20"
+      className="relative flex min-h-[100svh] items-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] sm:items-center lg:min-h-[600px] lg:pt-20"
     >
       <div className="absolute inset-0 z-0">
         <Image
