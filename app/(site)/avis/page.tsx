@@ -25,6 +25,14 @@ export default async function AvisPage() {
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
 
+  // A3 — CTA de la page Avis. Pour Spirit ACS UNIQUEMENT, le bouton mène au
+  // formulaire de demande de devis de l'accueil (« /#demande-devis ») au lieu
+  // du module de réservation. `CtaButton`/`withTenant` conserve le tenant
+  // courant, donc le lien fonctionne aussi sur un futur domaine personnalisé.
+  // Les autres tenants gardent la destination par défaut (« /reservation »).
+  const customSite = await resolveCustomSite()
+  const ctaButtonHref = customSite?.key === "spirit-acs" ? "/#demande-devis" : undefined
+
   // Source décidée par le tenant (centralisée). Jamais les deux à la fois.
   const resolved = await resolveTenantReviews(tenant.id)
 
@@ -38,7 +46,7 @@ export default async function AvisPage() {
           description="La confiance de nos clients est notre plus belle récompense. Voici leurs retours d'expérience."
         />
         {resolved.data && <GoogleReviewsSection details={resolved.data} />}
-        <CtaSection />
+        <CtaSection buttonHref={ctaButtonHref} />
       </>
     )
   }
@@ -81,7 +89,7 @@ export default async function AvisPage() {
         </div>
       </section>
 
-      <CtaSection />
+      <CtaSection buttonHref={ctaButtonHref} />
     </>
   )
 }

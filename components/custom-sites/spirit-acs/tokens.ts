@@ -80,5 +80,13 @@ export type SpiritService = {
   basePriceCents: number
 }
 
-/** Élément de navigation (ancre interne à la page longue). */
-export type SpiritNavItem = { id: string; label: string }
+/**
+ * Élément de navigation Spirit.
+ * - `id` : ancre de section in-page (défilement doux + scroll-spy).
+ * - `route` (optionnel) : lorsqu'il est défini, l'élément est un vrai lien de
+ *   ROUTE Next.js (ex. « /contact »). La navigation est standard (haut de page,
+ *   bouton retour fonctionnel) et le tenant courant est préservé via
+ *   `withTenant`. Utilisé pour « Contact » afin d'ouvrir « /contact » en haut
+ *   plutôt que de défiler vers les coordonnées en bas de l'accueil.
+ */
+export type SpiritNavItem = { id: string; label: string; route?: string }

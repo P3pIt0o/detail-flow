@@ -45,7 +45,13 @@ export default async function ContactPage() {
       />
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid gap-12 lg:grid-cols-2">
+        {/* A2 — `lg:items-start` empêche l'étirement des colonnes de la grille :
+            sans cela, la colonne du formulaire (plus courte) était étirée à la
+            hauteur de la colonne coordonnées + horaires, laissant une immense
+            zone vide sous le bouton « Envoyer le message ». Chaque colonne prend
+            désormais sa hauteur naturelle. Neutre pour les autres tenants
+            (aucun contenu masqué), la page se termine juste après son contenu. */}
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
           {/* Coordonnées */}
           <Reveal>
             <div className="space-y-8">

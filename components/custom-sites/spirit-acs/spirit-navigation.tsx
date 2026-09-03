@@ -193,23 +193,37 @@ export function SpiritNavigation({
 
           {/* Liens — bureau */}
           <ul className="hidden items-center gap-1 lg:flex">
-            {items.map((it) => (
-              <li key={it.id}>
-                <a
-                  href={`#${it.id}`}
-                  onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
-                  aria-current={active === it.id ? "true" : undefined}
-                  className={`relative rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors ${
-                    active === it.id ? "text-[color:var(--spirit-teal)]" : "text-white/80 hover:text-white"
-                  }`}
-                >
-                  {it.label}
-                  {active === it.id && (
-                    <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-[var(--spirit-pink)]" />
-                  )}
-                </a>
-              </li>
-            ))}
+            {items.map((it) => {
+              const baseClass = `relative rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wide transition-colors ${
+                active === it.id ? "text-[color:var(--spirit-teal)]" : "text-white/80 hover:text-white"
+              }`
+              // Élément de ROUTE (ex. Contact → « /contact ») : navigation Next
+              // standard, page ouverte en haut, tenant conservé via withTenant.
+              if (it.route) {
+                return (
+                  <li key={it.id}>
+                    <Link href={withTenant(it.route, tenant)} className={baseClass}>
+                      {it.label}
+                    </Link>
+                  </li>
+                )
+              }
+              return (
+                <li key={it.id}>
+                  <a
+                    href={`#${it.id}`}
+                    onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
+                    aria-current={active === it.id ? "true" : undefined}
+                    className={baseClass}
+                  >
+                    {it.label}
+                    {active === it.id && (
+                      <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-[var(--spirit-pink)]" />
+                    )}
+                  </a>
+                </li>
+              )
+            })}
           </ul>
 
           {/* CTA — bureau */}
@@ -262,17 +276,31 @@ export function SpiritNavigation({
               className="overflow-hidden border-t border-white/10 bg-[var(--spirit-navy)] lg:hidden"
             >
               <ul className="flex flex-col gap-1 px-4 py-4">
-                {items.map((it) => (
-                  <li key={it.id}>
-                    <a
-                      href={`#${it.id}`}
-                      onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
-                      className="block rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-wide text-white/85 hover:bg-white/5 hover:text-white"
-                    >
-                      {it.label}
-                    </a>
-                  </li>
-                ))}
+                {items.map((it) => {
+                  const mobileClass =
+                    "block rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-wide text-white/85 hover:bg-white/5 hover:text-white"
+                  // Élément de ROUTE : lien Next standard, on ferme le menu au clic.
+                  if (it.route) {
+                    return (
+                      <li key={it.id}>
+                        <Link href={withTenant(it.route, tenant)} onClick={() => setOpen(false)} className={mobileClass}>
+                          {it.label}
+                        </Link>
+                      </li>
+                    )
+                  }
+                  return (
+                    <li key={it.id}>
+                      <a
+                        href={`#${it.id}`}
+                        onClick={(e) => handleAnchorClick(e, `#${it.id}`)}
+                        className={mobileClass}
+                      >
+                        {it.label}
+                      </a>
+                    </li>
+                  )
+                })}
                 <li className="mt-3">
                   <a
                     href={cta}

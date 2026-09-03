@@ -117,7 +117,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
     quoteEnabled ? { id: SPIRIT_SECTIONS.demandeDevis, label: "Devis" } : null,
-    { id: SPIRIT_SECTIONS.contact, label: "Contact" },
+    // A4 — « Contact » ouvre la page « /contact » (en haut de page), et non plus
+    // l'ancre « #contact » du footer. Navigation Next standard, tenant conservé.
+    { id: SPIRIT_SECTIONS.contact, label: "Contact", route: "/contact" },
   ]
   const navItems: SpiritNavItem[] = navItemsRaw.filter((i): i is SpiritNavItem => i !== null)
 
