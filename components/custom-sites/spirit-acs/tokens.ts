@@ -15,6 +15,7 @@ export const SPIRIT_SECTIONS = {
   prestations: "prestations",
   realisations: "realisations",
   avantApres: "avant-apres",
+  galeriePhotos: "galerie-photos",
   apropos: "apropos",
   avis: "avis",
   demandeDevis: "demande-devis",

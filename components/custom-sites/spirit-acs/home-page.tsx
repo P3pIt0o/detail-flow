@@ -20,6 +20,7 @@ import { SpiritHero } from "./spirit-hero"
 import { SpiritReassurance } from "./spirit-reassurance"
 import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
+import { SpiritGaleriePhotos } from "./spirit-galerie-photos"
 import { SpiritApropos } from "./spirit-apropos"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
@@ -43,10 +44,11 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // Chargement en parallèle — uniquement les données réellement affichées.
   // (Spirit n'affiche PAS de section « prestations » : on ne charge donc pas
   // le catalogue de services ici.)
-  const [contact, contentRaw, gallery, reviews, customRequestsRaw] = await Promise.all([
+  const [contact, contentRaw, gallery, photoGallery, reviews, customRequestsRaw] = await Promise.all([
     data.getContact(),
     data.getContent(),
     data.getGallery(),
+    data.getPhotoGallery(),
     data.getReviews(),
     data.getCustomRequestsConfig(),
   ])
@@ -73,6 +75,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   const reviewsIntro = nonDefault(content.reviews.intro, SITE_CONTENT_DEFAULTS.reviews.intro)
 
   const hasGallery = gallery.length > 0
+  const hasPhotoGallery = photoGallery.length > 0
 
   // Avis : on passe désormais par le résolveur CENTRAL `resolveTenantReviews`
   // (le même que le site standard `/avis`), au lieu de n'afficher que les avis
@@ -114,6 +117,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   const navItemsRaw: (SpiritNavItem | null)[] = [
     { id: SPIRIT_SECTIONS.prestations, label: "Prestations" },
     hasGallery ? { id: SPIRIT_SECTIONS.realisations, label: "Réalisations" } : null,
+    hasPhotoGallery ? { id: SPIRIT_SECTIONS.galeriePhotos, label: "Galerie" } : null,
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
     quoteEnabled ? { id: SPIRIT_SECTIONS.demandeDevis, label: "Devis" } : null,
@@ -172,6 +176,10 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
       )}
+
+      {/* Galerie de photos simples (distincte du comparateur Avant/Après).
+          Se masque seule si le tenant n'a aucune photo publiée. */}
+      <SpiritGaleriePhotos items={photoGallery} />
 
       <SpiritApropos
         title={content.about.title}

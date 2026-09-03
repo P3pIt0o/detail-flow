@@ -20,6 +20,7 @@ import { WhyUsSection } from "@/components/sections/why-us-section"
 import { ServicesPreview } from "@/components/sections/services-preview"
 import { Process } from "@/components/sections/process"
 import { GallerySection } from "@/components/sections/gallery-section"
+import { PhotoGallerySection } from "@/components/sections/photo-gallery-section"
 import { ReviewsPreview } from "@/components/sections/reviews-preview"
 import { CustomRequestsSection } from "@/components/sections/custom-requests-section"
 import { CtaSection } from "@/components/sections/cta-section"
@@ -69,7 +70,16 @@ export default async function HomePage() {
     whyUs: <WhyUsSection key="whyUs" />,
     services: <ServicesPreview key="services" />,
     process: <Process key="process" />,
-    gallery: <GallerySection key="gallery" />,
+    gallery: (
+      <div key="gallery">
+        {/* Comparateur Avant/Après (inchangé) puis galerie de photos simples ;
+            chacune se masque seule si vide. Regroupées dans le même emplacement
+            « gallery » de l'ordre configurable : aucun impact sur les autres
+            sections ni sur les tenants sans galerie photo. */}
+        <GallerySection />
+        <PhotoGallerySection />
+      </div>
+    ),
     reviews: <ReviewsPreview key="reviews" />,
     // Rendu conditionnel géré dans le composant (désactivé/aucun type => null).
     customRequests: <CustomRequestsSection key="customRequests" />,

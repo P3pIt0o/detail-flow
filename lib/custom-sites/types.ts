@@ -13,6 +13,7 @@
 import type { ComponentType } from "react"
 import type { PublicContact, PublicHours } from "@/lib/public-contact"
 import type { PublicGalleryItem } from "@/lib/public-gallery"
+import type { PublicPhotoGalleryItem } from "@/lib/public-photo-gallery"
 import type { Review } from "@/config/content"
 
 /**
@@ -49,6 +50,8 @@ export interface CustomSitePublicData {
   getReviews: () => Promise<Review[]>
   /** Réalisations Avant/Après du tenant. */
   getGallery: () => Promise<PublicGalleryItem[]>
+  /** Galerie de photos simples (publiées) du tenant. */
+  getPhotoGallery: () => Promise<PublicPhotoGalleryItem[]>
   /** Contenu éditable résolu des sections statiques (textes + activation). */
   getContent: () => Promise<unknown>
   /** Configuration résolue des « Demandes personnalisées ». */

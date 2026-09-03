@@ -12,6 +12,8 @@ import { SectionOrderSettings } from "@/components/admin/settings/section-order-
 import { resolveSiteContent, resolveSectionOrder, HOME_SECTION_LABELS } from "@/lib/site-content"
 import { GallerySettings } from "@/components/admin/settings/gallery-settings"
 import { listGalleryItems } from "./gallery-actions"
+import { PhotoGallerySettings } from "@/components/admin/settings/photo-gallery-settings"
+import { listPhotoGalleryItems } from "./photo-gallery-actions"
 import { ReviewsSourceSettings } from "@/components/admin/settings/reviews-source-settings"
 import { listReviews } from "./review-actions"
 import { getReviewsSourceConfig } from "@/lib/reviews/config"
@@ -79,6 +81,7 @@ export default async function ParametresPage({
     timeOff,
     fullSettings,
     galleryItems,
+    photoGalleryItems,
     reviewItems,
     smsBalance,
     smsCreditRow,
@@ -90,6 +93,7 @@ export default async function ParametresPage({
     getTimeOff(),
     getFullSettings(),
     listGalleryItems(),
+    listPhotoGalleryItems(),
     listReviews(),
     getSmsBalance(tenant.id),
     db
@@ -310,8 +314,11 @@ export default async function ParametresPage({
                     />
                   </TabsContent>
                 )}
-                <TabsContent value="gallery" className="mt-6">
+                <TabsContent value="gallery" className="mt-6 space-y-10">
                   <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
+                  <div className="border-t border-border pt-8">
+                    <PhotoGallerySettings items={photoGalleryItems} slug={tenant.slug} companyId={tenant.id} />
+                  </div>
                 </TabsContent>
                 <TabsContent value="reviews" className="mt-6">
                   <ReviewsSourceSettings

@@ -16,6 +16,7 @@ import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact, getPublicHours } from "@/lib/public-contact"
 import { getPublicServices, getPublicReviews } from "@/lib/catalog-queries"
 import { getPublicGallery } from "@/lib/public-gallery"
+import { getPublicPhotoGallery } from "@/lib/public-photo-gallery"
 import { getPublicSiteContent, getPublicCustomRequestsConfig } from "@/lib/site-content"
 import { getCustomSiteDefinition } from "./registry"
 import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
@@ -70,6 +71,7 @@ export async function getCustomSitePublicData(): Promise<CustomSitePublicData | 
     getServices: () => getPublicServices() as Promise<Array<Record<string, unknown> & { image: string }>>,
     getReviews: () => getPublicReviews(),
     getGallery: () => getPublicGallery(),
+    getPhotoGallery: () => getPublicPhotoGallery(),
     getContent: () => getPublicSiteContent(),
     getCustomRequestsConfig: () => getPublicCustomRequestsConfig(),
   }
