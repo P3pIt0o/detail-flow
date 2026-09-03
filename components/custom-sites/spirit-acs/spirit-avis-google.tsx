@@ -16,6 +16,7 @@
 
 import { GoogleReviewsSection } from "@/components/reviews/google-reviews-section"
 import type { GooglePlaceDetails } from "@/lib/reviews/google-places"
+import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritAvisGoogleProps = {
@@ -35,7 +36,8 @@ export function SpiritAvisGoogle({ title, intro, details }: SpiritAvisGoogleProp
         details={details}
         appearance={{
           title,
-          subtitle: intro ?? undefined,
+          // Une phrase par ligne (présentation) : `reviews.intro` non réécrit.
+          subtitle: intro ? <SpiritSentences text={intro} /> : undefined,
           columns: 3,
           maxItems: 6,
           // Le fond navy est porté par le conteneur d'ancre ci-dessus : la
