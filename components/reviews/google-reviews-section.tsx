@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { ExternalLink } from "lucide-react"
 import { StarRating } from "@/components/ui/star-rating"
 import type { GooglePlaceDetails } from "@/lib/reviews/google-places"
@@ -11,8 +12,11 @@ import type { GooglePlaceDetails } from "@/lib/reviews/google-places"
 export type TenantReviewsAppearance = {
   /** Titre de la section (défaut : « Avis Google »). */
   title?: string
-  /** Sous-titre / intro optionnel. */
-  subtitle?: string
+  /**
+   * Sous-titre / intro optionnel. Chaîne (rendu inchangé) ou nœud React pour
+   * les sites qui mettent en forme l'intro (ex. Spirit : une phrase par ligne).
+   */
+  subtitle?: ReactNode
   /** Nombre de colonnes de la grille (défaut : 3). */
   columns?: 1 | 2 | 3
   /** Variante visuelle. */

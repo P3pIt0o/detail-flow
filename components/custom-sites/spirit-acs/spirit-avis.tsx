@@ -9,6 +9,7 @@
 
 import { ReviewCard } from "@/components/review-card"
 import { Reveal } from "@/components/ui/reveal"
+import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_SECTIONS } from "./tokens"
 import type { Review } from "@/config/content"
 
@@ -31,7 +32,8 @@ export function SpiritAvis({ title, intro, reviews }: SpiritAvisProps) {
         <Reveal>
           <span className="spirit-rule" />
           <h2 className="spirit-title mt-4 text-balance text-3xl text-white sm:text-4xl">{title}</h2>
-          {intro && <p className="mt-4 max-w-2xl text-pretty text-[color:var(--spirit-muted)]">{intro}</p>}
+          {/* Une phrase par ligne (présentation) : `reviews.intro` n'est jamais réécrit. */}
+          {intro && <SpiritSentences text={intro} className="mt-4 max-w-2xl text-pretty text-[color:var(--spirit-muted)]" />}
         </Reveal>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">

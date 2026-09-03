@@ -8,6 +8,7 @@
 
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
+import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_BTN_GHOST_DARK, SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritAproposProps = {
@@ -28,7 +29,11 @@ export function SpiritApropos({ title, text, buttonLabel, buttonHref }: SpiritAp
         <Reveal>
           <span className="spirit-rule mx-auto" />
           <h2 className="spirit-title mt-4 text-balance text-3xl sm:text-4xl">{title}</h2>
-          <p className="mt-6 text-pretty text-lg leading-relaxed text-[color:var(--spirit-ink)]/75">{text}</p>
+          {/* Une phrase par ligne (présentation) : `about.text` n'est jamais réécrit. */}
+          <SpiritSentences
+            text={text}
+            className="mt-6 text-pretty text-lg leading-relaxed text-[color:var(--spirit-ink)]/75"
+          />
           {buttonLabel && buttonHref && (
             <div className="mt-8 flex justify-center">
               <CtaButton href={buttonHref} variant="outline" className={SPIRIT_BTN_GHOST_DARK}>

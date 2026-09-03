@@ -15,6 +15,7 @@ import { CustomRequestForm } from "@/components/custom-request-form"
 import type { CustomRequestType } from "@/lib/custom-requests"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSplash } from "./spirit-splash"
+import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_SECTIONS } from "./tokens"
 
 type SpiritDemandeDevisProps = {
@@ -45,10 +46,15 @@ export function SpiritDemandeDevis({ title, intro, types }: SpiritDemandeDevisPr
             </h2>
           </Reveal>
           <Reveal delay={0.12}>
-            <p className="mt-4 max-w-md text-pretty leading-relaxed text-[color:var(--spirit-muted)]">
-              {intro?.trim() ||
-                "Un besoin particulier, un véhicule d'exception ou une flotte à entretenir ? Décrivez votre projet : nous vous répondons avec une proposition adaptée."}
-            </p>
+            {/* Une phrase par ligne (présentation) : `customRequests.description`
+                du tenant (ou le repli du code) n'est jamais réécrit. */}
+            <SpiritSentences
+              text={
+                intro?.trim() ||
+                "Un besoin particulier, un véhicule d'exception ou une flotte à entretenir ? Décrivez votre projet : nous vous répondons avec une proposition adaptée."
+              }
+              className="mt-4 max-w-md text-pretty leading-relaxed text-[color:var(--spirit-muted)]"
+            />
           </Reveal>
         </div>
 
