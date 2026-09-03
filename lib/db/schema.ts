@@ -334,6 +334,51 @@ export const beforeAfterGallery = pgTable(
 )
 
 /**
+ * Galerie de réalisations en PHOTOS SIMPLES (distincte du comparateur
+ * Avant/Après). Chaque ligne stocke le pathname d'UNE seule image (Blob privé),
+ * servie au public via `/api/photo-gallery-image`. Isolé par `companyId`,
+ * suppression en cascade avec l'entreprise.
+ *
+ * Champs :
+ *  - imageUrl    : pathname du Blob privé (jamais une URL directe).
+ *  - title       : titre facultatif.
+ *  - description : description facultative.
+ *  - altText     : texte alternatif (accessibilité) ; repli sur le titre côté vue.
+ *  - sortOrder   : ordre d'affichage (réorganisable).
+ *  - published   : true = visible sur le site public ; false = masqué (brouillon).
+ *
+ * Additif et rétrocompatible : n'affecte AUCUNE table existante, notamment
+ * `beforeAfterGallery` qui reste inchangée (aucun détournement, aucune image
+ * dupliquée).
+ */
+export const photoGallery = pgTable(
+  "photoGallery",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    imageUrl: text("imageUrl").notNull(),
+    title: text("title"),
+    description: text("description"),
+    altText: text("altText"),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    published: boolean("published").notNull().default(true),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("photoGallery_companyId_idx").on(t.companyId),
+    // Accès public typique : photos publiées d'une entreprise, dans l'ordre.
+    byCompanyPublished: index("photoGallery_companyId_published_sort_idx").on(
+      t.companyId,
+      t.published,
+      t.sortOrder,
+    ),
+  }),
+)
+
+/**
  * Avis clients de l'entreprise. Texte pur (aucune image / Blob). Chaque ligne
  * est isolée par `companyId` ; seule la colonne `visible` détermine l'affichage
  * sur la vitrine publique du tenant. Suppression en cascade avec l'entreprise.
