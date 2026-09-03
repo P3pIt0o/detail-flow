@@ -12,6 +12,13 @@ type CtaSectionProps = {
   title?: string
   description?: string
   buttonLabel?: string
+  /**
+   * Destination du bouton principal. Défaut historique « /reservation »
+   * (inchangé pour tous les tenants). Certaines pages ciblent une autre
+   * destination tenant-aware (ex. Spirit ACS : « /#demande-devis »). Le tenant
+   * courant est préservé automatiquement par `CtaButton`/`withTenant`.
+   */
+  buttonHref?: string
 }
 
 /**
@@ -20,12 +27,13 @@ type CtaSectionProps = {
  * Les pages qui passent leurs propres title/description (ex. autres CTA
  * ponctuels) ne sont pas affectées par la personnalisation.
  */
-export async function CtaSection({ title, description, buttonLabel }: CtaSectionProps = {}) {
+export async function CtaSection({ title, description, buttonLabel, buttonHref }: CtaSectionProps = {}) {
   // Coordonnées réelles du tenant courant (jamais le numéro DetailFlow statique).
   const [contact, content] = await Promise.all([getPublicContact(), getPublicSiteContent()])
   const finalTitle = title ?? content.contact.title
   const finalDescription = description ?? content.contact.text
   const finalButtonLabel = buttonLabel ?? content.contact.buttonLabel
+  const finalButtonHref = buttonHref ?? "/reservation"
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <Reveal>
@@ -43,7 +51,7 @@ export async function CtaSection({ title, description, buttonLabel }: CtaSection
               {finalDescription}
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <CtaButton href="/reservation" size="lg" showArrow>
+              <CtaButton href={finalButtonHref} size="lg" showArrow>
                 {finalButtonLabel}
               </CtaButton>
               {contact.phone && (

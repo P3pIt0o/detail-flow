@@ -82,16 +82,6 @@ function wordBefore(text: string, punctIndex: number): string {
   return text.slice(i + 1, punctIndex)
 }
 
-/** Vrai si le token ressemble à un e-mail ou à une URL (on n'y coupe jamais). */
-function looksTechnical(token: string): boolean {
-  if (!token) return false
-  if (token.includes("@")) return true
-  if (/^(https?:\/\/|www\.)/i.test(token)) return true
-  // « detailflow.fr » : au moins un point interne entre deux groupes alphanum.
-  if (/[\p{L}\d]\.[\p{L}\d]/u.test(token) && !/^[\p{Lu}]\.?$/u.test(token)) return true
-  return false
-}
-
 /** Segmente UNE ligne (sans « \n ») en phrases, texte conservé à l'identique. */
 function splitLine(line: string): string[] {
   const out: string[] = []
@@ -128,7 +118,12 @@ function splitLine(line: string): string[] {
       continue
     }
 
-    // Garde-fous : abréviations, initiales, e-mails / URL / décimaux.
+    // Garde-fous pour le point « . ». Les points INTERNES d'un e-mail, d'une
+    // URL ou d'un nombre décimal (« contact@site.fr », « site.fr/avis »,
+    // « 5.0 ») ne déclenchent jamais de coupure car ils ne sont pas suivis d'un
+    // espace + majuscule : la règle générale ci-dessus les protège déjà. Il
+    // reste à protéger les cas où le point EST suivi d'un espace + majuscule
+    // sans pour autant finir une phrase : les abréviations et les initiales.
     if (ch === ".") {
       const raw = wordBefore(line, i)
       const word = raw.replace(/^[«"“(]+/, "").toLowerCase()
@@ -136,17 +131,8 @@ function splitLine(line: string): string[] {
         i = j
         continue
       }
-      // Initiale d'un prénom (« J. Dupont »), ou lettre seule (« a. b. »).
+      // Initiale d'un prénom (« J. Martin ») ou lettre seule (« a. b. »).
       if (/^[\p{L}]$/u.test(word)) {
-        i = j
-        continue
-      }
-      if (looksTechnical(raw)) {
-        i = j
-        continue
-      }
-      // Nombre décimal ou numérotation (« 1. », « 2.5 ») : on ne coupe pas.
-      if (/^\d+$/.test(word)) {
         i = j
         continue
       }

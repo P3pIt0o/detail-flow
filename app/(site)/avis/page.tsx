@@ -9,6 +9,7 @@ import { GoogleReviewsSection } from "@/components/reviews/google-reviews-sectio
 import { CtaSection } from "@/components/sections/cta-section"
 import { Reveal } from "@/components/ui/reveal"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
+import { resolveCustomSite } from "@/lib/custom-sites/server"
 
 export const metadata: Metadata = {
   title: "Avis clients",
