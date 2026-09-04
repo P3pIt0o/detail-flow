@@ -28,13 +28,15 @@ const HEIF_BRANDS = new Set(["mif1", "msf1", "heif"])
  */
 export function sniffImageMime(buf: ArrayBuffer | Uint8Array): SniffedMime | null {
   const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf)
-  if (b.length < 12) return null
+  // Chaque signature a son propre besoin de longueur (JPEG=3, PNG=8, BMFF/WebP=12).
+  if (b.length < 3) return null
 
   // JPEG : FF D8 FF
   if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg"
 
   // PNG : 89 50 4E 47 0D 0A 1A 0A
   if (
+    b.length >= 8 &&
     b[0] === 0x89 &&
     b[1] === 0x50 &&
     b[2] === 0x4e &&

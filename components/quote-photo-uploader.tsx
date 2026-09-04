@@ -59,6 +59,8 @@ export interface UsePhotoUploads {
   count: number
   addFiles: (files: FileList | File[]) => void
   removeItem: (id: string) => void
+  cancelItem: (id: string) => void
+  retryItem: (id: string) => void
   reset: () => void
   /** Envoie les fichiers non encore associés. Renvoie le décompte succès/échec. */
   uploadAll: (grant: string, prefix: string) => Promise<{ ok: number; failed: number }>
@@ -73,6 +75,11 @@ export function usePhotoUploads(): UsePhotoUploads {
   // Miroir synchrone pour lire l'état courant dans les boucles d'envoi.
   const itemsRef = useRef<PhotoItem[]>([])
   itemsRef.current = items
+  // AbortController par fichier : permet l'annulation d'un envoi en cours et
+  // l'annulation globale au démontage / à la fermeture du formulaire.
+  const controllers = useRef<Map<string, AbortController>>(new Map())
+  // Coordonnées du dernier envoi (grant + préfixe) pour le bouton « Réessayer ».
+  const lastRun = useRef<{ grant: string; prefix: string } | null>(null)
 
   const patch = useCallback((id: string, next: Partial<PhotoItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...next } : it)))
@@ -147,12 +154,26 @@ export function usePhotoUploads(): UsePhotoUploads {
     })
   }, [])
 
-  // Libère les ObjectURL au démontage.
+  // Annule tout envoi en cours + libère les ObjectURL au démontage (fermeture
+  // du formulaire pendant l'envoi).
   useEffect(() => {
+    const active = controllers.current
     return () => {
+      for (const c of active.values()) c.abort()
+      active.clear()
       for (const it of itemsRef.current) if (it.previewUrl) URL.revokeObjectURL(it.previewUrl)
     }
   }, [])
+
+  /** Annule l'envoi en cours d'un fichier (sans le retirer de la liste). */
+  const cancelItem = useCallback(
+    (id: string) => {
+      controllers.current.get(id)?.abort()
+      controllers.current.delete(id)
+      setLiveMessage("Envoi annulé.")
+    },
+    [],
+  )
 
   /** Envoie UN fichier (optimisation → Blob → association) avec 2 retries. */
   const uploadOne = useCallback(
@@ -175,6 +196,9 @@ export function usePhotoUploads(): UsePhotoUploads {
       // 2) Envoi direct vers le Blob PRIVÉ + association, avec re-essais.
       const maxAttempts = 3 // 1 essai + 2 nouvelles tentatives
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Un AbortController neuf par tentative ; enregistré pour l'annulation.
+        const controller = new AbortController()
+        controllers.current.set(item.id, controller)
         patch(item.id, { status: "uploading", progress: 0, attempts: attempt })
         try {
           const pathname = `${prefix}${uid()}.${ext || "jpg"}`
@@ -183,6 +207,7 @@ export function usePhotoUploads(): UsePhotoUploads {
             handleUploadUrl: "/api/quote-photos/upload",
             clientPayload: grant,
             contentType,
+            abortSignal: controller.signal,
             // Multipart pour les gros fichiers : parties parallèles + reprise.
             multipart: payload.size > 6 * 1024 * 1024,
             onUploadProgress: (p) => patch(item.id, { progress: Math.round(p.percentage) }),
@@ -203,15 +228,23 @@ export function usePhotoUploads(): UsePhotoUploads {
             }
             throw new Error(assoc.error)
           }
+          controllers.current.delete(item.id)
           patch(item.id, { status: "done", progress: 100, pathname: blob.pathname, error: undefined })
           return true
         } catch (e) {
+          // Annulation explicite par l'utilisateur : on ne réessaie pas.
+          if (controller.signal.aborted) {
+            controllers.current.delete(item.id)
+            patch(item.id, { status: "error", error: "Envoi annulé." })
+            return false
+          }
           const msg = e instanceof Error ? e.message : "Échec de l'envoi."
           if (attempt < maxAttempts) {
             // Backoff court progressif.
             await delay(600 * attempt)
             continue
           }
+          controllers.current.delete(item.id)
           patch(item.id, { status: "error", error: msg })
           return false
         }
@@ -229,6 +262,7 @@ export function usePhotoUploads(): UsePhotoUploads {
         const failed = itemsRef.current.filter((it) => it.status === "error").length
         return { ok: itemsRef.current.filter((i) => i.status === "done").length, failed }
       }
+      lastRun.current = { grant, prefix }
       setLiveMessage("Envoi des photos en cours…")
       const startIndex = itemsRef.current.filter((it) => it.status === "done").length
       const results = await mapWithConcurrency(pending, MAX_CONCURRENCY, (it, i) =>
@@ -246,10 +280,24 @@ export function usePhotoUploads(): UsePhotoUploads {
     [uploadOne],
   )
 
+  /** Réessaie l'envoi d'UN SEUL fichier en échec (bouton « Réessayer »). */
+  const retryItem = useCallback(
+    (id: string) => {
+      const run = lastRun.current
+      const item = itemsRef.current.find((it) => it.id === id)
+      if (!run || !item || item.status === "uploading" || item.status === "done") return
+      // Un fichier rejeté à la sélection (jamais envoyé) n'est pas ré-essayable.
+      if (item.status === "error" && !item.previewUrl && item.attempts === 0) return
+      const order = itemsRef.current.findIndex((it) => it.id === id)
+      void uploadOne(item, order, run.grant, run.prefix)
+    },
+    [uploadOne],
+  )
+
   const hasFailures = items.some((it) => it.status === "error")
   const count = items.filter((it) => it.status !== "error" || it.previewUrl).length
 
-  return { items, count, addFiles, removeItem, reset, uploadAll, hasFailures, liveMessage }
+  return { items, count, addFiles, removeItem, cancelItem, retryItem, reset, uploadAll, hasFailures, liveMessage }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -295,7 +343,7 @@ export function QuotePhotoUploader({
   uploader: UsePhotoUploads
   disabled?: boolean
 }) {
-  const { items, addFiles, removeItem, liveMessage } = uploader
+  const { items, addFiles, removeItem, cancelItem, retryItem, liveMessage } = uploader
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
@@ -405,6 +453,17 @@ export function QuotePhotoUploader({
                     <X className="size-3.5" aria-hidden="true" />
                   </button>
                 )}
+                {/* Annulation d'un envoi en cours. */}
+                {!disabled && item.status === "uploading" && (
+                  <button
+                    type="button"
+                    onClick={() => cancelItem(item.id)}
+                    aria-label={`Annuler l'envoi de la photo ${item.name}`}
+                    className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </button>
+                )}
               </div>
               <div className="flex flex-col gap-0.5 p-2">
                 <span className="truncate text-xs font-medium text-foreground" title={item.name}>
@@ -412,6 +471,17 @@ export function QuotePhotoUploader({
                 </span>
                 <span className="text-[10px] text-muted-foreground">{formatBytes(item.size)}</span>
                 <StatusBadge item={item} />
+                {/* Réessai ciblé d'un fichier en échec (jamais un rejet de sélection). */}
+                {!disabled && item.status === "error" && item.previewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => retryItem(item.id)}
+                    aria-label={`Réessayer l'envoi de la photo ${item.name}`}
+                    className="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-input px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+                  >
+                    <RefreshCw className="size-3" aria-hidden="true" /> Réessayer
+                  </button>
+                )}
               </div>
             </li>
           ))}
