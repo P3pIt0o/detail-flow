@@ -4,6 +4,7 @@ import { and, eq, inArray, count } from "drizzle-orm"
 import { del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
+import { collectCompanyAttachmentPathnames } from "@/lib/quote-photos/server"
 import {
   companies,
   companyMembers,
@@ -508,6 +509,10 @@ export async function deleteCompanyCompletely(companyId: number): Promise<Delete
   if (!company) throw new Error("Entreprise introuvable.")
 
   // 2) Collecter tous les identifiants enfants + cibles Blob AVANT suppression.
+  //    Les photos de demandes de devis (Blob privé) sont collectées ici : les
+  //    lignes seront supprimées par cascade (FK companyId), mais les fichiers
+  //    Blob doivent être retirés explicitement (best-effort, observable).
+  const quoteAttachmentPathnames = await collectCompanyAttachmentPathnames(companyId)
   const [companyBookings, companyInvoices, companyServices, companyVehicleTypes, members, settingsRow] =
     await Promise.all([
       db.select({ id: bookings.id }).from(bookings).where(eq(bookings.companyId, companyId)),
@@ -606,6 +611,7 @@ export async function deleteCompanyCompletely(companyId: number): Promise<Delete
     company.faviconUrl,
     settingsRow[0]?.invoiceLogoPathname,
     ...companyInvoices.flatMap((i) => [i.issuerLogoPathname, i.pdfPathname]),
+    ...quoteAttachmentPathnames,
   ].filter((p): p is string => Boolean(p))
 
   // Images de prestations : Blob PUBLIC (URL http). On ignore les valeurs non-Blob.

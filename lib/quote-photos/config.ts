@@ -78,6 +78,74 @@ export function isAllowedMime(type: string | null | undefined): type is AllowedM
   return typeof type === "string" && (ALLOWED_MIME_TYPES as readonly string[]).includes(type)
 }
 
+/** Extensions explicitement REFUSÉES (jamais des images valides pour ce flux). */
+const REJECTED_EXTENSIONS = new Set([
+  "svg",
+  "gif",
+  "html",
+  "htm",
+  "xhtml",
+  "exe",
+  "js",
+  "mjs",
+  "sh",
+  "bat",
+  "cmd",
+  "com",
+  "msi",
+  "app",
+  "bin",
+  "pdf",
+  "zip",
+])
+
+/** Extensions autorisées, alignées sur ALLOWED_MIME_TYPES. */
+const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "avif", "heic", "heif"])
+
+export type ScreenResult =
+  | { ok: true; passthrough: boolean }
+  | { ok: false; reason: string }
+
+/**
+ * Filtrage CLIENT d'un fichier sélectionné, AVANT toute optimisation ou envoi.
+ * Pur et testable (aucun DOM). La validation réelle reste faite côté serveur
+ * (signature du fichier) ; ceci ne fait qu'éviter des envois manifestement
+ * invalides et donner un message clair à l'utilisateur.
+ *
+ * Refuse explicitement SVG, GIF, HTML, exécutables, etc. Un HEIC/HEIF est
+ * accepté en « passthrough » (envoi de l'original, pas d'optimisation canvas).
+ */
+export function screenSelectedFile(file: { name: string; type: string; size: number }): ScreenResult {
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase()
+  const type = (file.type ?? "").toLowerCase()
+
+  if (REJECTED_EXTENSIONS.has(ext)) {
+    return { ok: false, reason: "Ce type de fichier n'est pas autorisé." }
+  }
+  // Types MIME dangereux/non-images explicitement bloqués même si l'extension ment.
+  if (type === "image/svg+xml" || type === "image/gif" || type.startsWith("text/") || type.startsWith("application/")) {
+    // (les octets seront revérifiés côté serveur)
+    if (!isAllowedMime(type)) return { ok: false, reason: "Ce type de fichier n'est pas autorisé." }
+  }
+  if (file.size <= 0) {
+    return { ok: false, reason: "Fichier vide." }
+  }
+  if (file.size > MAX_PHOTO_BYTES) {
+    return { ok: false, reason: `Photo trop volumineuse (max ${formatBytes(MAX_PHOTO_BYTES)}).` }
+  }
+
+  const typeOk = isAllowedMime(type)
+  const extOk = ALLOWED_EXTENSIONS.has(ext)
+  // Il faut au moins une preuve cohérente (type OU extension autorisé) et aucune
+  // contradiction manifeste. Beaucoup de smartphones envoient un type vide.
+  if (!typeOk && !extOk) {
+    return { ok: false, reason: "Formats acceptés : JPEG, PNG, WebP, AVIF, HEIC." }
+  }
+
+  const passthrough = type === "image/heic" || type === "image/heif" || ext === "heic" || ext === "heif"
+  return { ok: true, passthrough }
+}
+
 /** Formatte une taille en octets de façon lisible (fr). */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`

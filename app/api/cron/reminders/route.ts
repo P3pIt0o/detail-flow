@@ -7,6 +7,7 @@ import { sendSms } from "@/lib/sms/send"
 import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit } from "@/lib/sms/credits"
 import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { cleanupOrphanQuotePhotos } from "@/lib/quote-photos/server"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
 export const dynamic = "force-dynamic"
@@ -161,6 +162,10 @@ export async function GET(request: Request) {
     }
   }
 
+  // Nettoyage best-effort des photos de devis téléversées mais jamais associées
+  // (réutilise ce cron quotidien, pas de nouveau planificateur).
+  const orphanCleanup = await cleanupOrphanQuotePhotos()
+
   return NextResponse.json({
     ok: true,
     date: target,
@@ -169,5 +174,6 @@ export async function GET(request: Request) {
     smsSent,
     smsSkippedNoCredit,
     smsFailed,
+    orphanPhotosDeleted: orphanCleanup.deleted,
   })
 }

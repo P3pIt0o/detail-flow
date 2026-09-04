@@ -1,12 +1,15 @@
 import "server-only"
 
-import { and, asc, eq, sql } from "drizzle-orm"
-import { del, get } from "@vercel/blob"
+import { and, asc, eq, inArray, sql } from "drizzle-orm"
+import { del, get, list } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { customRequests, quoteRequestAttachments } from "@/lib/db/schema"
 import { MAX_PHOTOS, MAX_UPLOAD_BYTES, sanitizeOriginalName } from "./config"
 import { blobPrefix, type QuotePhotoGrant } from "./grant"
 import { sniffImageMime } from "./magic"
+
+/** Racine commune de tous les Blobs de photos de demandes de devis. */
+const QUOTE_BLOB_ROOT = "quote-requests/"
 
 export type AttachmentRow = typeof quoteRequestAttachments.$inferSelect
 
@@ -231,4 +234,51 @@ export async function deleteRequestAttachments(requestId: number, companyId: num
     .delete(quoteRequestAttachments)
     .where(and(eq(quoteRequestAttachments.requestId, requestId), eq(quoteRequestAttachments.companyId, companyId)))
   return rows.length
+}
+
+/**
+ * Nettoie les Blobs téléversés mais JAMAIS associés à une demande (envoi
+ * interrompu, formulaire fermé, grant expiré). Réutilisé par le cron quotidien
+ * existant — AUCUN nouveau cron ni service payant.
+ *
+ * Sécurité : ne supprime qu'un Blob (a) sous le préfixe `quote-requests/`,
+ * (b) plus ancien que `minAgeMs` (jamais un envoi en cours), et (c) absent de
+ * la table d'associations. Best-effort et observable ; ne lève jamais.
+ */
+export async function cleanupOrphanQuotePhotos(
+  minAgeMs = 2 * 60 * 60 * 1000,
+  maxDeletions = 500,
+): Promise<{ scanned: number; deleted: number }> {
+  const cutoff = Date.now() - minAgeMs
+  let cursor: string | undefined
+  let scanned = 0
+  let deleted = 0
+  try {
+    do {
+      const page = await list({ prefix: QUOTE_BLOB_ROOT, cursor, limit: 200 })
+      const candidates = page.blobs.filter((b) => new Date(b.uploadedAt).getTime() < cutoff)
+      scanned += candidates.length
+      if (candidates.length) {
+        const pathnames = candidates.map((b) => b.pathname)
+        const known = new Set(
+          (
+            await db
+              .select({ pathname: quoteRequestAttachments.pathname })
+              .from(quoteRequestAttachments)
+              .where(inArray(quoteRequestAttachments.pathname, pathnames))
+          ).map((r) => r.pathname),
+        )
+        for (const b of candidates) {
+          if (known.has(b.pathname)) continue
+          if (deleted >= maxDeletions) break
+          await safeDelete(b.pathname)
+          deleted++
+        }
+      }
+      cursor = page.hasMore ? page.cursor : undefined
+    } while (cursor && deleted < maxDeletions)
+  } catch (e) {
+    console.log("[v0] quote-photos: nettoyage orphelins échec", e instanceof Error ? e.message : e)
+  }
+  return { scanned, deleted }
 }
