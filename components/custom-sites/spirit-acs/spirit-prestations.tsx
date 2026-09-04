@@ -1,28 +1,79 @@
 /**
- * Section « Un soin adapté à chaque véhicule » de Spirit ACS (composant SERVEUR).
+ * Section « Nos prestations de detailing » de Spirit ACS (composant SERVEUR).
  *
- * Présente les FAMILLES de prestations (vitrine éditoriale) — PAS un catalogue
- * en base. Chaque carte :
- *  - affiche un texte court utile sous le titre (contenu éditorial local) ;
- *  - renvoie vers la PAGE DÉDIÉE de la prestation (SEO), en conservant le tenant.
+ * Vitrine éditoriale (PAS un catalogue en base) : une grille de SIX cartes
+ * photographiques, une par prestation, chacune renvoyant vers sa PAGE DÉDIÉE
+ * (SEO) en conservant le tenant via `serviceHref`.
  *
- * Les 4 cartes reprennent, dans l'ordre, les 4 premières prestations de
- * SPIRIT_SERVICES. Images RÉELLES déjà présentes dans le projet.
+ * - Images RÉELLES déjà présentes dans le projet (aucune génération).
+ * - Toute la carte est un vrai lien <a> (exploitable sans JS, focus clavier).
+ * - Titres de cartes en <h3> (hiérarchie : H1 hero, H2 section, H3 cartes).
+ * - Un court paragraphe SEO visible est rendu sous le titre de section.
  *
- * Fond, titre + filet rose (`spirit-rule`), 4 cartes photo avec dégradé sombre.
- * Grille : 1 → 2 (mobile) → 4 (bureau).
+ * Grille responsive : 1 → 2 (≥420px) → 3 (bureau), sans carrousel.
  */
 
 import Image from "next/image"
 import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_SECTIONS } from "./tokens"
-import { SPIRIT_SERVICES } from "./seo-content"
+import { getSpiritService } from "./seo-content"
 
-// Les 4 familles mises en avant sur l'accueil (ordre imposé par la maquette) :
-// nettoyage, polissage/céramique, PPF, moto. Les 6 prestations restent toutes
-// accessibles via leurs pages dédiées et le maillage interne.
-const HOME_CARD_SLUGS = ["nettoyage-automobile", "polissage-automobile", "protection-ppf", "detailing-moto"] as const
-const CARDS = HOME_CARD_SLUGS.map((slug) => SPIRIT_SERVICES.find((s) => s.slug === slug)!).filter(Boolean)
+/**
+ * Les SIX cartes de l'accueil, dans l'ordre imposé. Libellés et descriptions
+ * COURTS (contenu éditorial local de la vitrine, jamais des données Neon), et
+ * image RÉELLE réutilisée depuis la configuration de chaque prestation. Le lien
+ * pointe vers la page dédiée existante (via `serviceHref`, tenant conservé).
+ */
+const HOME_CARDS: { slug: string; title: string; description: string; image: string; imageAlt: string }[] = [
+  {
+    slug: "nettoyage-automobile",
+    title: "Nettoyage automobile",
+    description: "Nettoyage intérieur et extérieur",
+    // Aucune image dédiée « nettoyage » n'existe : on réutilise une image RÉELLE
+    // cohérente déjà disponible (lavage premium).
+    image: "/services/lavage-premium.png",
+    imageAlt: "Véhicule après un nettoyage automobile intérieur et extérieur",
+  },
+  {
+    slug: "polissage-automobile",
+    title: "Polissage automobile",
+    description: "Correction des défauts et restauration de la brillance",
+    image: "/services/protection-ceramique.png",
+    imageAlt: "Carrosserie brillante après un polissage automobile",
+  },
+  {
+    slug: "protection-ceramique",
+    title: "Protection céramique",
+    description: "Protection durable et entretien facilité",
+    image: "/services/protection-ceramique.png",
+    imageAlt: "Application d'une protection céramique sur la carrosserie",
+  },
+  {
+    slug: "protection-ppf",
+    title: "Protection PPF",
+    description: "Film transparent contre les impacts et les rayures",
+    image: "/services/renovation-carrosserie.png",
+    imageAlt: "Zone de carrosserie protégée par un film PPF transparent",
+  },
+  {
+    slug: "renovation-phares",
+    title: "Rénovation des phares",
+    description: "Restauration de la clarté des optiques",
+    image: "/services/renovation-carrosserie.png",
+    imageAlt: "Optique de phare rénovée sur un véhicule",
+  },
+  {
+    slug: "detailing-moto",
+    title: "Detailing moto",
+    description: "Entretien esthétique et personnalisation",
+    image: "/custom-sites/spirit-acs/service-moto.png",
+    imageAlt: "Moto après une prestation esthétique de detailing",
+  },
+]
+
+// Sécurité : chaque carte doit correspondre à une prestation existante (le lien
+// mènerait sinon vers une page inexistante). On filtre sur les slugs connus.
+const CARDS = HOME_CARDS.filter((c) => getSpiritService(c.slug))
 
 export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string) => string }) {
   return (
@@ -34,67 +85,58 @@ export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string)
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
           <span className="spirit-rule" />
-          <h2 className="spirit-title spirit-h2 mt-4 text-balance leading-[1.05]">
-            Nos prestations de detailing
-          </h2>
+          <h2 className="spirit-title spirit-h2 mt-4 text-balance leading-[1.05]">Nos prestations de detailing</h2>
+          {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué). */}
+          <p className="mt-4 max-w-3xl text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)]">
+            Spirit ACS propose à Lagny-sur-Marne des prestations de nettoyage automobile, polissage, protection
+            céramique, PPF, rénovation des phares et detailing moto. Découvrez chaque service et trouvez la solution
+            adaptée à votre véhicule.
+          </p>
         </Reveal>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:mt-10 lg:grid-cols-4 lg:gap-5">
+        <div className="mt-8 grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:mt-12 lg:grid-cols-3 lg:gap-6">
           {CARDS.map((card, i) => (
             <Reveal key={card.slug} delay={i * 0.06}>
               <a
                 href={serviceHref(card.slug)}
-                className="group flex h-full flex-col overflow-hidden rounded-sm bg-[var(--spirit-paper)] ring-1 ring-black/5 transition-shadow hover:shadow-[0_18px_40px_-20px_rgba(6,19,28,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)]"
+                className="group relative flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-black/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-24px_rgba(6,19,28,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--spirit-paper-2)]"
               >
-                <div className="relative aspect-[4/3]">
-                  <Image
-                    src={card.image || "/placeholder.svg"}
-                    alt={card.imageAlt || card.cardTitle}
-                    fill
-                    sizes="(min-width: 1024px) 25vw, (min-width: 420px) 50vw, 100vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)]/70 via-transparent to-transparent" />
-                </div>
-                <div className="flex flex-1 flex-col gap-2 p-4">
-                  <h3 className="spirit-title text-sm font-semibold leading-tight text-[color:var(--spirit-ink)] sm:text-base">
-                    {card.cardTitle}
+                {/* Photographie plein cadre (object-cover, sans déformation). */}
+                <Image
+                  src={card.image || "/placeholder.svg"}
+                  alt={card.imageAlt}
+                  fill
+                  sizes="(min-width: 1024px) 33vw, (min-width: 420px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                  loading={i < 2 ? "eager" : "lazy"}
+                />
+                {/* Dégradé sombre bas pour garantir la lisibilité du texte blanc. */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
+                />
+
+                <div className="relative z-10 flex flex-col gap-2 p-5">
+                  {/* Accent rose de marque. */}
+                  <span aria-hidden="true" className="h-0.5 w-9 rounded-full bg-[var(--spirit-pink)]" />
+                  <h3 className="spirit-title text-lg font-semibold leading-tight text-white sm:text-xl">
+                    {card.title}
                   </h3>
-                  <span className="block h-0.5 w-8 rounded-full bg-[var(--spirit-pink)]" />
-                  <p className="text-sm leading-relaxed text-[color:var(--spirit-muted)]">{card.cardText}</p>
-                  <span className="mt-auto pt-2 text-sm font-medium text-[color:var(--spirit-teal)]">
+                  <p className="text-sm leading-snug text-white/85">{card.description}</p>
+                  <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-white">
                     En savoir plus
-                    <span aria-hidden="true"> →</span>
+                    <span
+                      aria-hidden="true"
+                      className="transition-transform duration-300 group-hover:translate-x-1"
+                    >
+                      →
+                    </span>
                   </span>
                 </div>
               </a>
             </Reveal>
           ))}
         </div>
-
-        {/* Accès direct aux 6 pages de prestations (maillage interne SEO).
-            Bloc compact et discret : les 4 cartes ci-dessus restent la mise en
-            avant principale. Liens tenant-aware (serviceHref conserve ?tenant=). */}
-        <Reveal>
-          <nav aria-label="Toutes nos prestations" className="mt-8 border-t border-black/10 pt-6 lg:mt-10">
-            <h3 className="spirit-title text-sm font-semibold text-[color:var(--spirit-ink)]">
-              Découvrir toutes nos prestations
-            </h3>
-            <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-              {SPIRIT_SERVICES.map((service) => (
-                <li key={service.slug}>
-                  <a
-                    href={serviceHref(service.slug)}
-                    className="inline-flex items-center gap-1 rounded-sm text-sm text-[color:var(--spirit-muted)] underline-offset-4 transition-colors hover:text-[color:var(--spirit-teal)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)]"
-                  >
-                    {service.breadcrumbLabel}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </Reveal>
       </div>
     </section>
   )
