@@ -5,6 +5,7 @@ import {
   isValidSlug,
   isReservedSlug,
   tenantPublicUrl,
+  tenantPathUrl,
 } from "@/lib/tenant-shared"
 
 const ROOT = "detailflow.fr"
@@ -86,5 +87,34 @@ describe("tenantPublicUrl", () => {
   it("retombe sur ?tenant= sans domaine racine", () => {
     expect(tenantPublicUrl("elite")).toBe("/?tenant=elite")
     expect(tenantPublicUrl("elite", "")).toBe("/?tenant=elite")
+  })
+})
+
+/**
+ * Régression BUG 2 : les liens accepter/refuser des emails DOIVENT utiliser le
+ * routing `?tenant=` sur le domaine racine, JAMAIS un sous-domaine
+ * `{slug}.detailflow.fr` (qui n'existe pas → NXDOMAIN). Le module email
+ * (lib/email/custom-requests.ts) s'appuie désormais sur tenantPathUrl.
+ */
+describe("tenantPathUrl — liens transactionnels (emails)", () => {
+  it("construit un lien de demande sur le domaine racine avec ?tenant=", () => {
+    const url = tenantPathUrl("/demande/TOKEN123", "spirit-acs", ROOT)
+    expect(url).toBe("https://www.detailflow.fr/demande/TOKEN123?tenant=spirit-acs")
+  })
+
+  it("n'utilise JAMAIS un sous-domaine {slug}.detailflow.fr", () => {
+    const url = tenantPathUrl("/demande/TOKEN123", "spirit-acs", ROOT)
+    expect(url).not.toContain("spirit-acs.detailflow.fr")
+    expect(url.startsWith("https://www.detailflow.fr/")).toBe(true)
+  })
+
+  it("préserve un query existant (ajout via &) pour l'intent accepter/refuser", () => {
+    const base = tenantPathUrl("/demande/TOKEN123", "spirit-acs", ROOT)
+    const withIntent = `${base}${base.includes("?") ? "&" : "?"}intent=accept`
+    expect(withIntent).toBe("https://www.detailflow.fr/demande/TOKEN123?tenant=spirit-acs&intent=accept")
+  })
+
+  it("retombe sur un chemin relatif sans domaine racine (aperçu / local)", () => {
+    expect(tenantPathUrl("/demande/TOKEN123", "spirit-acs")).toBe("/demande/TOKEN123?tenant=spirit-acs")
   })
 })

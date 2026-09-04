@@ -21,11 +21,33 @@ export interface AttachmentVM {
   contentType: string
 }
 
-function viewUrl(id: number, download = false): string {
-  return `/api/quote-photos/view?id=${id}${download ? "&download=1" : ""}`
+/**
+ * Construit l'URL de lecture authentifiée d'une photo.
+ *
+ * IMPORTANT (isolation multi-tenant) : la route `/api/quote-photos/view` résout
+ * son tenant à partir de l'en-tête `x-tenant-slug` posé par le middleware. Sur
+ * le domaine racine, une requête `<img>`/téléchargement SANS `?tenant=` ferait
+ * retomber la route sur l'appartenance de l'utilisateur (sa plus ancienne
+ * entreprise) — potentiellement un AUTRE tenant → 404. On propage donc le slug
+ * du tenant courant (celui déjà résolu et vérifié par la page) pour garantir la
+ * cohérence. L'autorisation réelle (session + appartenance + périmètre
+ * entreprise de la pièce jointe) reste revérifiée côté serveur.
+ */
+function viewUrl(id: number, tenantSlug: string | null, download = false): string {
+  const params = new URLSearchParams()
+  params.set("id", String(id))
+  if (download) params.set("download", "1")
+  if (tenantSlug) params.set("tenant", tenantSlug)
+  return `/api/quote-photos/view?${params.toString()}`
 }
 
-export function QuoteAttachmentsGallery({ attachments }: { attachments: AttachmentVM[] }) {
+export function QuoteAttachmentsGallery({
+  attachments,
+  tenantSlug = null,
+}: {
+  attachments: AttachmentVM[]
+  tenantSlug?: string | null
+}) {
   const [active, setActive] = useState<AttachmentVM | null>(null)
 
   useEffect(() => {
@@ -64,7 +86,7 @@ export function QuoteAttachmentsGallery({ attachments }: { attachments: Attachme
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={viewUrl(a.id) || "/placeholder.svg"}
+                src={viewUrl(a.id, tenantSlug) || "/placeholder.svg"}
                 alt={a.name}
                 loading="lazy"
                 decoding="async"
@@ -76,7 +98,7 @@ export function QuoteAttachmentsGallery({ attachments }: { attachments: Attachme
                 {a.name}
               </span>
               <a
-                href={viewUrl(a.id, true)}
+                href={viewUrl(a.id, tenantSlug, true)}
                 className="shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label={`Télécharger la photo ${a.name}`}
               >
@@ -98,7 +120,7 @@ export function QuoteAttachmentsGallery({ attachments }: { attachments: Attachme
           <div className="relative max-h-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={viewUrl(active.id) || "/placeholder.svg"}
+              src={viewUrl(active.id, tenantSlug) || "/placeholder.svg"}
               alt={active.name}
               className="max-h-[80vh] w-auto rounded-lg object-contain"
             />
@@ -107,7 +129,10 @@ export function QuoteAttachmentsGallery({ attachments }: { attachments: Attachme
                 {active.name} · {formatBytes(active.size)}
               </span>
               <div className="flex items-center gap-3">
-                <a href={viewUrl(active.id, true)} className="inline-flex items-center gap-1 hover:underline">
+                <a
+                  href={viewUrl(active.id, tenantSlug, true)}
+                  className="inline-flex items-center gap-1 hover:underline"
+                >
                   <Download className="size-4" aria-hidden="true" /> Télécharger
                 </a>
                 <button

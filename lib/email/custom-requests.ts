@@ -2,6 +2,7 @@ import "server-only"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies, settings as settingsTable } from "@/lib/db/schema"
+import { tenantPathUrl } from "@/lib/tenant-shared"
 import { sendEmail } from "./send"
 import {
   customRequestNewLeadEmail,
@@ -35,33 +36,25 @@ async function loadIdentity(companyId: number) {
 }
 
 /**
- * Base absolue du site du tenant. En PRODUCTION, chaque entreprise vit sur son
- * sous-domaine `https://{slug}.{rootDomain}` (cf. middleware). Sans domaine
- * racine (aperçu v0 / local), on retombe sur des liens relatifs + `?tenant=`
- * (non cliquables en email mais non bloquant pour le flux).
+ * URL publique d'une demande de devis (lien accepter/refuser des emails).
+ *
+ * RÉUTILISE le helper CANONIQUE `tenantPathUrl` : le routing multi-tenant se
+ * fait par `?tenant=<slug>` sur le domaine racine (`https://www.<root>/…`),
+ * JAMAIS par sous-domaine. L'ancienne construction `https://{slug}.{root}`
+ * produisait des domaines inexistants (NXDOMAIN). Sans domaine racine
+ * (aperçu / local), `tenantPathUrl` retombe proprement sur un chemin relatif.
+ * Le token n'est jamais modifié.
  */
-function tenantBaseUrl(slug: string): { base: string; useQueryTenant: boolean } {
-  const raw = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "")
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/+$/, "")
-  if (!raw || !slug) return { base: "", useQueryTenant: Boolean(slug) }
-  return { base: `https://${slug}.${raw}`, useQueryTenant: false }
-}
-
 function publicRequestUrl(slug: string, token: string, intent?: "accept" | "refuse"): string {
-  const { base, useQueryTenant } = tenantBaseUrl(slug)
-  const params = new URLSearchParams()
-  if (useQueryTenant) params.set("tenant", slug)
-  if (intent) params.set("intent", intent)
-  const qs = params.toString()
-  return `${base}/demande/${encodeURIComponent(token)}${qs ? `?${qs}` : ""}`
+  const base = tenantPathUrl(`/demande/${encodeURIComponent(token)}`, slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+  if (!intent) return base
+  const sep = base.includes("?") ? "&" : "?"
+  return `${base}${sep}intent=${intent}`
 }
 
+/** URL d'administration d'une demande (même règle de routing `?tenant=`). */
 function adminRequestUrl(slug: string, id: number): string {
-  const { base, useQueryTenant } = tenantBaseUrl(slug)
-  const qs = useQueryTenant ? `?tenant=${encodeURIComponent(slug)}` : ""
-  return `${base}/admin/demandes/${id}${qs}`
+  return tenantPathUrl(`/admin/demandes/${id}`, slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
 }
 
 /** Notifie le professionnel qu'une nouvelle demande est arrivée. Non bloquant. */

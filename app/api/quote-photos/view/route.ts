@@ -32,7 +32,17 @@ export async function GET(request: NextRequest) {
   }
 
   const attachment = await getAttachmentForCompany(id, ctx.tenant.id)
+  // Logs de diagnostic TEMPORAIRES (aucune donnée sensible : ni pathname complet
+  // ni token). Permettent de distinguer la cause : A) DB/tenant, B) Blob.
+  console.log("[quote-photo-view] lookup", {
+    id,
+    tenantId: ctx.tenant.id,
+    tenantSlug: ctx.tenant.slug,
+    found: Boolean(attachment),
+  })
   if (!attachment) {
+    // CAUSE A : la pièce jointe n'appartient pas au tenant résolu pour CETTE
+    // requête (souvent : contexte tenant absent → repli sur une autre entreprise).
     return new NextResponse("Not found", { status: 404 })
   }
 
@@ -41,7 +51,13 @@ export async function GET(request: NextRequest) {
     ifNoneMatch: request.headers.get("if-none-match") ?? undefined,
   })
 
+  console.log("[quote-photo-view] blob", {
+    id,
+    hasResult: Boolean(result),
+    statusCode: result?.statusCode ?? null,
+  })
   if (!result) {
+    // CAUSE B : la ligne existe mais le Blob privé est introuvable côté stockage.
     return new NextResponse("Not found", { status: 404 })
   }
 
