@@ -29,7 +29,7 @@ import {
 } from "./tenant-url"
 import { buildTenantPageMetadata } from "./tenant-metadata"
 import { buildLocalBusinessJsonLd, type LocalBusinessInput } from "./structured-data"
-import { SPIRIT_TENANT_SLUG } from "@/components/custom-sites/spirit-acs/seo-content"
+import { SPIRIT_TENANT_SLUG, SPIRIT_BUSINESS } from "@/components/custom-sites/spirit-acs/seo-content"
 
 /** Chemin de l'image Open Graph propre à Spirit ACS (existe dans /public). */
 const SPIRIT_OG_IMAGE = "/custom-sites/spirit-acs/og-spirit-acs.png"
@@ -168,21 +168,28 @@ export async function buildTenantLocalBusiness(args?: {
     ? `${BASE}/api/company-logo?company=${encodeURIComponent(tenant.slug)}`
     : null
 
+  // Repli SEO Spirit ACS : coordonnées professionnelles vérifiées utilisées
+  // UNIQUEMENT quand la donnée Neon correspondante est absente (la donnée réelle
+  // du tenant reste toujours prioritaire). `null` pour les autres tenants.
+  const biz = seo.isSpirit ? SPIRIT_BUSINESS : null
+
   const input: LocalBusinessInput = {
     type: "AutoWash",
-    name: seo.siteName,
+    name: biz?.name ?? seo.siteName,
+    alternateName: biz?.alternateName ?? null,
     url: await tenantCanonical("/"),
-    telephone: tenant.phone ?? null,
+    telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,
     logo: logoAbsolute,
     image: seo.isSpirit ? `${BASE}${SPIRIT_OG_IMAGE}` : logoAbsolute,
-    // Adresse postale structurée à partir des SEULES données réelles du tenant.
-    // Les champs absents ne produisent aucune propriété (voir buildPostalAddress).
+    // Adresse postale structurée : donnée Neon réelle d'abord, repli Spirit
+    // vérifié ensuite. Les champs absents ne produisent aucune propriété.
     address: {
-      streetAddress: tenant.address ?? null,
-      postalCode: tenant.postalCode ?? null,
-      addressLocality: tenant.city ?? null,
-      addressCountry: tenant.country ?? null,
+      streetAddress: tenant.address ?? biz?.streetAddress ?? null,
+      postalCode: tenant.postalCode ?? biz?.postalCode ?? null,
+      addressLocality: tenant.city ?? biz?.addressLocality ?? null,
+      addressRegion: biz?.addressRegion ?? null,
+      addressCountry: tenant.country ?? biz?.addressCountry ?? null,
     },
     openingHours: hours.map((h) => ({ day: h.day, open: h.open, from: h.from ?? null, to: h.to ?? null })),
     areaServed: args?.areaServed ?? null,
