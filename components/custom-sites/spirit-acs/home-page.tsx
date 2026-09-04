@@ -21,7 +21,7 @@ import { SpiritReassurance } from "./spirit-reassurance"
 import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritGaleriePhotos } from "./spirit-galerie-photos"
-import { SpiritApropos } from "./spirit-apropos"
+import { SpiritQuiSommesNous } from "./spirit-qui-sommes-nous"
 import { SpiritProcess } from "./spirit-process"
 import { SpiritZone } from "./spirit-zone"
 import { SpiritFaq } from "./spirit-faq"
@@ -30,7 +30,7 @@ import { SpiritAvis } from "./spirit-avis"
 import { SpiritAvisGoogle } from "./spirit-avis-google"
 import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
 import { withTenant } from "@/lib/tenant-link"
-import { SPIRIT_ABOUT_PARAGRAPHS, SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
+import { SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
 import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
@@ -197,15 +197,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
           Se masque seule si le tenant n'a aucune photo publiée. */}
       <SpiritGaleriePhotos items={photoGallery} />
 
-      <SpiritApropos
-        title={content.about.title}
-        text={content.about.text}
-        buttonLabel={content.about.buttonLabel?.trim() || null}
-        buttonHref={content.about.buttonHref?.trim() || null}
-        // Présentation locale de repli affichée UNIQUEMENT si le tenant n'a pas
-        // personnalisé son texte « À propos » (le texte réel reste prioritaire).
-        fallbackParagraphs={SPIRIT_ABOUT_PARAGRAPHS}
-      />
+      {/* « Qui sommes-nous ? » — présentation humaine et premium du dirigeant
+          (contenu éditorial local Spirit, sémantique <h2>, CTA vers le devis). */}
+      <SpiritQuiSommesNous />
 
       {/* Déroulement en 4 étapes (contenu éditorial local). */}
       <SpiritProcess />
