@@ -7,9 +7,10 @@
  *
  * Performance (Safari iOS notamment) :
  * - Le glissement NE déclenche AUCUN setState React : la position est écrite
- *   dans une variable CSS (`--pos`) sur le conteneur, lue par `clip-path`
- *   (image avant) et `transform: translateX` (poignée). Aucun re-render, aucun
- *   recalcul de mise en page, aucun redécodage d'image pendant le geste.
+ *   dans une variable CSS (`--compare-position`, en %) sur la racine du
+ *   comparateur, lue à l'identique par la découpe (`clip-path`, image avant),
+ *   la ligne verticale et la poignée (`left`). Aucun re-render, aucun
+ *   redécodage d'image pendant le geste.
  * - L'écriture DOM est throttlée à une fois par frame via requestAnimationFrame,
  *   correctement annulée au démontage.
  * - Pointer Events + setPointerCapture (compatible Safari iOS) ; pointerup,
@@ -56,7 +57,9 @@ export function BeforeAfterSlider({
     rafId.current = requestAnimationFrame(() => {
       rafId.current = null
       const el = containerRef.current
-      if (el) el.style.setProperty("--pos", `${pending.current}`)
+      // La variable porte une unité en pourcentage et est posée sur la RACINE
+      // du comparateur ; la découpe, la ligne et la poignée la lisent à l'identique.
+      if (el) el.style.setProperty("--compare-position", `${pending.current}%`)
     })
   }, [])
 
@@ -110,7 +113,7 @@ export function BeforeAfterSlider({
   return (
     <div
       ref={containerRef}
-      className="group relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl border border-border [--pos:50] [touch-action:pan-y]"
+      className="group relative aspect-[4/3] w-full select-none overflow-hidden rounded-2xl border border-border [--compare-position:50%] [touch-action:pan-y]"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -135,7 +138,7 @@ export function BeforeAfterSlider({
           bouge → pas de recalcul de layout ni de redécodage pendant le geste. */}
       <div
         className="absolute inset-0"
-        style={{ clipPath: "inset(0 calc((100 - var(--pos)) * 1%) 0 0)" }}
+        style={{ clipPath: "inset(0 calc(100% - var(--compare-position)) 0 0)" }}
       >
         <Image
           src={before || "/placeholder.svg"}
@@ -152,14 +155,15 @@ export function BeforeAfterSlider({
         </span>
       </div>
 
-      {/* Poignée : positionnée à 0 puis déplacée avec transform: translateX
-          (compositing GPU, aucun layout). */}
+      {/* Ligne + poignée : `left` lit la MÊME variable (relative au conteneur,
+          donc alignée avec la découpe), centrée par translateX(-50%). Le
+          pourcentage de translate ici est relatif au petit élément (la ligne /
+          la poignée), ce qui le recentre exactement sur la séparation. */}
       <div
-        className="pointer-events-none absolute inset-y-0 left-0"
-        style={{ transform: "translateX(calc(var(--pos) * 1%))", willChange: "transform" }}
+        className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90"
+        style={{ left: "var(--compare-position)", willChange: "left" }}
       >
-        <div className="absolute inset-y-0 -ml-px w-0.5 bg-white/90" />
-        <div className="absolute top-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-primary text-primary-foreground shadow-lg">
+        <div className="absolute left-1/2 top-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-primary text-primary-foreground shadow-lg">
           <MoveHorizontal className="size-5" />
         </div>
       </div>

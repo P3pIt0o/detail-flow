@@ -21,8 +21,10 @@ function read(rel: string): string {
 const SRC = read("components/before-after-slider.tsx")
 
 describe("BeforeAfterSlider — fluidité Safari iOS", () => {
-  it("pilote l'affichage par variable CSS --pos, sans setState pendant le geste", () => {
-    expect(SRC).toMatch(/setProperty\("--pos"/)
+  it("pilote l'affichage par variable CSS --compare-position, sans setState pendant le geste", () => {
+    expect(SRC).toMatch(/setProperty\("--compare-position"/)
+    // La variable porte une unité en pourcentage.
+    expect(SRC).toMatch(/`\$\{pending\.current\}%`/)
     // Le geste n'appelle pas de setter d'état pour l'affichage : applyPosition
     // écrit uniquement le DOM. Les seuls setState servent la valeur ARIA.
     expect(SRC).toMatch(/const applyPosition/)
@@ -37,12 +39,21 @@ describe("BeforeAfterSlider — fluidité Safari iOS", () => {
     expect(SRC).toMatch(/useEffect\(/)
   })
 
-  it("utilise clip-path et transform (pas d'animation de width/left)", () => {
+  it("découpe, ligne et poignée lisent la MÊME variable --compare-position", () => {
+    // Découpe (clip-path) relative au conteneur.
     expect(SRC).toMatch(/clipPath/)
-    expect(SRC).toMatch(/translateX\(calc\(var\(--pos\)/)
-    // Plus de largeur dynamique ni de left dynamique pilotés par la position.
-    expect(SRC).not.toMatch(/width: `\$\{position\}%`/)
-    expect(SRC).not.toMatch(/left: `\$\{position\}%`/)
+    expect(SRC).toMatch(/calc\(100% - var\(--compare-position\)\)/)
+    // Ligne + poignée positionnées par `left` (relatif au conteneur), pas par
+    // translateX(%) sur un wrapper de largeur nulle (cause de la régression).
+    expect(SRC).toMatch(/left: "var\(--compare-position\)"/)
+    expect(SRC).not.toMatch(/translateX\(calc\(var\(--compare-position\)/)
+    // La racine déclare la variable par défaut à 50 %.
+    expect(SRC).toMatch(/\[--compare-position:50%\]/)
+  })
+
+  it("centre la poignée sur la séparation avec translateX(-50%)", () => {
+    // -translate-x-1/2 sur l'élément ligne/poignée le recentre exactement.
+    expect(SRC).toMatch(/-translate-x-1\/2/)
   })
 
   it("gère les Pointer Events avec capture et tous les cas de fin de geste", () => {
