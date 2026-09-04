@@ -16,6 +16,7 @@ import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
 import { toTelHref } from "@/lib/phone"
 import { SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_BUSINESS } from "./seo-content"
 
 type SpiritFooterProps = {
   brandName: string
@@ -93,10 +94,28 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
               coordonnées existantes après le retrait du bloc final redondant. */}
           <div id={SPIRIT_SECTIONS.contact} data-spirit-anchor className="scroll-mt-24">
             <h2 className="spirit-eyebrow">Contact</h2>
+            {/* Coordonnées complètes et vérifiées. Le tél. utilise un lien
+                tel:+33699901303 (via toTelHref, repli sur le numéro vérifié).
+                Adresse en <address> sémantique (non justifiée, alignée à gauche). */}
             <ul className="mt-4 space-y-3 text-sm text-[color:var(--spirit-muted)]">
+              <li className="flex items-start gap-2">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
+                <address className="not-italic leading-relaxed">
+                  <span className="block text-white/90">
+                    {SPIRIT_BUSINESS.alternateName} – {SPIRIT_BUSINESS.name}
+                  </span>
+                  <span className="block">{SPIRIT_BUSINESS.streetAddress}</span>
+                  <span className="block">
+                    {SPIRIT_BUSINESS.postalCode} {SPIRIT_BUSINESS.addressLocality}
+                  </span>
+                </address>
+              </li>
               {phone && (
                 <li>
-                  <a href={toTelHref(phoneRaw ?? phone) ?? "#"} className="flex items-start gap-2 transition-colors hover:text-white">
+                  <a
+                    href={toTelHref(phoneRaw ?? phone) ?? `tel:${SPIRIT_BUSINESS.phone}`}
+                    className="flex items-start gap-2 transition-colors hover:text-white"
+                  >
                     <Phone className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
                     {phone}
                   </a>
@@ -108,12 +127,6 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
                     <Mail className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
                     {email}
                   </a>
-                </li>
-              )}
-              {city && (
-                <li className="flex items-start gap-2">
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--spirit-teal)]" aria-hidden="true" />
-                  {city}
                 </li>
               )}
             </ul>

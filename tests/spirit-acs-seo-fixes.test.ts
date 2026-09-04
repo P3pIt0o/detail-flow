@@ -197,3 +197,108 @@ describe("Accueil — maillage vers les 6 pages de prestations", () => {
     expect(prest).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
   })
 })
+
+/* -------------------------------------------------------------------------- */
+/*  5. JSON-LD : nom commercial + adresse professionnelle complète            */
+/* -------------------------------------------------------------------------- */
+
+describe("buildLocalBusinessJsonLd — alternateName + addressRegion", () => {
+  it("émet alternateName et l'adresse complète (dont addressRegion)", () => {
+    const jsonLd = buildLocalBusinessJsonLd({
+      name: "Spirit Auto Clean Service",
+      alternateName: "Spirit ACS",
+      telephone: "+33699901303",
+      address: {
+        streetAddress: "53 Rue Pierre Semard",
+        postalCode: "77400",
+        addressLocality: "Lagny-sur-Marne",
+        addressRegion: "Île-de-France",
+        addressCountry: "FR",
+      },
+    })
+    expect(jsonLd.name).toBe("Spirit Auto Clean Service")
+    expect(jsonLd.alternateName).toBe("Spirit ACS")
+    expect(jsonLd.telephone).toBe("+33699901303")
+    expect(jsonLd.address).toMatchObject({
+      "@type": "PostalAddress",
+      streetAddress: "53 Rue Pierre Semard",
+      postalCode: "77400",
+      addressLocality: "Lagny-sur-Marne",
+      addressRegion: "Île-de-France",
+      addressCountry: "FR",
+    })
+  })
+
+  it("alternateName omis si absent (aucune propriété vide)", () => {
+    const jsonLd = buildLocalBusinessJsonLd({ name: "Spirit ACS" })
+    expect(jsonLd).not.toHaveProperty("alternateName")
+  })
+})
+
+describe("Repli SEO Spirit — configuration business vérifiée (jamais Neon)", () => {
+  const server = read("lib/seo/tenant-seo.server.ts")
+  const footer = read("components/custom-sites/spirit-acs/spirit-footer.tsx")
+
+  it("le JSON-LD utilise le repli Spirit uniquement quand la donnée tenant manque", () => {
+    // Donnée réelle du tenant prioritaire (tenant.address ?? biz.streetAddress).
+    expect(server).toMatch(/tenant\.address \?\? biz\?\.streetAddress/)
+    expect(server).toMatch(/tenant\.phone \?\? biz\?\.phone/)
+    // Repli activé uniquement pour Spirit.
+    expect(server).toMatch(/const biz = seo\.isSpirit \? SPIRIT_BUSINESS : null/)
+  })
+
+  it("le footer affiche les coordonnées complètes vérifiées (tel: + adresse)", () => {
+    expect(footer).toMatch(/SPIRIT_BUSINESS\.streetAddress/)
+    expect(footer).toMatch(/SPIRIT_BUSINESS\.postalCode/)
+    expect(footer).toMatch(/SPIRIT_BUSINESS\.addressLocality/)
+    expect(footer).toMatch(/tel:\$\{SPIRIT_BUSINESS\.phone\}/)
+    // Adresse sémantique.
+    expect(footer).toMatch(/<address/)
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  6. Lisibilité : justification + cartes non rognées sur mobile             */
+/* -------------------------------------------------------------------------- */
+
+describe("Lisibilité éditoriale — paragraphes justifiés (spirit-prose)", () => {
+  const css = read("components/custom-sites/spirit-acs/spirit.css")
+  const prest = read("components/custom-sites/spirit-acs/spirit-prestations.tsx")
+  const about = read("components/custom-sites/spirit-acs/spirit-qui-sommes-nous.tsx")
+
+  it("la classe .spirit-prose applique justify + hyphens + overflow-wrap", () => {
+    expect(css).toMatch(/\.spirit-acs \.spirit-prose\s*\{[^}]*text-align:\s*justify/)
+    expect(css).toMatch(/\.spirit-acs \.spirit-prose\s*\{[^}]*text-align-last:\s*left/)
+    expect(css).toMatch(/\.spirit-acs \.spirit-prose\s*\{[^}]*hyphens:\s*auto/)
+    expect(css).toMatch(/\.spirit-acs \.spirit-prose\s*\{[^}]*overflow-wrap:\s*break-word/)
+  })
+
+  it("l'intro des prestations et les paragraphes « Qui sommes-nous ? » sont justifiés", () => {
+    expect(prest).toMatch(/spirit-prose/)
+    // Contraste renforcé de l'intro (plus de gris clair muted).
+    expect(prest).toMatch(/text-\[color:var\(--spirit-ink\)\]\/75/)
+    expect(about).toMatch(/spirit-prose/)
+  })
+})
+
+describe("Cartes prestations — plus aucun titre rogné sur mobile", () => {
+  const prest = read("components/custom-sites/spirit-acs/spirit-prestations.tsx")
+
+  it("hauteur minimale extensible (min-h), pas de ratio fixe qui rogne", () => {
+    expect(prest).toMatch(/min-h-\[16rem\]/)
+    expect(prest).not.toMatch(/aspect-\[4\/3\]/)
+  })
+
+  it("titres jamais tronqués : pas de line-clamp, ni marge/position négative sur le contenu", () => {
+    expect(prest).not.toMatch(/line-clamp/)
+    // Aucune marge négative ni décalage vertical négatif du bloc de contenu.
+    expect(prest).not.toMatch(/-mt-|-top-|translate-y-\[-/)
+  })
+
+  it("hauteur homogène (h-full + items-stretch) et images en lazy", () => {
+    expect(prest).toMatch(/items-stretch/)
+    expect(prest).toMatch(/className="h-full"/)
+    expect(prest).toMatch(/loading="lazy"/)
+    expect(prest).not.toMatch(/loading=\{i < 2 \? "eager"/)
+  })
+})

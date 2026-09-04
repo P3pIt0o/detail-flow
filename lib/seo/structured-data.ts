@@ -16,6 +16,8 @@ export type PostalAddressInput = {
   postalCode?: string | null
   /** Ville (addressLocality). */
   addressLocality?: string | null
+  /** Région / état (addressRegion, ex. « Île-de-France »). */
+  addressRegion?: string | null
   /** Code pays ISO (ex. « FR »). */
   addressCountry?: string | null
 }
@@ -32,6 +34,8 @@ export type LocalBusinessInput = {
   /** Type Schema.org (défaut « AutoWash »). */
   type?: string
   name: string
+  /** Nom commercial alternatif (ex. sigle « Spirit ACS »). */
+  alternateName?: string | null
   url?: string | null
   telephone?: string | null
   email?: string | null
@@ -93,6 +97,7 @@ export function buildPostalAddress(input: PostalAddressInput | null | undefined)
   const street = clean(input.streetAddress)
   const postal = clean(input.postalCode)
   const locality = clean(input.addressLocality)
+  const region = clean(input.addressRegion)
   const country = clean(input.addressCountry)
   // Il faut au moins une localité OU une rue pour une adresse crédible.
   if (!street && !locality) return null
@@ -101,6 +106,7 @@ export function buildPostalAddress(input: PostalAddressInput | null | undefined)
     ...(street ? { streetAddress: street } : {}),
     ...(postal ? { postalCode: postal } : {}),
     ...(locality ? { addressLocality: locality } : {}),
+    ...(region ? { addressRegion: region } : {}),
     ...(country ? { addressCountry: country } : {}),
   }
 }
@@ -155,6 +161,7 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
     "@context": "https://schema.org",
     "@type": input.type ?? "AutoWash",
     name: input.name,
+    ...(clean(input.alternateName) ? { alternateName: clean(input.alternateName) } : {}),
     ...(clean(input.url) ? { url: clean(input.url) } : {}),
     ...(telephone ? { telephone } : {}),
     ...(clean(input.email) ? { email: clean(input.email) } : {}),

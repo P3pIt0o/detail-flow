@@ -86,7 +86,9 @@ export function SpiritQuiSommesNous() {
               <p className="spirit-eyebrow mt-4">À propos de Spirit ACS</p>
               <h2 className="spirit-title spirit-h2 mt-2 text-balance leading-[1.05]">Qui sommes-nous ?</h2>
 
-              <div className="mt-6 space-y-4 text-pretty text-lg leading-relaxed text-[color:var(--spirit-ink)]/75">
+              {/* Paragraphes éditoriaux justifiés (spirit-prose) ; l'espacement
+                  inter-paragraphes reste géré par space-y-4 (aucun mélange). */}
+              <div className="spirit-prose mt-6 space-y-4 text-lg text-[color:var(--spirit-ink)]/75">
                 {PARAGRAPHS.map((p, i) => (
                   <p key={i}>{p}</p>
                 ))}

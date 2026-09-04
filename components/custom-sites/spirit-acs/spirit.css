@@ -72,6 +72,22 @@
   background: var(--spirit-pink);
 }
 
+/*
+ * Paragraphes éditoriaux LONGS justifiés (réutilisable, scopé Spirit).
+ * Uniquement les propriétés de texte : l'espacement inter-paragraphes reste
+ * géré par les utilitaires du markup (aucun mélange margin/space).
+ * `text-align-last: left` évite le dernier mot isolé étiré ; `hyphens: auto`
+ * (langue fr héritée du <html lang>) et `overflow-wrap` évitent tout débordement.
+ * NE JAMAIS appliquer aux titres, boutons, liens, menus ni coordonnées.
+ */
+.spirit-acs .spirit-prose {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  overflow-wrap: break-word;
+  line-height: 1.7;
+}
+
 /* Décalage d'ancre pour compenser l'en-tête fixe immersif (72 px mobile /
    80 px bureau) : aucun titre ni champ ne passe jamais sous l'en-tête. Couvre
    toutes les sections ancrées de la page longue, pas seulement le hero. */

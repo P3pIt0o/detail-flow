@@ -30,6 +30,23 @@ export const SPIRIT_TENANT_SLUG = "spirit-acs"
 /** Ville confirmée (présente dans l'identité du site). Aucune autre inventée. */
 export const SPIRIT_CITY = "Lagny-sur-Marne"
 
+/**
+ * Coordonnées professionnelles VÉRIFIÉES de Spirit ACS (repli SEO isolé).
+ * Utilisées uniquement lorsque les données Neon du tenant sont incomplètes,
+ * pour le JSON-LD et l'affichage des coordonnées. Aucune écriture en base,
+ * aucune donnée inventée (adresse, téléphone et région réels et publics).
+ */
+export const SPIRIT_BUSINESS = {
+  name: "Spirit Auto Clean Service",
+  alternateName: "Spirit ACS",
+  phone: "+33699901303",
+  streetAddress: "53 Rue Pierre Semard",
+  postalCode: "77400",
+  addressLocality: "Lagny-sur-Marne",
+  addressRegion: "Île-de-France",
+  addressCountry: "FR",
+} as const
+
 /* -------------------------------------------------------------------------- */
 /*  MÉTADONNÉES DES PAGES PRINCIPALES                                         */
 /* -------------------------------------------------------------------------- */
