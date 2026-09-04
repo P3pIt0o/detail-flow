@@ -196,18 +196,35 @@ export async function getAttachmentForCompany(
   companyId: number,
 ): Promise<AttachmentRow | null> {
   const [row] = await db
-    .select()
+    .select({
+      id: quoteRequestAttachments.id,
+      companyId: quoteRequestAttachments.companyId,
+      requestId: quoteRequestAttachments.requestId,
+      pathname: quoteRequestAttachments.pathname,
+      originalName: quoteRequestAttachments.originalName,
+      contentType: quoteRequestAttachments.contentType,
+      sizeBytes: quoteRequestAttachments.sizeBytes,
+      width: quoteRequestAttachments.width,
+      height: quoteRequestAttachments.height,
+      sortOrder: quoteRequestAttachments.sortOrder,
+      createdAt: quoteRequestAttachments.createdAt,
+    })
     .from(quoteRequestAttachments)
-    .innerJoin(customRequests, eq(customRequests.id, quoteRequestAttachments.requestId))
+    .innerJoin(
+      customRequests,
+      and(
+        eq(customRequests.id, quoteRequestAttachments.requestId),
+        eq(customRequests.companyId, companyId),
+      ),
+    )
     .where(
       and(
         eq(quoteRequestAttachments.id, attachmentId),
         eq(quoteRequestAttachments.companyId, companyId),
-        eq(customRequests.companyId, companyId),
       ),
     )
     .limit(1)
-    .then((rows) => rows.map((r) => r.quote_request_attachments))
+
   return row ?? null
 }
 
