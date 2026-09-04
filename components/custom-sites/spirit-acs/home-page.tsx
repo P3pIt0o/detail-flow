@@ -22,10 +22,15 @@ import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritGaleriePhotos } from "./spirit-galerie-photos"
 import { SpiritApropos } from "./spirit-apropos"
+import { SpiritProcess } from "./spirit-process"
+import { SpiritZone } from "./spirit-zone"
+import { SpiritFaq } from "./spirit-faq"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritAvisGoogle } from "./spirit-avis-google"
 import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
+import { withTenant } from "@/lib/tenant-link"
+import { SPIRIT_ABOUT_PARAGRAPHS, SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
 import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
@@ -112,6 +117,11 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       ? { rating: reviewsResolved.data.rating, url: reviewsResolved.data.googleMapsUri }
       : await getTenantGoogleRating(data.tenant.id, { languageCode: "fr" })
 
+  // Lien tenant-aware vers une page de prestation dédiée. Conserve
+  // `?tenant=slug` tant que le domaine personnalisé n'est pas connecté ; sur le
+  // futur domaine, ce paramètre est simplement ignoré (host = tenant).
+  const serviceHref = (slug: string) => withTenant(`/prestations/${slug}`, data.tenant.slug)
+
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
   // La section « Prestations » (familles de services) est toujours rendue.
   const navItemsRaw: (SpiritNavItem | null)[] = [
@@ -121,6 +131,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
     hasReviews ? { id: SPIRIT_SECTIONS.avis, label: "Avis" } : null,
     quoteEnabled ? { id: SPIRIT_SECTIONS.demandeDevis, label: "Devis" } : null,
+    { id: SPIRIT_SECTIONS.faq, label: "FAQ" },
     // A4 — « Contact » ouvre la page « /contact » (en haut de page), et non plus
     // l'ancre « #contact » du footer. Navigation Next standard, tenant conservé.
     { id: SPIRIT_SECTIONS.contact, label: "Contact", route: "/contact" },
@@ -161,6 +172,11 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         city={contact.city}
         googleRating={googleRating?.rating ?? null}
         googleUrl={googleRating?.url ?? null}
+        // H1 SEO local — n'est appliqué que si le tenant n'a PAS personnalisé son
+        // titre de hero (`contact.hero.title` a priorité dans SpiritHero). On
+        // conserve « Prenez soin de votre véhicule » en accroche secondaire.
+        seoH1={contact.hero.title ? null : SPIRIT_HERO_H1}
+        kicker={SPIRIT_HERO_KICKER}
       />
 
       {/* Transitions ÉDITORIALES : alternance franche navy / blanc cassé, sans
@@ -169,9 +185,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       <SpiritReassurance />
 
       {/* Familles de prestations — immédiatement APRÈS le bandeau de réassurance
-          et AVANT les réalisations (position imposée par la maquette). Chaque
-          carte mène au formulaire de devis existant (via headerCta). */}
-      <SpiritPrestations ctaHref={headerCta.href} />
+          et AVANT les réalisations. Chaque carte mène désormais à la PAGE DÉDIÉE
+          de la prestation (SEO), en conservant le tenant. */}
+      <SpiritPrestations serviceHref={serviceHref} />
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
@@ -186,7 +202,17 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         text={content.about.text}
         buttonLabel={content.about.buttonLabel?.trim() || null}
         buttonHref={content.about.buttonHref?.trim() || null}
+        // Présentation locale de repli affichée UNIQUEMENT si le tenant n'a pas
+        // personnalisé son texte « À propos » (le texte réel reste prioritaire).
+        fallbackParagraphs={SPIRIT_ABOUT_PARAGRAPHS}
       />
+
+      {/* Déroulement en 4 étapes (contenu éditorial local). */}
+      <SpiritProcess />
+
+      {/* Zone d'intervention : ville réelle + éventuelles communes confirmées
+          (SPIRIT_ZONE_CITIES, vide par défaut → aucune ville inventée). */}
+      <SpiritZone cities={SPIRIT_ZONE_CITIES} />
 
       {quoteEnabled && (
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
@@ -198,6 +224,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {hasReviews && reviewsResolved.source === "google" && reviewsResolved.data && (
         <SpiritAvisGoogle title={content.reviews.title} intro={reviewsIntro} details={reviewsResolved.data} />
       )}
+
+      {/* FAQ (accueil) + FAQPage JSON-LD dont le contenu = FAQ visible. */}
+      <SpiritFaq entries={SPIRIT_FAQ} background="paper" />
     </SpiritSiteShell>
   )
 }

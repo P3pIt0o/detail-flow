@@ -76,20 +76,18 @@ describe("Spirit — section familles de prestations (#2)", () => {
     expect(existsSync(path.join(root, SPIRIT, "spirit-prestations.tsx"))).toBe(true)
   })
 
-  it("titre exact et 4 cartes dans l'ordre imposé", () => {
+  it("titre exact et 4 familles dans l'ordre imposé (via SPIRIT_SERVICES)", () => {
     const src = prest()
-    expect(src.toLowerCase()).toMatch(/un soin adapté à chaque véhicule/)
-    const order = [
-      "Nettoyage intérieur & extérieur",
-      "Polissage & céramique",
-      "Protection PPF",
-      "Moto & personnalisation",
-    ]
+    // Titre de section SEO (cf. cahier des charges §5).
+    expect(src.toLowerCase()).toMatch(/nos prestations de detailing/)
+    // Les libellés proviennent du config éditorial ; la section fixe l'ordre des
+    // 4 familles mises en avant sur l'accueil (nettoyage → polissage → PPF → moto).
+    const order = ["nettoyage-automobile", "polissage-automobile", "protection-ppf", "detailing-moto"]
     let last = -1
-    for (const label of order) {
-      const idx = src.indexOf(label)
-      expect(idx, `carte manquante: ${label}`).toBeGreaterThan(-1)
-      expect(idx, `ordre incorrect: ${label}`).toBeGreaterThan(last)
+    for (const slug of order) {
+      const idx = src.indexOf(slug)
+      expect(idx, `famille manquante: ${slug}`).toBeGreaterThan(-1)
+      expect(idx, `ordre incorrect: ${slug}`).toBeGreaterThan(last)
       last = idx
     }
   })
@@ -115,9 +113,12 @@ describe("Spirit — section familles de prestations (#2)", () => {
     expect(src).not.toMatch(/carousel|Carousel|embla|swiper/)
   })
 
-  it("chaque carte mène au devis via une ancre (pas de prestation/tarif en base)", () => {
+  it("chaque carte mène à sa page de prestation dédiée (tenant conservé, pas de base)", () => {
     const src = prest()
-    expect(src).toMatch(/href=\{ctaHref\}/)
+    // Nouveau comportement approuvé : les cartes pointent vers les pages SEO
+    // dédiées via un lien tenant-aware (serviceHref), et non plus vers l'ancre
+    // du formulaire de devis.
+    expect(src).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
     // Vitrine éditoriale : aucun accès base / catalogue de prestations dans le
     // CODE (on cible des jetons de code, pas des mots présents en commentaire).
     expect(src).not.toMatch(/getServices|drizzle|basePriceCents|from ["']@\/lib\/db/)

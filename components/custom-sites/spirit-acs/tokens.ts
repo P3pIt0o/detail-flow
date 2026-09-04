@@ -17,8 +17,11 @@ export const SPIRIT_SECTIONS = {
   avantApres: "avant-apres",
   galeriePhotos: "galerie-photos",
   apropos: "apropos",
+  etapes: "etapes",
+  zone: "zone",
   avis: "avis",
   demandeDevis: "demande-devis",
+  faq: "faq",
   contact: "contact",
 } as const
 

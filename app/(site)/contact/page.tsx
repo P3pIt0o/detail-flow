@@ -6,11 +6,22 @@ import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
 import { getPublicContact, getPublicHours } from "@/lib/public-contact"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { buildTenantMetadata, resolveTenantSeo } from "@/lib/seo/tenant-seo.server"
+import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
-export const metadata: Metadata = {
-  title: "Contact",
-  description: "Contactez-nous pour toute demande d'information ou de réservation.",
-  alternates: { canonical: "/contact" },
+/**
+ * Métadonnées tenant-aware : la canonique pointe vers l'URL PUBLIQUE réelle du
+ * tenant (`.../contact?tenant={slug}`) au lieu du chemin relatif « /contact »
+ * erroné. Pour Spirit ACS, titre/description éditoriaux localisés ; sinon repli
+ * générique construit à partir du nom du tenant.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await resolveTenantSeo()
+  const title = seo.isSpirit ? SPIRIT_PAGE_META.contact.title : `Contact | ${seo.siteName}`
+  const description = seo.isSpirit
+    ? SPIRIT_PAGE_META.contact.description
+    : `Contactez ${seo.siteName} pour toute demande d'information ou de devis pour l'entretien de votre véhicule.`
+  return buildTenantMetadata({ path: "/contact", title, description })
 }
 
 export default async function ContactPage() {

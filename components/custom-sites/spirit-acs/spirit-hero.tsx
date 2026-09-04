@@ -30,6 +30,18 @@ type SpiritHeroProps = {
   /** Ville réelle du tenant, affichée en accroche (jamais l'adresse exacte). */
   city?: string | null
   /**
+   * H1 précis pour le référencement local (ex. « Detailing automobile à
+   * Lagny-sur-Marne »). PRIORITAIRE sur `title` pour le H1 affiché lorsqu'il est
+   * fourni. La portion ville y est mise en couleur si elle y figure.
+   */
+  seoH1?: string | null
+  /**
+   * Accroche visuelle SECONDAIRE (surtitre élégant, ex. « Prenez soin de votre
+   * véhicule ») affichée au-dessus du H1 quand `seoH1` est utilisé, à la place
+   * du surtitre « Detailing automobile · ville » (désormais porté par le H1).
+   */
+  kicker?: string | null
+  /**
    * Note GLOBALE Google RÉELLE (agrégée par Google), ou null si indisponible /
    * aucun établissement configuré → la note est alors masquée (rien inventé).
    */
@@ -53,6 +65,8 @@ export function SpiritHero({
   city,
   googleRating,
   googleUrl,
+  seoH1,
+  kicker,
 }: SpiritHeroProps) {
   const displayCity = (city ?? "").trim() || null
   // Note Google réelle formatée à la française (« 5,0 »). Affichée uniquement si
@@ -61,11 +75,24 @@ export function SpiritHero({
   const ratingLabel = hasRating
     ? googleRating.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
     : null
-  const displayTitle = title?.trim() || DEFAULTS.title
-  const h = title?.trim() ? (highlight ?? "").trim() : ""
+  const tenantTitle = title?.trim() || DEFAULTS.title
   const displaySubtitle = subtitle?.trim() || DEFAULTS.subtitle
 
-  // Met en couleur la portion « highlight » si elle est présente dans le titre.
+  // H1 affiché : le H1 SEO local est PRIORITAIRE quand il est fourni. Sinon, on
+  // conserve le titre éditable du tenant (comportement historique).
+  const seo = (seoH1 ?? "").trim()
+  const displayTitle = seo || tenantTitle
+
+  // Surtitre (accroche) : quand un H1 SEO est utilisé, on affiche l'accroche
+  // secondaire (`kicker`) au-dessus ; sinon le surtitre historique
+  // « Detailing automobile · ville ».
+  const kickerText = (kicker ?? "").trim() || null
+  const useSeoLayout = Boolean(seo)
+
+  // Portion à mettre en couleur dans le H1 : la ville pour le H1 SEO local,
+  // sinon la portion « highlight » éditable (uniquement si un titre tenant est
+  // réellement défini).
+  const h = useSeoLayout ? (displayCity ?? "") : title?.trim() ? (highlight ?? "").trim() : ""
   let titleNode: React.ReactNode = displayTitle
   if (h) {
     const idx = displayTitle.toLowerCase().indexOf(h.toLowerCase())
@@ -104,15 +131,21 @@ export function SpiritHero({
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
         <div className="max-w-xl">
           <Reveal>
-            <p className="spirit-eyebrow">
-              Detailing automobile
-              {displayCity && (
-                <>
-                  {" "}
-                  <span aria-hidden="true">·</span> {displayCity}
-                </>
-              )}
-            </p>
+            {useSeoLayout ? (
+              // Accroche visuelle secondaire (« Prenez soin de votre véhicule »)
+              // conservée en surtitre élégant ; le H1 porte le libellé SEO local.
+              kickerText && <p className="spirit-eyebrow">{kickerText}</p>
+            ) : (
+              <p className="spirit-eyebrow">
+                Detailing automobile
+                {displayCity && (
+                  <>
+                    {" "}
+                    <span aria-hidden="true">·</span> {displayCity}
+                  </>
+                )}
+              </p>
+            )}
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="spirit-title spirit-h1 mt-4 text-balance leading-[1.02] text-white">{titleNode}</h1>
