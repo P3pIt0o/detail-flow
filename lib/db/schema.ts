@@ -1069,12 +1069,62 @@ export const customRequests = pgTable(
     respondedAt: timestamp("respondedAt"),
     // Réservation créée après conversion (anti-doublon).
     bookingId: integer("bookingId"),
+    // Clé d'idempotence de la soumission publique (uuid opaque généré côté
+    // navigateur). Empêche un double clic / rechargement / nouvelle tentative de
+    // créer deux demandes identiques. NULL pour les demandes historiques.
+    submissionId: text("submissionId"),
+    // Horodatage de la notification unique envoyée au professionnel. Garantit
+    // qu'un seul email « nouvelle demande » part par demande (idempotent).
+    notifiedAt: timestamp("notifiedAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => ({
     byCompany: index("custom_requests_companyId_idx").on(t.companyId),
     byToken: index("custom_requests_token_idx").on(t.token),
+    // Une soumission (submissionId) ne crée qu'une seule demande par entreprise.
+    bySubmission: uniqueIndex("custom_requests_company_submission_key")
+      .on(t.companyId, t.submissionId)
+      .where(sql`${t.submissionId} IS NOT NULL`),
+  }),
+)
+
+/* -------------------------------------------------------------------------- */
+/*  Pièces jointes (photos) d'une demande de devis — table ADDITIVE.          */
+/*  Les fichiers vivent dans le Blob PRIVÉ sous un préfixe sans donnée         */
+/*  personnelle : quote-requests/{companyId}/{requestId}/{uuid}.{ext}. La      */
+/*  ligne référence uniquement le pathname privé (jamais d'URL publique). */
+/*  Isolation stricte : companyId + requestId doivent être cohérents (la       */
+/*  présence de companyId ne dispense pas de vérifier la relation à la         */
+/*  demande). Suppression en cascade avec la demande.                          */
+/* -------------------------------------------------------------------------- */
+export const quoteRequestAttachments = pgTable(
+  "quote_request_attachments",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    requestId: integer("requestId")
+      .notNull()
+      .references(() => customRequests.id, { onDelete: "cascade" }),
+    // Pathname du Blob privé (jamais exposé publiquement).
+    pathname: text("pathname").notNull(),
+    // Nom d'origine nettoyé (sans chemin, sans caractère de contrôle).
+    originalName: text("originalName").notNull(),
+    // Type MIME RÉELLEMENT validé côté serveur (signature du fichier).
+    contentType: text("contentType").notNull(),
+    sizeBytes: integer("sizeBytes").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    sortOrder: integer("sortOrder").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("quote_request_attachments_companyId_idx").on(t.companyId),
+    byRequest: index("quote_request_attachments_requestId_idx").on(t.requestId),
+    // Un même Blob ne peut jamais être associé deux fois.
+    byPathname: unique("quote_request_attachments_pathname_key").on(t.pathname),
   }),
 )
 

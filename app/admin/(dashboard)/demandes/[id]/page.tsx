@@ -4,8 +4,10 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { getCustomRequestById } from "@/lib/custom-requests-queries"
+import { listAttachments } from "@/lib/quote-photos/server"
 import { CustomRequestStatusBadge } from "@/components/admin/custom-request-status-badge"
 import { CustomRequestDetail } from "@/components/admin/custom-request-detail"
+import { QuoteAttachmentsGallery } from "@/components/admin/quote-attachments-gallery"
 import { formatDateLong } from "@/lib/format"
 import { withTenant } from "@/lib/tenant-link"
 
@@ -27,6 +29,10 @@ export default async function DemandeDetailPage({
 
   const req = await getCustomRequestById(requestId, tenant.id)
   if (!req) notFound()
+
+  // Pièces jointes : strictement scopées à l'entreprise (double cohérence
+  // company/demande vérifiée dans la requête).
+  const attachments = await listAttachments(req.id, tenant.id)
 
   const tp = tenantParam ?? null
   const detailRows: { label: string; value: string }[] = []
@@ -75,6 +81,16 @@ export default async function DemandeDetailPage({
           <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{req.description}</p>
         </div>
       </section>
+
+      {/* Photos jointes par le client (route authentifiée, jamais publiques) */}
+      <QuoteAttachmentsGallery
+        attachments={attachments.map((a) => ({
+          id: a.id,
+          name: a.originalName,
+          size: a.sizeBytes,
+          contentType: a.contentType,
+        }))}
+      />
 
       {/* Proposition / acceptation / conversion (interactif) */}
       <CustomRequestDetail
