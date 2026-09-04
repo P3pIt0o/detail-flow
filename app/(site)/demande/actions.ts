@@ -2,17 +2,29 @@
 
 import { randomBytes } from "node:crypto"
 import { revalidatePath } from "next/cache"
+import { and, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { customRequests } from "@/lib/db/schema"
 import { requireTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { getPublicCustomRequestsConfig } from "@/lib/site-content"
 import { findRequestType } from "@/lib/custom-requests"
 import { sendCustomRequestNewLead } from "@/lib/email/custom-requests"
+import { MAX_PHOTOS } from "@/lib/quote-photos/config"
+import { blobPrefix, createGrant, verifyGrant } from "@/lib/quote-photos/grant"
+import { associateAttachment } from "@/lib/quote-photos/server"
 
 export type DemandeFormState = {
   status: "idle" | "success" | "error"
   message: string
   errors?: Record<string, string>
+  /** Identifiant de la demande enregistrée (permet l'envoi des photos ensuite). */
+  requestId?: number
+  /** Jeton signé d'autorisation d'envoi des photos (court, lié à la demande). */
+  grant?: string
+  /** Préfixe de Blob autorisé (sans donnée personnelle). */
+  uploadPrefix?: string
+  /** Nombre de photos que le navigateur a annoncé vouloir envoyer. */
+  photosExpected?: number
 }
 
 /** Génère un jeton d'accès client non devinable. */
