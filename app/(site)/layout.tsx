@@ -53,16 +53,18 @@ export async function generateMetadata(): Promise<Metadata> {
   const title =
     clean(tenant.heroTitle) ?? (seo.isSpirit ? SPIRIT_PAGE_META.home.title : genericTitle)
 
-  // Description : sous-titre / présentation réellement personnalisés d'abord ;
-  // repli éditorial Spirit sinon générique. Aucune prestation inventée.
+  // Description :
+  //  - Spirit ACS → description SEO éditoriale PRIORITAIRE. Aucune valeur Neon
+  //    (heroSubtitle / about.text) ne doit la remplacer (exigence SEO).
+  //  - Autres tenants → sous-titre / présentation personnalisés d'abord, puis
+  //    repli générique construit depuis le nom (aucune prestation inventée).
   const rawContent = (tenant.siteContent ?? null) as SiteContent | null
   const genericDesc = `${name} — detailing et entretien automobile${
     city ? ` à ${city}` : ""
   }. Demandez votre devis personnalisé en ligne.`
-  const description =
-    clean(tenant.heroSubtitle) ??
-    clean(rawContent?.about?.text) ??
-    (seo.isSpirit ? SPIRIT_PAGE_META.home.description : genericDesc)
+  const description = seo.isSpirit
+    ? SPIRIT_PAGE_META.home.description
+    : (clean(tenant.heroSubtitle) ?? clean(rawContent?.about?.text) ?? genericDesc)
 
   // Métadonnées centralisées : canonique tenant-aware (conserve ?tenant=),
   // Open Graph + Twitter, image OG et favicon Spirit le cas échéant.
@@ -119,16 +121,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const useOwnShell = Boolean(customSite?.ownShell)
 
   // JSON-LD LocalBusiness/AutoWash construit à partir des données RÉELLES du
-  // tenant (adresse structurée, horaires, réseaux). Les sites à shell propre
-  // (Spirit ACS) limitent volontairement l'adresse à la localité. Lien Google
-  // Maps réel dérivé de l'adresse affichée si disponible. Renvoie null hors
-  // contexte tenant → aucun script émis.
-  const mapsHref = contact.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address)}`
-    : null
-  const localBusinessJsonLd = tenant
-    ? await buildTenantLocalBusiness({ localityOnly: useOwnShell, hasMap: mapsHref })
-    : null
+  // tenant (adresse postale structurée complète, horaires, réseaux, fiche
+  // Google vérifiée). `hasMap` et `sameAs` sont dérivés en interne des sources
+  // Google/réseaux existantes. Renvoie null hors contexte tenant → aucun script.
+  const localBusinessJsonLd = tenant ? await buildTenantLocalBusiness() : null
 
   if (useOwnShell) {
     return (

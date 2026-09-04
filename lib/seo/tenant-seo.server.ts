@@ -21,6 +21,7 @@ import { cache } from "react"
 import { siteConfig } from "@/config/site"
 import { getCurrentTenant, type Tenant } from "@/lib/tenant"
 import { getPublicHours } from "@/lib/public-contact"
+import { getTenantGoogleRating } from "@/lib/reviews/public"
 import {
   tenantSeoIdentity,
   tenantCanonicalUrl,
@@ -138,28 +139,35 @@ function extractSameAs(tenant: Tenant): string[] {
  * hors contexte tenant. Aucune propriété vide n'est émise (voir structured-data).
  */
 export async function buildTenantLocalBusiness(args?: {
-  /** Lien Google Maps réel (hasMap), si disponible. */
-  hasMap?: string | null
   /** Villes réellement confirmées (areaServed). */
   areaServed?: string[] | null
-  /**
-   * Si vrai, n'expose QUE la localité (ville) dans l'adresse structurée, jamais
-   * la rue ni le code postal. Utilisé par les sites à shell propre (Spirit ACS)
-   * qui limitent volontairement leur présentation publique à la ville.
-   */
-  localityOnly?: boolean
 }): Promise<Record<string, unknown> | null> {
   const seo = await resolveTenantSeo()
   if (!seo.identity || !seo.tenant) return null
   const tenant = seo.tenant
 
   const hours = await getPublicHours()
-  const sameAs = extractSameAs(tenant)
+
+  // Fiche Google VÉRIFIÉE du tenant (lien réel `googleMapsUri`), réutilisée
+  // depuis l'intégration Google existante. `null` si aucun établissement Google
+  // n'est configuré → `hasMap` est alors omis (jamais de recherche générique).
+  // Isolation : `tenant.id` est le companyId résolu côté serveur.
+  let googleUrl: string | null = null
+  try {
+    const rating = await getTenantGoogleRating(tenant.id)
+    googleUrl = rating?.url ?? null
+  } catch {
+    googleUrl = null
+  }
+
+  // sameAs = réseaux réels du tenant + fiche Google vérifiée (déduplication et
+  // validation HTTP(S) assurées par le constructeur pur `sanitizeSameAs`).
+  const sameAs = [...extractSameAs(tenant), ...(googleUrl ? [googleUrl] : [])]
+
   const logoAbsolute = tenant.logoUrl
     ? `${BASE}/api/company-logo?company=${encodeURIComponent(tenant.slug)}`
     : null
 
-  const localityOnly = args?.localityOnly ?? false
   const input: LocalBusinessInput = {
     type: "AutoWash",
     name: seo.siteName,
@@ -168,17 +176,20 @@ export async function buildTenantLocalBusiness(args?: {
     email: tenant.email ?? null,
     logo: logoAbsolute,
     image: seo.isSpirit ? `${BASE}${SPIRIT_OG_IMAGE}` : logoAbsolute,
+    // Adresse postale structurée à partir des SEULES données réelles du tenant.
+    // Les champs absents ne produisent aucune propriété (voir buildPostalAddress).
     address: {
-      // En mode localité seule, on masque rue + code postal.
-      streetAddress: localityOnly ? null : tenant.address ?? null,
-      postalCode: localityOnly ? null : tenant.postalCode ?? null,
+      streetAddress: tenant.address ?? null,
+      postalCode: tenant.postalCode ?? null,
       addressLocality: tenant.city ?? null,
       addressCountry: tenant.country ?? null,
     },
     openingHours: hours.map((h) => ({ day: h.day, open: h.open, from: h.from ?? null, to: h.to ?? null })),
     areaServed: args?.areaServed ?? null,
     sameAs: sameAs.length ? sameAs : null,
-    hasMap: args?.hasMap ?? null,
+    // Uniquement la fiche Google vérifiée du tenant courant, jamais une
+    // recherche générique sur la ville.
+    hasMap: googleUrl,
   }
 
   return buildLocalBusinessJsonLd(input)

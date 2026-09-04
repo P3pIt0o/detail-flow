@@ -7,6 +7,8 @@
  * que si une donnée RÉELLE est fournie par l'appelant.
  */
 
+import { normalizePhoneForJsonLd } from "./phone"
+
 /** Adresse postale structurée (champs réels du tenant). */
 export type PostalAddressInput = {
   /** Rue / voie (ex. « 12 rue des Artisans »). */
@@ -56,6 +58,33 @@ const SCHEMA_DAYS = [
 function clean(v: string | null | undefined): string | null {
   const t = (v ?? "").trim()
   return t ? t : null
+}
+
+/**
+ * Assainit une liste d'URL de réseaux sociaux / profils (`sameAs`) :
+ *  - ne conserve que des URL HTTP/HTTPS valides ;
+ *  - retire les chaînes vides ;
+ *  - supprime les doublons (en préservant l'ordre d'apparition).
+ */
+export function sanitizeSameAs(urls: (string | null | undefined)[] | null | undefined): string[] {
+  if (!urls) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of urls) {
+    const v = clean(raw)
+    if (!v) continue
+    let parsed: URL
+    try {
+      parsed = new URL(v)
+    } catch {
+      continue
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue
+    if (seen.has(v)) continue
+    seen.add(v)
+    out.push(v)
+  }
+  return out
 }
 
 /** Construit un objet PostalAddress, ou `null` si aucune donnée exploitable. */
@@ -117,14 +146,17 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
   const address = buildPostalAddress(input.address)
   const hours = buildOpeningHours(input.openingHours)
   const area = (input.areaServed ?? []).map((a) => clean(a)).filter((a): a is string => a !== null)
-  const sameAs = (input.sameAs ?? []).map((a) => clean(a)).filter((a): a is string => a !== null)
+  const sameAs = sanitizeSameAs(input.sameAs)
+  // Téléphone normalisé E.164 pour le JSON-LD, en tenant compte du pays de
+  // l'adresse (aucune valeur en dur, aucune écriture en base).
+  const telephone = normalizePhoneForJsonLd(input.telephone, input.address?.addressCountry)
 
   return {
     "@context": "https://schema.org",
     "@type": input.type ?? "AutoWash",
     name: input.name,
     ...(clean(input.url) ? { url: clean(input.url) } : {}),
-    ...(clean(input.telephone) ? { telephone: clean(input.telephone) } : {}),
+    ...(telephone ? { telephone } : {}),
     ...(clean(input.email) ? { email: clean(input.email) } : {}),
     ...(clean(input.image) ? { image: clean(input.image) } : {}),
     ...(clean(input.logo) ? { logo: clean(input.logo) } : {}),

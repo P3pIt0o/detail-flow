@@ -72,6 +72,29 @@ export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string)
             </Reveal>
           ))}
         </div>
+
+        {/* Accès direct aux 6 pages de prestations (maillage interne SEO).
+            Bloc compact et discret : les 4 cartes ci-dessus restent la mise en
+            avant principale. Liens tenant-aware (serviceHref conserve ?tenant=). */}
+        <Reveal>
+          <nav aria-label="Toutes nos prestations" className="mt-8 border-t border-black/10 pt-6 lg:mt-10">
+            <h3 className="spirit-title text-sm font-semibold text-[color:var(--spirit-ink)]">
+              Découvrir toutes nos prestations
+            </h3>
+            <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+              {SPIRIT_SERVICES.map((service) => (
+                <li key={service.slug}>
+                  <a
+                    href={serviceHref(service.slug)}
+                    className="inline-flex items-center gap-1 rounded-sm text-sm text-[color:var(--spirit-muted)] underline-offset-4 transition-colors hover:text-[color:var(--spirit-teal)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)]"
+                  >
+                    {service.breadcrumbLabel}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </Reveal>
       </div>
     </section>
   )
