@@ -82,8 +82,12 @@ export default async function DemandeDetailPage({
         </div>
       </section>
 
-      {/* Photos jointes par le client (route authentifiée, jamais publiques) */}
+      {/* Photos jointes par le client (route authentifiée, jamais publiques).
+          On propage le slug du tenant COURANT (déjà vérifié ci-dessus) pour que
+          la route de lecture résolve la même entreprise, y compris sur le
+          domaine racine où l'`<img>` ne porte pas de contexte tenant. */}
       <QuoteAttachmentsGallery
+        tenantSlug={tenant.slug}
         attachments={attachments.map((a) => ({
           id: a.id,
           name: a.originalName,
