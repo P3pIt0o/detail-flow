@@ -18,6 +18,10 @@ import path from "node:path"
 
 const root = process.cwd()
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
+// Retire les commentaires (/* */ et //) pour que les invariants structurels
+// (compte de balises, mots interdits) portent sur le CODE, pas la documentation.
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 const SPIRIT = "components/custom-sites/spirit-acs"
 
 describe("Spirit — présentation Google compacte dans le hero (#1)", () => {
@@ -76,26 +80,39 @@ describe("Spirit — section familles de prestations (#2)", () => {
     expect(existsSync(path.join(root, SPIRIT, "spirit-prestations.tsx"))).toBe(true)
   })
 
-  it("titre exact et 4 familles dans l'ordre imposé (via SPIRIT_SERVICES)", () => {
+  it("titre exact, paragraphe SEO visible et 6 prestations dans l'ordre imposé", () => {
     const src = prest()
-    // Titre de section SEO (cf. cahier des charges §5).
+    // Titre de section SEO (cf. cahier des charges).
     expect(src.toLowerCase()).toMatch(/nos prestations de detailing/)
-    // Les libellés proviennent du config éditorial ; la section fixe l'ordre des
-    // 4 familles mises en avant sur l'accueil (nettoyage → polissage → PPF → moto).
-    const order = ["nettoyage-automobile", "polissage-automobile", "protection-ppf", "detailing-moto"]
+    // Paragraphe SEO visible présent dans le HTML initial (non masqué).
+    expect(src).toMatch(/Spirit ACS propose à Lagny-sur-Marne des prestations/)
+    // Les 6 prestations sont présentes, dans l'ordre imposé par la maquette.
+    const order = [
+      "nettoyage-automobile",
+      "polissage-automobile",
+      "protection-ceramique",
+      "protection-ppf",
+      "renovation-phares",
+      "detailing-moto",
+    ]
     let last = -1
     for (const slug of order) {
       const idx = src.indexOf(slug)
-      expect(idx, `famille manquante: ${slug}`).toBeGreaterThan(-1)
+      expect(idx, `prestation manquante: ${slug}`).toBeGreaterThan(-1)
       expect(idx, `ordre incorrect: ${slug}`).toBeGreaterThan(last)
       last = idx
     }
+    // Titres de cartes en <h3> (rendus une fois par prestation via .map ;
+    // hiérarchie H1 hero, H2 section, H3 cartes).
+    expect(stripComments(src)).toMatch(/<h3/)
+    // Un seul <h2> pour la section (le titre de section).
+    expect((stripComments(src).match(/<h2/g) ?? []).length).toBe(1)
   })
 
   it("utilise des images réelles existantes (aucune génération, aucune capture de maquette)", () => {
     const src = prest()
     const images = [
-      "public/services/interieur-complet.png",
+      "public/services/lavage-premium.png",
       "public/services/protection-ceramique.png",
       "public/services/renovation-carrosserie.png",
       "public/custom-sites/spirit-acs/service-moto.png",
@@ -105,12 +122,14 @@ describe("Spirit — section familles de prestations (#2)", () => {
     }
   })
 
-  it("grille responsive 1 → 2 → 4 colonnes, sans carrousel", () => {
+  it("grille responsive 1 → 2 → 3 colonnes, sans carrousel ni doublon de liste grise", () => {
     const src = prest()
     expect(src).toMatch(/grid-cols-1/)
     expect(src).toMatch(/min-\[420px\]:grid-cols-2/)
-    expect(src).toMatch(/lg:grid-cols-4/)
+    expect(src).toMatch(/lg:grid-cols-3/)
     expect(src).not.toMatch(/carousel|Carousel|embla|swiper/)
+    // L'ancien bloc doublon « Découvrir toutes nos prestations » a été supprimé.
+    expect(src).not.toMatch(/Découvrir toutes nos prestations/)
   })
 
   it("chaque carte mène à sa page de prestation dédiée (tenant conservé, pas de base)", () => {
@@ -130,6 +149,53 @@ describe("Spirit — section familles de prestations (#2)", () => {
     expect(src).toMatch(/label: "Prestations"/)
     // La section prestations est rendue avant la section réalisations.
     expect(src.indexOf("SpiritPrestations")).toBeLessThan(src.indexOf("SpiritRealisations title="))
+  })
+})
+
+describe("Spirit — section « Qui sommes-nous ? » (présentation dirigeant)", () => {
+  const about = () => read(`${SPIRIT}/spirit-qui-sommes-nous.tsx`)
+  const home = () => read(`${SPIRIT}/home-page.tsx`)
+
+  it("le composant existe et est câblé dans l'accueil (ancre À propos conservée)", () => {
+    expect(existsSync(path.join(root, SPIRIT, "spirit-qui-sommes-nous.tsx"))).toBe(true)
+    const h = home()
+    expect(h).toMatch(/SpiritQuiSommesNous/)
+    // L'ancien composant générique n'est plus référencé.
+    expect(h).not.toMatch(/SpiritApropos/)
+    // Le libellé de navigation « À propos » reste présent.
+    expect(h).toMatch(/label: "À propos"/)
+  })
+
+  it("affiche le contenu imposé (dirigeant, fonction, paragraphes, intitulé)", () => {
+    const src = about()
+    expect(src).toMatch(/À propos de Spirit ACS/)
+    expect(src).toMatch(/Qui sommes-nous \?/)
+    expect(src).toMatch(/Corentin Gisclon/)
+    expect(src).toMatch(/Dirigeant de Spirit ACS/)
+    expect(src).toMatch(/passionné par l’entretien esthétique/)
+    // Initiales stylisées (aucun faux portrait) — CG sur sa propre ligne.
+    expect(src).toMatch(/>\s*CG\s*</)
+  })
+
+  it("hiérarchie sémantique correcte : un <h2>, aucun <h1> dans la section", () => {
+    const src = stripComments(about())
+    expect((src.match(/<h2/g) ?? []).length).toBe(1)
+    expect(src).not.toMatch(/<h1/)
+    expect(about()).toMatch(/id=\{SPIRIT_SECTIONS\.apropos\}/)
+  })
+
+  it("bouton « Parler de votre véhicule » vers le formulaire (tenant conservé)", () => {
+    const src = about()
+    expect(src).toMatch(/Parler de votre véhicule/)
+    // CtaButton conserve ?tenant= et pointe vers l'ancre du devis en page d'accueil.
+    expect(src).toMatch(/CtaButton/)
+    expect(src).toMatch(/SPIRIT_SECTIONS\.demandeDevis/)
+  })
+
+  it("aucune donnée non confirmée inventée (années, certifications, garanties…)", () => {
+    // On analyse le contenu affiché (hors commentaires de documentation).
+    const src = stripComments(about())
+    expect(src).not.toMatch(/ans d'expérience|années d'expérience|depuis \d{4}|certifi|garanti|véhicules traités/i)
   })
 })
 

@@ -180,10 +180,20 @@ describe("Accueil — description SEO Spirit prioritaire sur les contenus Neon",
 describe("Accueil — maillage vers les 6 pages de prestations", () => {
   const prest = read("components/custom-sites/spirit-acs/spirit-prestations.tsx")
 
-  it("un bloc liste les 6 prestations via serviceHref (tenant conservé)", () => {
-    expect(prest).toMatch(/Découvrir toutes nos prestations/)
-    // Itère sur l'ensemble des prestations (les 6), pas seulement les 4 cartes.
-    expect(prest).toMatch(/SPIRIT_SERVICES\.map\(\(service\)/)
-    expect(prest).toMatch(/href=\{serviceHref\(service\.slug\)\}/)
+  it("les 6 cartes photographiques lient vers les pages via serviceHref (tenant conservé)", () => {
+    // Nouveau design : une seule grille de 6 cartes (plus de bloc gris doublon).
+    expect(prest).not.toMatch(/Découvrir toutes nos prestations/)
+    // Les 6 prestations sont maillées, chacune via un lien tenant-aware.
+    for (const slug of [
+      "nettoyage-automobile",
+      "polissage-automobile",
+      "protection-ceramique",
+      "protection-ppf",
+      "renovation-phares",
+      "detailing-moto",
+    ]) {
+      expect(prest, `slug manquant: ${slug}`).toMatch(new RegExp(slug))
+    }
+    expect(prest).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
   })
 })
