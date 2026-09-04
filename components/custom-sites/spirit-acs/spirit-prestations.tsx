@@ -18,7 +18,11 @@ import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_SECTIONS } from "./tokens"
 import { SPIRIT_SERVICES } from "./seo-content"
 
-const CARDS = SPIRIT_SERVICES.slice(0, 4)
+// Les 4 familles mises en avant sur l'accueil (ordre imposé par la maquette) :
+// nettoyage, polissage/céramique, PPF, moto. Les 6 prestations restent toutes
+// accessibles via leurs pages dédiées et le maillage interne.
+const HOME_CARD_SLUGS = ["nettoyage-automobile", "polissage-automobile", "protection-ppf", "detailing-moto"] as const
+const CARDS = HOME_CARD_SLUGS.map((slug) => SPIRIT_SERVICES.find((s) => s.slug === slug)!).filter(Boolean)
 
 export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string) => string }) {
   return (

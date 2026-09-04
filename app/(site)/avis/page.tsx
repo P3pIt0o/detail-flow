@@ -41,7 +41,17 @@ export default async function AvisPage() {
   // courant, donc le lien fonctionne aussi sur un futur domaine personnalisé.
   // Les autres tenants gardent la destination par défaut (« /reservation »).
   const customSite = await resolveCustomSite()
-  const ctaButtonHref = customSite?.key === "spirit-acs" ? "/#demande-devis" : undefined
+  const isSpirit = customSite?.key === "spirit-acs"
+  const ctaButtonHref = isSpirit ? "/#demande-devis" : undefined
+  // Textes du CTA final propres à Spirit ACS (cahier des charges §11). Pour les
+  // autres tenants, on laisse les valeurs par défaut/personnalisées de CtaSection.
+  const spiritCta = isSpirit
+    ? {
+        title: "Vous souhaitez confier votre véhicule à Spirit ACS ?",
+        description: "Décrivez votre véhicule et la prestation souhaitée.",
+        buttonLabel: "Demander un devis",
+      }
+    : {}
 
   // Source décidée par le tenant (centralisée). Jamais les deux à la fois.
   const resolved = await resolveTenantReviews(tenant.id)
@@ -56,7 +66,7 @@ export default async function AvisPage() {
           description="La confiance de nos clients est notre plus belle récompense. Voici leurs retours d'expérience."
         />
         {resolved.data && <GoogleReviewsSection details={resolved.data} />}
-        <CtaSection buttonHref={ctaButtonHref} />
+        <CtaSection buttonHref={ctaButtonHref} {...spiritCta} />
       </>
     )
   }
@@ -99,7 +109,7 @@ export default async function AvisPage() {
         </div>
       </section>
 
-      <CtaSection buttonHref={ctaButtonHref} />
+      <CtaSection buttonHref={ctaButtonHref} {...spiritCta} />
     </>
   )
 }
