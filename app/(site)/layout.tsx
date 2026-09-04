@@ -5,10 +5,11 @@ import { Footer } from "@/components/layout/footer"
 import { WhatsAppButton } from "@/components/layout/whatsapp-button"
 import { SiteTracker } from "@/components/site/site-tracker"
 import { getCurrentTenant } from "@/lib/tenant"
-import { getPublicContact, type PublicContact } from "@/lib/public-contact"
+import { getPublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
-import { siteConfig } from "@/config/site"
+import { buildTenantMetadata, resolveTenantSeo, buildTenantLocalBusiness } from "@/lib/seo/tenant-seo.server"
+import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
 /**
  * MÉTADONNÉES DE PARTAGE PAR TENANT (Open Graph / Twitter / SEO).
@@ -30,111 +31,49 @@ import { siteConfig } from "@/config/site"
  * conserver telles quelles les métadonnées globales du root layout.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const tenant = await getCurrentTenant()
-  if (!tenant) return {}
+  const seo = await resolveTenantSeo()
+  // Hors contexte tenant (vitrine racine detailflow.fr) : conserver les
+  // métadonnées globales du root layout.
+  if (!seo.tenant) return {}
+  const tenant = seo.tenant
 
   const clean = (v: string | null | undefined) => {
     const t = (v ?? "").trim()
     return t ? t : null
   }
 
-  // Clé de site personnalisé (ex. « spirit-acs ») : permet un repli SEO enrichi
-  // et localisé UNIQUEMENT quand le tenant n'a pas personnalisé ses textes.
-  const customSite = await resolveCustomSite()
   const city = clean(tenant.city)
-  const isSpirit = customSite?.key === "spirit-acs"
+  const name = seo.siteName
 
-  const name = clean(tenant.name) ?? siteConfig.brand.name
-  // `heroTitle` contient déjà le titre complet ; `heroHighlight` n'est qu'un
-  // fragment mis en avant DANS ce titre (pas un suffixe) → ne pas le concaténer.
-  // Repli localisé Spirit (le titre éditable du tenant reste PRIORITAIRE) :
-  // « Detailing automobile à {ville} | {nom} ». Aucune prestation inventée.
-  const spiritFallbackTitle = city
-    ? `Detailing automobile à ${city} | ${name}`
-    : `Detailing automobile | ${name}`
-  const title = clean(tenant.heroTitle) ?? (isSpirit ? spiritFallbackTitle : name)
+  // Titre : le titre éditable du tenant reste PRIORITAIRE. À défaut, pour Spirit
+  // ACS on utilise le titre éditorial local dédié ; sinon un repli générique
+  // localisé. (`heroHighlight` n'est qu'un fragment mis en avant DANS le titre :
+  // jamais concaténé.)
+  const genericTitle = city ? `Detailing automobile à ${city} | ${name}` : name
+  const title =
+    clean(tenant.heroTitle) ?? (seo.isSpirit ? SPIRIT_PAGE_META.home.title : genericTitle)
 
-  // Texte de présentation réellement personnalisé (jamais les défauts injectés).
+  // Description : sous-titre / présentation réellement personnalisés d'abord ;
+  // repli éditorial Spirit sinon générique. Aucune prestation inventée.
   const rawContent = (tenant.siteContent ?? null) as SiteContent | null
-  // Repli de description : localisé pour Spirit, générique sinon. Ne cite aucune
-  // prestation non confirmée, invite à demander un devis.
-  const spiritFallbackDesc = `${name} — detailing et entretien automobile${
+  const genericDesc = `${name} — detailing et entretien automobile${
     city ? ` à ${city}` : ""
   }. Demandez votre devis personnalisé en ligne.`
   const description =
     clean(tenant.heroSubtitle) ??
     clean(rawContent?.about?.text) ??
-    (isSpirit ? spiritFallbackDesc : `${name} — detailing et entretien automobile. Réservez votre créneau en ligne.`)
+    (seo.isSpirit ? SPIRIT_PAGE_META.home.description : genericDesc)
 
-  // Base absolue publique + URL réelle du tenant (forme partagée ?tenant=slug).
-  const base = siteConfig.seo.url.replace(/\/+$/, "")
-  const url = `${base}/?tenant=${encodeURIComponent(tenant.slug)}`
-  // Image : logo du tenant (route publique scoping slug) → repli OG DetailFlow.
-  const imageUrl = tenant.logoUrl
-    ? `${base}/api/company-logo?company=${encodeURIComponent(tenant.slug)}`
-    : `${base}${siteConfig.seo.ogImage}`
-
-  return {
-    title: { absolute: title },
-    description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      locale: siteConfig.seo.locale,
-      url,
-      siteName: name,
-      title,
-      description,
-      images: [{ url: imageUrl, width: 1200, height: 630, alt: name }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [imageUrl],
-    },
-  }
+  // Métadonnées centralisées : canonique tenant-aware (conserve ?tenant=),
+  // Open Graph + Twitter, image OG et favicon Spirit le cas échéant.
+  return buildTenantMetadata({ path: "/", title, description })
 }
 
-// Données structurées Schema.org (LocalBusiness) pour un SEO local optimal.
-// Uniquement sur les pages publiques, et UNIQUEMENT à partir des coordonnées
-// réelles du tenant (aucune donnée statique).
-function StructuredData({
-  name,
-  contact,
-  localityOnly = false,
-  canonicalUrl,
-  image,
-}: {
-  name: string
-  contact: PublicContact
-  /**
-   * Si vrai, n'expose QUE la ville dans les données structurées (jamais
-   * l'adresse postale exacte). Utilisé par les sites personnalisés (ownShell)
-   * qui limitent volontairement leur présentation publique à la localité.
-   */
-  localityOnly?: boolean
-  /**
-   * URL publique canonique du site (ex. www.detailflow.fr/?tenant=slug).
-   * Sert de `url` LocalBusiness quand le tenant n'a pas de site web externe.
-   */
-  canonicalUrl?: string | null
-  /** Logo/visuel officiel du tenant (URL absolue) pour `image`/`logo`. */
-  image?: string | null
-}) {
-  const addressValue = localityOnly ? contact.city : contact.address
-  // Site web propre du tenant s'il existe, sinon URL canonique du site public.
-  const url = contact.website ?? canonicalUrl ?? null
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "AutoWash",
-    name,
-    ...(contact.phoneRaw ? { telephone: contact.phoneRaw } : {}),
-    ...(contact.email ? { email: contact.email } : {}),
-    ...(url ? { url } : {}),
-    ...(image ? { image, logo: image } : {}),
-    ...(addressValue ? { address: addressValue } : {}),
-  }
+// Données structurées Schema.org (LocalBusiness/AutoWash) pour un SEO local
+// optimal. Le JSON-LD est construit côté serveur via `buildTenantLocalBusiness`
+// à partir des coordonnées RÉELLES du tenant (adresse structurée, horaires,
+// réseaux) : aucune donnée statique, aucune propriété vide.
+function StructuredData({ jsonLd }: { jsonLd: Record<string, unknown> }) {
   return (
     <script
       type="application/ld+json"
@@ -150,14 +89,6 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const tenant = await getCurrentTenant()
   const brandName = tenant?.name
   const logoSrc = tenant?.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
-
-  // URL publique canonique + logo absolu du tenant (données réelles) pour les
-  // données structurées LocalBusiness. Aucun hostname arbitraire : on réutilise
-  // le domaine canonique validé de siteConfig + la forme partagée ?tenant=slug.
-  const seoBase = siteConfig.seo.url.replace(/\/+$/, "")
-  const canonicalUrl = tenant ? `${seoBase}/?tenant=${encodeURIComponent(tenant.slug)}` : undefined
-  const logoImageUrl =
-    tenant?.logoUrl ? `${seoBase}/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : undefined
 
   // Coordonnées publiques réelles du tenant (jamais de données statiques).
   const contact = await getPublicContact()
@@ -187,19 +118,23 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const customSite = await resolveCustomSite()
   const useOwnShell = Boolean(customSite?.ownShell)
 
+  // JSON-LD LocalBusiness/AutoWash construit à partir des données RÉELLES du
+  // tenant (adresse structurée, horaires, réseaux). Les sites à shell propre
+  // (Spirit ACS) limitent volontairement l'adresse à la localité. Lien Google
+  // Maps réel dérivé de l'adresse affichée si disponible. Renvoie null hors
+  // contexte tenant → aucun script émis.
+  const mapsHref = contact.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address)}`
+    : null
+  const localBusinessJsonLd = tenant
+    ? await buildTenantLocalBusiness({ localityOnly: useOwnShell, hasMap: mapsHref })
+    : null
+
   if (useOwnShell) {
     return (
       <div style={hasBrandColors ? brandStyle : undefined}>
         {tenant && <SiteTracker />}
-        {contact.name && (
-          <StructuredData
-            name={contact.name}
-            contact={contact}
-            localityOnly
-            canonicalUrl={canonicalUrl}
-            image={logoImageUrl}
-          />
-        )}
+        {localBusinessJsonLd && <StructuredData jsonLd={localBusinessJsonLd} />}
         {/* Le bouton WhatsApp des sites à shell propre est monté PAR leur shell
             (ex. SpiritSiteShell), afin de porter un message pré-rempli adapté à
             l'univers du site. Il n'est donc pas rendu ici pour éviter un doublon. */}
@@ -213,7 +148,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       {/* Tracking analytics des pages publiques tenant uniquement (jamais admin,
           jamais la vitrine racine sans tenant). companyId résolu côté serveur. */}
       {tenant && <SiteTracker />}
-      {contact.name && <StructuredData name={contact.name} contact={contact} />}
+      {localBusinessJsonLd && <StructuredData jsonLd={localBusinessJsonLd} />}
       <a
         href="#contenu"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"

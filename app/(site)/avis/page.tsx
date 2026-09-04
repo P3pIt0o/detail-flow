@@ -10,12 +10,22 @@ import { CtaSection } from "@/components/sections/cta-section"
 import { Reveal } from "@/components/ui/reveal"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { buildTenantMetadata, resolveTenantSeo } from "@/lib/seo/tenant-seo.server"
+import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
-export const metadata: Metadata = {
-  title: "Avis clients",
-  description:
-    "Lisez les avis de nos clients satisfaits. Découvrez pourquoi ils nous confient l'entretien et la protection de leur véhicule.",
-  alternates: { canonical: "/avis" },
+/**
+ * Métadonnées tenant-aware : la canonique pointe désormais vers l'URL PUBLIQUE
+ * réelle du tenant (`.../avis?tenant={slug}`), et non plus vers un chemin relatif
+ * « /avis » erroné. Pour Spirit ACS, titre/description éditoriaux localisés ;
+ * sinon repli générique construit à partir du nom du tenant.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await resolveTenantSeo()
+  const title = seo.isSpirit ? SPIRIT_PAGE_META.avis.title : `Avis clients | ${seo.siteName}`
+  const description = seo.isSpirit
+    ? SPIRIT_PAGE_META.avis.description
+    : `Découvrez les avis des clients de ${seo.siteName} sur ses prestations de detailing et d'entretien automobile.`
+  return buildTenantMetadata({ path: "/avis", title, description })
 }
 
 export default async function AvisPage() {
