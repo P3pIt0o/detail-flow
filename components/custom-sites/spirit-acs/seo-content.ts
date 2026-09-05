@@ -188,6 +188,33 @@ export const SPIRIT_FAQ: FaqItem[] = [
 /*  PRESTATIONS — cartes accueil + pages dédiées                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Nature d'un tarif affiché sur une page prestation.
+ *   - `exact` → prix ferme confirmé (ex. formule Gtechniq bicouche 5 ans).
+ *   - `from`  → « dès X » (point d'entrée, le total dépend du véhicule).
+ *   - `quote` → sur devis (aucun montant : PPF et prestations analysées au cas
+ *               par cas). JAMAIS de faux total lorsqu'une partie est sur devis.
+ */
+export type PriceKind = "exact" | "from" | "quote"
+
+/**
+ * Formule tarifaire RÉELLEMENT confirmée par Spirit ACS. Aucun prix n'est
+ * inventé : `priceCents` n'est renseigné que pour un montant validé.
+ */
+export type ServiceFormula = {
+  label: string
+  /** Montant en CENTIMES (absent si `priceKind === "quote"`). */
+  priceCents?: number
+  priceKind: PriceKind
+  /** Précision courte et factuelle (optionnelle). */
+  note?: string
+}
+
+/** Modes de conversion connus (cf. lib/public-site/types.ts). Copié localement
+ *  en union de chaînes pour éviter tout couplage du contenu à la couche
+ *  publique ; les valeurs sont strictement identiques. */
+export type SpiritConversionMode = "quote_request" | "booking" | "booking_deposit" | "booking_full"
+
 export type ServiceContent = {
   /** Segment d'URL sous /prestations (ex. « nettoyage-automobile »). */
   slug: string
@@ -226,6 +253,39 @@ export type ServiceContent = {
   vehicles: string[]
   /** FAQ spécifique à la prestation. */
   faq: FaqItem[]
+
+  /* --- Tarifs (jamais inventés) --- */
+  /**
+   * Nature globale de la tarification. Par défaut « quote » (sur devis) :
+   * conforme au modèle Spirit ACS (analyse → proposition). Ne passe à
+   * `exact`/`from` que si des `formules` confirmées existent.
+   */
+  priceKind: PriceKind
+  /** Formules tarifaires confirmées (sinon la page affiche « Sur devis »). */
+  formules?: ServiceFormula[]
+  /**
+   * Précision courte affichée sous la grille tarifaire (ex. « Le niveau exact
+   * est déterminé après examen du véhicule »). Jamais un total inventé.
+   */
+  priceCaveat?: string
+
+  /* --- Conversion & CTA (préparation Phase 5) --- */
+  /**
+   * Mode de conversion PAR PAGE. Spirit n'utilise aujourd'hui que
+   * `quote_request` ; ce champ permet d'en changer une seule sans toucher au
+   * provider (cf. cahier des charges §19). Optionnel → défaut `quote_request`.
+   */
+  conversionMode?: SpiritConversionMode
+  /** Libellé du CTA contextualisé (repli : « Demander un devis »). */
+  ctaLabel?: string
+
+  /* --- Maillage interne --- */
+  /**
+   * Prestations complémentaires (slugs) mises en avant en bas de page. Repli :
+   * les 3 premières autres prestations. Améliore la pertinence du maillage et
+   * évite l'effet « pages clones ».
+   */
+  related?: string[]
 }
 
 /**
@@ -240,8 +300,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Nettoyage intérieur et extérieur",
     cardText:
       "Nettoyage soigné de l'habitacle et de l'extérieur du véhicule : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
-    image: "/services/interieur-complet.png",
-    imageAlt: "Habitacle de voiture nettoyé après une prestation de detailing",
+    image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
+    imageAlt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
     metaTitle: "Nettoyage automobile à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Nettoyage automobile intérieur et extérieur par Spirit ACS à Lagny-sur-Marne : habitacle, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
@@ -263,6 +323,9 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle des finitions avant restitution.",
     ],
     vehicles: ["Citadines et berlines", "SUV et monospaces", "Véhicules professionnels"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis pour un nettoyage",
+    related: ["polissage-automobile", "protection-ceramique", "renovation-phares"],
     faq: [
       {
         question: "Le nettoyage inclut-il l'intérieur et l'extérieur ?",
@@ -282,8 +345,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Correction des défauts et restauration de la brillance",
     cardText:
       "Correction des défauts légers de la carrosserie, amélioration de la brillance et application d'une protection adaptée pour faciliter l'entretien du véhicule.",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Carrosserie brillante après polissage et protection",
+    image: "/custom-sites/spirit-acs/polissage-porsche-911.jpg",
+    imageAlt: "Porsche 911 noire à la carrosserie brillante après polissage par Spirit ACS",
     metaTitle: "Polissage carrosserie à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Polissage de carrosserie par Spirit ACS à Lagny-sur-Marne : correction des défauts légers, gain de brillance et protection adaptée pour un entretien facilité.",
@@ -305,11 +368,41 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Application éventuelle d'une protection.",
     ],
     vehicles: ["Véhicules du quotidien", "Véhicules de collection ou soignés", "Véhicules avant revente"],
+    priceKind: "from",
+    formules: [
+      {
+        label: "Polissage niveau 1 — éclat",
+        priceCents: 29900,
+        priceKind: "from",
+        note: "Citadine 299 € · Berline 349 € · SUV 399 €. Inclut notamment un sealant (~2 mois) offert.",
+      },
+      {
+        label: "Polissage niveau 2 — correction en deux étapes",
+        priceCents: 39900,
+        priceKind: "from",
+        note: "Citadine 399 € · Berline 449 € · SUV 499 €.",
+      },
+      {
+        label: "Polissage niveau 3 — correction en trois étapes",
+        priceCents: 49900,
+        priceKind: "from",
+        note: "Citadine 499 € · Berline 549 € · SUV 599 €.",
+      },
+    ],
+    priceCaveat:
+      "Le niveau de polissage adapté à votre véhicule est déterminé par Spirit ACS après examen de la carrosserie.",
+    ctaLabel: "Demander un devis pour un polissage",
+    related: ["protection-ceramique", "nettoyage-automobile", "protection-ppf"],
     faq: [
       {
         question: "Le polissage retire-t-il toutes les rayures ?",
         answer:
           "Il corrige de nombreux défauts légers, mais les rayures profondes ne peuvent pas toujours être totalement effacées. Une analyse préalable permet d'évaluer le résultat possible.",
+      },
+      {
+        question: "Comment est déterminé le niveau de correction ?",
+        answer:
+          "Le niveau de correction n'est pas décidé à l'avance : Spirit ACS examine l'état réel de la carrosserie afin d'adapter le polissage au résultat possible sans sur-solliciter le vernis.",
       },
     ],
   },
@@ -319,8 +412,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Protection durable et entretien facilité",
     cardText:
       "Application d'une protection adaptée à la carrosserie pour faciliter l'entretien du véhicule et préserver son aspect au fil du temps.",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Application d'une protection sur la carrosserie d'un véhicule",
+    image: "/custom-sites/spirit-acs/ceramique-bmw-m4.jpg",
+    imageAlt: "BMW M4 verte à la carrosserie protégée et brillante par Spirit ACS",
     metaTitle: "Protection céramique à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Protection céramique par Spirit ACS à Lagny-sur-Marne : une protection adaptée à la carrosserie pour faciliter l'entretien et préserver l'aspect du véhicule.",
@@ -342,6 +435,42 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final du rendu.",
     ],
     vehicles: ["Véhicules récents", "Véhicules soignés", "Véhicules après polissage"],
+    priceKind: "from",
+    formules: [
+      {
+        label: "Cire (~9 à 12 mois)",
+        priceCents: 12000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique CarPro CQ.UK 3.0 (~2 ans)",
+        priceCents: 17000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique Gyeon (~36 mois)",
+        priceCents: 30000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique Gtechniq — bicouche, garantie ~5 ans",
+        priceCents: 35000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique surfaces vitrées",
+        priceCents: 9000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique jantes 1 an",
+        priceKind: "quote",
+      },
+    ],
+    priceCaveat:
+      "La protection la mieux adaptée dépend de l'état de la carrosserie et de l'usage du véhicule ; elle est confirmée après analyse.",
+    ctaLabel: "Demander un devis pour une protection céramique",
+    related: ["polissage-automobile", "protection-ppf", "nettoyage-automobile"],
     faq: [
       {
         question: "La protection céramique dure-t-elle dans le temps ?",
@@ -356,8 +485,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Film transparent contre les impacts et les rayures",
     cardText:
       "Pose d'un film de protection transparent sur les zones sensibles du véhicule afin de limiter les impacts et préserver les surfaces exposées.",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Zone de carrosserie protégée par un film transparent",
+    image: "/custom-sites/spirit-acs/ppf-porsche-911.jpg",
+    imageAlt: "Avant de Porsche 911 aux surfaces exposées préservées",
     metaTitle: "Protection PPF à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Pose de film de protection PPF par Spirit ACS à Lagny-sur-Marne : protection transparente des zones sensibles pour limiter les impacts sur les surfaces exposées.",
@@ -379,11 +508,19 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final de la pose.",
     ],
     vehicles: ["Véhicules neufs ou récents", "Zones exposées (avant, arêtes, seuils)", "Véhicules soignés"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis PPF",
+    related: ["protection-ceramique", "polissage-automobile", "nettoyage-automobile"],
     faq: [
       {
         question: "Le film PPF est-il visible ?",
         answer:
           "Le film est transparent et destiné à se faire discret. Le périmètre de pose est défini avec vous selon les zones à protéger.",
+      },
+      {
+        question: "Comment est établi le tarif d'une pose PPF ?",
+        answer:
+          "La pose PPF est réalisée sur devis : le tarif dépend des zones à protéger et du véhicule, définis après analyse.",
       },
     ],
   },
@@ -393,8 +530,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Restauration de la clarté des optiques",
     cardText:
       "Rénovation des optiques ternies pour améliorer leur clarté et l'aspect général de l'avant du véhicule.",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Optique de phare rénovée sur un véhicule",
+    image: "/custom-sites/spirit-acs/renovation-phares-apres.jpg",
+    imageAlt: "Optique de phare rénovée et de nouveau claire par Spirit ACS",
     metaTitle: "Rénovation de phares à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Rénovation d'optiques ternies par Spirit ACS à Lagny-sur-Marne : amélioration de la clarté des phares et de l'aspect général de l'avant du véhicule.",
@@ -416,6 +553,18 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle du rendu.",
     ],
     vehicles: ["Véhicules aux optiques ternies", "Véhicules avant revente", "Véhicules du quotidien"],
+    priceKind: "from",
+    formules: [
+      {
+        label: "Rénovation de phares",
+        priceCents: 8000,
+        priceKind: "from",
+      },
+    ],
+    priceCaveat:
+      "Le tarif final dépend de l'état initial des optiques, évalué avant l'intervention.",
+    ctaLabel: "Demander un devis pour une rénovation de phares",
+    related: ["polissage-automobile", "nettoyage-automobile", "protection-ceramique"],
     faq: [
       {
         question: "La rénovation des phares est-elle définitive ?",
@@ -430,8 +579,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Entretien esthétique et personnalisation",
     cardText:
       "Prestations esthétiques adaptées aux motos et interventions de personnalisation selon le véhicule et le résultat recherché.",
-    image: "/custom-sites/spirit-acs/service-moto.png",
-    imageAlt: "Moto après une prestation esthétique de detailing",
+    image: "/custom-sites/spirit-acs/detailing-moto-kymco.jpg",
+    imageAlt: "Scooter trois-roues Kymco entretenu par Spirit ACS",
     metaTitle: "Detailing moto à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Detailing moto par Spirit ACS à Lagny-sur-Marne : prestations esthétiques adaptées aux motos et personnalisation selon le véhicule et le résultat recherché.",
@@ -453,6 +602,45 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final.",
     ],
     vehicles: ["Motos routières", "Motos soignées ou de collection", "Deux-roues avant revente"],
+    priceKind: "from",
+    formules: [
+      {
+        label: "Nettoyage moto",
+        priceCents: 5000,
+        priceKind: "from",
+        note: "Options : cire carrosserie (~3 mois) 30 € · cire (~1 an) 45 € · rénovation plastique / céramique (~2 ans) 20 € · céramique visière casque (~1 an) 20 €.",
+      },
+      {
+        label: "Polissage moto",
+        priceCents: 15000,
+        priceKind: "from",
+        note: "Sur devis selon l'état de la carrosserie.",
+      },
+      {
+        label: "Cire / céramique carrosserie (1 à 5 ans)",
+        priceCents: 7000,
+        priceKind: "from",
+        note: "Sur devis selon la protection retenue.",
+      },
+      {
+        label: "Céramique plastique",
+        priceCents: 3000,
+        priceKind: "from",
+      },
+      {
+        label: "Protection sellerie",
+        priceCents: 4000,
+        priceKind: "from",
+      },
+      {
+        label: "PPF moto",
+        priceKind: "quote",
+      },
+    ],
+    priceCaveat:
+      "Les prestations moto sont ajustées à la moto et au résultat recherché ; le tarif final est confirmé après analyse.",
+    ctaLabel: "Demander un devis pour ma moto",
+    related: ["nettoyage-automobile", "polissage-automobile", "protection-ceramique"],
     faq: [
       {
         question: "Proposez-vous de la personnalisation moto ?",

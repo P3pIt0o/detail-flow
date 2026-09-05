@@ -50,8 +50,16 @@ describe("Spirit — formulaire Particulier / Professionnel", () => {
     expect(schema).toMatch(/customerLegalRegistrationNumber/)
   })
 
-  it("Spirit active le sélecteur d'audience", () => {
-    expect(read(`${SPIRIT}/spirit-demande-devis.tsx`)).toMatch(/audienceToggle/)
+  it("Spirit active le sélecteur d'audience (via le configurateur, Phase 5)", () => {
+    // Le sélecteur d'audience Particulier/Professionnel vit désormais DANS le
+    // configurateur, monté par la section devis à la place du formulaire libre
+    // direct. Le comportement est préservé (aucune régression fonctionnelle).
+    expect(read(`${SPIRIT}/spirit-demande-devis.tsx`)).toMatch(/SpiritConfigurator/)
+    const cfg = read(`${SPIRIT}/configurator/spirit-configurator.tsx`)
+    expect(cfg).toMatch(/particulier/)
+    expect(cfg).toMatch(/professionnel/)
+    // Le repli « Autre demande » conserve le formulaire libre avec audienceToggle.
+    expect(cfg).toMatch(/audienceToggle/)
   })
 
   it("la Server Action normalise l'identifiant et l'exige seulement pour un professionnel", () => {

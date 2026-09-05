@@ -17,6 +17,7 @@ import Image from "next/image"
 import Link from "next/link"
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import { withTenant } from "@/lib/tenant-link"
+import { formatPrice } from "@/lib/format"
 import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data"
 import { tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
 import { SpiritSiteShell } from "./site-shell"
@@ -25,9 +26,28 @@ import { Reveal } from "@/components/ui/reveal"
 import { buildSpiritShellPropsForSubpage } from "./shell-props"
 import { SPIRIT_SERVICES, type ServiceContent } from "./seo-content"
 
-/** Sélectionne 3 autres prestations pour le maillage interne. */
+/**
+ * Prestations complémentaires pour le maillage interne. Utilise la sélection
+ * éditoriale curée (`current.related`) quand elle existe — pertinence + effet
+ * « pages non clones » — sinon repli sur les 3 premières autres prestations.
+ */
 function relatedServices(current: ServiceContent): ServiceContent[] {
+  if (current.related?.length) {
+    const picked = current.related
+      .map((slug) => SPIRIT_SERVICES.find((s) => s.slug === slug))
+      .filter((s): s is ServiceContent => s !== undefined && s.slug !== current.slug)
+    if (picked.length) return picked.slice(0, 3)
+  }
   return SPIRIT_SERVICES.filter((s) => s.slug !== current.slug).slice(0, 3)
+}
+
+/** Libellé de prix d'une formule — jamais de faux total (« Sur devis » sinon). */
+function formulaPriceLabel(f: NonNullable<ServiceContent["formules"]>[number]): string {
+  if (typeof f.priceCents === "number") {
+    if (f.priceKind === "exact") return formatPrice(f.priceCents)
+    if (f.priceKind === "from") return `dès ${formatPrice(f.priceCents)}`
+  }
+  return "Sur devis"
 }
 
 export async function SpiritServicePage({
@@ -60,7 +80,13 @@ export async function SpiritServicePage({
     crumbs.map((c) => ({ name: c.name, url: c.canonical })),
   )
 
-  const quoteHref = withTenant(`/#demande-devis`, slug)
+  // CTA CONTEXTUALISÉ (préparation Phase 5) : le lien transporte la prestation
+  // via `?prestation=<slug>`. Aujourd'hui il mène au formulaire de devis de
+  // l'accueil ; en Phase 5, le configurateur lira ce paramètre pour
+  // PRÉSÉLECTIONNER la prestation (le client ne la re-choisit pas). Aucun moteur
+  // n'est construit ici : on prépare seulement la référence.
+  const quoteHref = withTenant(`/?prestation=${encodeURIComponent(service.slug)}#demande-devis`, slug)
+  const ctaLabel = service.ctaLabel ?? "Demander un devis"
   const related = relatedServices(service)
 
   // Réalisations : on montre jusqu'à 3 comparateurs existants si disponibles
@@ -194,7 +220,45 @@ export async function SpiritServicePage({
             </section>
           </Reveal>
 
-          {/* CTA principal vers le formulaire de devis (accueil, tenant préservé) */}
+          {/* Tarifs & formules — uniquement des données confirmées. Aucun total
+              inventé : chaque ligne porte sa nature (exact / dès / sur devis).
+              Si aucune formule n'est confirmée, la prestation est « sur devis ». */}
+          <Reveal>
+            <section aria-labelledby="tarifs-title" className="mt-10">
+              <h2 id="tarifs-title" className="spirit-title text-xl font-semibold">
+                Tarifs &amp; formules
+              </h2>
+              {service.formules?.length ? (
+                <ul className="mt-4 divide-y divide-black/5 rounded-sm bg-[var(--spirit-paper-2)] ring-1 ring-black/5">
+                  {service.formules.map((f) => (
+                    <li key={f.label} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-[color:var(--spirit-ink)]">{f.label}</p>
+                        {f.note && (
+                          <p className="mt-1 text-sm text-[color:var(--spirit-muted)]">{f.note}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap text-base font-semibold text-[color:var(--spirit-teal)]">
+                        {formulaPriceLabel(f)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 rounded-sm bg-[var(--spirit-paper-2)] p-4 text-[color:var(--spirit-muted)] ring-1 ring-black/5">
+                  Cette prestation est réalisée <span className="font-semibold text-[color:var(--spirit-ink)]">sur devis</span> :
+                  le tarif est établi après analyse du véhicule et du besoin.
+                </p>
+              )}
+              {service.priceCaveat && (
+                <p className="mt-3 text-sm text-[color:var(--spirit-muted)]">{service.priceCaveat}</p>
+              )}
+            </section>
+          </Reveal>
+
+          {/* CTA CONTEXTUALISÉ vers le formulaire de devis (accueil, tenant
+              préservé) — le libellé et le paramètre `?prestation=` préparent la
+              présélection du configurateur en Phase 5. */}
           <Reveal>
             <div className="mt-10 rounded-sm bg-[var(--spirit-navy)] p-6 text-white sm:p-8">
               <h2 className="spirit-title text-xl font-semibold text-white sm:text-2xl">
@@ -205,7 +269,7 @@ export async function SpiritServicePage({
                 href={quoteHref}
                 className="mt-5 inline-flex items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                Demander un devis
+                {ctaLabel}
               </Link>
             </div>
           </Reveal>
