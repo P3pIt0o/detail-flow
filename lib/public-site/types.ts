@@ -72,6 +72,8 @@ export interface PublicServicePage {
 
   /* --- Carte d'accueil (maillage interne depuis la home) --- */
   cardTitle: string
+  /** Accroche brève sous le titre de la carte (repli : `cardTitle`). */
+  cardTagline?: string | null
   cardText: string
   image: string | null
   imageAlt: string | null

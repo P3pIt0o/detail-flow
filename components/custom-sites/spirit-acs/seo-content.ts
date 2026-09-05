@@ -193,6 +193,13 @@ export type ServiceContent = {
   slug: string
   /** Nom court affiché sur la carte d'accueil. */
   cardTitle: string
+  /**
+   * Accroche TRÈS courte affichée sous le titre de la carte d'accueil (grille
+   * « Nos prestations »). Distincte de `cardTitle`/`cardText` : c'est le libellé
+   * commercial bref de la vitrine. Source éditoriale unique (consommée via le
+   * `PublicSiteCatalog`, plus aucune liste en dur dans le composant).
+   */
+  cardTagline: string
   /** Texte court sous la carte d'accueil. */
   cardText: string
   /** Image illustrative réelle du dépôt (ou null → pas d'image). */
@@ -230,6 +237,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "nettoyage-automobile",
     cardTitle: "Nettoyage intérieur et extérieur",
+    cardTagline: "Nettoyage intérieur et extérieur",
     cardText:
       "Nettoyage soigné de l'habitacle et de l'extérieur du véhicule : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
     image: "/services/interieur-complet.png",
@@ -271,6 +279,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "polissage-automobile",
     cardTitle: "Polissage et protection céramique",
+    cardTagline: "Correction des défauts et restauration de la brillance",
     cardText:
       "Correction des défauts légers de la carrosserie, amélioration de la brillance et application d'une protection adaptée pour faciliter l'entretien du véhicule.",
     image: "/services/protection-ceramique.png",
@@ -307,6 +316,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "protection-ceramique",
     cardTitle: "Protection céramique",
+    cardTagline: "Protection durable et entretien facilité",
     cardText:
       "Application d'une protection adaptée à la carrosserie pour faciliter l'entretien du véhicule et préserver son aspect au fil du temps.",
     image: "/services/protection-ceramique.png",
@@ -343,6 +353,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "protection-ppf",
     cardTitle: "Protection PPF",
+    cardTagline: "Film transparent contre les impacts et les rayures",
     cardText:
       "Pose d'un film de protection transparent sur les zones sensibles du véhicule afin de limiter les impacts et préserver les surfaces exposées.",
     image: "/services/renovation-carrosserie.png",
@@ -379,6 +390,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "renovation-phares",
     cardTitle: "Rénovation de phares",
+    cardTagline: "Restauration de la clarté des optiques",
     cardText:
       "Rénovation des optiques ternies pour améliorer leur clarté et l'aspect général de l'avant du véhicule.",
     image: "/services/renovation-carrosserie.png",
@@ -415,6 +427,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "detailing-moto",
     cardTitle: "Moto et personnalisation",
+    cardTagline: "Entretien esthétique et personnalisation",
     cardText:
       "Prestations esthétiques adaptées aux motos et interventions de personnalisation selon le véhicule et le résultat recherché.",
     image: "/custom-sites/spirit-acs/service-moto.png",

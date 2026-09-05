@@ -30,6 +30,7 @@ function toPublicServicePage(s: (typeof SPIRIT_SERVICES)[number]): PublicService
     inNavigation: true,
     navLabel: s.breadcrumbLabel,
     cardTitle: s.cardTitle,
+    cardTagline: s.cardTagline,
     cardText: s.cardText,
     image: s.image,
     imageAlt: s.imageAlt,

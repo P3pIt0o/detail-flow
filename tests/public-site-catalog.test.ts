@@ -58,6 +58,16 @@ describe("public-site provider", () => {
     }
   })
 
+  it("chaque page de nav fournit de quoi rendre une carte d'accueil (titre, accroche, image)", () => {
+    const catalog = getPublicSiteCatalog("spirit-acs")!
+    for (const p of listNavigationServicePages(catalog)) {
+      // Le titre de carte = navLabel, l'accroche = cardTagline (repli cardTitle).
+      expect(p.navLabel.length).toBeGreaterThan(0)
+      expect(((p.cardTagline ?? p.cardTitle) || "").length).toBeGreaterThan(0)
+      expect(p.image).toBeTruthy()
+    }
+  })
+
   it("la navigation ne contient que des pages publiées ET en navigation", () => {
     const catalog = getPublicSiteCatalog("spirit-acs")!
     for (const p of listNavigationServicePages(catalog)) {
