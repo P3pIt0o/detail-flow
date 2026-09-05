@@ -263,6 +263,11 @@ export type ServiceContent = {
   priceKind: PriceKind
   /** Formules tarifaires confirmées (sinon la page affiche « Sur devis »). */
   formules?: ServiceFormula[]
+  /**
+   * Précision courte affichée sous la grille tarifaire (ex. « Le niveau exact
+   * est déterminé après examen du véhicule »). Jamais un total inventé.
+   */
+  priceCaveat?: string
 
   /* --- Conversion & CTA (préparation Phase 5) --- */
   /**
@@ -363,7 +368,29 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Application éventuelle d'une protection.",
     ],
     vehicles: ["Véhicules du quotidien", "Véhicules de collection ou soignés", "Véhicules avant revente"],
-    priceKind: "quote",
+    priceKind: "from",
+    formules: [
+      {
+        label: "Polissage niveau 1 — éclat",
+        priceCents: 29900,
+        priceKind: "from",
+        note: "Citadine 299 € · Berline 349 € · SUV 399 €. Inclut notamment un sealant (~2 mois) offert.",
+      },
+      {
+        label: "Polissage niveau 2 — correction en deux étapes",
+        priceCents: 39900,
+        priceKind: "from",
+        note: "Citadine 399 € · Berline 449 € · SUV 499 €.",
+      },
+      {
+        label: "Polissage niveau 3 — correction en trois étapes",
+        priceCents: 49900,
+        priceKind: "from",
+        note: "Citadine 499 € · Berline 549 € · SUV 599 €.",
+      },
+    ],
+    priceCaveat:
+      "Le niveau de polissage adapté à votre véhicule est déterminé par Spirit ACS après examen de la carrosserie.",
     ctaLabel: "Demander un devis pour un polissage",
     related: ["protection-ceramique", "nettoyage-automobile", "protection-ppf"],
     faq: [
@@ -411,11 +438,37 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     priceKind: "from",
     formules: [
       {
-        label: "Protection céramique Gtechniq — bicouche, garantie 5 ans",
+        label: "Cire (~9 à 12 mois)",
+        priceCents: 12000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique CarPro CQ.UK 3.0 (~2 ans)",
+        priceCents: 17000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique Gyeon (~36 mois)",
+        priceCents: 30000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique Gtechniq — bicouche, garantie ~5 ans",
         priceCents: 35000,
         priceKind: "exact",
       },
+      {
+        label: "Céramique surfaces vitrées",
+        priceCents: 9000,
+        priceKind: "exact",
+      },
+      {
+        label: "Céramique jantes",
+        priceKind: "quote",
+      },
     ],
+    priceCaveat:
+      "La protection la mieux adaptée dépend de l'état de la carrosserie et de l'usage du véhicule ; elle est confirmée après analyse.",
     ctaLabel: "Demander un devis pour une protection céramique",
     related: ["polissage-automobile", "protection-ppf", "nettoyage-automobile"],
     faq: [
@@ -500,7 +553,16 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle du rendu.",
     ],
     vehicles: ["Véhicules aux optiques ternies", "Véhicules avant revente", "Véhicules du quotidien"],
-    priceKind: "quote",
+    priceKind: "from",
+    formules: [
+      {
+        label: "Rénovation de phares",
+        priceCents: 8000,
+        priceKind: "from",
+      },
+    ],
+    priceCaveat:
+      "Le tarif final dépend de l'état initial des optiques, évalué avant l'intervention.",
     ctaLabel: "Demander un devis pour une rénovation de phares",
     related: ["polissage-automobile", "nettoyage-automobile", "protection-ceramique"],
     faq: [
@@ -540,7 +602,43 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final.",
     ],
     vehicles: ["Motos routières", "Motos soignées ou de collection", "Deux-roues avant revente"],
-    priceKind: "quote",
+    priceKind: "from",
+    formules: [
+      {
+        label: "Nettoyage moto",
+        priceCents: 5000,
+        priceKind: "from",
+        note: "Options : cire carrosserie (~3 mois) 30 € · cire (~1 an) 45 € · rénovation plastique / céramique (~2 ans) 20 € · céramique visière casque (~1 an) 20 €.",
+      },
+      {
+        label: "Polissage moto",
+        priceCents: 15000,
+        priceKind: "from",
+        note: "Sur devis selon l'état de la carrosserie.",
+      },
+      {
+        label: "Cire / céramique carrosserie (1 à 5 ans)",
+        priceCents: 7000,
+        priceKind: "from",
+        note: "Sur devis selon la protection retenue.",
+      },
+      {
+        label: "Céramique plastique",
+        priceCents: 3000,
+        priceKind: "from",
+      },
+      {
+        label: "Protection sellerie",
+        priceCents: 4000,
+        priceKind: "from",
+      },
+      {
+        label: "PPF moto",
+        priceKind: "quote",
+      },
+    ],
+    priceCaveat:
+      "Les prestations moto sont ajustées à la moto et au résultat recherché ; le tarif final est confirmé après analyse.",
     ctaLabel: "Demander un devis pour ma moto",
     related: ["nettoyage-automobile", "polissage-automobile", "protection-ceramique"],
     faq: [

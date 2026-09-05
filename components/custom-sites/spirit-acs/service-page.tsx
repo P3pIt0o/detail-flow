@@ -35,7 +35,7 @@ function relatedServices(current: ServiceContent): ServiceContent[] {
   if (current.related?.length) {
     const picked = current.related
       .map((slug) => SPIRIT_SERVICES.find((s) => s.slug === slug))
-      .filter((s): s is ServiceContent => Boolean(s) && s.slug !== current.slug)
+      .filter((s): s is ServiceContent => s !== undefined && s.slug !== current.slug)
     if (picked.length) return picked.slice(0, 3)
   }
   return SPIRIT_SERVICES.filter((s) => s.slug !== current.slug).slice(0, 3)
@@ -220,7 +220,45 @@ export async function SpiritServicePage({
             </section>
           </Reveal>
 
-          {/* CTA principal vers le formulaire de devis (accueil, tenant préservé) */}
+          {/* Tarifs & formules — uniquement des données confirmées. Aucun total
+              inventé : chaque ligne porte sa nature (exact / dès / sur devis).
+              Si aucune formule n'est confirmée, la prestation est « sur devis ». */}
+          <Reveal>
+            <section aria-labelledby="tarifs-title" className="mt-10">
+              <h2 id="tarifs-title" className="spirit-title text-xl font-semibold">
+                Tarifs &amp; formules
+              </h2>
+              {service.formules?.length ? (
+                <ul className="mt-4 divide-y divide-black/5 rounded-sm bg-[var(--spirit-paper-2)] ring-1 ring-black/5">
+                  {service.formules.map((f) => (
+                    <li key={f.label} className="flex flex-col gap-1 p-4 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-[color:var(--spirit-ink)]">{f.label}</p>
+                        {f.note && (
+                          <p className="mt-1 text-sm text-[color:var(--spirit-muted)]">{f.note}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap text-base font-semibold text-[color:var(--spirit-teal)]">
+                        {formulaPriceLabel(f)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 rounded-sm bg-[var(--spirit-paper-2)] p-4 text-[color:var(--spirit-muted)] ring-1 ring-black/5">
+                  Cette prestation est réalisée <span className="font-semibold text-[color:var(--spirit-ink)]">sur devis</span> :
+                  le tarif est établi après analyse du véhicule et du besoin.
+                </p>
+              )}
+              {service.priceCaveat && (
+                <p className="mt-3 text-sm text-[color:var(--spirit-muted)]">{service.priceCaveat}</p>
+              )}
+            </section>
+          </Reveal>
+
+          {/* CTA CONTEXTUALISÉ vers le formulaire de devis (accueil, tenant
+              préservé) — le libellé et le paramètre `?prestation=` préparent la
+              présélection du configurateur en Phase 5. */}
           <Reveal>
             <div className="mt-10 rounded-sm bg-[var(--spirit-navy)] p-6 text-white sm:p-8">
               <h2 className="spirit-title text-xl font-semibold text-white sm:text-2xl">
@@ -231,7 +269,7 @@ export async function SpiritServicePage({
                 href={quoteHref}
                 className="mt-5 inline-flex items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                Demander un devis
+                {ctaLabel}
               </Link>
             </div>
           </Reveal>
