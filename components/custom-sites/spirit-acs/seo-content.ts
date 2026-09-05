@@ -463,7 +463,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
         priceKind: "exact",
       },
       {
-        label: "Céramique jantes",
+        label: "Céramique jantes 1 an",
         priceKind: "quote",
       },
     ],

@@ -1,22 +1,24 @@
 /**
  * Section « Demander un devis » du site Spirit ACS.
  *
- * Elle EMBARQUE le vrai formulaire public `CustomRequestForm` (relié à la
- * Server Action `submitCustomRequest`) — aucune logique dupliquée, aucune
- * source de données inventée. Le formulaire est simplement RÉ-HABILLÉ aux
- * couleurs Spirit via la classe scopée `.spirit-form-skin` (remap de tokens),
- * sans forker le composant partagé.
+ * Elle EMBARQUE le configurateur progressif `SpiritConfigurator` (Phase 5),
+ * qui n'est qu'une UI au-dessus de la Server Action existante
+ * `submitCustomRequest` — aucune logique dupliquée, aucun moteur nouveau,
+ * aucune source de données inventée. Le configurateur propose aussi un repli
+ * vers le formulaire libre historique (`CustomRequestForm`) pour les demandes
+ * hors liste (flotte, abonnement…). L'ensemble est RÉ-HABILLÉ aux couleurs
+ * Spirit via la classe scopée `.spirit-form-skin` (remap de tokens).
  *
  * Ne s'affiche que si le tenant a activé les demandes personnalisées et qu'au
  * moins un type est actif (contrôlé en amont par `quoteEnabled`).
  */
 
-import { CustomRequestForm } from "@/components/custom-request-form"
 import type { CustomRequestType } from "@/lib/custom-requests"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSplash } from "./spirit-splash"
 import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_SECTIONS } from "./tokens"
+import { SpiritConfigurator } from "./configurator/spirit-configurator"
 
 type SpiritDemandeDevisProps = {
   title: string | null
@@ -61,7 +63,7 @@ export function SpiritDemandeDevis({ title, intro, types }: SpiritDemandeDevisPr
         {/* Colonne formulaire — vrai composant partagé, ré-habillé (scopé) */}
         <Reveal delay={0.1}>
           <div className="spirit-form-skin rounded-2xl bg-white p-6 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] sm:p-8">
-            <CustomRequestForm types={types} audienceToggle />
+            <SpiritConfigurator types={types} />
           </div>
         </Reveal>
       </div>
