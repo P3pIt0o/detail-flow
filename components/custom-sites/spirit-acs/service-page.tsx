@@ -17,6 +17,7 @@ import Image from "next/image"
 import Link from "next/link"
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import { withTenant } from "@/lib/tenant-link"
+import { formatPrice } from "@/lib/format"
 import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data"
 import { tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
 import { SpiritSiteShell } from "./site-shell"
@@ -25,9 +26,28 @@ import { Reveal } from "@/components/ui/reveal"
 import { buildSpiritShellPropsForSubpage } from "./shell-props"
 import { SPIRIT_SERVICES, type ServiceContent } from "./seo-content"
 
-/** Sélectionne 3 autres prestations pour le maillage interne. */
+/**
+ * Prestations complémentaires pour le maillage interne. Utilise la sélection
+ * éditoriale curée (`current.related`) quand elle existe — pertinence + effet
+ * « pages non clones » — sinon repli sur les 3 premières autres prestations.
+ */
 function relatedServices(current: ServiceContent): ServiceContent[] {
+  if (current.related?.length) {
+    const picked = current.related
+      .map((slug) => SPIRIT_SERVICES.find((s) => s.slug === slug))
+      .filter((s): s is ServiceContent => Boolean(s) && s.slug !== current.slug)
+    if (picked.length) return picked.slice(0, 3)
+  }
   return SPIRIT_SERVICES.filter((s) => s.slug !== current.slug).slice(0, 3)
+}
+
+/** Libellé de prix d'une formule — jamais de faux total (« Sur devis » sinon). */
+function formulaPriceLabel(f: NonNullable<ServiceContent["formules"]>[number]): string {
+  if (typeof f.priceCents === "number") {
+    if (f.priceKind === "exact") return formatPrice(f.priceCents)
+    if (f.priceKind === "from") return `dès ${formatPrice(f.priceCents)}`
+  }
+  return "Sur devis"
 }
 
 export async function SpiritServicePage({
@@ -60,7 +80,13 @@ export async function SpiritServicePage({
     crumbs.map((c) => ({ name: c.name, url: c.canonical })),
   )
 
-  const quoteHref = withTenant(`/#demande-devis`, slug)
+  // CTA CONTEXTUALISÉ (préparation Phase 5) : le lien transporte la prestation
+  // via `?prestation=<slug>`. Aujourd'hui il mène au formulaire de devis de
+  // l'accueil ; en Phase 5, le configurateur lira ce paramètre pour
+  // PRÉSÉLECTIONNER la prestation (le client ne la re-choisit pas). Aucun moteur
+  // n'est construit ici : on prépare seulement la référence.
+  const quoteHref = withTenant(`/?prestation=${encodeURIComponent(service.slug)}#demande-devis`, slug)
+  const ctaLabel = service.ctaLabel ?? "Demander un devis"
   const related = relatedServices(service)
 
   // Réalisations : on montre jusqu'à 3 comparateurs existants si disponibles

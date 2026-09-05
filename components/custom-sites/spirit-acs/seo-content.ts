@@ -188,6 +188,33 @@ export const SPIRIT_FAQ: FaqItem[] = [
 /*  PRESTATIONS — cartes accueil + pages dédiées                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Nature d'un tarif affiché sur une page prestation.
+ *   - `exact` → prix ferme confirmé (ex. formule Gtechniq bicouche 5 ans).
+ *   - `from`  → « dès X » (point d'entrée, le total dépend du véhicule).
+ *   - `quote` → sur devis (aucun montant : PPF et prestations analysées au cas
+ *               par cas). JAMAIS de faux total lorsqu'une partie est sur devis.
+ */
+export type PriceKind = "exact" | "from" | "quote"
+
+/**
+ * Formule tarifaire RÉELLEMENT confirmée par Spirit ACS. Aucun prix n'est
+ * inventé : `priceCents` n'est renseigné que pour un montant validé.
+ */
+export type ServiceFormula = {
+  label: string
+  /** Montant en CENTIMES (absent si `priceKind === "quote"`). */
+  priceCents?: number
+  priceKind: PriceKind
+  /** Précision courte et factuelle (optionnelle). */
+  note?: string
+}
+
+/** Modes de conversion connus (cf. lib/public-site/types.ts). Copié localement
+ *  en union de chaînes pour éviter tout couplage du contenu à la couche
+ *  publique ; les valeurs sont strictement identiques. */
+export type SpiritConversionMode = "quote_request" | "booking" | "booking_deposit" | "booking_full"
+
 export type ServiceContent = {
   /** Segment d'URL sous /prestations (ex. « nettoyage-automobile »). */
   slug: string
@@ -226,6 +253,34 @@ export type ServiceContent = {
   vehicles: string[]
   /** FAQ spécifique à la prestation. */
   faq: FaqItem[]
+
+  /* --- Tarifs (jamais inventés) --- */
+  /**
+   * Nature globale de la tarification. Par défaut « quote » (sur devis) :
+   * conforme au modèle Spirit ACS (analyse → proposition). Ne passe à
+   * `exact`/`from` que si des `formules` confirmées existent.
+   */
+  priceKind: PriceKind
+  /** Formules tarifaires confirmées (sinon la page affiche « Sur devis »). */
+  formules?: ServiceFormula[]
+
+  /* --- Conversion & CTA (préparation Phase 5) --- */
+  /**
+   * Mode de conversion PAR PAGE. Spirit n'utilise aujourd'hui que
+   * `quote_request` ; ce champ permet d'en changer une seule sans toucher au
+   * provider (cf. cahier des charges §19). Optionnel → défaut `quote_request`.
+   */
+  conversionMode?: SpiritConversionMode
+  /** Libellé du CTA contextualisé (repli : « Demander un devis »). */
+  ctaLabel?: string
+
+  /* --- Maillage interne --- */
+  /**
+   * Prestations complémentaires (slugs) mises en avant en bas de page. Repli :
+   * les 3 premières autres prestations. Améliore la pertinence du maillage et
+   * évite l'effet « pages clones ».
+   */
+  related?: string[]
 }
 
 /**
@@ -263,6 +318,9 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle des finitions avant restitution.",
     ],
     vehicles: ["Citadines et berlines", "SUV et monospaces", "Véhicules professionnels"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis pour un nettoyage",
+    related: ["polissage-automobile", "protection-ceramique", "renovation-phares"],
     faq: [
       {
         question: "Le nettoyage inclut-il l'intérieur et l'extérieur ?",
@@ -305,11 +363,19 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Application éventuelle d'une protection.",
     ],
     vehicles: ["Véhicules du quotidien", "Véhicules de collection ou soignés", "Véhicules avant revente"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis pour un polissage",
+    related: ["protection-ceramique", "nettoyage-automobile", "protection-ppf"],
     faq: [
       {
         question: "Le polissage retire-t-il toutes les rayures ?",
         answer:
           "Il corrige de nombreux défauts légers, mais les rayures profondes ne peuvent pas toujours être totalement effacées. Une analyse préalable permet d'évaluer le résultat possible.",
+      },
+      {
+        question: "Comment est déterminé le niveau de correction ?",
+        answer:
+          "Le niveau de correction n'est pas décidé à l'avance : Spirit ACS examine l'état réel de la carrosserie afin d'adapter le polissage au résultat possible sans sur-solliciter le vernis.",
       },
     ],
   },
@@ -342,6 +408,16 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final du rendu.",
     ],
     vehicles: ["Véhicules récents", "Véhicules soignés", "Véhicules après polissage"],
+    priceKind: "from",
+    formules: [
+      {
+        label: "Protection céramique Gtechniq — bicouche, garantie 5 ans",
+        priceCents: 35000,
+        priceKind: "exact",
+      },
+    ],
+    ctaLabel: "Demander un devis pour une protection céramique",
+    related: ["polissage-automobile", "protection-ppf", "nettoyage-automobile"],
     faq: [
       {
         question: "La protection céramique dure-t-elle dans le temps ?",
@@ -379,11 +455,19 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final de la pose.",
     ],
     vehicles: ["Véhicules neufs ou récents", "Zones exposées (avant, arêtes, seuils)", "Véhicules soignés"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis PPF",
+    related: ["protection-ceramique", "polissage-automobile", "nettoyage-automobile"],
     faq: [
       {
         question: "Le film PPF est-il visible ?",
         answer:
           "Le film est transparent et destiné à se faire discret. Le périmètre de pose est défini avec vous selon les zones à protéger.",
+      },
+      {
+        question: "Comment est établi le tarif d'une pose PPF ?",
+        answer:
+          "La pose PPF est réalisée sur devis : le tarif dépend des zones à protéger et du véhicule, définis après analyse.",
       },
     ],
   },
@@ -416,6 +500,9 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle du rendu.",
     ],
     vehicles: ["Véhicules aux optiques ternies", "Véhicules avant revente", "Véhicules du quotidien"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis pour une rénovation de phares",
+    related: ["polissage-automobile", "nettoyage-automobile", "protection-ceramique"],
     faq: [
       {
         question: "La rénovation des phares est-elle définitive ?",
@@ -453,6 +540,9 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle final.",
     ],
     vehicles: ["Motos routières", "Motos soignées ou de collection", "Deux-roues avant revente"],
+    priceKind: "quote",
+    ctaLabel: "Demander un devis pour ma moto",
+    related: ["nettoyage-automobile", "polissage-automobile", "protection-ceramique"],
     faq: [
       {
         question: "Proposez-vous de la personnalisation moto ?",

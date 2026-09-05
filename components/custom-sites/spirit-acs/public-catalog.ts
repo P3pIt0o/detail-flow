@@ -38,8 +38,10 @@ function toPublicServicePage(s: (typeof SPIRIT_SERVICES)[number]): PublicService
     metaDescription: s.metaDescription,
     h1: s.h1,
     breadcrumbLabel: s.breadcrumbLabel,
-    // Parcours Spirit : demande personnalisée (analyse → proposition).
-    conversionMode: "quote_request",
+    // Mode de conversion PAR PAGE (source : contenu éditorial). Spirit pointe
+    // aujourd'hui vers `quote_request` (demande personnalisée), mais le champ
+    // est résolu par page : en changer une seule ne touche pas au provider.
+    conversionMode: s.conversionMode ?? "quote_request",
     serviceRef: { editorialKey: s.slug },
     sitemapPriority: 0.8,
   }
