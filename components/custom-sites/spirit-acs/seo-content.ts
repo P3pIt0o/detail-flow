@@ -300,8 +300,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Nettoyage intérieur et extérieur",
     cardText:
       "Nettoyage soigné de l'habitacle et de l'extérieur du véhicule : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
-    image: "/services/interieur-complet.png",
-    imageAlt: "Habitacle de voiture nettoyé après une prestation de detailing",
+    image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
+    imageAlt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
     metaTitle: "Nettoyage automobile à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Nettoyage automobile intérieur et extérieur par Spirit ACS à Lagny-sur-Marne : habitacle, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
@@ -345,8 +345,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Correction des défauts et restauration de la brillance",
     cardText:
       "Correction des défauts légers de la carrosserie, amélioration de la brillance et application d'une protection adaptée pour faciliter l'entretien du véhicule.",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Carrosserie brillante après polissage et protection",
+    image: "/custom-sites/spirit-acs/polissage-porsche-911.jpg",
+    imageAlt: "Porsche 911 noire à la carrosserie brillante après polissage par Spirit ACS",
     metaTitle: "Polissage carrosserie à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Polissage de carrosserie par Spirit ACS à Lagny-sur-Marne : correction des défauts légers, gain de brillance et protection adaptée pour un entretien facilité.",
@@ -412,8 +412,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Protection durable et entretien facilité",
     cardText:
       "Application d'une protection adaptée à la carrosserie pour faciliter l'entretien du véhicule et préserver son aspect au fil du temps.",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Application d'une protection sur la carrosserie d'un véhicule",
+    image: "/custom-sites/spirit-acs/ceramique-bmw-m4.jpg",
+    imageAlt: "BMW M4 verte à la carrosserie protégée et brillante par Spirit ACS",
     metaTitle: "Protection céramique à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Protection céramique par Spirit ACS à Lagny-sur-Marne : une protection adaptée à la carrosserie pour faciliter l'entretien et préserver l'aspect du véhicule.",
@@ -485,8 +485,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Film transparent contre les impacts et les rayures",
     cardText:
       "Pose d'un film de protection transparent sur les zones sensibles du véhicule afin de limiter les impacts et préserver les surfaces exposées.",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Zone de carrosserie protégée par un film transparent",
+    image: "/custom-sites/spirit-acs/ppf-porsche-911.jpg",
+    imageAlt: "Avant de Porsche 911 aux surfaces exposées préservées",
     metaTitle: "Protection PPF à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Pose de film de protection PPF par Spirit ACS à Lagny-sur-Marne : protection transparente des zones sensibles pour limiter les impacts sur les surfaces exposées.",
@@ -530,8 +530,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Restauration de la clarté des optiques",
     cardText:
       "Rénovation des optiques ternies pour améliorer leur clarté et l'aspect général de l'avant du véhicule.",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Optique de phare rénovée sur un véhicule",
+    image: "/custom-sites/spirit-acs/renovation-phares-apres.jpg",
+    imageAlt: "Optique de phare rénovée et de nouveau claire par Spirit ACS",
     metaTitle: "Rénovation de phares à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Rénovation d'optiques ternies par Spirit ACS à Lagny-sur-Marne : amélioration de la clarté des phares et de l'aspect général de l'avant du véhicule.",
@@ -579,8 +579,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     cardTagline: "Entretien esthétique et personnalisation",
     cardText:
       "Prestations esthétiques adaptées aux motos et interventions de personnalisation selon le véhicule et le résultat recherché.",
-    image: "/custom-sites/spirit-acs/service-moto.png",
-    imageAlt: "Moto après une prestation esthétique de detailing",
+    image: "/custom-sites/spirit-acs/detailing-moto-kymco.jpg",
+    imageAlt: "Scooter trois-roues Kymco entretenu par Spirit ACS",
     metaTitle: "Detailing moto à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
       "Detailing moto par Spirit ACS à Lagny-sur-Marne : prestations esthétiques adaptées aux motos et personnalisation selon le véhicule et le résultat recherché.",
