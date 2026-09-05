@@ -1,81 +1,35 @@
 /**
  * Section « Nos prestations de detailing » de Spirit ACS (composant SERVEUR).
  *
- * Vitrine éditoriale (PAS un catalogue en base) : une grille de SIX cartes
- * photographiques, une par prestation, chacune renvoyant vers sa PAGE DÉDIÉE
- * (SEO) en conservant le tenant via `serviceHref`.
+ * Vitrine éditoriale rendue à partir de la SOURCE DE VÉRITÉ UNIQUE : le
+ * `PublicSiteCatalog` (couche publique commune, Phase 2). Le composant ne
+ * maintient plus AUCUNE liste en dur — il reçoit les pages de prestations
+ * publiées/en-navigation déjà sélectionnées par `home-page.tsx`. Il ne peut
+ * donc plus diverger de la navigation, du maillage ni du sitemap.
  *
- * - Images RÉELLES déjà présentes dans le projet (aucune génération).
+ * - Images RÉELLES issues de la config éditoriale (aucune génération).
  * - Toute la carte est un vrai lien <a> (exploitable sans JS, focus clavier).
  * - Titres de cartes en <h3> (hiérarchie : H1 hero, H2 section, H3 cartes).
- * - Un court paragraphe SEO visible est rendu sous le titre de section.
+ * - Chaque carte mène à sa PAGE DÉDIÉE (SEO) via `serviceHref` (tenant conservé).
  *
  * Grille responsive : 1 → 2 (≥420px) → 3 (bureau), sans carrousel.
  */
 
 import Image from "next/image"
 import { Reveal } from "@/components/ui/reveal"
+import type { PublicServicePage } from "@/lib/public-site/types"
 import { SPIRIT_SECTIONS } from "./tokens"
-import { getSpiritService } from "./seo-content"
 
-/**
- * Les SIX cartes de l'accueil, dans l'ordre imposé. Libellés et descriptions
- * COURTS (contenu éditorial local de la vitrine, jamais des données Neon), et
- * image RÉELLE réutilisée depuis la configuration de chaque prestation. Le lien
- * pointe vers la page dédiée existante (via `serviceHref`, tenant conservé).
- */
-const HOME_CARDS: { slug: string; title: string; description: string; image: string; imageAlt: string }[] = [
-  {
-    slug: "nettoyage-automobile",
-    title: "Nettoyage automobile",
-    description: "Nettoyage intérieur et extérieur",
-    // Aucune image dédiée « nettoyage » n'existe : on réutilise une image RÉELLE
-    // cohérente déjà disponible (lavage premium).
-    image: "/services/lavage-premium.png",
-    imageAlt: "Véhicule après un nettoyage automobile intérieur et extérieur",
-  },
-  {
-    slug: "polissage-automobile",
-    title: "Polissage automobile",
-    description: "Correction des défauts et restauration de la brillance",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Carrosserie brillante après un polissage automobile",
-  },
-  {
-    slug: "protection-ceramique",
-    title: "Protection céramique",
-    description: "Protection durable et entretien facilité",
-    image: "/services/protection-ceramique.png",
-    imageAlt: "Application d'une protection céramique sur la carrosserie",
-  },
-  {
-    slug: "protection-ppf",
-    title: "Protection PPF",
-    description: "Film transparent contre les impacts et les rayures",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Zone de carrosserie protégée par un film PPF transparent",
-  },
-  {
-    slug: "renovation-phares",
-    title: "Rénovation des phares",
-    description: "Restauration de la clarté des optiques",
-    image: "/services/renovation-carrosserie.png",
-    imageAlt: "Optique de phare rénovée sur un véhicule",
-  },
-  {
-    slug: "detailing-moto",
-    title: "Detailing moto",
-    description: "Entretien esthétique et personnalisation",
-    image: "/custom-sites/spirit-acs/service-moto.png",
-    imageAlt: "Moto après une prestation esthétique de detailing",
-  },
-]
+export function SpiritPrestations({
+  services,
+  serviceHref,
+}: {
+  /** Pages de prestations (publiées + en navigation) issues du catalogue. */
+  services: PublicServicePage[]
+  serviceHref: (slug: string) => string
+}) {
+  if (services.length === 0) return null
 
-// Sécurité : chaque carte doit correspondre à une prestation existante (le lien
-// mènerait sinon vers une page inexistante). On filtre sur les slugs connus.
-const CARDS = HOME_CARDS.filter((c) => getSpiritService(c.slug))
-
-export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string) => string }) {
   return (
     <section
       id={SPIRIT_SECTIONS.prestations}
@@ -97,8 +51,8 @@ export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string)
         </Reveal>
 
         <div className="mt-8 grid grid-cols-1 items-stretch gap-4 min-[420px]:grid-cols-2 lg:mt-12 lg:grid-cols-3 lg:gap-6">
-          {CARDS.map((card, i) => (
-            <Reveal key={card.slug} delay={i * 0.06} className="h-full">
+          {services.map((page, i) => (
+            <Reveal key={page.slug} delay={i * 0.06} className="h-full">
               {/*
                 HAUTEUR MINIMALE (min-h) plutôt qu'un ratio fixe : la carte peut
                 GRANDIR quand le titre passe sur 2–3 lignes → plus aucun rognage
@@ -106,14 +60,14 @@ export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string)
                 + items-stretch harmonisent la hauteur des cartes d'une ligne.
               */}
               <a
-                href={serviceHref(card.slug)}
+                href={serviceHref(page.slug)}
                 className="group relative flex h-full min-h-[16rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-black/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-24px_rgba(6,19,28,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--spirit-paper-2)] sm:min-h-[17rem]"
               >
                 {/* Photographie plein cadre (object-cover, sans déformation).
                     Sous la ligne de flottaison → chargement différé (lazy). */}
                 <Image
-                  src={card.image || "/placeholder.svg"}
-                  alt={card.imageAlt}
+                  src={page.image || "/placeholder.svg"}
+                  alt={page.imageAlt ?? page.navLabel}
                   fill
                   sizes="(min-width: 1024px) 33vw, (min-width: 420px) 50vw, 100vw"
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
@@ -133,9 +87,9 @@ export function SpiritPrestations({ serviceHref }: { serviceHref: (slug: string)
                   {/* Titre : taille responsive clamp(), jamais tronqué (aucune
                       limite de lignes), peut occuper 2–3 lignes. */}
                   <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1rem,4.5vw,1.25rem)]">
-                    {card.title}
+                    {page.navLabel}
                   </h3>
-                  <p className="text-sm leading-snug text-white/85">{card.description}</p>
+                  <p className="text-sm leading-snug text-white/85">{page.cardTagline ?? page.cardTitle}</p>
                   <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-white">
                     En savoir plus
                     <span

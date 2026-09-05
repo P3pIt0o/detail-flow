@@ -183,7 +183,9 @@ describe("Accueil — maillage vers les 6 pages de prestations", () => {
   it("les 6 cartes photographiques lient vers les pages via serviceHref (tenant conservé)", () => {
     // Nouveau design : une seule grille de 6 cartes (plus de bloc gris doublon).
     expect(prest).not.toMatch(/Découvrir toutes nos prestations/)
-    // Les 6 prestations sont maillées, chacune via un lien tenant-aware.
+    // Phase 3 : les slugs vivent dans la SOURCE ÉDITORIALE UNIQUE (seo-content),
+    // consommée via le catalogue public — la grille n'en garde plus aucune copie.
+    const seo = read("components/custom-sites/spirit-acs/seo-content.ts")
     for (const slug of [
       "nettoyage-automobile",
       "polissage-automobile",
@@ -192,9 +194,11 @@ describe("Accueil — maillage vers les 6 pages de prestations", () => {
       "renovation-phares",
       "detailing-moto",
     ]) {
-      expect(prest, `slug manquant: ${slug}`).toMatch(new RegExp(slug))
+      expect(seo, `slug manquant: ${slug}`).toMatch(new RegExp(slug))
     }
-    expect(prest).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
+    // La grille reste routée via serviceHref (tenant-aware) en itérant sur les
+    // pages du catalogue (`page.slug`).
+    expect(prest).toMatch(/href=\{serviceHref\((?:card|page)\.slug\)\}/)
   })
 })
 

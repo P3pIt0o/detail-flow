@@ -106,7 +106,9 @@ describe("SEO — préservation du paramètre tenant dans les liens internes", (
 
   it("les cartes de prestations et le CTA passent par serviceHref/withTenant", () => {
     const prest = read(`${SPIRIT}/spirit-prestations.tsx`)
-    expect(prest).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
+    // La grille est désormais alimentée par le catalogue public (Phase 3) : les
+    // cartes itèrent sur `services` mais restent routées via `serviceHref`.
+    expect(prest).toMatch(/href=\{serviceHref\((?:card|page)\.slug\)\}/)
     const home = read(`${SPIRIT}/home-page.tsx`)
     expect(home).toMatch(/withTenant\(`\/prestations\/\$\{slug\}`, data\.tenant\.slug\)/)
   })

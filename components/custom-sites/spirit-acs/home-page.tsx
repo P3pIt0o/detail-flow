@@ -30,6 +30,8 @@ import { SpiritAvis } from "./spirit-avis"
 import { SpiritAvisGoogle } from "./spirit-avis-google"
 import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
 import { withTenant } from "@/lib/tenant-link"
+import { getSpiritPublicCatalog } from "./public-catalog"
+import { listNavigationServicePages } from "@/lib/public-site/provider"
 import { SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
 import {
   SPIRIT_SECTIONS,
@@ -122,10 +124,18 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // futur domaine, ce paramètre est simplement ignoré (host = tenant).
   const serviceHref = (slug: string) => withTenant(`/prestations/${slug}`, data.tenant.slug)
 
+  // SOURCE DE VÉRITÉ UNIQUE (Phase 2) : les prestations affichées en grille ET
+  // les liens découvrables proviennent du même catalogue public que le sitemap,
+  // le maillage et la route [service]. Plus aucune liste en dur : une page non
+  // publiée / hors navigation disparaît partout de façon cohérente.
+  const publicCatalog = getSpiritPublicCatalog()
+  const navServices = listNavigationServicePages(publicCatalog)
+  const hasPrestations = navServices.length > 0
+
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
   // La section « Prestations » (familles de services) est toujours rendue.
   const navItemsRaw: (SpiritNavItem | null)[] = [
-    { id: SPIRIT_SECTIONS.prestations, label: "Prestations" },
+    hasPrestations ? { id: SPIRIT_SECTIONS.prestations, label: "Prestations" } : null,
     hasGallery ? { id: SPIRIT_SECTIONS.realisations, label: "Réalisations" } : null,
     hasPhotoGallery ? { id: SPIRIT_SECTIONS.galeriePhotos, label: "Galerie" } : null,
     { id: SPIRIT_SECTIONS.apropos, label: "À propos" },
@@ -185,9 +195,10 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       <SpiritReassurance />
 
       {/* Familles de prestations — immédiatement APRÈS le bandeau de réassurance
-          et AVANT les réalisations. Chaque carte mène désormais à la PAGE DÉDIÉE
+          et AVANT les réalisations. La grille est désormais alimentée par le
+          catalogue public (source unique) ; chaque carte mène à la PAGE DÉDIÉE
           de la prestation (SEO), en conservant le tenant. */}
-      <SpiritPrestations serviceHref={serviceHref} />
+      {hasPrestations && <SpiritPrestations services={navServices} serviceHref={serviceHref} />}
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />
