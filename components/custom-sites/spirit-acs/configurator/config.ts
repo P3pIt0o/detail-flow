@@ -27,14 +27,16 @@ export type FinalAction = "quote" | "appointment"
 
 /**
  * Mode de l'étape « options » d'une prestation :
- *   - `none`          → aucune option (véhicule + description libre suffisent) ;
- *   - `select-formula`→ le client SÉLECTIONNE une formule (céramique) ;
- *   - `info-formula`  → formules affichées À TITRE INFORMATIF, SANS sélection
- *                       possible (polissage : le niveau est décidé par Spirit
- *                       ACS lors d'un rendez-vous, jamais par le client) ;
- *   - `ppf-zones`     → sélection de zones à protéger (jamais de prix par zone).
+ *   - `none`             → aucune option (véhicule + description libre suffisent) ;
+ *   - `select-formula`   → le client SÉLECTIONNE une formule ;
+ *   - `info-formula`     → formules affichées À TITRE INFORMATIF, SANS sélection ;
+ *   - `ppf-zones`        → sélection de zones à protéger (jamais de prix par zone) ;
+ *   - `polish-and-ceramic` → parcours combiné Polissage & Céramique : niveau de
+ *                          polissage requis (1/2/3 ou « à déterminer après
+ *                          inspection »), protection céramique facultative et
+ *                          indépendante. Toujours sur devis.
  */
-export type OptionsMode = "none" | "select-formula" | "info-formula" | "ppf-zones"
+export type OptionsMode = "none" | "select-formula" | "info-formula" | "ppf-zones" | "polish-and-ceramic"
 
 export interface ServiceRule {
   mode: OptionsMode
@@ -46,11 +48,12 @@ export interface ServiceRule {
 }
 
 /**
- * Règles de parcours PAR PRESTATION. Conformes au tableau validé :
- *   - Polissage : `info-formula` + `appointment` (RDV pour constater l'état ;
- *     AUCUN choix de niveau par le client) ; photos non nécessaires.
- *   - Céramique : `select-formula` (le client choisit, Spirit ACS valide après
- *     analyse) → `quote`.
+ * Règles de parcours PAR PRESTATION. Conformes au modèle validé :
+ *   - Polissage & Céramique : `polish-and-ceramic` → toujours `quote`. Le client
+ *     choisit un niveau de polissage (1/2/3) OU « à déterminer après inspection »
+ *     (exclusif), puis peut ajouter une protection céramique (facultative).
+ *   - Protection céramique : même règle — l'entrée est ramenée vers le parcours
+ *     combiné (une céramique carrosserie ne se commande jamais seule).
  *   - PPF : `ppf-zones` → toujours `quote` (aucun prix par zone).
  *   - Rénovation de phares : photos fortement recommandées si rayure/défaut.
  */
@@ -63,16 +66,20 @@ const SERVICE_RULES: Record<string, ServiceRule> = {
     photosRecommended: false,
   },
   "polissage-automobile": {
-    mode: "info-formula",
-    finalAction: "appointment",
+    mode: "polish-and-ceramic",
+    finalAction: "quote",
     photoHint:
-      "Pour un polissage, Corentin préfère constater l'état général du véhicule lors d'un rendez-vous : les photos ne sont pas nécessaires ici.",
+      "Ajoutez si vous le souhaitez des photos de la carrosserie (rayures, défauts) : elles aident Spirit ACS à préparer sa proposition. Le niveau de polissage exact est confirmé après examen du véhicule.",
     photosRecommended: false,
   },
   "protection-ceramique": {
-    mode: "select-formula",
+    // Une protection céramique carrosserie ne se commande jamais seule : l'entrée
+    // « Protection céramique » est ramenée vers le parcours Polissage & Céramique
+    // (cf. canonicalServiceSlug). La règle reste alignée par sécurité.
+    mode: "polish-and-ceramic",
     finalAction: "quote",
-    photoHint: "Ajoutez des photos de la carrosserie pour affiner la proposition.",
+    photoHint:
+      "Ajoutez si vous le souhaitez des photos de la carrosserie : elles aident Spirit ACS à préparer sa proposition.",
     photosRecommended: false,
   },
   "protection-ppf": {
@@ -154,6 +161,37 @@ export function formulaPriceLabel(f: ServiceFormula): string {
   return "Sur devis"
 }
 
+/* -------------------------------------------------------------------------- */
+/*  POLISSAGE & CÉRAMIQUE — parcours combiné                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Slugs réels (source de vérité inchangée : deux prestations distinctes). */
+export const POLISH_SLUG = "polissage-automobile"
+export const CERAMIC_SLUG = "protection-ceramique"
+
+/**
+ * Valeur sentinelle du groupe « Polissage » lorsque le client ne choisit pas de
+ * niveau et laisse Spirit ACS le déterminer après inspection. Ce n'est PAS un
+ * niveau de polissage supplémentaire : c'est une alternative EXCLUSIVE aux
+ * niveaux 1/2/3.
+ */
+export const POLISH_INSPECTION_VALUE = "Niveau à déterminer par Spirit ACS après inspection"
+
+/**
+ * Règle d'entrée : une protection céramique carrosserie ne peut jamais être
+ * commandée seule. L'entrée « Protection céramique » est donc ramenée vers le
+ * parcours Polissage & Céramique (polissage requis, céramique facultative).
+ * Toute autre prestation reste inchangée.
+ */
+export function canonicalServiceSlug(slug: string): string {
+  return slug === CERAMIC_SLUG ? POLISH_SLUG : slug
+}
+
+/** Formules de protection céramique réelles (source unique inchangée). */
+export function getCeramicFormulas(): ServiceFormula[] {
+  return getServiceFormulas(CERAMIC_SLUG)
+}
+
 /**
  * Types de véhicule proposés à l'étape « véhicule ». Volontairement limité aux
  * catégories réellement utilisées par Spirit (les paliers tarifaires du
@@ -203,6 +241,15 @@ export interface ConfiguratorSelection {
   serviceTitle: string
   /** Formule choisie (mode `select-formula`) — libellé lisible déjà formaté. */
   formulaLabel?: string | null
+  /**
+   * Parcours Polissage & Céramique (mode `polish-and-ceramic`).
+   * `polishLevel` = niveau choisi (libellé formaté avec prix) OU
+   * `POLISH_INSPECTION_VALUE`. `ceramicLabel` = protection céramique facultative,
+   * INDÉPENDANTE du polissage (jamais écrasée par lui, ni l'inverse). Null =
+   * aucune céramique.
+   */
+  polishLevel?: string | null
+  ceramicLabel?: string | null
   /** Zones PPF sélectionnées (mode `ppf-zones`). */
   ppfZones?: string[]
   /** Précision / « je ne sais pas » PPF. */
@@ -226,6 +273,19 @@ export function serializeConfiguratorDescription(sel: ConfiguratorSelection): st
   const lines: string[] = []
   lines.push(`Prestation : ${sel.serviceTitle}`)
 
+  if (rule.mode === "polish-and-ceramic") {
+    lines.push(
+      sel.polishLevel === POLISH_INSPECTION_VALUE
+        ? "Polissage : niveau à déterminer par Spirit ACS après inspection"
+        : `Polissage : ${sel.polishLevel ?? "à préciser"}`,
+    )
+    lines.push(
+      sel.ceramicLabel
+        ? `Protection céramique : ${sel.ceramicLabel}`
+        : "Protection céramique : aucune ajoutée",
+    )
+    lines.push("(Sélection du client — confirmée par Spirit ACS après analyse du véhicule.)")
+  }
   if (rule.mode === "select-formula" && sel.formulaLabel) {
     lines.push(`Formule souhaitée : ${sel.formulaLabel}`)
     lines.push("(Sélection du client — à valider par Spirit ACS après analyse du véhicule.)")
@@ -258,6 +318,16 @@ export function buildSummary(sel: ConfiguratorSelection): SummaryLine[] {
   const rule = getServiceRule(sel.serviceSlug)
   const out: SummaryLine[] = [{ label: "Prestation", value: sel.serviceTitle }]
 
+  if (rule.mode === "polish-and-ceramic") {
+    out.push({
+      label: "Polissage",
+      value:
+        sel.polishLevel === POLISH_INSPECTION_VALUE
+          ? "Niveau à déterminer après inspection"
+          : sel.polishLevel?.trim() || "À préciser",
+    })
+    out.push({ label: "Protection céramique", value: sel.ceramicLabel?.trim() || "Aucune" })
+  }
   if (rule.mode === "select-formula") {
     out.push({ label: "Formule souhaitée", value: sel.formulaLabel?.trim() || "À définir avec Spirit ACS" })
   }

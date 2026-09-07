@@ -6,6 +6,8 @@ import {
   listConfiguratorServices,
   serializeConfiguratorDescription,
   buildSummary,
+  canonicalServiceSlug,
+  POLISH_INSPECTION_VALUE,
   VEHICLE_TYPES,
   PPF_ZONES,
   type ConfiguratorSelection,
@@ -31,18 +33,45 @@ describe("configurateur — source unique & projection", () => {
   })
 })
 
-describe("correction #1 — polissage", () => {
-  it("n'autorise aucun choix de niveau par le client et aboutit à un rendez-vous", () => {
+describe("polissage & céramique — parcours combiné", () => {
+  it("est un parcours choisi par le client, toujours conclu par un devis", () => {
     const rule = getServiceRule("polissage-automobile")
-    expect(rule.mode).toBe("info-formula")
-    expect(rule.finalAction).toBe("appointment")
+    expect(rule.mode).toBe("polish-and-ceramic")
+    expect(rule.finalAction).toBe("quote")
     expect(rule.photosRecommended).toBe(false)
   })
 
-  it("sérialise le polissage en demande de rendez-vous, sans niveau choisi", () => {
+  it("ramène l'entrée « protection céramique » vers le polissage (jamais seule)", () => {
+    expect(canonicalServiceSlug("protection-ceramique")).toBe("polissage-automobile")
+    expect(canonicalServiceSlug("polissage-automobile")).toBe("polissage-automobile")
+    expect(canonicalServiceSlug("nettoyage-automobile")).toBe("nettoyage-automobile")
+    // la céramique partage la même règle de parcours combiné.
+    expect(getServiceRule("protection-ceramique").mode).toBe("polish-and-ceramic")
+  })
+
+  it("sérialise séparément le polissage et la protection céramique", () => {
     const sel: ConfiguratorSelection = {
       serviceSlug: "polissage-automobile",
       serviceTitle: "Polissage et protection céramique",
+      polishLevel: "Polissage niveau 1 — éclat (dès 299,00 €)",
+      ceramicLabel: "Cire (~9 à 12 mois) (120,00 €)",
+      vehicleType: "Citadine",
+      vehicleBrand: "Renault",
+      vehicleModel: "Clio",
+      audience: "particulier",
+      message: "",
+    }
+    const out = serializeConfiguratorDescription(sel)
+    expect(out).toContain("Polissage : Polissage niveau 1")
+    expect(out).toContain("Protection céramique : Cire")
+  })
+
+  it("permet de laisser Spirit ACS déterminer le niveau, sans céramique", () => {
+    const sel: ConfiguratorSelection = {
+      serviceSlug: "polissage-automobile",
+      serviceTitle: "Polissage et protection céramique",
+      polishLevel: POLISH_INSPECTION_VALUE,
+      ceramicLabel: null,
       vehicleType: "Berline",
       vehicleBrand: "BMW",
       vehicleModel: "Série 3",
@@ -50,13 +79,16 @@ describe("correction #1 — polissage", () => {
       message: "",
     }
     const out = serializeConfiguratorDescription(sel)
-    expect(out).toContain("rendez-vous")
-    expect(out).toContain("déterminé par Spirit ACS")
-    expect(out.toLowerCase()).not.toContain("formule souhaitée")
+    expect(out).toContain("après inspection")
+    expect(out).toContain("Protection céramique : aucune")
+
+    const map = Object.fromEntries(buildSummary(sel).map((l) => [l.label, l.value]))
+    expect(map["Polissage"]).toContain("déterminer après inspection")
+    expect(map["Protection céramique"]).toBe("Aucune")
   })
 })
 
-describe("correction #2 — céramique", () => {
+describe("céramique — données réelles (inchangées)", () => {
   const formulas = getServiceFormulas("protection-ceramique")
 
   it("affiche les surfaces vitrées à 90 € (exact)", () => {
@@ -75,26 +107,6 @@ describe("correction #2 — céramique", () => {
     expect(jantes!.priceKind).toBe("quote")
     expect(jantes!.priceCents).toBeUndefined()
     expect(formulaPriceLabel(jantes!)).toBe("Sur devis")
-  })
-
-  it("laisse le client sélectionner une formule, validée ensuite par Spirit ACS", () => {
-    const rule = getServiceRule("protection-ceramique")
-    expect(rule.mode).toBe("select-formula")
-    expect(rule.finalAction).toBe("quote")
-
-    const sel: ConfiguratorSelection = {
-      serviceSlug: "protection-ceramique",
-      serviceTitle: "Protection céramique",
-      formulaLabel: "Céramique Gtechniq — bicouche, garantie ~5 ans (350,00 €)",
-      vehicleType: "SUV / 4×4",
-      vehicleBrand: "Porsche",
-      vehicleModel: "Cayenne",
-      audience: "particulier",
-      message: "",
-    }
-    const out = serializeConfiguratorDescription(sel)
-    expect(out).toContain("Formule souhaitée : Céramique Gtechniq")
-    expect(out).toContain("à valider par Spirit ACS")
   })
 })
 
