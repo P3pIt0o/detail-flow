@@ -87,8 +87,8 @@ const REALISATIONS = [
 const STEPS = [
   { n: "1", title: "Choisissez votre prestation", text: "Sélectionnez le service adapté à votre véhicule." },
   { n: "2", title: "Précisez votre demande", text: "Indiquez votre véhicule, vos besoins et les informations utiles." },
-  { n: "3", title: "Choisissez votre créneau", text: "Sélectionnez le créneau souhaité selon les disponibilités proposées." },
-  { n: "4", title: "Validation par Spirit ACS", text: "Spirit ACS vérifie votre demande et confirme la prise en charge." },
+  { n: "3", title: "Choisissez vos disponibilités", text: "Indiquez les créneaux qui vous conviennent." },
+  { n: "4", title: "Validation par Spirit ACS", text: "Spirit ACS valide votre demande et vous confirme le rendez-vous." },
 ]
 
 export default function SpiritHomeMockup() {
