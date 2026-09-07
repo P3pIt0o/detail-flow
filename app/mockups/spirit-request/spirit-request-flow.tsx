@@ -194,11 +194,13 @@ export default function SpiritRequestFlow() {
 function Launcher({ dispatch }: { dispatch: React.Dispatch<Action> }) {
   return (
     <div className="rq-launch">
+      <span className="rq-launch-tag">Écran interne — ne fait pas partie du parcours client</span>
       <p className="rq-eyebrow">Prototype interactif</p>
       <h1 className="rq-title rq-launch-h1">Parcours de demande</h1>
       <p className="rq-launch-note">
-        Choisissez un point d&apos;entrée. Le state est conservé lors des retours arrière — vous pouvez tester le
-        parcours de bout en bout.
+        Point de départ de démonstration pour tester les deux entrées réelles du site. Le state est conservé lors des
+        retours arrière. En production, ces entrées sont déclenchées directement depuis le site (carte prestation ou CTA
+        « Demander un devis ») — cet écran n&apos;apparaît jamais côté client.
       </p>
 
       <div className="rq-launch-block">
@@ -483,11 +485,10 @@ function VehiculeStep({ s, patch }: { s: State; patch: (p: Partial<State>) => vo
       <div className="rq-types">
         {VEHICLE_TYPES.map((t) => {
           const active = s.vehType === t
-          const moto = t.startsWith("Moto")
           return (
             <button key={t} className={`rq-type${active ? " is-active" : ""}`} onClick={() => patch({ vehType: t })}>
               <span className="rq-type-ic" aria-hidden="true">
-                {moto ? <MotoIcon /> : <CarIcon />}
+                <VehicleIcon type={t} />
               </span>
               <span className="rq-type-label">{t}</span>
             </button>
@@ -789,14 +790,18 @@ function RecapStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch
   const steps = stepsFor(s.entry)
   const go = (key: string) => dispatch({ type: "goto", i: steps.indexOf(key), fromSummary: true })
   const optionLabels = family?.options.filter((o) => s.options.includes(o.id)).map((o) => o.label) ?? []
-  const chosenFormulas = family
-    ? family.formulaGroups.map((_, gi) => s.formulas[gi]).filter(Boolean)
+  // Sélection par groupe : polissage ET céramique restent affichés séparément,
+  // chacun avec son prix (jamais uniquement la dernière option choisie).
+  const selectedByGroup = family
+    ? family.formulaGroups
+        .map((g, gi) => {
+          const label = s.formulas[gi]
+          if (!label) return null
+          const f = g.formulas.find((x) => x.label === label)
+          return { group: g.title ?? "Formule", label, price: f ? priceText(f) : "" }
+        })
+        .filter((x): x is { group: string; label: string; price: string } => x !== null)
     : []
-  const formulaLabel = s.inspection
-    ? "À déterminer après inspection"
-    : chosenFormulas.length
-      ? chosenFormulas.join(" + ")
-      : null
 
   return (
     <section>
@@ -806,8 +811,24 @@ function RecapStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch
         {family?.title ?? "—"}
       </RecapBlock>
       {family && family.formulaGroups.length > 0 && (
-        <RecapBlock label="Formule" onEdit={() => go("formules")}>
-          {formulaLabel ?? "Non précisée"}
+        <RecapBlock label={selectedByGroup.length > 1 ? "Formules" : "Formule"} onEdit={() => go("formules")}>
+          {s.inspection ? (
+            "À déterminer après inspection"
+          ) : selectedByGroup.length ? (
+            <div className="rq-recap-formulas">
+              {selectedByGroup.map((r) => (
+                <div key={r.group + r.label} className="rq-recap-formula">
+                  <span className="rq-recap-fgroup">{r.group}</span>
+                  <span className="rq-recap-fline">
+                    <span>{r.label}</span>
+                    <span className="rq-recap-fprice">{r.price}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            "Non précisée"
+          )}
         </RecapBlock>
       )}
       <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
@@ -866,9 +887,12 @@ function Confirmation({ dispatch }: { dispatch: React.Dispatch<Action> }) {
         </svg>
       </span>
       <h2 className="rq-title rq-confirm-h">Votre demande a bien été envoyée</h2>
-      <p className="rq-confirm-t">Spirit ACS va étudier votre demande et vous confirmer le rendez-vous.</p>
+      <p className="rq-confirm-t">
+        Merci. Spirit ACS va étudier votre demande et vous recontactera pour confirmer votre rendez-vous.
+      </p>
+      <p className="rq-confirm-meta">Réponse généralement sous 48 h ouvrées · Aucun paiement à ce stade.</p>
       <button className="rq-btn rq-btn-ghost" onClick={() => dispatch({ type: "reset" })}>
-        Retour au prototype
+        Retour au site
       </button>
     </div>
   )
@@ -878,25 +902,85 @@ function Confirmation({ dispatch }: { dispatch: React.Dispatch<Action> }) {
 /*  ICONS (pictogrammes UI simples, réutilisables — aucun logo de marque)      */
 /* -------------------------------------------------------------------------- */
 
-function CarIcon() {
+/**
+ * Silhouettes automobiles distinctes (viewBox 48×30), style solide minimaliste.
+ * Chaque type a une carrosserie / une hauteur / des roues propres — aucune
+ * n'est une simple répétition d'une même voiture. Aucun logo de marque.
+ */
+function CitadineIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 13l2-5a3 3 0 0 1 2.8-2h8.4A3 3 0 0 1 21 8l2 5" transform="translate(-1 0)" />
-      <path d="M3 13h18v3a1 1 0 0 1-1 1h-1M4 17H3a0 0 0 0 1 0 0v-4" />
-      <circle cx="7.5" cy="16.5" r="1.8" />
-      <circle cx="16.5" cy="16.5" r="1.8" />
+    <svg viewBox="0 0 48 30" fill="currentColor" aria-hidden="true">
+      <path d="M6 23 L6 19 Q6 18 7 17.6 L10 16.5 L13 11.5 Q14 10 16.5 10 L26 10 Q28.5 10 30 12 L33.5 16.5 L40 18 Q42 18.4 42 20 L42 23 Z" />
+      <circle cx="13.5" cy="23" r="3.4" />
+      <circle cx="34" cy="23" r="3.4" />
+    </svg>
+  )
+}
+
+function BerlineIcon() {
+  return (
+    <svg viewBox="0 0 48 30" fill="currentColor" aria-hidden="true">
+      <path d="M3 23 L3 20 L7.5 18.3 L13 12.5 Q14.5 11 17.5 11 L28 11 Q31 11 33 13 L38.5 17.8 L44.5 19.6 Q45.5 20 45.5 21 L45.5 23 Z" />
+      <circle cx="12.5" cy="23" r="3.4" />
+      <circle cx="37.5" cy="23" r="3.4" />
+    </svg>
+  )
+}
+
+function SuvIcon() {
+  return (
+    <svg viewBox="0 0 48 30" fill="currentColor" aria-hidden="true">
+      <path d="M5 23 L5 15 L9 13 L12 8 Q13 6.6 15.5 6.6 L30 6.6 Q32.5 6.6 34 8.2 L37.5 13 L42.5 14.6 Q44.5 15 44.5 16.6 L44.5 23 Z" />
+      <circle cx="13.5" cy="23" r="3.9" />
+      <circle cx="36" cy="23" r="3.9" />
+    </svg>
+  )
+}
+
+function MonospaceIcon() {
+  return (
+    <svg viewBox="0 0 48 30" fill="currentColor" aria-hidden="true">
+      <path d="M4 23 L4 18.5 L6.5 16.5 L14.5 7.6 Q15.5 6.6 17.5 6.6 L34 6.6 Q36 6.6 37 8.2 L40.5 12.5 L43.5 14.4 Q44.5 14.8 44.5 16.2 L44.5 23 Z" />
+      <circle cx="13" cy="23" r="3.5" />
+      <circle cx="36" cy="23" r="3.5" />
+    </svg>
+  )
+}
+
+function VanIcon() {
+  return (
+    <svg viewBox="0 0 48 30" fill="currentColor" aria-hidden="true">
+      <path d="M4 23 L4 10.5 L7.5 7.6 Q8.3 6.6 10 6.6 L42 6.6 Q43.8 6.6 43.8 8.4 L43.8 23 Z" />
+      <circle cx="12" cy="23" r="3.5" />
+      <circle cx="37" cy="23" r="3.5" />
     </svg>
   )
 }
 
 function MotoIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="5.5" cy="16" r="3" />
-      <circle cx="18.5" cy="16" r="3" />
-      <path d="M5.5 16l3-5h6l2 5M8.5 11l-1-3H5.5M14.5 11l2 0 2 5" />
+    <svg viewBox="0 0 48 30" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="9" cy="21" r="4.2" />
+      <circle cx="39" cy="21" r="4.2" />
+      <path d="M9 21 L20 21 L25 13.5 L31 13.5 L35 21" />
+      <path d="M31 13.5 L35 9 L39.5 9.8" />
+      <path d="M13 21 L17 14 L23 14" />
     </svg>
   )
+}
+
+const VEHICLE_ICONS: Record<string, () => React.ReactElement> = {
+  Citadine: CitadineIcon,
+  Berline: BerlineIcon,
+  "SUV / 4x4": SuvIcon,
+  Monospace: MonospaceIcon,
+  "Utilitaire / Van": VanIcon,
+  "Moto / Scooter": MotoIcon,
+}
+
+function VehicleIcon({ type }: { type: string }) {
+  const Ic = VEHICLE_ICONS[type] ?? CitadineIcon
+  return <Ic />
 }
 
 /* -------------------------------------------------------------------------- */
@@ -928,7 +1012,8 @@ const css = `
 .rq-btn-ghost{ background:rgba(255,255,255,.06); color:var(--fg); border:1px solid rgba(23,179,201,.55); }
 
 /* LAUNCHER */
-.rq-launch{ padding:34px 20px 40px; }
+.rq-launch{ padding:26px 20px 40px; }
+.rq-launch-tag{ display:inline-block; margin-bottom:16px; padding:5px 11px; border-radius:20px; background:rgba(229,30,122,.12); border:1px solid rgba(229,30,122,.4); color:#f5a6cd; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; }
 .rq-launch-h1{ font-size:30px; color:#fff; margin:8px 0 0; }
 .rq-launch-note{ margin:12px 0 24px; font-size:13.5px; line-height:1.5; color:var(--muted); }
 .rq-launch-block{ margin-bottom:22px; }
@@ -994,8 +1079,9 @@ const css = `
 .rq-types{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; margin-bottom:20px; }
 .rq-type{ display:flex; flex-direction:column; align-items:center; gap:7px; padding:14px 6px; background:var(--navy2); border:1px solid var(--line); border-radius:12px; cursor:pointer; color:var(--paper); }
 .rq-type.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); background:var(--navy3); color:#fff; }
-.rq-type-ic{ color:var(--teal); }
-.rq-type-ic svg{ width:30px; height:30px; }
+.rq-type-ic{ color:var(--muted); display:flex; align-items:center; justify-content:center; height:30px; }
+.rq-type.is-active .rq-type-ic{ color:var(--teal); }
+.rq-type-ic svg{ width:46px; height:29px; }
 .rq-type-label{ font-size:11.5px; font-weight:600; text-align:center; line-height:1.15; }
 
 /* FIELDS */
@@ -1057,11 +1143,17 @@ const css = `
 .rq-recap-edit{ background:none; border:none; color:var(--fg); font-size:12.5px; text-decoration:underline; cursor:pointer; padding:0; }
 .rq-recap-val{ font-size:14px; line-height:1.45; color:#fff; }
 .rq-recap-sub{ color:var(--muted); font-size:13px; }
+.rq-recap-formulas{ display:flex; flex-direction:column; gap:11px; }
+.rq-recap-formula{ display:flex; flex-direction:column; gap:2px; }
+.rq-recap-fgroup{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.08em; font-size:10.5px; color:var(--muted); }
+.rq-recap-fline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.rq-recap-fprice{ flex:0 0 auto; font-family:var(--font-osw),"Oswald",sans-serif; font-weight:600; color:var(--teal); white-space:nowrap; }
 
 /* CONFIRMATION */
 .rq-confirm{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 26px; gap:6px; }
 .rq-confirm-ic{ width:74px; height:74px; border-radius:50%; background:rgba(23,179,201,.14); border:1px solid rgba(23,179,201,.4); color:var(--teal); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
 .rq-confirm-ic svg{ width:36px; height:36px; }
 .rq-confirm-h{ font-size:24px; color:#fff; }
-.rq-confirm-t{ margin:10px 0 26px; font-size:14px; line-height:1.55; color:var(--muted); max-width:300px; }
+.rq-confirm-t{ margin:10px 0 10px; font-size:14px; line-height:1.55; color:var(--paper); max-width:310px; }
+.rq-confirm-meta{ margin:0 0 26px; font-size:12px; line-height:1.5; color:var(--muted); max-width:300px; }
 `
