@@ -46,7 +46,11 @@ type State = {
   i: number
   fromSummary: boolean
   serviceKey: string | null
-  formula: string | null
+  /** Formule choisie par groupe (index de groupe → label). Permet de choisir
+   *  un niveau de polissage ET une céramique pour la famille regroupée. */
+  formulas: Record<number, string>
+  /** « Laisser Spirit ACS déterminer après inspection » (exclusif). */
+  inspection: boolean
   vehType: string | null
   vehBrand: string
   vehModel: string
@@ -70,7 +74,8 @@ const initialState: State = {
   i: 0,
   fromSummary: false,
   serviceKey: null,
-  formula: null,
+  formulas: {},
+  inspection: false,
   vehType: null,
   vehBrand: "",
   vehModel: "",
@@ -433,12 +438,17 @@ function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State
             {g.note && <p className="rq-fgroup-note">{g.note}</p>}
             <div className="rq-formulas">
               {g.formulas.map((f) => {
-                const active = s.formula === f.label
+                const active = s.formulas[gi] === f.label
                 return (
                   <button
                     key={f.label}
                     className={`rq-formula${active ? " is-active" : ""}`}
-                    onClick={() => patch({ formula: active ? null : f.label })}
+                    onClick={() => {
+                      const next = { ...s.formulas }
+                      if (active) delete next[gi]
+                      else next[gi] = f.label
+                      patch({ formulas: next, inspection: false })
+                    }}
                   >
                     <span className="rq-formula-main">
                       <span className="rq-formula-label">{f.label}</span>
@@ -456,8 +466,8 @@ function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State
       {family.caveat && <p className="rq-caveat">{family.caveat}</p>}
       {!onDevis && (
         <button
-          className={`rq-softchoice${s.formula === "__inspection__" ? " is-active" : ""}`}
-          onClick={() => patch({ formula: s.formula === "__inspection__" ? null : "__inspection__" })}
+          className={`rq-softchoice${s.inspection ? " is-active" : ""}`}
+          onClick={() => patch({ inspection: !s.inspection, formulas: s.inspection ? s.formulas : {} })}
         >
           Laisser Spirit ACS déterminer la formule après inspection
         </button>
@@ -779,7 +789,14 @@ function RecapStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch
   const steps = stepsFor(s.entry)
   const go = (key: string) => dispatch({ type: "goto", i: steps.indexOf(key), fromSummary: true })
   const optionLabels = family?.options.filter((o) => s.options.includes(o.id)).map((o) => o.label) ?? []
-  const formulaLabel = s.formula === "__inspection__" ? "À déterminer après inspection" : s.formula
+  const chosenFormulas = family
+    ? family.formulaGroups.map((_, gi) => s.formulas[gi]).filter(Boolean)
+    : []
+  const formulaLabel = s.inspection
+    ? "À déterminer après inspection"
+    : chosenFormulas.length
+      ? chosenFormulas.join(" + ")
+      : null
 
   return (
     <section>
