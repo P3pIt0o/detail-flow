@@ -127,7 +127,8 @@ export default function SpiritHomeMockup() {
         {/* 3 — PRESTATIONS */}
         <section className="mk-sec" id="services">
           <p className="mk-eyebrow mk-eyebrow-dark">Nos prestations</p>
-          <h2 className="mk-title mk-h2">Sélectionnez puis réservez votre créneau</h2>
+          <h2 className="mk-title mk-h2">Sélectionnez votre prestation</h2>
+          <p className="mk-sec-sub">Découvrez les formules puis demandez votre devis.</p>
           <div className="mk-grid">
             {SERVICES.map((s) => (
               <a key={s.title} className={`mk-tile${s.wide ? " mk-tile-wide" : ""}`} href="#">
@@ -150,7 +151,7 @@ export default function SpiritHomeMockup() {
         {/* 4 — RÉALISATIONS */}
         <section className="mk-sec mk-sec-tight">
           <p className="mk-eyebrow mk-eyebrow-dark">Réalisations</p>
-          <h2 className="mk-title mk-h2">Nos derniers passages à l'atelier</h2>
+          <h2 className="mk-title mk-h2">Nos dernières réalisations</h2>
           <div className="mk-scroller">
             {REALISATIONS.map((r, i) => (
               <div key={i} className="mk-shot">
@@ -274,6 +275,8 @@ const css = `
 .mk-sec{ padding:34px 20px 6px; }
 .mk-sec-tight{ padding-top:30px; }
 .mk-h2{ font-size:25px; margin:8px 0 18px; color:#fff; max-width:300px; }
+.mk-h2:has(+ .mk-sec-sub){ margin-bottom:6px; }
+.mk-sec-sub{ margin:0 0 18px; font-size:14px; line-height:1.45; color:var(--muted); max-width:320px; }
 
 /* GRID PRESTATIONS */
 .mk-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
