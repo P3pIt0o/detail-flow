@@ -85,10 +85,10 @@ const REALISATIONS = [
 ]
 
 const STEPS = [
-  { n: "1", title: "Votre demande", text: "Décrivez votre véhicule et le résultat recherché." },
-  { n: "2", title: "Analyse et proposition", text: "Spirit ACS étudie votre besoin et propose une prestation adaptée." },
-  { n: "3", title: "Réalisation", text: "Prise en charge à l'atelier ou à domicile selon la prestation." },
-  { n: "4", title: "Contrôle final", text: "Le résultat est contrôlé avant la restitution du véhicule." },
+  { n: "1", title: "Choisissez votre prestation", text: "Sélectionnez le service adapté à votre véhicule." },
+  { n: "2", title: "Précisez votre demande", text: "Indiquez votre véhicule, vos besoins et les informations utiles." },
+  { n: "3", title: "Choisissez votre créneau", text: "Sélectionnez le créneau souhaité selon les disponibilités proposées." },
+  { n: "4", title: "Validation par Spirit ACS", text: "Spirit ACS vérifie votre demande et confirme la prise en charge." },
 ]
 
 export default function SpiritHomeMockup() {
@@ -164,7 +164,7 @@ export default function SpiritHomeMockup() {
         {/* 5 — COMMENT ÇA SE PASSE */}
         <section className="mk-sec">
           <p className="mk-eyebrow mk-eyebrow-dark">Comment ça se passe</p>
-          <h2 className="mk-title mk-h2">Une demande, pas une réservation</h2>
+          <h2 className="mk-title mk-h2">Votre prestation en 4 étapes</h2>
           <ol className="mk-steps">
             {STEPS.map((st) => (
               <li key={st.n} className="mk-step">
