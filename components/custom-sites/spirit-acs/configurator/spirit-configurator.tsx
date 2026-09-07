@@ -52,6 +52,7 @@ import {
   VEHICLE_TYPES,
   type ConfiguratorSelection,
 } from "./config"
+import { VehicleTypeIcon } from "./vehicle-icons"
 
 type StepKey = "service" | "options" | "vehicle" | "contact" | "details" | "review"
 
@@ -497,7 +498,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         <div className="space-y-5">
           <fieldset className="space-y-2">
             <legend className="font-medium text-[color:var(--spirit-ink)]">Type de véhicule</legend>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
               {VEHICLE_TYPES.map((t) => {
                 const checked = vehicleType === t
                 return (
@@ -510,8 +511,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                       onChange={() => setVehicleType(t)}
                       className="peer sr-only"
                     />
-                    <span className="flex items-center rounded-full border border-black/15 bg-white px-4 py-2 text-sm text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                      {t}
+                    <span className="flex h-full flex-col items-center justify-center gap-1.5 rounded-xl border border-black/15 bg-white px-2 py-3 text-center text-xs font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                      <VehicleTypeIcon type={t} className="block w-9" />
+                      <span className="leading-tight">{t}</span>
                     </span>
                   </label>
                 )
