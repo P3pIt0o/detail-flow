@@ -21,11 +21,12 @@
  *  Repli « Autre demande » : le formulaire libre historique reste accessible
  *  (flotte, abonnement, besoin hors liste) sans dupliquer la logique.
  *
- *  Règles métier verrouillées (tableau validé) :
- *   - Polissage : formules affichées à titre INFORMATIF, le client NE choisit
- *     PAS son niveau ; le parcours aboutit à une demande de rendez-vous.
- *   - Céramique : le client sélectionne une formule, validée par Spirit ACS
- *     après analyse.
+ *  Règles métier verrouillées (modèle validé) :
+ *   - Polissage & Céramique : parcours combiné. Le client choisit un niveau de
+ *     polissage (1/2/3) OU « Spirit ACS détermine après inspection » (exclusif),
+ *     puis peut AJOUTER une protection céramique (facultative, indépendante).
+ *     Une céramique carrosserie ne se commande jamais seule : l'entrée
+ *     « Protection céramique » est ramenée vers ce parcours. Toujours sur devis.
  *   - PPF : sélection de zones, toujours sur devis (aucun prix par zone).
  *   - Photos : facultatives partout ; jamais bloquantes.
  */
@@ -42,16 +43,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   buildSummary,
+  canonicalServiceSlug,
+  CERAMIC_SLUG,
   formulaPriceLabel,
+  getCeramicFormulas,
   getServiceFormulas,
   getServiceRule,
   listConfiguratorServices,
+  POLISH_INSPECTION_VALUE,
   PPF_ZONES,
   serializeConfiguratorDescription,
   suggestedVehicleType,
   VEHICLE_TYPES,
   type ConfiguratorSelection,
 } from "./config"
+import { VehicleTypeIcon } from "./vehicle-icons"
 
 type StepKey = "service" | "options" | "vehicle" | "contact" | "details" | "review"
 
@@ -88,6 +94,13 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 
   // Sélection
   const [formulaLabel, setFormulaLabel] = useState<string | null>(null)
+  // Parcours Polissage & Céramique : deux états INDÉPENDANTS (l'un ne réinitialise
+  // jamais l'autre) ; `polishLevel` requis, `ceramicLabel` facultatif.
+  const [polishLevel, setPolishLevel] = useState<string | null>(null)
+  const [ceramicLabel, setCeramicLabel] = useState<string | null>(null)
+  // Vrai si le client est arrivé par l'entrée « Protection céramique » (ramené
+  // vers le polissage) : sert uniquement à afficher une note pédagogique.
+  const [cameFromCeramic, setCameFromCeramic] = useState(false)
   const [ppfZones, setPpfZones] = useState<string[]>([])
   const [ppfOther, setPpfOther] = useState("")
   const [vehicleType, setVehicleType] = useState("")
@@ -115,10 +128,14 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
     if (!raw) return
     const match = SERVICES.find((s) => s.slug === raw)
     if (!match) return
-    setServiceSlug(match.slug)
+    // Une céramique carrosserie ne se commande jamais seule : l'entrée
+    // « Protection céramique » est ramenée vers le parcours Polissage & Céramique.
+    const slug = canonicalServiceSlug(match.slug)
+    setServiceSlug(slug)
+    setCameFromCeramic(match.slug === CERAMIC_SLUG)
     setLocked(true)
-    setVehicleType(suggestedVehicleType(match.slug))
-    const rule = getServiceRule(match.slug)
+    setVehicleType(suggestedVehicleType(slug))
+    const rule = getServiceRule(slug)
     setStep(rule.mode !== "none" ? "options" : "vehicle")
   }, [])
 
@@ -137,9 +154,13 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 
   const stepIndex = Math.max(0, steps.indexOf(step))
 
-  function chooseService(slug: string) {
+  function chooseService(rawSlug: string) {
+    const slug = canonicalServiceSlug(rawSlug)
     setServiceSlug(slug)
+    setCameFromCeramic(rawSlug === CERAMIC_SLUG)
     setFormulaLabel(null)
+    setPolishLevel(null)
+    setCeramicLabel(null)
     setPpfZones([])
     setPpfOther("")
     setVehicleType(suggestedVehicleType(slug))
@@ -154,6 +175,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   function validateStep(current: StepKey): boolean {
     const e: Record<string, string> = {}
     if (current === "options") {
+      if (rule.mode === "polish-and-ceramic" && !polishLevel) {
+        e.polish = "Choisissez un niveau de polissage, ou laissez Spirit ACS le déterminer."
+      }
       if (rule.mode === "select-formula" && !formulaLabel) {
         e.formula = "Sélectionnez une formule pour continuer."
       }
@@ -199,6 +223,8 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
     serviceSlug,
     serviceTitle: service?.title ?? serviceSlug,
     formulaLabel,
+    polishLevel,
+    ceramicLabel,
     ppfZones,
     ppfOther,
     vehicleType,
@@ -377,6 +403,126 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
             </p>
           )}
 
+          {/* Polissage & Céramique : niveau de polissage (requis) + céramique (facultative). */}
+          {rule.mode === "polish-and-ceramic" && (
+            <div className="space-y-6">
+              {cameFromCeramic && (
+                <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-3 text-sm text-[color:var(--spirit-ink)]">
+                  Une protection céramique s&apos;applique toujours sur une carrosserie polie. Choisissez d&apos;abord
+                  votre polissage ci-dessous, puis ajoutez la protection céramique souhaitée.
+                </p>
+              )}
+
+              {/* Groupe A — Polissage (choix requis, exclusif) */}
+              <fieldset className="space-y-2">
+                <legend className="font-medium text-[color:var(--spirit-ink)]">Polissage</legend>
+                <p className="text-sm text-[color:var(--spirit-muted)]">
+                  Choisissez un niveau, ou laissez Spirit ACS le déterminer après inspection de la carrosserie.
+                </p>
+                <div className="grid gap-2">
+                  {formulas.map((f) => {
+                    const value = `${f.label} (${formulaPriceLabel(f)})`
+                    const checked = polishLevel === value
+                    return (
+                      <label key={f.label} className="cursor-pointer">
+                        <input
+                          type="radio"
+                          name="polish-level"
+                          value={value}
+                          checked={checked}
+                          onChange={() => setPolishLevel(value)}
+                          className="peer sr-only"
+                        />
+                        <span className="flex items-start justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-[color:var(--spirit-ink)]">{f.label}</span>
+                            {f.note && (
+                              <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">{f.note}</span>
+                            )}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
+                            {formulaPriceLabel(f)}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+
+                  {/* Alternative EXCLUSIVE : détermination après inspection (jamais un niveau). */}
+                  <label className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="polish-level"
+                      value={POLISH_INSPECTION_VALUE}
+                      checked={polishLevel === POLISH_INSPECTION_VALUE}
+                      onChange={() => setPolishLevel(POLISH_INSPECTION_VALUE)}
+                      className="peer sr-only"
+                    />
+                    <span className="flex items-start gap-2 rounded-xl border border-dashed border-black/25 bg-[var(--spirit-paper)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-[color:var(--spirit-ink)]">
+                          Laisser Spirit ACS déterminer le niveau après inspection
+                        </span>
+                        <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">
+                          Le niveau de correction est défini après examen de la carrosserie, sans être choisi à
+                          l&apos;avance.
+                        </span>
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                {errors.polish && <p className="text-sm text-[color:var(--destructive)]">{errors.polish}</p>}
+              </fieldset>
+
+              {/* Groupe B — Protection céramique (facultative, indépendante du polissage) */}
+              <fieldset className="space-y-2">
+                <legend className="font-medium text-[color:var(--spirit-ink)]">
+                  Protection céramique{" "}
+                  <span className="font-normal text-[color:var(--spirit-muted)]">(facultatif)</span>
+                </legend>
+                <p className="text-sm text-[color:var(--spirit-muted)]">
+                  Ajoutez une protection si vous le souhaitez. Votre choix est confirmé par Spirit ACS après analyse.
+                </p>
+                <div className="grid gap-2">
+                  <label className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="ceramic-option"
+                      checked={ceramicLabel === null}
+                      onChange={() => setCeramicLabel(null)}
+                      className="peer sr-only"
+                    />
+                    <span className="flex items-center rounded-xl border border-black/10 bg-white p-3 text-sm font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                      Sans protection céramique
+                    </span>
+                  </label>
+                  {getCeramicFormulas().map((f) => {
+                    const value = `${f.label} (${formulaPriceLabel(f)})`
+                    const checked = ceramicLabel === value
+                    return (
+                      <label key={f.label} className="cursor-pointer">
+                        <input
+                          type="radio"
+                          name="ceramic-option"
+                          value={value}
+                          checked={checked}
+                          onChange={() => setCeramicLabel(value)}
+                          className="peer sr-only"
+                        />
+                        <span className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                          <span className="text-sm font-medium text-[color:var(--spirit-ink)]">{f.label}</span>
+                          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
+                            {formulaPriceLabel(f)}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+            </div>
+          )}
+
           {/* Céramique : sélection d'une formule par le client. */}
           {rule.mode === "select-formula" && (
             <fieldset className="space-y-2">
@@ -497,7 +643,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         <div className="space-y-5">
           <fieldset className="space-y-2">
             <legend className="font-medium text-[color:var(--spirit-ink)]">Type de véhicule</legend>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
               {VEHICLE_TYPES.map((t) => {
                 const checked = vehicleType === t
                 return (
@@ -510,8 +656,12 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                       onChange={() => setVehicleType(t)}
                       className="peer sr-only"
                     />
-                    <span className="flex items-center rounded-full border border-black/15 bg-white px-4 py-2 text-sm text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                      {t}
+                    <span className="flex h-full flex-col items-center justify-center gap-1.5 rounded-xl border border-black/15 bg-white px-2 py-3 text-center text-xs font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                      <VehicleTypeIcon
+                        type={t}
+                        className={`block w-9 ${checked ? "text-white" : "text-[color:var(--spirit-teal-strong)]"}`}
+                      />
+                      <span className="leading-tight">{t}</span>
                     </span>
                   </label>
                 )
