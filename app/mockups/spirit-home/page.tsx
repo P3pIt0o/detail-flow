@@ -96,7 +96,7 @@ export default function SpiritHomeMockup() {
 
         {/* 2 — HERO */}
         <section className="mk-hero">
-          <img src={`${BASE}/spirit-hero-v2.webp`} alt="Réalisation Spirit ACS" className="mk-hero-img" />
+          <img src={`${BASE}/polissage-porsche-911.jpg`} alt="Porsche 911 noire préparée par Spirit ACS à Lagny-sur-Marne" className="mk-hero-img" />
           <div className="mk-hero-veil" />
           <div className="mk-hero-body">
             <p className="mk-eyebrow">Detailing automobile · Lagny-sur-Marne</p>
