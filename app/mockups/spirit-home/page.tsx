@@ -22,43 +22,56 @@ export const metadata: Metadata = {
 
 const BASE = "/custom-sites/spirit-acs"
 
-/** Prestations RÉELLES (source : seo-content.ts). Prix d'entrée confirmés. */
+/**
+ * Cartes d'accueil réorganisées selon les retours de Corentin :
+ *   1 Nettoyage · 2 Polissage & Céramique · 3 PPF & Personnalisation ·
+ *   4 Rénovation de phares · 5 Moto (seul, pleine largeur).
+ *
+ * Aucune prestation réelle n'est supprimée : « polissage-automobile » +
+ * « protection-ceramique » sont regroupés en UNE vitrine (le regroupement
+ * visuel ne préjuge pas de l'architecture SEO : chaque prestation gardera sa
+ * propre page). « personnalisation » n'existe pas comme prestation autonome
+ * dans le catalogue (aujourd'hui rattachée à la moto) → aucun prix inventé.
+ *
+ * Prix : uniquement des indications certaines. Un regroupement dont le prix
+ * d'entrée diffère affiche « Voir les formules » ; « Sur devis » là où c'est
+ * réellement le cas (source : seo-content.ts).
+ */
 const SERVICES = [
   {
     title: "Nettoyage intérieur et extérieur",
     price: "Sur devis",
     image: `${BASE}/nettoyage-interieur-cuir.jpg`,
     alt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
+    wide: false,
   },
   {
-    title: "Polissage et protection céramique",
-    price: "dès 299 €",
+    title: "Polissage & céramique",
+    price: "Voir les formules",
     image: `${BASE}/polissage-porsche-911.jpg`,
     alt: "Carrosserie de Porsche 911 polie par Spirit ACS",
+    wide: false,
   },
   {
-    title: "Protection céramique",
-    price: "dès 90 €",
-    image: `${BASE}/ceramique-bmw-m4.jpg`,
-    alt: "BMW M4 protégée par une céramique appliquée par Spirit ACS",
-  },
-  {
-    title: "Protection PPF",
+    title: "PPF & personnalisation",
     price: "Sur devis",
     image: `${BASE}/ppf-porsche-911.jpg`,
-    alt: "Avant de Porsche 911 protégé par un film PPF",
+    alt: "Avant de Porsche 911 protégé par un film PPF transparent",
+    wide: false,
   },
   {
     title: "Rénovation de phares",
     price: "dès 80 €",
     image: `${BASE}/renovation-phares-apres.jpg`,
     alt: "Optique de phare rénovée et de nouveau transparente",
+    wide: false,
   },
   {
-    title: "Moto et personnalisation",
+    title: "Moto",
     price: "dès 50 €",
     image: `${BASE}/detailing-moto-kymco.jpg`,
     alt: "Scooter Kymco entretenu par Spirit ACS",
+    wide: true,
   },
 ]
 
@@ -94,10 +107,12 @@ export default function SpiritHomeMockup() {
           </button>
         </header>
 
-        {/* 2 — HERO */}
+        {/* 2 — HERO (traitement premium multi-couches, non destructif) */}
         <section className="mk-hero">
           <img src={`${BASE}/polissage-porsche-911.jpg`} alt="Porsche 911 noire préparée par Spirit ACS à Lagny-sur-Marne" className="mk-hero-img" />
-          <div className="mk-hero-veil" />
+          <div className="mk-hero-vignette" aria-hidden="true" />
+          <div className="mk-hero-side" aria-hidden="true" />
+          <div className="mk-hero-grade" aria-hidden="true" />
           <div className="mk-hero-body">
             <p className="mk-eyebrow">Detailing automobile · Lagny-sur-Marne</p>
             <h1 className="mk-title mk-h1">Prenez soin de votre véhicule</h1>
@@ -112,12 +127,17 @@ export default function SpiritHomeMockup() {
         {/* 3 — PRESTATIONS */}
         <section className="mk-sec" id="services">
           <p className="mk-eyebrow mk-eyebrow-dark">Nos prestations</p>
-          <h2 className="mk-title mk-h2">Choisissez, puis demandez votre devis</h2>
+          <h2 className="mk-title mk-h2">Sélectionnez puis réservez votre créneau</h2>
           <div className="mk-grid">
             {SERVICES.map((s) => (
-              <a key={s.title} className="mk-tile" href="#">
+              <a key={s.title} className={`mk-tile${s.wide ? " mk-tile-wide" : ""}`} href="#">
                 <img src={s.image || "/placeholder.svg"} alt={s.alt} className="mk-tile-img" />
                 <div className="mk-tile-veil" />
+                <span className="mk-tile-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
                 <div className="mk-tile-body">
                   <span className="mk-tile-title">{s.title}</span>
                   <span className="mk-tile-price">{s.price}</span>
@@ -225,11 +245,24 @@ const css = `
 .mk-burger{ background:rgba(6,19,28,.35); border:1px solid rgba(255,255,255,.16); border-radius:9px; width:40px; height:40px; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; backdrop-filter:blur(6px); }
 .mk-burger span{ width:17px; height:2px; background:var(--fg); border-radius:2px; }
 
-/* HERO */
-.mk-hero{ position:relative; height:592px; display:flex; align-items:flex-end; }
-.mk-hero-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.mk-hero-veil{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,19,28,.55) 0%, rgba(6,19,28,.15) 34%, rgba(6,19,28,.75) 78%, var(--navy) 100%); }
-.mk-hero-body{ position:relative; z-index:2; padding:0 20px 30px; width:100%; }
+/* HERO — vraie photo Porsche, rendu cinématique 100% CSS (non destructif) */
+.mk-hero{ position:relative; height:592px; display:flex; align-items:flex-end; overflow:hidden; background:var(--navy); }
+.mk-hero-img{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:63% 34%;
+  /* accentuation légère des reflets premium, sans dénaturer la photo */
+  filter:contrast(1.1) saturate(1.07) brightness(.94);
+}
+/* 1 · vignettage radial : bords assombris, Porsche encore lumineuse au centre */
+.mk-hero-vignette{ position:absolute; inset:0; background:
+  radial-gradient(125% 88% at 64% 40%, rgba(2,9,14,0) 40%, rgba(2,9,14,.42) 78%, rgba(2,9,14,.68) 100%); }
+/* 2 · voile latéral gauche : protège la lisibilité du texte */
+.mk-hero-side{ position:absolute; inset:0; background:
+  linear-gradient(96deg, rgba(2,9,14,.9) 0%, rgba(2,9,14,.55) 30%, rgba(2,9,14,.12) 58%, rgba(2,9,14,0) 78%); }
+/* 3 · fusion verticale : haut légèrement voilé + bas fondu dans le navy du site */
+.mk-hero-grade{ position:absolute; inset:0; background:
+  linear-gradient(180deg, rgba(2,9,14,.5) 0%, rgba(2,9,14,0) 20%, rgba(2,9,14,0) 46%, rgba(6,19,28,.72) 80%, var(--navy) 100%); }
+.mk-hero-body{ position:relative; z-index:2; padding:0 20px 32px; width:100%; }
 .mk-h1{ font-size:40px; margin:10px 0 0; color:#fff; text-shadow:0 2px 20px rgba(0,0,0,.4); }
 .mk-lead{ margin:12px 0 0; font-size:15px; line-height:1.5; color:var(--paper); max-width:330px; }
 .mk-cta-col{ margin-top:20px; display:flex; flex-direction:column; gap:10px; }
@@ -245,11 +278,14 @@ const css = `
 /* GRID PRESTATIONS */
 .mk-grid{ display:grid; grid-template-columns:1fr 1fr; gap:11px; }
 .mk-tile{ position:relative; border-radius:14px; overflow:hidden; aspect-ratio:4/5; display:block; text-decoration:none; border:1px solid rgba(255,255,255,.06); }
+.mk-tile-wide{ grid-column:1 / -1; aspect-ratio:16/8; }
 .mk-tile-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .mk-tile-veil{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(6,19,28,0) 34%, rgba(6,19,28,.62) 66%, rgba(6,19,28,.92) 100%); }
-.mk-tile-body{ position:absolute; left:0; right:0; bottom:0; z-index:2; padding:12px 12px 13px; display:flex; flex-direction:column; gap:3px; }
-.mk-tile-title{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:13px; line-height:1.06; color:#fff; }
-.mk-tile-price{ font-size:12px; font-weight:600; color:var(--teal); }
+.mk-tile-body{ position:absolute; left:0; right:0; bottom:0; z-index:2; padding:12px 13px 13px; display:flex; flex-direction:column; gap:4px; }
+.mk-tile-title{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:14px; line-height:1.08; color:#fff; }
+.mk-tile-price{ font-size:12.5px; font-weight:600; color:var(--teal); }
+.mk-tile-arrow{ position:absolute; top:11px; right:11px; z-index:2; width:28px; height:28px; border-radius:50%; background:rgba(6,19,28,.55); border:1px solid rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+.mk-tile-arrow svg{ width:14px; height:14px; color:#fff; }
 
 /* RÉALISATIONS */
 .mk-scroller{ display:flex; gap:11px; overflow-x:auto; margin:0 -20px; padding:2px 20px 10px; scroll-snap-type:x mandatory; }
