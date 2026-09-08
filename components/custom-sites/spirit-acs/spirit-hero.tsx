@@ -165,7 +165,7 @@ export function SpiritHero({
             <div className="mt-7 flex flex-col gap-3 sm:max-w-md">
               {quoteEnabled && (
                 <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={`${SPIRIT_ANCHOR_PRIMARY} w-full`}>
-                  Demander un devis
+                  Réserver ma prestation
                 </a>
               )}
               {hasPrestations && (
