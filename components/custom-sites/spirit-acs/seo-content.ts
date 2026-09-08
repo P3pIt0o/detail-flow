@@ -99,16 +99,19 @@ export const SPIRIT_ABOUT_PARAGRAPHS = [
 export type ProcessStep = { title: string; description: string }
 
 export const SPIRIT_PROCESS_STEPS: ProcessStep[] = [
-  { title: "Votre demande", description: "Décrivez votre véhicule et le résultat recherché." },
+  { title: "Choisissez votre prestation", description: "Sélectionnez le service adapté à votre véhicule." },
   {
-    title: "Analyse et proposition",
-    description: "Spirit ACS étudie votre besoin et vous propose une prestation adaptée.",
+    title: "Précisez votre demande",
+    description: "Indiquez votre véhicule, vos besoins et les informations utiles.",
   },
   {
-    title: "Réalisation",
-    description: "Le véhicule est pris en charge à l'atelier ou à domicile selon la prestation.",
+    title: "Choisissez vos disponibilités",
+    description: "Indiquez les créneaux qui vous conviennent.",
   },
-  { title: "Contrôle final", description: "Le résultat est contrôlé avant la restitution du véhicule." },
+  {
+    title: "Validation par Spirit ACS",
+    description: "Spirit ACS valide votre demande et vous confirme le rendez-vous.",
+  },
 ]
 
 /* -------------------------------------------------------------------------- */
@@ -475,7 +478,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       {
         question: "La protection céramique dure-t-elle dans le temps ?",
         answer:
-          "Sa tenue dépend du produit adapté au véhicule, de l'usage et de l'entretien. Ces éléments sont précisés lors de l'étude de votre demande.",
+          "Sa tenue dépend du produit adapté au v��hicule, de l'usage et de l'entretien. Ces éléments sont précisés lors de l'étude de votre demande.",
       },
     ],
   },

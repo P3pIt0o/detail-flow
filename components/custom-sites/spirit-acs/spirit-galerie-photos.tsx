@@ -1,12 +1,17 @@
 /**
- * Section « Galerie photos » de Spirit ACS (photos simples, distinctes du
- * comparateur Avant/Après). Réutilise la source unique `getPhotoGallery()` du
- * contrat public (aucune donnée dupliquée, aucune image inventée).
+ * Section « Réalisations » de Spirit ACS (photos réelles de l'atelier).
  *
- * Présentation cohérente avec les réalisations : fond blanc cassé, trait rose
- * au-dessus du titre, grille uniforme (1 → 2 → 3 colonnes). Chaque photo garde
- * le même ratio (4/3) et affiche, sous l'image, son titre puis sa description
- * quand ils existent — jamais au survol.
+ * Direction visuelle alignée sur la MAQUETTE VALIDÉE : fond bleu nuit (navy),
+ * eyebrow cyan « Réalisations », gros titre condensé blanc « Nos derniers
+ * passages à l'atelier », puis une GRILLE PHOTOGRAPHIQUE compacte (2 colonnes
+ * dès le mobile, 3 sur grand écran) aux coins arrondis et faibles gouttières.
+ * Plus aucun grand bloc blanc, plus de légende volumineuse sous chaque image :
+ * l'ambiance est celle d'une galerie automobile premium.
+ *
+ * SOURCE DE DONNÉES INCHANGÉE : la galerie photo publique du tenant
+ * (`getPhotoGallery()`). Les titres/descriptions enregistrés restent exploités
+ * pour l'ACCESSIBILITÉ et le SEO (attribut `alt` + `figcaption` visuellement
+ * masquée), sans imposer l'ancienne mise en page à grosses légendes.
  *
  * Masquée proprement si le tenant n'a aucune photo publiée (aucun espace vide).
  */
@@ -23,40 +28,37 @@ export function SpiritGaleriePhotos({ items }: SpiritGaleriePhotosProps) {
   if (items.length === 0) return null
 
   return (
-    <section id={SPIRIT_SECTIONS.galeriePhotos} data-spirit-anchor className="bg-[var(--spirit-paper)]">
+    <section id={SPIRIT_SECTIONS.galeriePhotos} data-spirit-anchor className="bg-[var(--spirit-navy)] text-white">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
-          <span className="spirit-rule" />
-          <h2 className="spirit-title mt-4 text-balance text-3xl text-[var(--spirit-ink)] sm:text-4xl">
-            Galerie photos
+          <p className="spirit-eyebrow">Réalisations</p>
+          <h2 className="spirit-title spirit-h2 mt-3 text-balance leading-[1.05] text-white">
+            Nos derniers passages à l&apos;atelier
           </h2>
         </Reveal>
 
-        <div className="mt-10 grid items-start gap-6 sm:grid-cols-2 sm:gap-8 lg:mt-12 lg:grid-cols-3">
+        {/* Grille photographique : 2 colonnes dès le mobile, 3 sur grand écran.
+            Gouttières faibles + coins arrondis pour un rendu « mur de photos »
+            premium. Chaque tuile garde le même ratio (carré) pour un alignement
+            net sans légende sous l'image. */}
+        <div className="mt-8 grid grid-cols-2 gap-2 sm:gap-3 lg:mt-10 lg:grid-cols-3">
           {items.map((item, i) => (
-            <Reveal key={item.id} delay={Math.min(i, 3) * 0.08}>
-              <figure className="flex flex-col">
-                <div className="overflow-hidden rounded-sm border border-[color:var(--spirit-ink)]/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.imageUrl || "/placeholder.svg"}
-                    alt={item.altText || item.title || "Réalisation Spirit"}
-                    loading="lazy"
-                    className="aspect-[4/3] w-full object-cover"
-                  />
-                </div>
+            <Reveal key={item.id} delay={Math.min(i, 5) * 0.05}>
+              <figure className="group relative overflow-hidden rounded-xl ring-1 ring-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.imageUrl || "/placeholder.svg"}
+                  alt={item.altText || item.title || "Réalisation Spirit ACS"}
+                  loading="lazy"
+                  className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                />
+                {/* Légende conservée pour le SEO/l'accessibilité, mais masquée
+                    visuellement (plus de gros bloc de texte sous la photo). */}
                 {(item.title || item.description) && (
-                  <figcaption className="mt-4">
-                    {item.title && (
-                      <p className="text-pretty text-base font-semibold leading-snug text-[var(--spirit-ink)]">
-                        {item.title}
-                      </p>
-                    )}
-                    {item.description && (
-                      <p className="mt-1.5 text-pretty text-sm leading-relaxed text-[color:var(--spirit-ink)]/70">
-                        {item.description}
-                      </p>
-                    )}
+                  <figcaption className="sr-only">
+                    {item.title}
+                    {item.title && item.description ? " — " : ""}
+                    {item.description}
                   </figcaption>
                 )}
               </figure>

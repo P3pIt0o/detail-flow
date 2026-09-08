@@ -227,7 +227,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
 
       {/* Zone d'intervention : ville réelle + éventuelles communes confirmées
           (SPIRIT_ZONE_CITIES, vide par défaut → aucune ville inventée). */}
-      <SpiritZone cities={SPIRIT_ZONE_CITIES} />
+      <SpiritZone cities={SPIRIT_ZONE_CITIES} city={contact.city} />
 
       {quoteEnabled && (
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />

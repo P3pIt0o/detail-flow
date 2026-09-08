@@ -1,7 +1,15 @@
 /**
- * Section « Comment se déroule une prestation ? » (déroulement en 4 étapes).
- * Contenu éditorial local isolé (SPIRIT_PROCESS_STEPS). Réutilise strictement la
- * trame visuelle Spirit existante (max-w-7xl, spirit-rule, spirit-h2).
+ * Section « Comment ça se passe » — déroulement en 4 étapes.
+ *
+ * Direction visuelle alignée sur la MAQUETTE VALIDÉE : fond bleu nuit (navy),
+ * eyebrow cyan, gros titre condensé blanc, puis une liste VERTICALE compacte où
+ * chaque étape est marquée par un numéro dans un cercle cyan, un titre blanc et
+ * une description gris bleuté. Aucune grande carte blanche : la section est
+ * dans la même continuité sombre que le reste du site (hero, prestations,
+ * réalisations, zone d'intervention).
+ *
+ * Ce bloc EXPLIQUE le processus au client ; il ne reproduit pas les écrans
+ * techniques du configurateur. Contenu éditorial local (SPIRIT_PROCESS_STEPS).
  * Purement présentationnel, composant serveur.
  */
 
@@ -11,31 +19,33 @@ import { SPIRIT_PROCESS_STEPS } from "./seo-content"
 
 export function SpiritProcess() {
   return (
-    <section
-      id={SPIRIT_SECTIONS.etapes}
-      data-spirit-anchor
-      className="bg-[var(--spirit-paper)] text-[color:var(--spirit-ink)]"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+    <section id={SPIRIT_SECTIONS.etapes} data-spirit-anchor className="bg-[var(--spirit-navy)] text-white">
+      <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
-          <span className="spirit-rule" />
-          <h2 className="spirit-title spirit-h2 mt-4 text-balance leading-[1.05]">
-            Comment se déroule une prestation ?
+          <p className="spirit-eyebrow">Comment ça se passe</p>
+          <h2 className="spirit-title spirit-h2 mt-3 text-balance leading-[1.05] text-white">
+            Votre prestation en 4 étapes
           </h2>
         </Reveal>
 
-        <ol className="mt-8 grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:mt-10 lg:grid-cols-4 lg:gap-5">
+        {/* Liste verticale compacte (mobile-first). Le trait vertical relie les
+            cercles cyan pour matérialiser la progression, sans grande carte. */}
+        <ol className="mt-8 flex flex-col gap-7 lg:mt-10 lg:gap-8">
           {SPIRIT_PROCESS_STEPS.map((step, i) => (
             <Reveal key={step.title} delay={i * 0.06}>
-              <li className="flex h-full flex-col gap-3 rounded-sm bg-[var(--spirit-paper-2)] p-6 ring-1 ring-black/5">
+              <li className="flex items-start gap-4">
                 <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--spirit-pink)]/15 text-sm font-semibold text-[color:var(--spirit-pink)]"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--spirit-teal)] text-sm font-bold text-[var(--spirit-navy)]"
                   aria-hidden="true"
                 >
                   {i + 1}
                 </span>
-                <h3 className="spirit-title text-base font-semibold text-[color:var(--spirit-ink)]">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-[color:var(--spirit-muted)]">{step.description}</p>
+                <div className="min-w-0 pt-1">
+                  <h3 className="spirit-title text-lg font-bold leading-tight text-white">{step.title}</h3>
+                  <p className="mt-1.5 text-pretty text-sm leading-relaxed text-[color:var(--spirit-muted)]">
+                    {step.description}
+                  </p>
+                </div>
               </li>
             </Reveal>
           ))}

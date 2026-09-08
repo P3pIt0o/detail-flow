@@ -121,22 +121,51 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   const uploader = usePhotoUploads()
   const submissionIdRef = useRef<string>("")
 
-  // Présélection depuis une page prestation (`?prestation=<slug>`). Lue côté
-  // client (aucune contrainte de Suspense) : la prestation est alors verrouillée.
+  // POINT D'ENTRÉE DU PARCOURS — déterministe et piloté par l'URL.
+  //
+  //  CAS A · CTA général « Réserver ma prestation » (hero, CTA final, footer…) :
+  //          aucun `?prestation=` valide → le parcours COMMENCE TOUJOURS par
+  //          l'étape « Prestation » (le client choisit d'abord son service).
+  //          Jamais « Véhicule » en premier sans prestation sélectionnée.
+  //
+  //  CAS B · Clic « Réserver » depuis une carte/page prestation :
+  //          `?prestation=<slug>` valide → la prestation est VERROUILLÉE et le
+  //          parcours saute directement à l'étape suivante (options ou véhicule).
+  //
+  //  La barre de progression et la numérotation se dérivent de `steps`
+  //  (mémo ci-dessous) : elles s'adaptent donc automatiquement au parcours
+  //  réellement affiché (avec ou sans étape « Prestation »).
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get("prestation")?.trim()
-    if (!raw) return
-    const match = SERVICES.find((s) => s.slug === raw)
-    if (!match) return
-    // Une céramique carrosserie ne se commande jamais seule : l'entrée
-    // « Protection céramique » est ramenée vers le parcours Polissage & Céramique.
-    const slug = canonicalServiceSlug(match.slug)
-    setServiceSlug(slug)
-    setCameFromCeramic(match.slug === CERAMIC_SLUG)
-    setLocked(true)
-    setVehicleType(suggestedVehicleType(slug))
-    const rule = getServiceRule(slug)
-    setStep(rule.mode !== "none" ? "options" : "vehicle")
+    function applyEntryFromUrl() {
+      const raw = new URLSearchParams(window.location.search).get("prestation")?.trim()
+      const match = raw ? SERVICES.find((s) => s.slug === raw) : undefined
+
+      // CAS A — pas de prestation valide : on repart du choix de prestation.
+      if (!match) {
+        setLocked(false)
+        setServiceSlug("")
+        setCameFromCeramic(false)
+        setStep("service")
+        return
+      }
+
+      // CAS B — prestation présélectionnée (verrouillée). Une céramique
+      // carrosserie ne se commande jamais seule : l'entrée « Protection
+      // céramique » est ramenée vers le parcours Polissage & Céramique.
+      const slug = canonicalServiceSlug(match.slug)
+      setServiceSlug(slug)
+      setCameFromCeramic(match.slug === CERAMIC_SLUG)
+      setLocked(true)
+      setVehicleType(suggestedVehicleType(slug))
+      const rule = getServiceRule(slug)
+      setStep(rule.mode !== "none" ? "options" : "vehicle")
+    }
+
+    applyEntryFromUrl()
+    // Réagit aux navigations d'historique (retour arrière / avant) pour rester
+    // cohérent avec l'URL courante.
+    window.addEventListener("popstate", applyEntryFromUrl)
+    return () => window.removeEventListener("popstate", applyEntryFromUrl)
   }, [])
 
   const rule = getServiceRule(serviceSlug)
