@@ -17,7 +17,6 @@ import { activeTypes, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritHero } from "./spirit-hero"
-import { SpiritReassurance } from "./spirit-reassurance"
 import { SpiritPrestations } from "./spirit-prestations"
 import { SpiritRealisations } from "./spirit-realisations"
 import { SpiritGaleriePhotos } from "./spirit-galerie-photos"
@@ -191,6 +190,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         highlight={contact.hero.highlight}
         subtitle={contact.hero.subtitle}
         quoteEnabled={quoteEnabled}
+        hasPrestations={hasPrestations}
         hasGallery={hasGallery}
         city={contact.city}
         googleRating={googleRating?.rating ?? null}
@@ -202,15 +202,10 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
         kicker={SPIRIT_HERO_KICKER}
       />
 
-      {/* Transitions ÉDITORIALES : alternance franche navy / blanc cassé, sans
-          séparateur décoratif. Le rythme vertical et le trait rose au-dessus des
-          titres suffisent à distinguer les sections. */}
-      <SpiritReassurance />
-
-      {/* Familles de prestations — immédiatement APRÈS le bandeau de réassurance
-          et AVANT les réalisations. La grille est désormais alimentée par le
-          catalogue public (source unique) ; chaque carte mène à la PAGE DÉDIÉE
-          de la prestation (SEO), en conservant le tenant. */}
+      {/* Familles de prestations — directement après le hero (les repères de
+          réassurance sont désormais intégrés au bas du hero, comme sur la
+          maquette validée). La grille est alimentée par le catalogue public
+          (source unique) ; chaque carte mène à la PAGE DÉDIÉE (SEO). */}
       {hasPrestations && (
         <SpiritPrestations services={navServices} serviceHref={serviceHref} reserveHref={reserveHref} />
       )}

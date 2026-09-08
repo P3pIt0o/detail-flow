@@ -18,11 +18,14 @@ const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
 const SPIRIT = "components/custom-sites/spirit-acs"
 
 describe("Spirit — assets (photo Hero + logo officiel)", () => {
-  it("le hero utilise la nouvelle photo dédiée en WebP", () => {
+  it("le hero utilise la VRAIE photo Porsche de l'atelier (aucune image IA générique)", () => {
     const hero = read(`${SPIRIT}/spirit-hero.tsx`)
-    expect(hero).toMatch(/\/custom-sites\/spirit-acs\/spirit-hero-v2\.webp/)
+    // Maquette validée : la Porsche 911 réelle (avec le totem Spirit) est le
+    // visuel du hero — plus l'ancienne image générique bleue.
+    expect(hero).toMatch(/\/custom-sites\/spirit-acs\/polissage-porsche-911\.jpg/)
+    expect(hero).not.toMatch(/spirit-hero-v2\.webp/)
     expect(hero).toMatch(/priority/)
-    expect(existsSync(path.join(root, "public/custom-sites/spirit-acs/spirit-hero-v2.webp"))).toBe(true)
+    expect(existsSync(path.join(root, "public/custom-sites/spirit-acs/polissage-porsche-911.jpg"))).toBe(true)
   })
 
   it("le logo de repli pointe vers le nouvel asset et l'ancien fichier à damier est supprimé", () => {
@@ -69,10 +72,12 @@ describe("Spirit — aucun CTA vers /reservation, ancres correctes", () => {
   // simple occurrence du mot dans un commentaire de documentation.
   const routeReservation = /["'`]\/reservation/
 
-  it("le hero utilise les ancres devis + réalisations, pas la route /reservation", () => {
+  it("le hero utilise les ancres devis + prestations (in-page), pas la route /reservation", () => {
     const hero = read(`${SPIRIT}/spirit-hero.tsx`)
+    // Maquette validée : CTA principal « Demander un devis » (#demande-devis)
+    // + CTA secondaire « Voir les prestations » (#prestations).
     expect(hero).toMatch(/demandeDevis/)
-    expect(hero).toMatch(/realisations/)
+    expect(hero).toMatch(/prestations/)
     expect(hero).not.toMatch(routeReservation)
   })
 

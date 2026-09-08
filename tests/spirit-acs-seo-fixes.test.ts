@@ -279,8 +279,9 @@ describe("Lisibilité éditoriale — paragraphes justifiés (spirit-prose)", ()
 
   it("l'intro des prestations et les paragraphes « Qui sommes-nous ? » sont justifiés", () => {
     expect(prest).toMatch(/spirit-prose/)
-    // Contraste renforcé de l'intro (plus de gris clair muted).
-    expect(prest).toMatch(/text-\[color:var\(--spirit-ink\)\]\/75/)
+    // Section prestations désormais SOMBRE (maquette validée) : l'intro utilise
+    // le gris bleuté lisible sur navy (plus l'encre sombre destinée au fond blanc).
+    expect(prest).toMatch(/text-\[color:var\(--spirit-muted\)\]/)
     expect(about).toMatch(/spirit-prose/)
   })
 })

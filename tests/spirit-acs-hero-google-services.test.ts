@@ -24,34 +24,32 @@ const stripComments = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 const SPIRIT = "components/custom-sites/spirit-acs"
 
-describe("Spirit — présentation Google compacte dans le hero (#1)", () => {
+describe("Spirit — hero fidèle à la maquette + note Google résolue côté serveur (#1)", () => {
   const hero = () => read(`${SPIRIT}/spirit-hero.tsx`)
   const home = () => read(`${SPIRIT}/home-page.tsx`)
 
-  it("le hero reçoit une note Google en props (dynamique, non codée en dur)", () => {
+  it("le hero accepte toujours la note Google en props (compat), sans la coder en dur", () => {
     const src = hero()
     expect(src).toMatch(/googleRating\??:/)
     expect(src).toMatch(/googleUrl\??:/)
     // Aucune note « 5,0 » / « 5.0 » codée en dur dans le hero.
     expect(src).not.toMatch(/["']5[.,]0["']/)
-    // Formatage à la française de la vraie note.
-    expect(src).toMatch(/toLocaleString\(\s*["']fr-FR["']/)
   })
 
-  it("affiche la note seulement si disponible, avec étoile rose et mention Google", () => {
+  it("la maquette validée place les 4 repères de réassurance dans le hero (plus la ligne Google)", () => {
     const src = hero()
-    // Rendu conditionnel : pas de note => pas d'affichage (rien inventé).
-    expect(src).toMatch(/ratingLabel\s*&&/)
-    expect(src).toMatch(/sur Google/)
-    // Étoile colorée avec le rose de marque.
-    expect(src).toMatch(/Star/)
-    expect(src).toMatch(/var\(--spirit-pink\)/)
+    // La ligne « note · sur Google » a été retirée du hero au profit de la
+    // rangée de repères de la maquette (la note reste visible dans la section
+    // Avis). Le hero n'affiche donc plus la mention Google ni l'étoile.
+    expect(src).not.toMatch(/sur Google/)
+    expect(src).toMatch(/Résultat professionnel/)
+    expect(src).toMatch(/Pour tous types de véhicules/)
   })
 
-  it("la note renvoie vers la fiche Google (lien d'attribution)", () => {
+  it("le hero utilise la vraie photo Porsche de l'atelier (aucune image IA)", () => {
     const src = hero()
-    expect(src).toMatch(/href=\{googleUrl\}/)
-    expect(src).toMatch(/rel="noopener noreferrer"/)
+    expect(src).toMatch(/polissage-porsche-911\.jpg/)
+    expect(src).not.toMatch(/spirit-hero-v2\.webp/)
   })
 
   it("la note Google réelle est résolue côté serveur, indépendamment de la source d'avis", () => {
@@ -80,32 +78,21 @@ describe("Spirit — section familles de prestations (#2)", () => {
     expect(existsSync(path.join(root, SPIRIT, "spirit-prestations.tsx"))).toBe(true)
   })
 
-  it("titre exact, paragraphe SEO visible et 6 prestations dans l'ordre imposé", () => {
+  it("titre de la maquette, paragraphe SEO visible et grille pilotée par le catalogue", () => {
     const src = prest()
-    // Titre de section SEO (cf. cahier des charges).
-    expect(src.toLowerCase()).toMatch(/nos prestations de detailing/)
+    // Titre de section repris de la maquette validée.
+    expect(src.toLowerCase()).toMatch(/choisissez, puis demandez votre devis/)
     // Paragraphe SEO visible présent dans le HTML initial (non masqué).
     expect(src).toMatch(/Spirit ACS propose à Lagny-sur-Marne des prestations/)
-    // Les 6 prestations sont présentes, dans l'ordre imposé par la maquette.
-    const order = [
-      "nettoyage-automobile",
-      "polissage-automobile",
-      "protection-ceramique",
-      "protection-ppf",
-      "renovation-phares",
-      "detailing-moto",
-    ]
-    let last = -1
-    for (const slug of order) {
-      const idx = src.indexOf(slug)
-      expect(idx, `prestation manquante: ${slug}`).toBeGreaterThan(-1)
-      expect(idx, `ordre incorrect: ${slug}`).toBeGreaterThan(last)
-      last = idx
-    }
-    // Titres de cartes en <h3> (rendus une fois par prestation via .map ;
-    // hiérarchie H1 hero, H2 section, H3 cartes).
+    // Section SOMBRE (fond navy) — conformité maquette (plus de grande surface blanche).
+    expect(src).toMatch(/bg-\[var\(--spirit-navy\)\]/)
+    // Grille pilotée par le catalogue public : aucune liste de slugs en dur, on
+    // itère sur les `services` reçus et on rend chaque `page`.
+    expect(src).toMatch(/services\.map/)
+    expect(src).toMatch(/page\.slug/)
+    expect(src).toMatch(/page\.image/)
+    // Titres de cartes en <h3> ; un seul <h2> pour la section.
     expect(stripComments(src)).toMatch(/<h3/)
-    // Un seul <h2> pour la section (le titre de section).
     expect((stripComments(src).match(/<h2/g) ?? []).length).toBe(1)
   })
 
@@ -137,7 +124,7 @@ describe("Spirit — section familles de prestations (#2)", () => {
     // Nouveau comportement approuvé : les cartes pointent vers les pages SEO
     // dédiées via un lien tenant-aware (serviceHref), et non plus vers l'ancre
     // du formulaire de devis.
-    expect(src).toMatch(/href=\{serviceHref\(card\.slug\)\}/)
+    expect(src).toMatch(/href=\{serviceHref\(page\.slug\)\}/)
     // Vitrine éditoriale : aucun accès base / catalogue de prestations dans le
     // CODE (on cible des jetons de code, pas des mots présents en commentaire).
     expect(src).not.toMatch(/getServices|drizzle|basePriceCents|from ["']@\/lib\/db/)
