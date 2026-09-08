@@ -300,7 +300,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "nettoyage-automobile",
     cardTitle: "Nettoyage intérieur et extérieur",
-    cardTagline: "Nettoyage intérieur et extérieur",
+    cardTagline: "Intérieur et extérieur nettoyés en profondeur.",
     cardText:
       "Nettoyage soigné de l'habitacle et de l'extérieur du véhicule : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
     image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
@@ -345,7 +345,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "polissage-automobile",
     cardTitle: "Polissage & protection céramique",
-    cardTagline: "Correction des défauts et restauration de la brillance",
+    cardTagline: "Correction des défauts, restauration de la brillance et protection durable.",
     cardText:
       "Correction des défauts légers de la carrosserie, amélioration de la brillance et application d'une protection adaptée pour faciliter l'entretien du véhicule.",
     image: "/custom-sites/spirit-acs/polissage-porsche-911.jpg",
@@ -485,7 +485,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "protection-ppf",
     cardTitle: "PPF & personnalisation",
-    cardTagline: "Film transparent de protection et personnalisation",
+    cardTagline: "Protection de carrosserie et personnalisation sur mesure.",
     cardText:
       "Pose d'un film de protection transparent sur les zones sensibles du véhicule afin de limiter les impacts et préserver les surfaces exposées.",
     image: "/custom-sites/spirit-acs/ppf-porsche-911.jpg",

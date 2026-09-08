@@ -54,7 +54,13 @@ export function SpiritPrestations({
           </p>
         </Reveal>
 
-        <div className="mt-8 grid grid-cols-1 items-stretch gap-4 min-[420px]:grid-cols-2 lg:mt-12 lg:grid-cols-3 lg:gap-6">
+        {/*
+          Grille de cartes PANORAMIQUES (« beaucoup plus large que haut ») :
+          1 colonne sur mobile (carte quasi pleine largeur, hauteur maîtrisée),
+          2 colonnes dès `md`. Hauteur volontairement réduite pour parcourir
+          plusieurs prestations sans scroller longuement.
+        */}
+        <div className="mt-8 grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 lg:mt-12 lg:gap-6">
           {services.map((page, i) => (
             <Reveal key={page.slug} delay={i * 0.06} className="h-full">
               {/*
@@ -64,54 +70,57 @@ export function SpiritPrestations({
                 L'image + le titre restent un lien vers la page SEO (toute la
                 zone visuelle est cliquable), et les boutons d'action sont posés
                 DESSOUS, hors du lien, pour ne pas imbriquer deux <a>.
-                `min-h` + `h-full` + items-stretch harmonisent la hauteur.
+                Format paysage compact : `min-h` réduite (~11.5–12.5rem) pour un
+                ratio nettement plus large que haut.
               */}
-              <div className="group relative flex h-full min-h-[18rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-white/10 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/20 hover:shadow-[0_26px_60px_-24px_rgba(0,0,0,0.9)] sm:min-h-[19rem]">
+              <div className="group relative flex h-full min-h-[11.5rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-white/10 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/20 hover:shadow-[0_26px_60px_-24px_rgba(0,0,0,0.9)] sm:min-h-[12.5rem]">
                 {/* Photographie plein cadre (object-cover, sans déformation).
                     Sous la ligne de flottaison → chargement différé (lazy). */}
                 <Image
                   src={page.image || "/placeholder.svg"}
-                  alt={page.imageAlt ?? page.navLabel}
+                  alt={page.imageAlt ?? page.cardTitle}
                   fill
-                  sizes="(min-width: 1024px) 33vw, (min-width: 420px) 50vw, 100vw"
+                  sizes="(min-width: 768px) 50vw, 100vw"
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
                   loading="lazy"
                 />
                 {/* Dégradé sombre bas pour garantir la lisibilité du texte blanc. */}
                 <div
                   aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/60 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
                 />
 
                 {/* Contenu en colonne (titre → description → actions), aligné en bas. */}
-                <div className="relative z-10 flex flex-col gap-3 p-5">
+                <div className="relative z-10 flex flex-col gap-2.5 p-4 sm:p-5">
                   {/* La zone titre/description ouvre la page SEO (grande cible tactile). */}
                   <a
                     href={serviceHref(page.slug)}
-                    className="flex flex-col gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
+                    className="flex flex-col gap-1.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
                   >
                     {/* Accent rose de marque. */}
                     <span aria-hidden="true" className="h-0.5 w-9 rounded-full bg-[var(--spirit-pink)]" />
-                    {/* Titre : taille responsive clamp(), jamais tronqué. */}
-                    <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1rem,4.5vw,1.25rem)]">
-                      {page.navLabel}
+                    {/* Titre commercial exact (source : cardTitle). Jamais tronqué. */}
+                    <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1.05rem,4.5vw,1.35rem)]">
+                      {page.cardTitle}
                     </h3>
-                    <p className="text-sm leading-snug text-white/85">{page.cardTagline ?? page.cardTitle}</p>
+                    <p className="line-clamp-2 text-sm leading-snug text-white/85">
+                      {page.cardTagline ?? page.cardTitle}
+                    </p>
                   </a>
 
-                  {/* Deux actions : « Réserver » (primaire, magenta) puis
-                      « En savoir plus » (secondaire, lien clair). Zones tactiles
-                      confortables (h-11) et hiérarchie visuelle nette. */}
-                  <div className="mt-1 flex items-center gap-3">
+                  {/* Deux actions : « Réserver » (primaire, magenta, COMPACT —
+                      largeur auto, pas pleine largeur) puis « En savoir plus »
+                      (secondaire, lien clair). */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <a
                       href={reserveHref(page.slug)}
-                      className="inline-flex h-11 flex-1 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      className="inline-flex h-11 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-5 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                     >
                       Réserver
                     </a>
                     <a
                       href={serviceHref(page.slug)}
-                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-sm px-2 text-sm font-medium text-white/90 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
+                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-sm text-sm font-medium text-white/90 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
                     >
                       En savoir plus
                       <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-0.5">

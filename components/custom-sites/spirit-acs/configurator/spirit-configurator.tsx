@@ -387,24 +387,45 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           <p className="text-sm text-[color:var(--spirit-muted)]">
             Choisissez votre prestation et envoyez votre demande. Spirit ACS vous confirme ensuite la prise en charge.
           </p>
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/*
+            Cartes de SÉLECTION en format paysage compact (photo réelle +
+            overlay sombre), une par ligne pour rester nettement plus larges que
+            hautes. Toute la carte est cliquable (choix de la catégorie) : un
+            seul CTA ici, contrairement à la homepage (Réserver + En savoir plus).
+          */}
+          <ul className="grid grid-cols-1 gap-3">
             {SERVICES.map((s) => (
               <li key={s.slug}>
                 <button
                   type="button"
                   onClick={() => chooseService(s.slug)}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-left transition-colors hover:border-[color:var(--spirit-pink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--spirit-teal)]"
+                  className="group relative flex min-h-[7.5rem] w-full flex-col justify-end overflow-hidden rounded-xl text-left ring-1 ring-white/12 transition-all duration-300 hover:ring-[color:var(--spirit-pink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--spirit-teal)] sm:min-h-[8.5rem]"
                 >
                   {s.image && (
-                    <span className="relative size-14 shrink-0 overflow-hidden rounded-lg">
-                      <Image src={s.image || "/placeholder.svg"} alt={s.imageAlt || s.title} fill sizes="56px" className="object-cover" />
-                    </span>
+                    <Image
+                      src={s.image || "/placeholder.svg"}
+                      alt={s.imageAlt || s.title}
+                      fill
+                      sizes="(min-width: 640px) 560px, 100vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
                   )}
-                  <span className="min-w-0">
-                    <span className="block font-semibold text-[color:var(--spirit-fg)]">{s.title}</span>
-                    <span className="block text-sm text-[color:var(--spirit-muted)]">{s.tagline}</span>
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
+                  />
+                  <span className="relative z-10 flex items-end justify-between gap-3 p-4">
+                    <span className="min-w-0">
+                      <span className="spirit-title block font-semibold uppercase leading-tight tracking-wide text-white [font-size:clamp(1rem,4.5vw,1.2rem)]">
+                        {s.title}
+                      </span>
+                      <span className="mt-1 block text-sm leading-snug text-white/85">{s.tagline}</span>
+                    </span>
+                    <ArrowRight
+                      className="size-5 shrink-0 text-white/90 transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
                   </span>
-                  <ArrowRight className="ml-auto size-4 shrink-0 text-[color:var(--spirit-muted)] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
               </li>
             ))}
