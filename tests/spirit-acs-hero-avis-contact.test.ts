@@ -20,52 +20,41 @@ const root = process.cwd()
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
 const SPIRIT = "components/custom-sites/spirit-acs"
 
-describe("Spirit #1 — réassurance en section indépendante (hors hero)", () => {
-  it("la réassurance est une <section> avec son propre fond navy", () => {
-    const src = read(`${SPIRIT}/spirit-reassurance.tsx`)
-    expect(src).toMatch(/<section/)
-    expect(src).toMatch(/var\(--spirit-navy/)
-  })
-
-  it("le hero n'inclut PAS les 3 items de réassurance", () => {
+describe("Spirit #1 — réassurance intégrée au bas du hero (maquette validée)", () => {
+  it("le hero intègre les 4 repères de réassurance de la maquette", () => {
     const hero = read(`${SPIRIT}/spirit-hero.tsx`)
-    expect(hero).not.toMatch(/Travail minutieux/i)
-    expect(hero).not.toMatch(/Produits professionnels/i)
-    expect(hero).not.toMatch(/Résultat durable/i)
+    expect(hero).toMatch(/Résultat professionnel/)
+    expect(hero).toMatch(/Produits haut de gamme/)
+    expect(hero).toMatch(/Pour tous types de véhicules/)
+    expect(hero).toMatch(/et alentours/)
   })
 
-  it("la home rend la réassurance après le hero et avant les prestations/réalisations", () => {
+  it("la home NE rend PLUS de bandeau de réassurance autonome (fusionné au hero)", () => {
     const home = read(`${SPIRIT}/home-page.tsx`)
-    const iHero = home.indexOf("<SpiritHero")
-    const iReassure = home.indexOf("<SpiritReassurance")
-    expect(iHero).toBeGreaterThanOrEqual(0)
-    expect(iReassure).toBeGreaterThan(iHero)
+    expect(home).not.toMatch(/<SpiritReassurance/)
   })
 })
 
-describe("Spirit #2 — ligne Google sur une seule ligne", () => {
+describe("Spirit #2 — composition du hero fidèle à la maquette", () => {
   const hero = () => read(`${SPIRIT}/spirit-hero.tsx`)
 
-  it("empêche le retour à la ligne (nowrap) sur le conteneur de la ligne Google", () => {
+  it("expose les deux CTA de la maquette (Demander un devis + Voir les prestations)", () => {
     const src = hero()
-    expect(src).toMatch(/flex-nowrap/)
-    expect(src).toMatch(/whitespace-nowrap/)
-    // Pas de flex-wrap sur cette ligne (sinon elle se casserait sur mobile).
-    expect(src).not.toMatch(/flex flex-wrap[^"]*sur Google/s)
+    expect(src).toMatch(/Demander un devis/)
+    expect(src).toMatch(/Voir les prestations/)
   })
 
-  it("utilise une taille fluide (clamp) pour tenir sur les petits écrans sans troncature", () => {
+  it("utilise une taille fluide (clamp) pour les libellés de repères sur petit mobile", () => {
     const src = hero()
     expect(src).toMatch(/clamp\(/)
-    // Aucune troncature en points de suspension sur cette ligne.
-    expect(src).not.toMatch(/truncate[^"]*sur Google/s)
   })
 
-  it("conserve la note réelle cliquable vers la fiche Google", () => {
+  it("emploie les dégradés sombres autour de la voiture (halos navy multi-couches)", () => {
     const src = hero()
-    expect(src).toMatch(/href=\{googleUrl\}/)
-    expect(src).toMatch(/target="_blank"/)
-    expect(src).toMatch(/rel="noopener noreferrer"/)
+    // Vignette radiale + voile latéral + fusion verticale (recette de la maquette).
+    expect(src).toMatch(/radial-gradient\(/)
+    expect(src).toMatch(/linear-gradient\(180deg/)
+    expect(src).toMatch(/var\(--spirit-navy\)/)
   })
 })
 

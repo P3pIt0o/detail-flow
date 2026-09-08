@@ -38,16 +38,16 @@ export function SpiritPrestations({
     <section
       id={SPIRIT_SECTIONS.prestations}
       data-spirit-anchor
-      className="bg-[var(--spirit-paper-2)] text-[color:var(--spirit-ink)]"
+      className="bg-[var(--spirit-navy)] text-white"
     >
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         <Reveal>
-          <span className="spirit-rule" />
-          <h2 className="spirit-title spirit-h2 mt-4 text-balance leading-[1.05]">Nos prestations de detailing</h2>
-          {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué).
-              Justifié (spirit-prose) et contraste renforcé (ink/75 au lieu du
-              gris clair) pour rester bien lisible sur fond blanc. */}
-          <p className="spirit-prose mt-4 max-w-3xl text-base text-[color:var(--spirit-ink)]/75">
+          <p className="spirit-eyebrow">Nos prestations</p>
+          <h2 className="spirit-title spirit-h2 mt-3 text-balance leading-[1.05] text-white">
+            Choisissez, puis demandez votre devis
+          </h2>
+          {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué). */}
+          <p className="spirit-prose mt-4 max-w-3xl text-base text-[color:var(--spirit-muted)]">
             Spirit ACS propose à Lagny-sur-Marne des prestations de nettoyage automobile, polissage, protection
             céramique, PPF, rénovation des phares et detailing moto. Découvrez chaque service et trouvez la solution
             adaptée à votre véhicule.
@@ -66,7 +66,7 @@ export function SpiritPrestations({
                 DESSOUS, hors du lien, pour ne pas imbriquer deux <a>.
                 `min-h` + `h-full` + items-stretch harmonisent la hauteur.
               */}
-              <div className="group relative flex h-full min-h-[18rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-black/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-24px_rgba(6,19,28,0.65)] sm:min-h-[19rem]">
+              <div className="group relative flex h-full min-h-[18rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-white/10 shadow-[0_18px_40px_-24px_rgba(0,0,0,0.8)] transition-all duration-300 hover:-translate-y-0.5 hover:ring-white/20 hover:shadow-[0_26px_60px_-24px_rgba(0,0,0,0.9)] sm:min-h-[19rem]">
                 {/* Photographie plein cadre (object-cover, sans déformation).
                     Sous la ligne de flottaison → chargement différé (lazy). */}
                 <Image

@@ -1,20 +1,26 @@
 /**
- * Hero sombre automobile de Spirit ACS.
+ * Hero sombre automobile de Spirit ACS — composition PREMIUM fidèle à la
+ * maquette validée.
+ *
+ * Image de fond : VRAIE photo de la Porsche 911 de l'atelier (avec le totem
+ * Spirit), cadrée pour que la voiture reste l'élément visuel fort dans la partie
+ * haute, puis fondue dans le bleu nuit pour porter le texte et les CTA en bas.
+ * Aucune image générée par IA.
  *
  * Le titre / sous-titre proviennent du CONTENU DU TENANT (Hero éditable), avec
  * un repli NEUTRE si non renseigné (aucune donnée commerciale inventée).
  *
  * CTA (ancres in-page uniquement — jamais /reservation) :
  *  - principal   : « Demander un devis » → #demande-devis (formulaire réel) ;
- *  - secondaire  : « Voir nos réalisations » → #realisations (si galerie).
+ *  - secondaire  : « Voir les prestations » → #prestations.
  *
- * Image de fond : photo dédiée Spirit (spirit-hero-v2.webp), chargée en
- * priorité et dimensionnée (fill) pour éviter tout décalage de mise en page
- * (CLS). Réservée à Spirit ACS — ne remplace pas les Hero des autres tenants.
+ * Rangée de réassurance (4 repères neutres) intégrée au bas du hero, comme sur
+ * la maquette. Libellés volontairement génériques et non factuels (aucune
+ * certification, aucun chiffre, aucun label officiel).
  */
 
 import Image from "next/image"
-import { Star } from "lucide-react"
+import { Gem, ShieldCheck, Car, MapPin } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
@@ -25,8 +31,8 @@ type SpiritHeroProps = {
   subtitle: string | null
   /** Le CTA principal ne pointe vers #demande-devis que si le module est actif. */
   quoteEnabled: boolean
-  /** Le CTA secondaire n'apparaît que si une galerie de réalisations existe. */
-  hasGallery: boolean
+  /** Le CTA secondaire « Voir les prestations » n'apparaît que si la grille existe. */
+  hasPrestations?: boolean
   /** Ville réelle du tenant, affichée en accroche (jamais l'adresse exacte). */
   city?: string | null
   /**
@@ -37,23 +43,18 @@ type SpiritHeroProps = {
   seoH1?: string | null
   /**
    * Accroche visuelle SECONDAIRE (surtitre élégant, ex. « Prenez soin de votre
-   * véhicule ») affichée au-dessus du H1 quand `seoH1` est utilisé, à la place
-   * du surtitre « Detailing automobile · ville » (désormais porté par le H1).
+   * véhicule ») affichée au-dessus du H1 quand `seoH1` est utilisé.
    */
   kicker?: string | null
-  /**
-   * Note GLOBALE Google RÉELLE (agrégée par Google), ou null si indisponible /
-   * aucun établissement configuré → la note est alors masquée (rien inventé).
-   */
+  /** Conservés pour compatibilité d'appel (non affichés dans ce hero). */
+  hasGallery?: boolean
   googleRating?: number | null
-  /** Lien vers la fiche Google (rend la note cliquable). */
   googleUrl?: string | null
 }
 
 const DEFAULTS = {
   title: "Prenez soin de votre véhicule",
-  subtitle:
-  "Nettoyage, polissage, protection céramique :\nun detailing réalisé avec exigence. Demandez votre devis personnalisé en quelques instants.",
+  subtitle: "Nettoyage, polissage et protection, réalisés avec exigence.",
 }
 
 export function SpiritHero({
@@ -61,20 +62,12 @@ export function SpiritHero({
   highlight,
   subtitle,
   quoteEnabled,
-  hasGallery,
+  hasPrestations = true,
   city,
-  googleRating,
-  googleUrl,
   seoH1,
   kicker,
 }: SpiritHeroProps) {
-  const displayCity = (city ?? "").trim() || null
-  // Note Google réelle formatée à la française (« 5,0 »). Affichée uniquement si
-  // une vraie note agrégée est fournie ; sinon la note est masquée.
-  const hasRating = typeof googleRating === "number" && Number.isFinite(googleRating)
-  const ratingLabel = hasRating
-    ? googleRating.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    : null
+  const displayCity = (city ?? "").trim() || "Lagny-sur-Marne"
   const tenantTitle = title?.trim() || DEFAULTS.title
   const displaySubtitle = subtitle?.trim() || DEFAULTS.subtitle
 
@@ -83,16 +76,12 @@ export function SpiritHero({
   const seo = (seoH1 ?? "").trim()
   const displayTitle = seo || tenantTitle
 
-  // Surtitre (accroche) : quand un H1 SEO est utilisé, on affiche l'accroche
-  // secondaire (`kicker`) au-dessus ; sinon le surtitre historique
-  // « Detailing automobile · ville ».
   const kickerText = (kicker ?? "").trim() || null
   const useSeoLayout = Boolean(seo)
 
-  // Portion à mettre en couleur dans le H1 : la ville pour le H1 SEO local,
-  // sinon la portion « highlight » éditable (uniquement si un titre tenant est
-  // réellement défini).
-  const h = useSeoLayout ? (displayCity ?? "") : title?.trim() ? (highlight ?? "").trim() : ""
+  // Portion à mettre en couleur (cyan) dans le H1 : la ville pour le H1 SEO
+  // local, sinon la portion « highlight » éditable.
+  const h = useSeoLayout ? displayCity : title?.trim() ? (highlight ?? "").trim() : ""
   let titleNode: React.ReactNode = displayTitle
   if (h) {
     const idx = displayTitle.toLowerCase().indexOf(h.toLowerCase())
@@ -107,115 +96,105 @@ export function SpiritHero({
     }
   }
 
+  // Repères de réassurance neutres — repris de la maquette (icône + libellé
+  // court). Le dernier s'appuie sur la VILLE réelle du tenant.
+  const features = [
+    { icon: Gem, label: "Résultat professionnel" },
+    { icon: ShieldCheck, label: "Produits haut de gamme" },
+    { icon: Car, label: "Pour tous types de véhicules" },
+    { icon: MapPin, label: `${displayCity} et alentours` },
+  ] as const
+
   return (
     <section
       id={SPIRIT_SECTIONS.accueil}
       data-spirit-anchor
-      className="relative flex min-h-[100svh] items-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] sm:items-center lg:min-h-[600px] lg:pt-20"
+      className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] lg:min-h-[640px]"
     >
+      {/* Photo RÉELLE de la Porsche 911 de l'atelier — élément visuel fort.
+          Traitement cinéma (contraste + saturation légers) et cadrage repris de
+          la maquette validée pour révéler la voiture dans la partie haute. */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/custom-sites/spirit-acs/spirit-hero-v2.webp"
+          src="/custom-sites/spirit-acs/polissage-porsche-911.jpg"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[72%_center] sm:object-center"
+          className="object-cover object-[63%_34%] [filter:contrast(1.1)_saturate(1.07)_brightness(0.94)]"
         />
-        {/* MOBILE : assombrissement vertical (bas) → la photo reste visible en haut, texte lisible en bas. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--spirit-navy)] via-[var(--spirit-navy)]/60 to-[var(--spirit-navy)]/15 sm:hidden" />
-        {/* DESKTOP : zone texte sombre à gauche (fondu court), voiture RÉVÉLÉE au centre-droit. */}
-        <div className="absolute inset-0 hidden bg-gradient-to-r from-[var(--spirit-navy)] from-20% via-transparent via-50% to-transparent sm:block" />
+        {/* 1 · Vignettage radial : bords assombris, voiture lumineuse au centre. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 [background:radial-gradient(125%_88%_at_64%_40%,rgba(2,9,14,0)_40%,rgba(2,9,14,0.42)_78%,rgba(2,9,14,0.68)_100%)]"
+        />
+        {/* 2 · Voile latéral gauche : protège la lisibilité du texte. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 [background:linear-gradient(96deg,rgba(2,9,14,0.9)_0%,rgba(2,9,14,0.55)_30%,rgba(2,9,14,0.12)_58%,rgba(2,9,14,0)_78%)]"
+        />
+        {/* 3 · Fusion verticale : haut légèrement voilé + bas fondu dans le navy
+            du site (continuité fluide vers la section prestations). */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 [background:linear-gradient(180deg,rgba(2,9,14,0.5)_0%,rgba(2,9,14,0)_20%,rgba(2,9,14,0)_46%,rgba(6,19,28,0.72)_80%,var(--spirit-navy)_100%)]"
+        />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-7 sm:px-6 sm:pb-10 lg:px-8 lg:pb-12">
         <div className="max-w-xl">
           <Reveal>
             {useSeoLayout ? (
-              // Accroche visuelle secondaire (« Prenez soin de votre véhicule »)
-              // conservée en surtitre élégant ; le H1 porte le libellé SEO local.
               kickerText && <p className="spirit-eyebrow">{kickerText}</p>
             ) : (
               <p className="spirit-eyebrow">
-                Detailing automobile
-                {displayCity && (
-                  <>
-                    {" "}
-                    <span aria-hidden="true">·</span> {displayCity}
-                  </>
-                )}
+                Detailing automobile <span aria-hidden="true">·</span> {displayCity}
               </p>
             )}
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="spirit-title spirit-h1 mt-4 text-balance leading-[1.02] text-white">{titleNode}</h1>
+            <h1 className="spirit-title spirit-h1 mt-3 text-balance leading-[1.02] text-white">{titleNode}</h1>
           </Reveal>
           <Reveal delay={0.16}>
-            {/* Une phrase par ligne (présentation) : le texte — défaut du code
-                ou `heroSubtitle` saisi dans l'admin — n'est jamais réécrit. */}
             <SpiritSentences
               text={displaySubtitle}
-              className="mt-5 max-w-lg text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)] sm:text-lg"
+              className="mt-4 max-w-md text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)] sm:text-lg"
             />
           </Reveal>
           <Reveal delay={0.24}>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:max-w-md">
               {quoteEnabled && (
-                <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={SPIRIT_ANCHOR_PRIMARY}>
-                  Réserver ma prestation
+                <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={`${SPIRIT_ANCHOR_PRIMARY} w-full`}>
+                  Demander un devis
                 </a>
               )}
-              {hasGallery && (
+              {hasPrestations && (
                 <a
-                  href={`#${SPIRIT_SECTIONS.realisations}`}
-                  className="inline-flex h-12 items-center justify-center rounded-sm border border-white/35 px-7 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:border-[var(--spirit-teal)] hover:text-[var(--spirit-teal)]"
+                  href={`#${SPIRIT_SECTIONS.prestations}`}
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-[var(--spirit-teal)]/70 px-7 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:border-[var(--spirit-teal)] hover:bg-[var(--spirit-teal)]/10"
                 >
-                  Voir nos réalisations
+                  Voir les prestations
+                  <span aria-hidden="true">→</span>
                 </a>
               )}
-            </div>
-          </Reveal>
-
-          {/* Présentation Google COMPACTE, sous les boutons et alignée à gauche
-              sur leur bord (même conteneur max-w-xl). La note est la vraie note
-              agrégée Google (masquée si indisponible, jamais recalculée ni mise
-              en dur) et renvoie vers la fiche Google (attribution). Les mentions
-              de service sont des descripteurs éditoriaux neutres (même classe
-              que le bandeau de réassurance), sans chiffre ni label. */}
-          <Reveal delay={0.32}>
-            {/* UNE SEULE LIGNE garantie, y compris sur petit mobile :
-                - flex-nowrap + whitespace-nowrap → aucun retour à la ligne ;
-                - taille FLUIDE (clamp) → le texte rétrécit sur les petits écrans
-                  au lieu de déborder ou d'être tronqué (jamais de « … ») ;
-                - le hero a overflow-hidden : aucun défilement horizontal induit. */}
-            <div className="mt-6 flex flex-nowrap items-center gap-x-1.5 whitespace-nowrap text-[clamp(9px,2.9vw,0.875rem)] leading-tight text-[color:var(--spirit-muted)] sm:gap-x-2.5">
-              {ratingLabel &&
-                (googleUrl ? (
-                  <a
-                    href={googleUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Note ${ratingLabel} sur 5 sur Google — voir la fiche`}
-                    className="inline-flex items-center gap-1 transition-colors hover:text-white sm:gap-1.5"
-                  >
-                    <span className="font-semibold text-white">{ratingLabel}</span>
-                    <Star className="size-3.5 shrink-0 fill-[var(--spirit-pink)] text-[var(--spirit-pink)] sm:size-4" aria-hidden="true" />
-                    <span>sur Google</span>
-                  </a>
-                ) : (
-                  <span className="inline-flex items-center gap-1 sm:gap-1.5">
-                    <span className="font-semibold text-white">{ratingLabel}</span>
-                    <Star className="size-3.5 shrink-0 fill-[var(--spirit-pink)] text-[var(--spirit-pink)] sm:size-4" aria-hidden="true" />
-                    <span>sur Google</span>
-                  </span>
-                ))}
-              {ratingLabel && <span aria-hidden="true" className="text-[color:var(--spirit-muted)]/50">·</span>}
-              <span>Service sur mesure</span>
-              <span aria-hidden="true" className="text-[color:var(--spirit-muted)]/50">·</span>
-              <span>Atelier &amp; domicile</span>
             </div>
           </Reveal>
         </div>
+
+        {/* Rangée de réassurance (4 repères) intégrée au hero — comme la maquette.
+            Séparateurs verticaux fins, icônes cyan, libellés courts sur 2 lignes. */}
+        <Reveal delay={0.32}>
+          <ul className="mt-8 grid grid-cols-4 divide-x divide-white/15 border-t border-white/15 pt-5">
+            {features.map((f) => (
+              <li key={f.label} className="flex flex-col items-center gap-2 px-1 text-center">
+                <f.icon className="size-5 text-[var(--spirit-teal)] sm:size-6" strokeWidth={1.5} aria-hidden="true" />
+                <span className="text-balance text-[clamp(0.625rem,2.6vw,0.8125rem)] leading-tight text-white/85">
+                  {f.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </div>
     </section>
   )
