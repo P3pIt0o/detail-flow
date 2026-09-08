@@ -289,7 +289,10 @@ describe("Cartes prestations — plus aucun titre rogné sur mobile", () => {
   const prest = read("components/custom-sites/spirit-acs/spirit-prestations.tsx")
 
   it("hauteur minimale extensible (min-h), pas de ratio fixe qui rogne", () => {
-    expect(prest).toMatch(/min-h-\[16rem\]/)
+    // La carte porte désormais DEUX actions (« Réserver » + « En savoir plus »)
+    // sous le titre : la hauteur minimale a été augmentée en conséquence, mais
+    // reste un min-h extensible (jamais un ratio fixe qui rognerait le titre).
+    expect(prest).toMatch(/min-h-\[1[0-9]rem\]/)
     expect(prest).not.toMatch(/aspect-\[4\/3\]/)
   })
 

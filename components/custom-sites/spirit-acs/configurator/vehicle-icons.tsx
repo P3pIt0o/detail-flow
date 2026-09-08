@@ -50,18 +50,6 @@ function Berline() {
   )
 }
 
-/** Break — base de berline mais toit long prolongé jusqu'à un hayon quasi vertical. */
-function Break() {
-  return (
-    <svg {...SVG_PROPS}>
-      <path d="M4 23 L4 19.5 L9 17.5 L15.5 13 Q16.1 12.6 17.2 12.6 L36 12.6 L39.5 16 L44 17.8 L44 23" />
-      <path d="M4 23 L8.6 23 A4.4 4.4 0 0 1 17.4 23 L31.6 23 A4.4 4.4 0 0 1 40.4 23 L44 23" />
-      <circle cx="13" cy="23" r="3.3" />
-      <circle cx="36" cy="23" r="3.3" />
-    </svg>
-  )
-}
-
 /** SUV / 4×4 — carrosserie haute et massive, garde au sol marquée, grandes roues. */
 function Suv() {
   return (
@@ -86,7 +74,7 @@ function Monospace() {
   )
 }
 
-/** Utilitaire — fourgon : caisse haute, toit plat sur toute la longueur, arrière vertical. */
+/** Utilitaire / Van — fourgon : caisse haute, toit plat sur toute la longueur, arrière vertical. */
 function Utilitaire() {
   return (
     <svg {...SVG_PROPS}>
@@ -112,31 +100,18 @@ function Moto() {
   )
 }
 
-/** Autre — pictogramme neutre : point d'interrogation, aucun type imposé. */
-function Autre() {
-  return (
-    <svg {...SVG_PROPS}>
-      <circle cx="24" cy="15" r="9.5" />
-      <path d="M20.6 12.2 Q20.6 8.8 24 8.8 Q27.4 8.8 27.4 12 Q27.4 14.4 24 15.4 L24 17.4" />
-      <circle cx="24" cy="20.6" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
-
 const ICONS: Record<string, () => React.ReactElement> = {
   Citadine,
   Berline,
-  Break,
   "SUV / 4×4": Suv,
   Monospace,
-  Utilitaire,
+  "Utilitaire / Van": Utilitaire,
   "Moto / Scooter": Moto,
-  Autre,
 }
 
-/** Rend le pictogramme correspondant au type (repli neutre « Autre »). */
+/** Rend le pictogramme correspondant au type (repli neutre : citadine). */
 export function VehicleTypeIcon({ type, className }: { type: string; className?: string }) {
-  const Icon = ICONS[type] ?? Autre
+  const Icon = ICONS[type] ?? Citadine
   return (
     <span className={className} aria-hidden="true">
       <Icon />

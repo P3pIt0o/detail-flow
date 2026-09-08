@@ -134,7 +134,11 @@ export interface ConfiguratorServiceSummary {
 }
 
 export function listConfiguratorServices(): ConfiguratorServiceSummary[] {
-  return SPIRIT_SERVICES.map((s) => ({
+  // Exactement 5 familles commerciales à l'écran de choix : la « protection
+  // céramique » n'apparaît PAS comme entrée autonome (une céramique carrosserie
+  // ne se commande jamais seule → ramenée dans « Polissage & protection
+  // céramique » via canonicalServiceSlug). Sa page SEO dédiée reste inchangée.
+  return SPIRIT_SERVICES.filter((s) => s.slug !== CERAMIC_SLUG).map((s) => ({
     slug: s.slug,
     title: s.cardTitle,
     tagline: s.cardTagline,
@@ -193,20 +197,20 @@ export function getCeramicFormulas(): ServiceFormula[] {
 }
 
 /**
- * Types de véhicule proposés à l'étape « véhicule ». Volontairement limité aux
- * catégories réellement utilisées par Spirit (les paliers tarifaires du
- * polissage — citadine / berline / SUV — et la moto, qui est une prestation à
- * part entière). « Autre » couvre le reste sans inventer de segmentation.
+ * Types de véhicule proposés à l'étape « véhicule » (grille de 6, alignée sur
+ * la maquette validée). Volontairement limité aux catégories réellement
+ * utilisées par Spirit (les paliers tarifaires du polissage — citadine /
+ * berline / SUV — la moto, prestation à part entière, et les gabarits courants
+ * monospace / utilitaire-van). Marque et modèle restent en saisie libre : aucun
+ * fourre-tout « Autre » ni doublon « Break » dans la grille.
  */
 export const VEHICLE_TYPES = [
   "Citadine",
   "Berline",
-  "Break",
   "SUV / 4×4",
   "Monospace",
-  "Utilitaire",
+  "Utilitaire / Van",
   "Moto / Scooter",
-  "Autre",
 ] as const
 
 /** Type de véhicule pré-suggéré selon la prestation (jamais verrouillé). */

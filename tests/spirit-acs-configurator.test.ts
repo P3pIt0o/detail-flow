@@ -22,13 +22,29 @@ import { SPIRIT_SERVICES } from "@/components/custom-sites/spirit-acs/seo-conten
  * 1 an sur devis).
  */
 describe("configurateur — source unique & projection", () => {
-  it("liste exactement les prestations éditoriales (aucune inventée)", () => {
-    expect(listConfiguratorServices().map((s) => s.slug)).toEqual(SPIRIT_SERVICES.map((s) => s.slug))
+  it("liste exactement les 5 familles commerciales (céramique intégrée au polissage, aucune inventée)", () => {
+    const slugs = listConfiguratorServices().map((s) => s.slug)
+    // La « protection céramique » n'est PAS une entrée autonome (ramenée dans
+    // « Polissage & protection céramique »), mais reste dans SPIRIT_SERVICES
+    // (page SEO dédiée conservée).
+    expect(slugs).toEqual(SPIRIT_SERVICES.filter((s) => s.slug !== "protection-ceramique").map((s) => s.slug))
+    expect(slugs).toHaveLength(5)
+    expect(slugs).not.toContain("protection-ceramique")
+    // Aucun slug inventé : tous proviennent de la source éditoriale unique.
+    expect(slugs.every((slug) => SPIRIT_SERVICES.some((s) => s.slug === slug))).toBe(true)
   })
 
-  it("propose des types de véhicule et des zones PPF bornés (pas de prix par zone)", () => {
-    expect(VEHICLE_TYPES).toContain("Moto / Scooter")
-    expect(VEHICLE_TYPES).toContain("Autre")
+  it("propose exactement 6 types de véhicule (sans Break ni Autre) et des zones PPF bornées", () => {
+    expect(VEHICLE_TYPES).toEqual([
+      "Citadine",
+      "Berline",
+      "SUV / 4×4",
+      "Monospace",
+      "Utilitaire / Van",
+      "Moto / Scooter",
+    ])
+    expect(VEHICLE_TYPES).not.toContain("Break")
+    expect(VEHICLE_TYPES).not.toContain("Autre")
     expect(PPF_ZONES.length).toBeGreaterThan(0)
   })
 })

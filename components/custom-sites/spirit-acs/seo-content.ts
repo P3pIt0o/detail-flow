@@ -324,7 +324,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     vehicles: ["Citadines et berlines", "SUV et monospaces", "Véhicules professionnels"],
     priceKind: "quote",
-    ctaLabel: "Demander un devis pour un nettoyage",
+    ctaLabel: "Réserver cette prestation",
     related: ["polissage-automobile", "protection-ceramique", "renovation-phares"],
     faq: [
       {
@@ -341,7 +341,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   },
   {
     slug: "polissage-automobile",
-    cardTitle: "Polissage et protection céramique",
+    cardTitle: "Polissage & protection céramique",
     cardTagline: "Correction des défauts et restauration de la brillance",
     cardText:
       "Correction des défauts légers de la carrosserie, amélioration de la brillance et application d'une protection adaptée pour faciliter l'entretien du véhicule.",
@@ -391,7 +391,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     priceCaveat:
       "Le niveau de polissage adapté à votre véhicule est déterminé par Spirit ACS après examen de la carrosserie.",
-    ctaLabel: "Demander un devis pour un polissage",
+    ctaLabel: "Réserver cette prestation",
     related: ["protection-ceramique", "nettoyage-automobile", "protection-ppf"],
     faq: [
       {
@@ -469,7 +469,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     priceCaveat:
       "La protection la mieux adaptée dépend de l'état de la carrosserie et de l'usage du véhicule ; elle est confirmée après analyse.",
-    ctaLabel: "Demander un devis pour une protection céramique",
+    ctaLabel: "Réserver cette prestation",
     related: ["polissage-automobile", "protection-ppf", "nettoyage-automobile"],
     faq: [
       {
@@ -481,8 +481,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   },
   {
     slug: "protection-ppf",
-    cardTitle: "Protection PPF",
-    cardTagline: "Film transparent contre les impacts et les rayures",
+    cardTitle: "PPF & personnalisation",
+    cardTagline: "Film transparent de protection et personnalisation",
     cardText:
       "Pose d'un film de protection transparent sur les zones sensibles du véhicule afin de limiter les impacts et préserver les surfaces exposées.",
     image: "/custom-sites/spirit-acs/ppf-porsche-911.jpg",
@@ -509,7 +509,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     vehicles: ["Véhicules neufs ou récents", "Zones exposées (avant, arêtes, seuils)", "Véhicules soignés"],
     priceKind: "quote",
-    ctaLabel: "Demander un devis PPF",
+    ctaLabel: "Réserver cette prestation",
     related: ["protection-ceramique", "polissage-automobile", "nettoyage-automobile"],
     faq: [
       {
@@ -563,7 +563,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     priceCaveat:
       "Le tarif final dépend de l'état initial des optiques, évalué avant l'intervention.",
-    ctaLabel: "Demander un devis pour une rénovation de phares",
+    ctaLabel: "Réserver cette prestation",
     related: ["polissage-automobile", "nettoyage-automobile", "protection-ceramique"],
     faq: [
       {
@@ -575,8 +575,8 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   },
   {
     slug: "detailing-moto",
-    cardTitle: "Moto et personnalisation",
-    cardTagline: "Entretien esthétique et personnalisation",
+    cardTitle: "Moto",
+    cardTagline: "Entretien esthétique et personnalisation deux-roues",
     cardText:
       "Prestations esthétiques adaptées aux motos et interventions de personnalisation selon le véhicule et le résultat recherché.",
     image: "/custom-sites/spirit-acs/detailing-moto-kymco.jpg",
@@ -639,7 +639,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     ],
     priceCaveat:
       "Les prestations moto sont ajustées à la moto et au résultat recherché ; le tarif final est confirmé après analyse.",
-    ctaLabel: "Demander un devis pour ma moto",
+    ctaLabel: "Réserver cette prestation",
     related: ["nettoyage-automobile", "polissage-automobile", "protection-ceramique"],
     faq: [
       {

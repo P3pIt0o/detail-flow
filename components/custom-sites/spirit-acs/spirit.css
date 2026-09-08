@@ -108,28 +108,40 @@
   --primary-foreground: #ffffff;
 }
 
-/* Vrai formulaire « Demande personnalisée » : habillage clair + accents Spirit. */
+/* Configurateur « Demande personnalisée » : habillage SOMBRE (extension du
+   hero) + accents Spirit. Les sous-composants partagés (uploader photos,
+   formulaire libre de repli) lisent ces tokens sémantiques : on les remappe
+   vers la palette bleu nuit, scopé à ce conteneur (jamais global, jamais un
+   autre tenant). */
 .spirit-acs .spirit-form-skin {
-  --background: #ffffff;
-  --foreground: var(--spirit-ink);
-  --card: #ffffff;
-  --card-foreground: var(--spirit-ink);
+  --background: var(--spirit-navy-2);
+  --foreground: var(--spirit-fg);
+  --card: var(--spirit-navy-3);
+  --card-foreground: var(--spirit-fg);
   --primary: var(--spirit-pink);
   --primary-foreground: #ffffff;
-  --border: rgba(6, 19, 28, 0.14);
-  --input: rgba(6, 19, 28, 0.2);
+  --secondary: var(--spirit-navy-3);
+  --secondary-foreground: var(--spirit-fg);
+  --muted: var(--spirit-navy-3);
+  --accent: var(--spirit-navy-3);
+  --accent-foreground: var(--spirit-fg);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.18);
   --ring: var(--spirit-teal);
-  --muted-foreground: rgba(6, 19, 28, 0.6);
-  --destructive: #dc2626;
+  --muted-foreground: var(--spirit-muted);
+  --destructive: #f87171;
   --destructive-foreground: #ffffff;
-  color: var(--spirit-ink);
-  color-scheme: light;
+  color: var(--spirit-fg);
+  color-scheme: dark;
 }
 
-/* Le bouton d'envoi du formulaire partagé est en `rounded-full bg-primary` :
-   on garde le rose Spirit (via --primary ci-dessus), cohérent avec la marque. */
+/* Champs de saisie sombres : fond bleu nuit, texte clair, placeholder discret. */
+.spirit-acs .spirit-form-skin :is(input, textarea, select) {
+  background-color: var(--spirit-navy-3);
+  color: var(--spirit-fg);
+}
 .spirit-acs .spirit-form-skin :is(input, textarea, select)::placeholder {
-  color: rgba(6, 19, 28, 0.4);
+  color: rgba(159, 177, 188, 0.65);
 }
 
 /* Avis Google partagés (GoogleReviewsSection) réutilisés dans le thème sombre

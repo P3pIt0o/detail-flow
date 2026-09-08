@@ -124,12 +124,25 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // futur domaine, ce paramètre est simplement ignoré (host = tenant).
   const serviceHref = (slug: string) => withTenant(`/prestations/${slug}`, data.tenant.slug)
 
+  // Lien « Réserver » d'une carte : ouvre le configurateur inline (accueil)
+  // avec la prestation PRÉSÉLECTIONNÉE via `?prestation=<slug>` (le
+  // configurateur ramène automatiquement la céramique vers le parcours
+  // combiné). Même moteur unique que le CTA global — aucun configurateur dédié.
+  const reserveHref = (slug: string) =>
+    withTenant(`/?prestation=${encodeURIComponent(slug)}#${SPIRIT_SECTIONS.demandeDevis}`, data.tenant.slug)
+
   // SOURCE DE VÉRITÉ UNIQUE (Phase 2) : les prestations affichées en grille ET
   // les liens découvrables proviennent du même catalogue public que le sitemap,
   // le maillage et la route [service]. Plus aucune liste en dur : une page non
   // publiée / hors navigation disparaît partout de façon cohérente.
   const publicCatalog = getSpiritPublicCatalog()
-  const navServices = listNavigationServicePages(publicCatalog)
+  // La grille commerciale affiche EXACTEMENT 5 familles : la « protection
+  // céramique » n'y figure pas comme carte autonome (intégrée à « Polissage &
+  // protection céramique »). Sa PAGE SEO dédiée et son URL restent inchangées
+  // (elle demeure dans le catalogue, le sitemap et le maillage interne).
+  const navServices = listNavigationServicePages(publicCatalog).filter(
+    (page) => page.slug !== "protection-ceramique",
+  )
   const hasPrestations = navServices.length > 0
 
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
@@ -198,7 +211,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
           et AVANT les réalisations. La grille est désormais alimentée par le
           catalogue public (source unique) ; chaque carte mène à la PAGE DÉDIÉE
           de la prestation (SEO), en conservant le tenant. */}
-      {hasPrestations && <SpiritPrestations services={navServices} serviceHref={serviceHref} />}
+      {hasPrestations && (
+        <SpiritPrestations services={navServices} serviceHref={serviceHref} reserveHref={reserveHref} />
+      )}
 
       {hasGallery && content.gallery.enabled && (
         <SpiritRealisations title={content.gallery.title} intro={galleryIntro} items={gallery} />

@@ -23,10 +23,14 @@ import { SPIRIT_SECTIONS } from "./tokens"
 export function SpiritPrestations({
   services,
   serviceHref,
+  reserveHref,
 }: {
   /** Pages de prestations (publiées + en navigation) issues du catalogue. */
   services: PublicServicePage[]
+  /** Lien « En savoir plus » → page SEO dédiée (tenant conservé). */
   serviceHref: (slug: string) => string
+  /** Lien « Réserver » → configurateur contextualisé (tenant conservé). */
+  reserveHref: (slug: string) => string
 }) {
   if (services.length === 0) return null
 
@@ -54,15 +58,15 @@ export function SpiritPrestations({
           {services.map((page, i) => (
             <Reveal key={page.slug} delay={i * 0.06} className="h-full">
               {/*
-                HAUTEUR MINIMALE (min-h) plutôt qu'un ratio fixe : la carte peut
-                GRANDIR quand le titre passe sur 2–3 lignes → plus aucun rognage
-                du titre par le haut (ex. « Polissage automobile »). `h-full`
-                + items-stretch harmonisent la hauteur des cartes d'une ligne.
+                Carte à DEUX actions distinctes (cf. UX validée) :
+                  - action PRINCIPALE « Réserver » → configurateur contextualisé ;
+                  - action SECONDAIRE « En savoir plus » → page SEO dédiée.
+                L'image + le titre restent un lien vers la page SEO (toute la
+                zone visuelle est cliquable), et les boutons d'action sont posés
+                DESSOUS, hors du lien, pour ne pas imbriquer deux <a>.
+                `min-h` + `h-full` + items-stretch harmonisent la hauteur.
               */}
-              <a
-                href={serviceHref(page.slug)}
-                className="group relative flex h-full min-h-[16rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-black/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-24px_rgba(6,19,28,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-pink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--spirit-paper-2)] sm:min-h-[17rem]"
-              >
+              <div className="group relative flex h-full min-h-[18rem] flex-col justify-end overflow-hidden rounded-lg ring-1 ring-black/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-24px_rgba(6,19,28,0.65)] sm:min-h-[19rem]">
                 {/* Photographie plein cadre (object-cover, sans déformation).
                     Sous la ligne de flottaison → chargement différé (lazy). */}
                 <Image
@@ -76,31 +80,47 @@ export function SpiritPrestations({
                 {/* Dégradé sombre bas pour garantir la lisibilité du texte blanc. */}
                 <div
                   aria-hidden="true"
-                  className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/60 to-transparent"
                 />
 
-                {/* Contenu en colonne (titre → description → CTA), aligné en bas,
-                    marges internes hautes/basses suffisantes. */}
-                <div className="relative z-10 flex flex-col gap-2 p-5">
-                  {/* Accent rose de marque. */}
-                  <span aria-hidden="true" className="h-0.5 w-9 rounded-full bg-[var(--spirit-pink)]" />
-                  {/* Titre : taille responsive clamp(), jamais tronqué (aucune
-                      limite de lignes), peut occuper 2–3 lignes. */}
-                  <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1rem,4.5vw,1.25rem)]">
-                    {page.navLabel}
-                  </h3>
-                  <p className="text-sm leading-snug text-white/85">{page.cardTagline ?? page.cardTitle}</p>
-                  <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-white">
-                    En savoir plus
-                    <span
-                      aria-hidden="true"
-                      className="transition-transform duration-300 group-hover:translate-x-1"
+                {/* Contenu en colonne (titre → description → actions), aligné en bas. */}
+                <div className="relative z-10 flex flex-col gap-3 p-5">
+                  {/* La zone titre/description ouvre la page SEO (grande cible tactile). */}
+                  <a
+                    href={serviceHref(page.slug)}
+                    className="flex flex-col gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
+                  >
+                    {/* Accent rose de marque. */}
+                    <span aria-hidden="true" className="h-0.5 w-9 rounded-full bg-[var(--spirit-pink)]" />
+                    {/* Titre : taille responsive clamp(), jamais tronqué. */}
+                    <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1rem,4.5vw,1.25rem)]">
+                      {page.navLabel}
+                    </h3>
+                    <p className="text-sm leading-snug text-white/85">{page.cardTagline ?? page.cardTitle}</p>
+                  </a>
+
+                  {/* Deux actions : « Réserver » (primaire, magenta) puis
+                      « En savoir plus » (secondaire, lien clair). Zones tactiles
+                      confortables (h-11) et hiérarchie visuelle nette. */}
+                  <div className="mt-1 flex items-center gap-3">
+                    <a
+                      href={reserveHref(page.slug)}
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                     >
-                      →
-                    </span>
-                  </span>
+                      Réserver
+                    </a>
+                    <a
+                      href={serviceHref(page.slug)}
+                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-sm px-2 text-sm font-medium text-white/90 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
+                    >
+                      En savoir plus
+                      <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-0.5">
+                        →
+                      </span>
+                    </a>
+                  </div>
                 </div>
-              </a>
+              </div>
             </Reveal>
           ))}
         </div>
