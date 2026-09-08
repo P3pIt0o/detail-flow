@@ -90,8 +90,9 @@ export function SpiritPrestations({
                   className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
                 />
 
-                {/* Contenu en colonne (titre → description → actions), aligné en bas. */}
-                <div className="relative z-10 flex flex-col gap-2.5 p-4 sm:p-5">
+                {/* Contenu en colonne (titre → description → actions), aligné en bas.
+                    Texte volontairement compact pour laisser respirer la photo. */}
+                <div className="relative z-10 flex flex-col gap-2 p-4 sm:p-5">
                   {/* La zone titre/description ouvre la page SEO (grande cible tactile). */}
                   <a
                     href={serviceHref(page.slug)}
@@ -99,31 +100,48 @@ export function SpiritPrestations({
                   >
                     {/* Accent rose de marque. */}
                     <span aria-hidden="true" className="h-0.5 w-9 rounded-full bg-[var(--spirit-pink)]" />
-                    {/* Titre commercial exact (source : cardTitle). Jamais tronqué. */}
-                    <h3 className="spirit-title font-semibold leading-tight text-white [font-size:clamp(1.05rem,4.5vw,1.35rem)]">
+                    {/* Titre commercial exact (source : cardTitle). Compact et
+                        légèrement resserré pour tenir sur une seule ligne autant
+                        que possible ; retour à la ligne toléré < 360px. */}
+                    <h3 className="spirit-title font-semibold uppercase leading-tight tracking-[-0.01em] text-white [font-size:clamp(0.9rem,3.3vw,1.15rem)]">
                       {page.cardTitle}
                     </h3>
-                    <p className="line-clamp-2 text-sm leading-snug text-white/85">
+                    {/* Description clairement secondaire (13–14px, gris clair, ≤2 lignes). */}
+                    <p className="line-clamp-2 text-[0.8125rem] font-normal leading-snug text-white/80 sm:text-sm">
                       {page.cardTagline ?? page.cardTitle}
                     </p>
                   </a>
 
-                  {/* Deux actions : « Réserver » (primaire, magenta, COMPACT —
-                      largeur auto, pas pleine largeur) puis « En savoir plus »
-                      (secondaire, lien clair). */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {/*
+                    Deux CTA TEXTUELS (aucun bouton/fond/encadré) sur la même
+                    ligne, répartis aux extrémités :
+                      - « Réserver → » (PRINCIPAL) en cyan Spirit ACS (--spirit-teal),
+                        légèrement bold : attire l'œil par la COULEUR, pas la taille ;
+                      - « En savoir plus → » (SECONDAIRE) en blanc/gris clair.
+                    Chaque lien conserve son action propre (configurateur / page SEO).
+                  */}
+                  <div className="mt-0.5 flex items-center justify-between gap-3">
                     <a
                       href={reserveHref(page.slug)}
-                      className="inline-flex h-11 items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-5 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--spirit-pink-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      className="group/cta inline-flex items-center gap-1.5 rounded-sm text-[0.8125rem] font-semibold uppercase tracking-wide text-[color:var(--spirit-teal)] transition-colors hover:text-[color:var(--spirit-teal-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)] sm:text-sm"
                     >
                       Réserver
+                      <span
+                        aria-hidden="true"
+                        className="transition-transform duration-300 group-hover/cta:translate-x-0.5"
+                      >
+                        →
+                      </span>
                     </a>
                     <a
                       href={serviceHref(page.slug)}
-                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-sm text-sm font-medium text-white/90 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)]"
+                      className="group/more inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[0.8125rem] font-medium text-white/85 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--spirit-teal)] sm:text-sm"
                     >
                       En savoir plus
-                      <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-0.5">
+                      <span
+                        aria-hidden="true"
+                        className="transition-transform duration-300 group-hover/more:translate-x-0.5"
+                      >
                         →
                       </span>
                     </a>
