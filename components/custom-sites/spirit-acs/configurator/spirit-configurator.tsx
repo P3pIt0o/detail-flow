@@ -282,12 +282,11 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         className="flex flex-col items-center gap-3 rounded-2xl border border-[color:var(--spirit-pink)]/30 bg-[color:var(--spirit-pink)]/5 p-8 text-center"
       >
         <CheckCircle2 className="size-10 text-[color:var(--spirit-pink)]" aria-hidden="true" />
-        <h3 className="spirit-title text-2xl">Demande envoyée</h3>
+        <h3 className="spirit-title text-2xl">Votre demande a bien été envoyée</h3>
         <p className="text-pretty text-[color:var(--spirit-muted)]">
-          Merci ! Votre demande a bien été transmise{uploader.count > 0 ? ", photos comprises" : ""}.{" "}
-          {appointment
-            ? "Spirit ACS vous recontacte pour convenir d'un rendez-vous et constater l'état de votre véhicule."
-            : "Vous recevrez une proposition personnalisée après analyse de votre demande."}
+          Merci ! Votre demande de réservation a bien été transmise{uploader.count > 0 ? ", photos comprises" : ""}.{" "}
+          Spirit ACS va l&apos;étudier et vous confirmer la prise en charge
+          {appointment ? ", puis convenir d'un rendez-vous pour constater l'état de votre véhicule." : "."}
         </p>
       </div>
     )
@@ -320,9 +319,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           <span className="spirit-eyebrow" style={{ color: "var(--spirit-teal-strong)" }}>
             Étape {stepIndex + 1} / {totalSteps}
           </span>
-          <span className="font-medium text-[color:var(--spirit-ink)]">{STEP_LABEL[step]}</span>
+          <span className="font-medium text-[color:var(--spirit-fg)]">{STEP_LABEL[step]}</span>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10" aria-hidden="true">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
           <div
             className="h-full rounded-full bg-[color:var(--spirit-pink)] transition-[width]"
             style={{ width: `${((stepIndex + 1) / totalSteps) * 100}%` }}
@@ -333,7 +332,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {serverError && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-xl border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/10 p-4 text-sm text-[color:var(--spirit-ink)]"
+          className="flex items-start gap-3 rounded-xl border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/10 p-4 text-sm text-[color:var(--spirit-fg)]"
         >
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-[color:var(--destructive)]" aria-hidden="true" />
           <p>{serverError}</p>
@@ -343,7 +342,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {phase === "partial" && (
         <div
           role="status"
-          className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-[color:var(--spirit-ink)]"
+          className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-[color:var(--spirit-fg)]"
         >
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600" aria-hidden="true" />
           <p>
@@ -357,7 +356,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {step === "service" && (
         <div className="space-y-4">
           <p className="text-sm text-[color:var(--spirit-muted)]">
-            Quelle prestation souhaitez-vous ? Vous pourrez tout préciser à l&apos;étape suivante.
+            Choisissez votre prestation et envoyez votre demande. Spirit ACS vous confirme ensuite la prise en charge.
           </p>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {SERVICES.map((s) => (
@@ -365,7 +364,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                 <button
                   type="button"
                   onClick={() => chooseService(s.slug)}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-black/10 bg-white p-3 text-left transition-colors hover:border-[color:var(--spirit-pink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--spirit-teal)]"
+                  className="group flex w-full items-center gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-left transition-colors hover:border-[color:var(--spirit-pink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--spirit-teal)]"
                 >
                   {s.image && (
                     <span className="relative size-14 shrink-0 overflow-hidden rounded-lg">
@@ -373,7 +372,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                     </span>
                   )}
                   <span className="min-w-0">
-                    <span className="block font-semibold text-[color:var(--spirit-ink)]">{s.title}</span>
+                    <span className="block font-semibold text-[color:var(--spirit-fg)]">{s.title}</span>
                     <span className="block text-sm text-[color:var(--spirit-muted)]">{s.tagline}</span>
                   </span>
                   <ArrowRight className="ml-auto size-4 shrink-0 text-[color:var(--spirit-muted)] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -397,7 +396,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {step === "options" && (
         <div className="space-y-5">
           {locked && service && (
-            <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--spirit-paper)] px-3 py-1 text-sm text-[color:var(--spirit-ink)]">
+            <p className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--spirit-navy-3)] px-3 py-1 text-sm text-[color:var(--spirit-fg)]">
               <Lock className="size-3.5 text-[color:var(--spirit-teal)]" aria-hidden="true" />
               Prestation : <span className="font-semibold">{service.title}</span>
             </p>
@@ -407,7 +406,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           {rule.mode === "polish-and-ceramic" && (
             <div className="space-y-6">
               {cameFromCeramic && (
-                <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-3 text-sm text-[color:var(--spirit-ink)]">
+                <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-3 text-sm text-[color:var(--spirit-fg)]">
                   Une protection céramique s&apos;applique toujours sur une carrosserie polie. Choisissez d&apos;abord
                   votre polissage ci-dessous, puis ajoutez la protection céramique souhaitée.
                 </p>
@@ -415,7 +414,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 
               {/* Groupe A — Polissage (choix requis, exclusif) */}
               <fieldset className="space-y-2">
-                <legend className="font-medium text-[color:var(--spirit-ink)]">Polissage</legend>
+                <legend className="font-medium text-[color:var(--spirit-fg)]">Polissage</legend>
                 <p className="text-sm text-[color:var(--spirit-muted)]">
                   Choisissez un niveau, ou laissez Spirit ACS le déterminer après inspection de la carrosserie.
                 </p>
@@ -433,9 +432,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                           onChange={() => setPolishLevel(value)}
                           className="peer sr-only"
                         />
-                        <span className="flex items-start justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                        <span className="flex items-start justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
                           <span className="min-w-0">
-                            <span className="block text-sm font-medium text-[color:var(--spirit-ink)]">{f.label}</span>
+                            <span className="block text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
                             {f.note && (
                               <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">{f.note}</span>
                             )}
@@ -458,9 +457,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                       onChange={() => setPolishLevel(POLISH_INSPECTION_VALUE)}
                       className="peer sr-only"
                     />
-                    <span className="flex items-start gap-2 rounded-xl border border-dashed border-black/25 bg-[var(--spirit-paper)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                    <span className="flex items-start gap-2 rounded-xl border border-dashed border-white/25 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium text-[color:var(--spirit-ink)]">
+                        <span className="block text-sm font-medium text-[color:var(--spirit-fg)]">
                           Laisser Spirit ACS déterminer le niveau après inspection
                         </span>
                         <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">
@@ -476,7 +475,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 
               {/* Groupe B — Protection céramique (facultative, indépendante du polissage) */}
               <fieldset className="space-y-2">
-                <legend className="font-medium text-[color:var(--spirit-ink)]">
+                <legend className="font-medium text-[color:var(--spirit-fg)]">
                   Protection céramique{" "}
                   <span className="font-normal text-[color:var(--spirit-muted)]">(facultatif)</span>
                 </legend>
@@ -492,7 +491,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                       onChange={() => setCeramicLabel(null)}
                       className="peer sr-only"
                     />
-                    <span className="flex items-center rounded-xl border border-black/10 bg-white p-3 text-sm font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                    <span className="flex items-center rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
                       Sans protection céramique
                     </span>
                   </label>
@@ -509,8 +508,8 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                           onChange={() => setCeramicLabel(value)}
                           className="peer sr-only"
                         />
-                        <span className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                          <span className="text-sm font-medium text-[color:var(--spirit-ink)]">{f.label}</span>
+                        <span className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                          <span className="text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
                           <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
                             {formulaPriceLabel(f)}
                           </span>
@@ -526,7 +525,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           {/* Céramique : sélection d'une formule par le client. */}
           {rule.mode === "select-formula" && (
             <fieldset className="space-y-2">
-              <legend className="font-medium text-[color:var(--spirit-ink)]">Quelle protection souhaitez-vous ?</legend>
+              <legend className="font-medium text-[color:var(--spirit-fg)]">Quelle protection souhaitez-vous ?</legend>
               <p className="text-sm text-[color:var(--spirit-muted)]">
                 Votre choix est confirmé par Spirit ACS après analyse de la carrosserie (une préparation ou un polissage
                 peuvent être conseillés).
@@ -545,8 +544,8 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                         onChange={() => setFormulaLabel(value)}
                         className="peer sr-only"
                       />
-                      <span className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                        <span className="text-sm font-medium text-[color:var(--spirit-ink)]">{f.label}</span>
+                      <span className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                        <span className="text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
                         <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
                           {formulaPriceLabel(f)}
                         </span>
@@ -562,18 +561,18 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           {/* Polissage : formules INFORMATIVES, aucune sélection. Aboutit à un RDV. */}
           {rule.mode === "info-formula" && (
             <div className="space-y-3">
-              <div className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-ink)]">
+              <div className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-fg)]">
                 {rule.photoHint}
               </div>
               {formulas.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-[color:var(--spirit-ink)]">
+                  <p className="text-sm font-medium text-[color:var(--spirit-fg)]">
                     Formules à titre indicatif
                   </p>
-                  <ul className="mt-2 divide-y divide-black/5 rounded-xl border border-black/10 bg-white">
+                  <ul className="mt-2 divide-y divide-white/10 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)]">
                     {formulas.map((f) => (
                       <li key={f.label} className="flex items-baseline justify-between gap-3 p-3">
-                        <span className="min-w-0 text-sm text-[color:var(--spirit-ink)]">
+                        <span className="min-w-0 text-sm text-[color:var(--spirit-fg)]">
                           {f.label}
                           {f.note && <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">{f.note}</span>}
                         </span>
@@ -595,7 +594,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           {/* PPF : sélection de zones (toujours sur devis, aucun prix par zone). */}
           {rule.mode === "ppf-zones" && (
             <fieldset className="space-y-2">
-              <legend className="font-medium text-[color:var(--spirit-ink)]">Quelles zones souhaitez-vous protéger ?</legend>
+              <legend className="font-medium text-[color:var(--spirit-fg)]">Quelles zones souhaitez-vous protéger ?</legend>
               <p className="text-sm text-[color:var(--spirit-muted)]">
                 La pose PPF est toujours établie sur devis, après analyse du véhicule.
               </p>
@@ -610,10 +609,10 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                         onChange={() => toggleZone(zone)}
                         className="peer sr-only"
                       />
-                      <span className="flex items-center gap-2 rounded-xl border border-black/10 bg-white p-3 text-sm text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                      <span className="flex items-center gap-2 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-sm text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
                         <span
                           aria-hidden="true"
-                          className={`flex size-4 shrink-0 items-center justify-center rounded border ${checked ? "border-[color:var(--spirit-pink)] bg-[color:var(--spirit-pink)] text-white" : "border-black/30"}`}
+                          className={`flex size-4 shrink-0 items-center justify-center rounded border ${checked ? "border-[color:var(--spirit-pink)] bg-[color:var(--spirit-pink)] text-white" : "border-white/30"}`}
                         >
                           {checked && <CheckCircle2 className="size-3" />}
                         </span>
@@ -642,8 +641,11 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {step === "vehicle" && (
         <div className="space-y-5">
           <fieldset className="space-y-2">
-            <legend className="font-medium text-[color:var(--spirit-ink)]">Type de véhicule</legend>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <legend className="font-medium text-[color:var(--spirit-fg)]">Type de véhicule</legend>
+            {/* Grille de 6 (2 × 3) alignée sur la maquette. L'état sélectionné
+                est signalé par TROIS indices cumulés (pas uniquement la couleur,
+                a11y) : fond magenta, bordure magenta et picto en blanc. */}
+            <div className="grid grid-cols-3 gap-2.5">
               {VEHICLE_TYPES.map((t) => {
                 const checked = vehicleType === t
                 return (
@@ -656,12 +658,12 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                       onChange={() => setVehicleType(t)}
                       className="peer sr-only"
                     />
-                    <span className="flex h-full flex-col items-center justify-center gap-1.5 rounded-xl border border-black/15 bg-white px-2 py-3 text-center text-xs font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                    <span className="flex h-full min-h-[5.5rem] flex-col items-center justify-center gap-2 rounded-xl border border-white/15 bg-[color:var(--spirit-navy-3)] px-2 py-3 text-center text-xs font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[color:var(--spirit-navy-2)]">
                       <VehicleTypeIcon
                         type={t}
-                        className={`block w-9 ${checked ? "text-white" : "text-[color:var(--spirit-teal-strong)]"}`}
+                        className={`block w-10 ${checked ? "text-white" : "text-[color:var(--spirit-teal)]"}`}
                       />
-                      <span className="leading-tight">{t}</span>
+                      <span className="leading-tight text-balance">{t}</span>
                     </span>
                   </label>
                 )
@@ -699,7 +701,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       {step === "contact" && (
         <div className="space-y-5">
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-[color:var(--spirit-ink)]">Vous êtes :</legend>
+            <legend className="text-sm font-medium text-[color:var(--spirit-fg)]">Vous êtes :</legend>
             <div role="radiogroup" aria-label="Type de client" className="grid grid-cols-2 gap-2">
               {[
                 { value: "particulier", label: "Un particulier" },
@@ -714,7 +716,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
                     onChange={() => setAudience(opt.value as "particulier" | "professionnel")}
                     className="peer sr-only"
                   />
-                  <span className="flex h-11 items-center justify-center rounded-md border border-black/15 bg-white px-4 text-sm font-medium text-[color:var(--spirit-ink)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
+                  <span className="flex h-11 items-center justify-center rounded-md border border-white/15 bg-[color:var(--spirit-navy-3)] px-4 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
                     {opt.label}
                   </span>
                 </label>
@@ -770,7 +772,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
             {errors.message && <p className="text-sm text-[color:var(--destructive)]">{errors.message}</p>}
           </div>
 
-          <div className="rounded-xl border border-black/10 bg-[var(--spirit-paper)] p-4 text-sm text-[color:var(--spirit-ink)]">
+          <div className="rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-4 text-sm text-[color:var(--spirit-fg)]">
             {rule.photoHint}
           </div>
           <QuotePhotoUploader uploader={uploader} disabled={pending} />
@@ -783,28 +785,29 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
           <p className="text-sm text-[color:var(--spirit-muted)]">
             Vérifiez votre demande avant l&apos;envoi. Vous pouvez revenir en arrière pour la modifier.
           </p>
-          <dl className="divide-y divide-black/5 rounded-xl border border-black/10 bg-white">
+          <dl className="divide-y divide-white/10 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)]">
             {buildSummary(currentSelection()).map((line) => (
               <div key={line.label} className="flex flex-col gap-0.5 p-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                 <dt className="shrink-0 text-sm font-medium text-[color:var(--spirit-muted)]">{line.label}</dt>
-                <dd className="text-sm text-[color:var(--spirit-ink)] sm:text-right">{line.value}</dd>
+                <dd className="text-sm text-[color:var(--spirit-fg)] sm:text-right">{line.value}</dd>
               </div>
             ))}
             {uploader.count > 0 && (
               <div className="flex items-baseline justify-between gap-4 p-3">
                 <dt className="text-sm font-medium text-[color:var(--spirit-muted)]">Photos</dt>
-                <dd className="text-sm text-[color:var(--spirit-ink)]">
+                <dd className="text-sm text-[color:var(--spirit-fg)]">
                   {uploader.count} photo{uploader.count > 1 ? "s" : ""} à envoyer
                 </dd>
               </div>
             )}
           </dl>
-          {rule.finalAction === "appointment" && (
-            <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-ink)]">
-              Après envoi, Spirit ACS vous recontacte pour convenir d&apos;un rendez-vous et constater l&apos;état de
-              votre véhicule.
-            </p>
-          )}
+          {/* Rappel systématique : la réservation n'est jamais confirmée à
+              l'envoi (aucun paiement, aucun créneau garanti). */}
+          <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-fg)]">
+            {rule.finalAction === "appointment"
+              ? "Votre demande sera étudiée et confirmée par Spirit ACS, qui vous recontacte ensuite pour convenir d'un rendez-vous et constater l'état de votre véhicule."
+              : "Votre demande sera étudiée et confirmée par Spirit ACS. Aucun paiement à cette étape."}
+          </p>
         </div>
       )}
 
@@ -815,7 +818,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
             type="button"
             onClick={goPrev}
             disabled={pending}
-            className="inline-flex items-center gap-1 rounded-full border border-black/15 px-4 py-2.5 text-sm font-medium text-[color:var(--spirit-ink)] transition-colors hover:bg-black/5 disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-4 py-2.5 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors hover:bg-white/5 disabled:opacity-60"
           >
             <ChevronLeft className="size-4" aria-hidden="true" /> Retour
           </button>
@@ -832,7 +835,11 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--spirit-pink)] px-8 text-base font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {pending ? "Envoi en cours…" : phase === "partial" ? "Réessayer l'envoi" : "Envoyer ma demande"}
+              {pending
+                ? "Envoi en cours…"
+                : phase === "partial"
+                  ? "Réessayer l'envoi"
+                  : "Envoyer ma demande de réservation"}
             </button>
           ) : (
             <button

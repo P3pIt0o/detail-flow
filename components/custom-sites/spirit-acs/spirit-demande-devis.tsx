@@ -60,9 +60,12 @@ export function SpiritDemandeDevis({ title, intro, types }: SpiritDemandeDevisPr
           </Reveal>
         </div>
 
-        {/* Colonne formulaire — vrai composant partagé, ré-habillé (scopé) */}
+        {/* Colonne configurateur — panneau SOMBRE (extension naturelle du hero,
+            fin de la grande carte blanche). `.spirit-form-skin` remappe les
+            tokens des sous-composants partagés (uploader, formulaire libre) vers
+            la palette sombre Spirit, scopé à ce conteneur uniquement. */}
         <Reveal delay={0.1}>
-          <div className="spirit-form-skin rounded-2xl bg-white p-6 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] sm:p-8">
+          <div className="spirit-form-skin rounded-2xl border border-white/10 bg-[var(--spirit-navy-2)] p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)] sm:p-7">
             <SpiritConfigurator types={types} />
           </div>
         </Reveal>

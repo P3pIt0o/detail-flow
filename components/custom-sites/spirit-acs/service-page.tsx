@@ -86,7 +86,7 @@ export async function SpiritServicePage({
   // PRÉSÉLECTIONNER la prestation (le client ne la re-choisit pas). Aucun moteur
   // n'est construit ici : on prépare seulement la référence.
   const quoteHref = withTenant(`/?prestation=${encodeURIComponent(service.slug)}#demande-devis`, slug)
-  const ctaLabel = service.ctaLabel ?? "Demander un devis"
+  const ctaLabel = service.ctaLabel ?? "Réserver cette prestation"
   const related = relatedServices(service)
 
   // Réalisations : on montre jusqu'à 3 comparateurs existants si disponibles
