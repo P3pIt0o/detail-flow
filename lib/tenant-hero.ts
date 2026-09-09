@@ -56,8 +56,8 @@ export const DEFAULT_HERO_OVERLAY: HeroOverlay = {
  */
 const TENANT_HERO_OVERLAYS: Readonly<Record<string, HeroOverlay>> = {
   justcleandetailing: {
-    top: "from-background/75 via-background/45 to-background/10",
-    left: "from-background/55 to-transparent",
+    top: "from-background/60 via-background/30 to-background/5",
+    left: "from-background/40 to-transparent",
   },
 }
 
