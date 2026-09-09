@@ -31,6 +31,8 @@ type RozanSiteShellProps = {
   ctaHref: string
   ctaLabel: string
   phoneRaw: string | null
+  /** Affichage humain du numéro (ex. « 07 87 95 77 52 »). */
+  phoneLabel?: string | null
   /** Sticky CTA mobile (cible + libellé). */
   stickyCtaHref: string
   stickyCtaLabel: string
@@ -49,6 +51,7 @@ export function RozanSiteShell({
   ctaHref,
   ctaLabel,
   phoneRaw,
+  phoneLabel,
   stickyCtaHref,
   stickyCtaLabel,
   immersive = false,
@@ -61,6 +64,7 @@ export function RozanSiteShell({
         ctaHref={ctaHref}
         ctaLabel={ctaLabel}
         phoneRaw={phoneRaw}
+        phoneLabel={phoneLabel}
         immersive={immersive}
       />
 

@@ -10,10 +10,6 @@ import { InstagramIcon, FacebookIcon, TiktokIcon } from "@/components/icons/soci
 import { ROZAN_SECTIONS } from "./tokens"
 import { ROZAN_BRAND, ROZAN_SERVICES, ROZAN_ZONES } from "./content"
 
-function formatPhone(raw: string) {
-  return raw.replace(/^33/, "0").replace(/(\d)(?=(\d{2})+$)/g, "$1 ")
-}
-
 export function RozanFooter() {
   const year = new Date().getFullYear()
   const activeServices = ROZAN_SERVICES.filter((s) => s.active)

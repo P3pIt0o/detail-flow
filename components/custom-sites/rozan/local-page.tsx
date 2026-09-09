@@ -53,6 +53,7 @@ export function RozanLocalPage({
       ctaHref={`#${ROZAN_SECTIONS.devis}`}
       ctaLabel="Obtenir mon devis"
       phoneRaw={ROZAN_BRAND.phoneRaw}
+      phoneLabel={ROZAN_BRAND.phone}
       stickyCtaHref={`#${ROZAN_SECTIONS.devis}`}
       stickyCtaLabel="Obtenir mon devis"
     >
