@@ -80,11 +80,24 @@ export function Hero({ brandName, hero, imageSrc, overlay = DEFAULT_HERO_OVERLAY
   const subtitle = hero?.subtitle?.trim() || HERO_DEFAULTS.subtitle
   const ctaPrimary = hero?.ctaPrimary?.trim() || HERO_DEFAULTS.ctaPrimary
   const ctaSecondary = hero?.ctaSecondary?.trim() || HERO_DEFAULTS.ctaSecondary
+  const isJustCleanHero =
+    imageSrc?.trim() === "/tenants/justcleandetailing/justclean-hero-v1.jpg"
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-hidden">
       {/* Arrière-plan */}
       <div className="absolute inset-0 -z-10">
-        <Image src={imageSrc?.trim() || "/hero.png"} alt="" fill priority sizes="100vw" className="object-cover" />
+        <Image
+          src={imageSrc?.trim() || "/hero.png"}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className={
+            isJustCleanHero
+              ? "object-cover object-[center_65%] sm:object-center"
+              : "object-cover"
+          }
+        />
         <div className={`absolute inset-0 bg-gradient-to-t ${overlay.top}`} />
         <div className={`absolute inset-0 bg-gradient-to-r ${overlay.left}`} />
       </div>
