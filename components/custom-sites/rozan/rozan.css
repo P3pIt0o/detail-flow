@@ -21,9 +21,9 @@
   --rozan-surface: #ffffff;     /* cartes / surfaces */
   --rozan-surface-2: #f4f5f2;   /* surfaces alternées douces */
 
-  /* Sections sombres (contraste premium) */
-  --rozan-ink: #0b0e12;         /* fond des sections sombres */
-  --rozan-ink-2: #12161c;       /* variante légèrement plus claire */
+  /* Sections sombres (contraste premium) — navy profond dérivé du logo. */
+  --rozan-ink: #071022;         /* fond des sections sombres (navy Rozan) */
+  --rozan-ink-2: #0c1830;       /* variante légèrement plus claire */
 
   /* Texte */
   --rozan-fg: #10141a;          /* texte principal sur clair */
