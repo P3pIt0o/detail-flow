@@ -25,6 +25,7 @@ import { RozanFaq } from "./rozan-faq"
 import { RozanFinalCta } from "./rozan-final-cta"
 import { ROZAN_SECTIONS, type RozanNavItem } from "./tokens"
 import { ROZAN_BRAND } from "./content"
+import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 
 const NAV_ITEMS: RozanNavItem[] = [
   { id: ROZAN_SECTIONS.prestations, label: "Prestations" },
@@ -34,7 +35,14 @@ const NAV_ITEMS: RozanNavItem[] = [
   { id: ROZAN_SECTIONS.faq, label: "FAQ" },
 ]
 
-export function RozanHome() {
+// Contrat public identique à SpiritAcsHome : le tenant est résolu côté serveur
+// et injecté ici. `data` est OPTIONNEL pour que l'aperçu de développement
+// (`/rozan-preview`) puisse rendre la page sans contexte tenant ; le dispatch
+// public (registry) fournit toujours `data`. Phase 2 : le contenu reste
+// éditorial (content.ts) ; `data` sera consommé en Phase 4 (prestations/avis/
+// galerie par tenant) sans changer ce câblage ni impacter les autres tenants.
+export function RozanHome({ data }: { data?: CustomSitePublicData }) {
+  void data
   return (
     <RozanSiteShell
       brandName={ROZAN_BRAND.name}
