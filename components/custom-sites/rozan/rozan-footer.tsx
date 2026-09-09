@@ -84,7 +84,7 @@ export function RozanFooter() {
               <li>
                 <a href={`tel:${ROZAN_BRAND.phoneRaw}`} className="flex items-center gap-2.5 text-sm text-white transition-colors hover:text-[var(--rozan-accent)]">
                   <Phone className="size-4 flex-none text-[var(--rozan-accent)]" aria-hidden="true" />
-                  {formatPhone(ROZAN_BRAND.phoneRaw)}
+                  {ROZAN_BRAND.phone}
                 </a>
               </li>
               <li>
