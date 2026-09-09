@@ -5,7 +5,8 @@
  */
 
 import Link from "next/link"
-import { Phone, Mail, MapPin, Instagram, Facebook } from "lucide-react"
+import { Phone, Mail, MapPin } from "lucide-react"
+import { InstagramIcon, FacebookIcon, TiktokIcon } from "@/components/icons/social-icons"
 import { ROZAN_SECTIONS } from "./tokens"
 import { ROZAN_BRAND, ROZAN_SERVICES, ROZAN_ZONES } from "./content"
 
@@ -31,24 +32,22 @@ export function RozanFooter() {
               {ROZAN_BRAND.tagline} Nettoyage professionnel à domicile, autonome en eau et en électricité.
             </p>
             <div className="mt-5 flex items-center gap-3">
-              <a
-                href={ROZAN_BRAND.socials.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="inline-flex size-10 items-center justify-center rounded-full border border-white/15 text-white/80 transition-colors hover:border-[var(--rozan-accent)] hover:text-[var(--rozan-accent)]"
-              >
-                <Instagram className="size-4" aria-hidden="true" />
-              </a>
-              <a
-                href={ROZAN_BRAND.socials.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Facebook"
-                className="inline-flex size-10 items-center justify-center rounded-full border border-white/15 text-white/80 transition-colors hover:border-[var(--rozan-accent)] hover:text-[var(--rozan-accent)]"
-              >
-                <Facebook className="size-4" aria-hidden="true" />
-              </a>
+              {[
+                { label: "Instagram", href: ROZAN_BRAND.socials.instagram, Icon: InstagramIcon },
+                { label: "Facebook", href: ROZAN_BRAND.socials.facebook, Icon: FacebookIcon },
+                { label: "TikTok", href: ROZAN_BRAND.socials.tiktok, Icon: TiktokIcon },
+              ].map(({ label, href, Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="inline-flex size-10 items-center justify-center rounded-full border border-white/15 text-white/80 transition-colors hover:border-[var(--rozan-accent)] hover:text-[var(--rozan-accent)]"
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                </a>
+              ))}
             </div>
           </div>
 
