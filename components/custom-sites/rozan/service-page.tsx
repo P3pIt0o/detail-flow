@@ -90,11 +90,11 @@ export function RozanServicePage({ slug }: { slug: RozanServiceSlug }) {
       brandName={ROZAN_BRAND.name}
       navItems={SUBPAGE_NAV}
       ctaHref={`#${ROZAN_SECTIONS.devis}`}
-      ctaLabel="Obtenir mon devis"
+      ctaLabel="Réserver ma prestation"
       phoneRaw={ROZAN_BRAND.phoneRaw}
       phoneLabel={ROZAN_BRAND.phone}
       stickyCtaHref={`#${ROZAN_SECTIONS.devis}`}
-      stickyCtaLabel="Obtenir mon devis"
+      stickyCtaLabel="Réserver ma prestation"
     >
       {/* Fil d'Ariane */}
       <div className="bg-[var(--rozan-bg)]">
@@ -123,12 +123,12 @@ export function RozanServicePage({ slug }: { slug: RozanServiceSlug }) {
                 href={`#${ROZAN_SECTIONS.devis}`}
                 className="inline-flex h-13 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
               >
-                Obtenir mon devis
+                Réserver ma prestation
               </a>
               <RozanGoogleProof rating={ROZAN_GOOGLE.rating} count={ROZAN_GOOGLE.count} href={ROZAN_GOOGLE.url} />
             </div>
           </div>
-          <RozanShot label={service.shot} ratio="aspect-[4/3]" rounded="rounded-3xl" />
+          <RozanShot src={service.image} alt={service.alt} label={service.shot} ratio="aspect-[4/3]" rounded="rounded-3xl" priority sizes="(max-width: 1024px) 100vw, 45vw" />
         </div>
       </section>
 

@@ -102,7 +102,7 @@ export function RozanFooter() {
               href={`#${ROZAN_SECTIONS.devis}`}
               className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-6 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
             >
-              Obtenir mon devis
+              Réserver ma prestation
             </a>
           </div>
         </div>

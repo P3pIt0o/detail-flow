@@ -6,9 +6,9 @@ import { ListChecks, Send, Sparkles } from "lucide-react"
 import { ROZAN_SECTIONS } from "./tokens"
 
 const STEPS = [
-  { icon: ListChecks, title: "Choisissez votre prestation", text: "Voiture, canapé, matelas, tapis, Airbnb ou terrasse." },
-  { icon: Send, title: "Envoyez votre demande", text: "Quelques informations, éventuellement des photos, et c'est parti." },
-  { icon: Sparkles, title: "Rozan intervient chez vous", text: "Nous venons équipés et autonomes, vous profitez du résultat." },
+  { icon: ListChecks, title: "Composez votre prestation", text: "Choisissez la prestation, la formule et les options qui vous conviennent." },
+  { icon: Send, title: "Réservez votre créneau", text: "Vos informations, éventuellement des photos, puis un acompte confirme la réservation." },
+  { icon: Sparkles, title: "Rozan intervient chez vous", text: "Nous venons équipés et autonomes ; le solde se règle une fois le travail terminé." },
 ] as const
 
 export function RozanProcess() {
@@ -38,7 +38,7 @@ export function RozanProcess() {
             href={`#${ROZAN_SECTIONS.devis}`}
             className="inline-flex h-12 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
           >
-            Demander mon devis
+            Réserver ma prestation
           </a>
         </div>
       </div>

@@ -21,7 +21,7 @@ export function RozanFinalCta() {
             href={`#${ROZAN_SECTIONS.devis}`}
             className="inline-flex h-13 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-9 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
           >
-            Obtenir mon devis
+            Réserver ma prestation
           </a>
         </div>
       </div>

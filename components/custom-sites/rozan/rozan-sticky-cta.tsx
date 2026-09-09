@@ -33,7 +33,7 @@ export function RozanStickyCta({ href, label }: { href: string; label: string })
     >
       <a
         href={href}
-        className="flex h-13 w-full items-center justify-center gap-2 rounded-full bg-[var(--rozan-accent)] text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(14,124,123,0.7)] transition-colors hover:bg-[var(--rozan-accent-strong)]"
+        className="flex h-13 w-full items-center justify-center gap-2 rounded-full bg-[var(--rozan-accent)] text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(13,95,209,0.7)] transition-colors hover:bg-[var(--rozan-accent-strong)]"
       >
         {label}
         <ArrowRight className="size-4" aria-hidden="true" />

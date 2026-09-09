@@ -13,7 +13,7 @@ const LINKS = [
   { href: "/rozan-preview", label: "Accueil" },
   { href: "/rozan-preview/prestation", label: "Prestation" },
   { href: "/rozan-preview/zone", label: "Page locale" },
-  { href: "/rozan-preview/devis", label: "Devis" },
+  { href: "/rozan-preview/devis", label: "Réservation" },
 ]
 
 export function PreviewNav() {
@@ -29,7 +29,7 @@ export function PreviewNav() {
               key={l.href}
               href={l.href}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                active ? "bg-[#0e7c7b] text-white" : "text-neutral-600 hover:bg-neutral-100"
+                active ? "bg-[#0d5fd1] text-white" : "text-neutral-600 hover:bg-neutral-100"
               }`}
             >
               {l.label}

@@ -36,8 +36,8 @@ export function RozanAvantApres() {
             <figure key={it.id} className="rozan-compare">
               <RozanCompare
                 alt={it.caption}
-                before={<RozanShot label={`${it.shot} — avant`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full border-0" />}
-                after={<RozanShot label={`${it.shot} — après`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full border-0" />}
+                before={<RozanShot src={it.before} alt={it.beforeAlt} label={`${it.shot} — avant`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full" sizes="(max-width: 1024px) 100vw, 33vw" />}
+                after={<RozanShot src={it.after} alt={it.afterAlt} label={`${it.shot} — après`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full" sizes="(max-width: 1024px) 100vw, 33vw" />}
               />
               <figcaption className="mt-3 text-sm text-white/60">{it.caption}</figcaption>
             </figure>

@@ -37,13 +37,14 @@
 
   /*
    * ACCENT DE MARQUE — SOURCE DE VÉRITÉ UNIQUE.
-   * Teinte « eau claire / detailing » (ni vert écolo dominant, ni bleu SaaS).
-   * Remplacer ces trois valeurs par la couleur du logo Rozan officiel suffit à
-   * re-teinter tout le site (boutons, filets, accents, focus).
+   * Bleu royal EXACT extrait du logo officiel Rozan (public/custom-sites/rozan/
+   * logo.png) : emblème/bannière « ROZAN » et casquette « R » en bleu électrique
+   * métallisé. rgb(13, 95, 209) ≈ #0D5FD1. Ce n'est PAS le violet du template
+   * Zyro d'origine. Remplacer ces trois valeurs re-teinte tout le site.
    */
-  --rozan-accent: #0e7c7b;
-  --rozan-accent-strong: #0a6160;
-  --rozan-accent-soft: rgba(14, 124, 123, 0.1);
+  --rozan-accent: #0d5fd1;
+  --rozan-accent-strong: #0a49a6;
+  --rozan-accent-soft: rgba(13, 95, 209, 0.1);
 
   /* Étoiles / note Google */
   --rozan-gold: #f5a623;
