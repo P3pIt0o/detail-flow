@@ -1,18 +1,29 @@
 /**
  * Section Zones d'intervention — « Rozan vient jusqu'à vous. »
  *
- * Deux ensembles visuels (Pays de Gex / Suisse). Chaque ville pointera en
- * Phase 4 vers une VRAIE landing page locale (contenu pertinent, jamais du
- * keyword stuffing). Ici, liens préparés vers les futures routes locales.
+ * Deux ensembles visuels (Pays de Gex / Suisse). Les villes disposant d'une
+ * VRAIE landing page locale (`ROZAN_LOCAL_PAGES`) deviennent des liens vers
+ * cette page ; les autres restent de simples puces (aucun lien mort, le
+ * parcours reste dans le tenant). En Phase 4, publier une nouvelle page locale
+ * suffit à activer automatiquement le lien correspondant ici.
  */
 
 import Link from "next/link"
 import { MapPin } from "lucide-react"
 import { ROZAN_SECTIONS } from "./tokens"
-import { ROZAN_ZONES } from "./content"
+import { ROZAN_ZONES, ROZAN_LOCAL_PAGES } from "./content"
 
-// Slugs de ville normalisés pour les futures landing pages locales.
-function citySlug(city: string) {
+// Index ville (normalisée) → slug de la première page locale réelle publiée.
+const CITY_TO_LOCAL_SLUG: Record<string, string> = (() => {
+  const map: Record<string, string> = {}
+  for (const page of Object.values(ROZAN_LOCAL_PAGES)) {
+    const key = normalizeCity(page.city)
+    if (!map[key]) map[key] = page.slug
+  }
+  return map
+})()
+
+function normalizeCity(city: string): string {
   return city
     .toLowerCase()
     .normalize("NFD")
@@ -32,16 +43,28 @@ function ZoneBlock({ label, cities, tone }: { label: string; cities: readonly st
         </span>
       </div>
       <ul className="mt-5 flex flex-wrap gap-2">
-        {cities.map((c) => (
-          <li key={c}>
-            <Link
-              href={`/nettoyage-canape-${citySlug(c)}`}
-              className="inline-flex items-center rounded-full border border-[color:var(--rozan-line)] px-3.5 py-1.5 text-sm text-[var(--rozan-fg)] transition-colors hover:border-[var(--rozan-accent)] hover:text-[var(--rozan-accent)]"
-            >
-              {c}
-            </Link>
-          </li>
-        ))}
+        {cities.map((c) => {
+          const slug = CITY_TO_LOCAL_SLUG[normalizeCity(c)]
+          if (slug) {
+            return (
+              <li key={c}>
+                <Link
+                  href={`/${slug}`}
+                  className="inline-flex items-center rounded-full border border-[color:var(--rozan-line)] px-3.5 py-1.5 text-sm text-[var(--rozan-fg)] transition-colors hover:border-[var(--rozan-accent)] hover:text-[var(--rozan-accent)]"
+                >
+                  {c}
+                </Link>
+              </li>
+            )
+          }
+          return (
+            <li key={c}>
+              <span className="inline-flex items-center rounded-full border border-[color:var(--rozan-line)] px-3.5 py-1.5 text-sm text-[var(--rozan-muted)]">
+                {c}
+              </span>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
