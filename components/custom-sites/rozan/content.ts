@@ -63,6 +63,8 @@ export type RozanService = {
   /** Visuel premium (placeholder remplaçable par la vraie photo Rozan). */
   image: string
   alt: string
+  /** Intitulé du cliché attendu, affiché dans l'emplacement photo `RozanShot`. */
+  shot: string
   /** Activable/désactivable depuis l'admin en Phase 4. */
   active: boolean
 }
@@ -75,6 +77,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Intérieur, extérieur ou complet — vapeur, sièges et textiles.",
     image: "/custom-sites/rozan/service-voiture.png",
     alt: "Nettoyage intérieur de voiture premium à domicile",
+    shot: "Intérieur de voiture fraîchement nettoyé",
     active: true,
   },
   {
@@ -84,6 +87,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Injection-extraction en profondeur, taches et odeurs.",
     image: "/custom-sites/rozan/service-canape.png",
     alt: "Nettoyage de canapé en tissu à domicile",
+    shot: "Canapé en tissu nettoyé en profondeur",
     active: true,
   },
   {
@@ -93,6 +97,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Assainissement, acariens, traces et fraîcheur retrouvée.",
     image: "/custom-sites/rozan/service-matelas.png",
     alt: "Nettoyage et assainissement de matelas",
+    shot: "Matelas propre et assaini",
     active: true,
   },
   {
@@ -102,6 +107,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Fibres ravivées, taches incrustées et poussières éliminées.",
     image: "/custom-sites/rozan/service-tapis.png",
     alt: "Nettoyage de tapis et moquettes",
+    shot: "Tapis aux fibres ravivées",
     active: true,
   },
   {
@@ -111,6 +117,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Remise à neuf entre deux séjours, prête à accueillir.",
     image: "/custom-sites/rozan/service-airbnb.png",
     alt: "Remise en état de location saisonnière Airbnb",
+    shot: "Logement Airbnb remis à neuf",
     active: true,
   },
   {
@@ -120,6 +127,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     teaser: "Dalles, bois et pierre débarrassés des salissures.",
     image: "/custom-sites/rozan/service-terrasse.png",
     alt: "Nettoyage de terrasse au nettoyeur haute pression",
+    shot: "Terrasse nettoyée au jet haute pression",
     active: true,
   },
 ]
@@ -131,6 +139,8 @@ export function getRozanService(slug: string): RozanService | null {
 /** Comparateur Avant/Après (réalisation Rozan). */
 export type RozanBeforeAfter = {
   id: string
+  /** Sujet court du cliché, réutilisé pour les emplacements « avant » / « après ». */
+  shot: string
   before: string
   after: string
   beforeAlt: string
@@ -142,6 +152,7 @@ export type RozanBeforeAfter = {
 export const ROZAN_BEFORE_AFTER: RozanBeforeAfter[] = [
   {
     id: "canape",
+    shot: "Canapé",
     before: "/custom-sites/rozan/ba-canape-avant.png",
     after: "/custom-sites/rozan/ba-canape-apres.png",
     beforeAlt: "Canapé taché avant nettoyage",
@@ -150,6 +161,7 @@ export const ROZAN_BEFORE_AFTER: RozanBeforeAfter[] = [
   },
   {
     id: "voiture",
+    shot: "Intérieur auto",
     before: "/custom-sites/rozan/ba-voiture-avant.png",
     after: "/custom-sites/rozan/ba-voiture-apres.png",
     beforeAlt: "Siège de voiture sale avant nettoyage",
@@ -158,6 +170,7 @@ export const ROZAN_BEFORE_AFTER: RozanBeforeAfter[] = [
   },
   {
     id: "matelas",
+    shot: "Matelas",
     before: "/custom-sites/rozan/ba-matelas-avant.png",
     after: "/custom-sites/rozan/ba-matelas-apres.png",
     beforeAlt: "Matelas taché avant nettoyage",
