@@ -94,7 +94,7 @@ export function Hero({ brandName, hero, imageSrc, overlay = DEFAULT_HERO_OVERLAY
           sizes="100vw"
           className={
             isJustCleanHero
-              ? "object-cover object-[center_65%] sm:object-center"
+              ? "object-cover object-[center_72%] sm:object-center"
               : "object-cover"
           }
         />
