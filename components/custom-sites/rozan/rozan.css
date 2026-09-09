@@ -1,0 +1,163 @@
+/**
+ * Feuille de style ISOLÉE du site personnalisé Rozan Cleaning Services.
+ *
+ * Toutes les règles sont préfixées par `.rozan` : elles ne peuvent donc jamais
+ * affecter le site standard, le thème global, ni un autre tenant (Spirit ACS
+ * inclus). On ne définit ici que la palette de marque Rozan (variables CSS
+ * scopées), la typographie d'affichage et quelques primitives réutilisées par
+ * les sections. Aucune directive Tailwind : du CSS pur, portable au build.
+ *
+ * DIRECTION ARTISTIQUE
+ * Base blanche/très claire, premium et minimaliste (beaucoup de respiration),
+ * ponctuée de sections très sombres pour le contraste « detailing haut de
+ * gamme ». Un SEUL accent de marque, volontairement centralisé dans le token
+ * `--rozan-accent` pour être remplacé en une ligne par la couleur du logo
+ * officiel Rozan dès qu'elle sera fournie.
+ */
+
+.rozan {
+  /* Base claire */
+  --rozan-bg: #fbfbf9;          /* fond général, blanc chaud */
+  --rozan-surface: #ffffff;     /* cartes / surfaces */
+  --rozan-surface-2: #f4f5f2;   /* surfaces alternées douces */
+
+  /* Sections sombres (contraste premium) */
+  --rozan-ink: #0b0e12;         /* fond des sections sombres */
+  --rozan-ink-2: #12161c;       /* variante légèrement plus claire */
+
+  /* Texte */
+  --rozan-fg: #10141a;          /* texte principal sur clair */
+  --rozan-muted: #5b6570;       /* texte secondaire sur clair */
+  --rozan-on-dark: #f4f6f5;     /* texte principal sur sombre */
+  --rozan-on-dark-muted: #9aa6a8;
+
+  /* Filets / bordures */
+  --rozan-line: rgba(16, 20, 26, 0.1);
+  --rozan-line-dark: rgba(255, 255, 255, 0.12);
+
+  /*
+   * ACCENT DE MARQUE — SOURCE DE VÉRITÉ UNIQUE.
+   * Teinte « eau claire / detailing » (ni vert écolo dominant, ni bleu SaaS).
+   * Remplacer ces trois valeurs par la couleur du logo Rozan officiel suffit à
+   * re-teinter tout le site (boutons, filets, accents, focus).
+   */
+  --rozan-accent: #0e7c7b;
+  --rozan-accent-strong: #0a6160;
+  --rozan-accent-soft: rgba(14, 124, 123, 0.1);
+
+  /* Étoiles / note Google */
+  --rozan-gold: #f5a623;
+
+  --rozan-radius: 16px;
+
+  background-color: var(--rozan-bg);
+  color: var(--rozan-fg);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Titres d'affichage : Sora (géométrique, premium, moderne). */
+.rozan .rozan-title {
+  font-family: var(--font-rozan-display), "Sora", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+.rozan .rozan-eyebrow {
+  font-family: var(--font-rozan-display), "Sora", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--rozan-accent);
+}
+
+/* Tailles d'affichage responsives (clamp) — beaucoup de présence, sans excès. */
+.rozan .rozan-h1 {
+  font-size: clamp(2.5rem, 6.5vw, 4.25rem);
+}
+.rozan .rozan-h2 {
+  font-size: clamp(1.9rem, 4.6vw, 2.9rem);
+}
+.rozan .rozan-h3 {
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+}
+
+/* Petit filet d'accent au-dessus des titres de section. */
+.rozan .rozan-rule {
+  display: block;
+  width: 2.5rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--rozan-accent);
+}
+
+/* Puce « check » de marque (arguments) — pas d'emoji, cohérent partout. */
+.rozan .rozan-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--rozan-accent-soft);
+  color: var(--rozan-accent);
+  flex: none;
+}
+
+/* Défilement fluide vers les ancres, scopé Rozan (jamais global). */
+:root:has(.rozan) {
+  scroll-behavior: smooth;
+}
+
+/* Décalage d'ancre pour compenser l'en-tête sticky (72px mobile / 80px bureau). */
+.rozan section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+/*
+ * Ré-habillage SCOPÉ des composants DetailFlow partagés RÉUTILISÉS (sans fork).
+ * On remappe uniquement les tokens de thème lus par ces composants, à l'échelle
+ * d'un conteneur Rozan précis — jamais globalement, jamais pour un autre tenant.
+ */
+
+/* Comparateur Avant/Après partagé : curseur + étiquette « Après » en accent Rozan. */
+.rozan .rozan-compare {
+  --primary: var(--rozan-accent);
+  --primary-foreground: #ffffff;
+  --border: var(--rozan-line);
+}
+
+/* Skin de formulaire clair premium pour les sous-composants partagés
+   (uploader photos, champs). Remappe les tokens sémantiques à l'échelle du
+   conteneur uniquement. */
+.rozan .rozan-form-skin {
+  --background: var(--rozan-surface);
+  --foreground: var(--rozan-fg);
+  --card: var(--rozan-surface);
+  --card-foreground: var(--rozan-fg);
+  --primary: var(--rozan-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--rozan-surface-2);
+  --secondary-foreground: var(--rozan-fg);
+  --muted: var(--rozan-surface-2);
+  --muted-foreground: var(--rozan-muted);
+  --accent: var(--rozan-accent-soft);
+  --accent-foreground: var(--rozan-accent-strong);
+  --border: var(--rozan-line);
+  --input: var(--rozan-line);
+  --ring: var(--rozan-accent);
+}
+
+/* Respect de prefers-reduced-motion pour les transitions purement CSS. */
+@media (prefers-reduced-motion: reduce) {
+  .rozan *,
+  :root:has(.rozan) {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

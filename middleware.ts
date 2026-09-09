@@ -65,7 +65,10 @@ export function middleware(req: NextRequest) {
     !path.startsWith("/marketing") &&
     !path.startsWith("/api") &&
     !path.startsWith("/admin") &&
-    !path.startsWith("/super-admin")
+    !path.startsWith("/super-admin") &&
+    // Maquettes Rozan (Phase 2) : route ISOLÉE et temporaire, servie telle
+    // quelle sans réécriture vers la vitrine. N'affecte aucun tenant.
+    !path.startsWith("/rozan-preview")
   ) {
     const url = req.nextUrl.clone()
     url.pathname = `/marketing${path === "/" ? "" : path}`
