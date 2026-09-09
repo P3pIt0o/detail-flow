@@ -35,16 +35,23 @@ export function RozanPrestations() {
             <Link
               key={s.slug}
               href={`/prestations/${s.slug}`}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-[color:var(--rozan-line)] bg-[var(--rozan-surface)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--rozan-accent)] hover:shadow-[0_20px_40px_-24px_rgba(14,124,123,0.5)]"
+              className="group flex flex-col overflow-hidden rounded-2xl border border-[color:var(--rozan-line)] bg-[var(--rozan-surface)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--rozan-accent)] hover:shadow-[0_20px_40px_-24px_rgba(13,95,209,0.5)]"
             >
-              <RozanShot label={s.shot} ratio="aspect-[16/11]" rounded="rounded-none" className="border-0 border-b" />
+              <RozanShot
+                src={s.image}
+                alt={s.alt}
+                label={s.shot}
+                ratio="aspect-[16/11]"
+                rounded="rounded-none"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              />
               <div className="flex flex-1 flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="rozan-title text-xl text-[var(--rozan-fg)]">{s.label}</h3>
                   <ArrowUpRight className="size-5 flex-none text-[var(--rozan-muted)] transition-colors group-hover:text-[var(--rozan-accent)]" aria-hidden="true" />
                 </div>
                 <p className="mt-2 text-pretty text-sm leading-relaxed text-[var(--rozan-muted)]">{s.teaser}</p>
-                <span className="mt-4 text-sm font-semibold text-[var(--rozan-accent)]">Obtenir mon devis</span>
+                <span className="mt-4 text-sm font-semibold text-[var(--rozan-accent)]">Voir les formules</span>
               </div>
             </Link>
           ))}

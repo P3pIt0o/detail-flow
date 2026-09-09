@@ -40,11 +40,11 @@ export function RozanHome() {
       brandName={ROZAN_BRAND.name}
       navItems={NAV_ITEMS}
       ctaHref={`#${ROZAN_SECTIONS.devis}`}
-      ctaLabel="Obtenir mon devis"
+      ctaLabel="Réserver ma prestation"
       phoneRaw={ROZAN_BRAND.phoneRaw}
       phoneLabel={ROZAN_BRAND.phone}
       stickyCtaHref={`#${ROZAN_SECTIONS.devis}`}
-      stickyCtaLabel="Obtenir mon devis"
+      stickyCtaLabel="Réserver ma prestation"
       immersive
     >
       <RozanHero />

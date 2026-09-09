@@ -13,9 +13,10 @@ export function RozanDevis() {
       <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="text-center">
           <span className="rozan-rule mx-auto" />
-          <h2 className="rozan-title rozan-h2 mt-4 text-balance text-[var(--rozan-fg)]">Obtenir mon devis</h2>
+          <h2 className="rozan-title rozan-h2 mt-4 text-balance text-[var(--rozan-fg)]">Réserver ma prestation</h2>
           <p className="mx-auto mt-3 max-w-xl text-pretty text-[var(--rozan-muted)]">
-            Décrivez votre besoin en quelques étapes. C&apos;est simple, rapide, et sans engagement.
+            Choisissez votre prestation, composez votre formule et réservez votre créneau en quelques
+            étapes. Un acompte confirme la réservation, le solde est réglé après l&apos;intervention.
           </p>
         </div>
         <div className="mt-8">

@@ -535,3 +535,188 @@ export function rozanLocalSlugs(): string[] {
 export function getRozanLocalPage(slug: string): RozanLocalPageContent | null {
   return ROZAN_LOCAL_PAGES[slug] ?? null
 }
+
+/* ------------------------------------------------------------------ */
+/* MODÈLE DE RÉSERVATION TRANSACTIONNEL (prestation + acompte)         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * IMPORTANT — TARIFS DE DÉMONSTRATION.
+ *
+ * Rozan n'a pas encore communiqué sa grille tarifaire définitive. Les montants
+ * ci-dessous sont des VALEURS INDICATIVES destinées UNIQUEMENT à faire vivre le
+ * parcours de réservation (sélection → total → acompte). Ils sont :
+ *   - centralisés ici (aucun montant codé en dur dans les composants) ;
+ *   - signalés à l'utilisateur comme « indicatifs, non contractuels » tant que
+ *     `ROZAN_PRICING_IS_DEMO` vaut `true` ;
+ *   - remplaçables par les vrais tarifs (et, à terme, administrables par tenant)
+ *     sans modifier une seule ligne d'UI.
+ *
+ * Passer `ROZAN_PRICING_IS_DEMO` à `false` une fois les vrais prix saisis suffit
+ * à retirer l'avertissement et à présenter les montants comme fermes.
+ */
+export const ROZAN_PRICING_IS_DEMO = true
+
+/** Devise d'affichage (base Pays de Gex). Résolue par zone en Phase 4 (EUR/CHF). */
+export const ROZAN_CURRENCY: "EUR" | "CHF" = "EUR"
+
+/**
+ * Acompte demandé pour confirmer la réservation. Le solde est réglé après
+ * l'intervention. Type et valeur configurables par l'admin en Phase 4.
+ */
+export const ROZAN_DEPOSIT: { type: "percentage" | "fixed"; value: number } = {
+  type: "percentage",
+  value: 30,
+}
+
+/** Élément tarifé (variante de taille/type, formule, ou option). */
+export type RozanPriceItem = {
+  id: string
+  label: string
+  description?: string
+  /** Prix indicatif en centimes (évite les flottants). `null` = à configurer. */
+  amount: number | null
+}
+
+/**
+ * Configuration de réservation par prestation.
+ * - `mode: "booking"` : réservable en ligne avec acompte immédiat.
+ * - `mode: "quote"`   : sur devis (ex. surface très variable) — pas d'acompte,
+ *   on recueille la demande et Rozan chiffre ensuite.
+ */
+export type RozanBookingConfig = {
+  slug: RozanServiceSlug
+  mode: "booking" | "quote"
+  /** Sélecteur principal qui porte le prix de base (ex. type de véhicule). */
+  variantLabel: string
+  variants: RozanPriceItem[]
+  /** Formules optionnelles (surcoût additionné), ex. Intérieur / Extérieur / Complet. */
+  formulaLabel?: string
+  formulas?: RozanPriceItem[]
+  /** Options cumulables. */
+  options: RozanPriceItem[]
+}
+
+// Montants indicatifs (démo) exprimés en centimes. À remplacer par les vrais tarifs.
+export const ROZAN_BOOKING: Record<RozanServiceSlug, RozanBookingConfig> = {
+  "nettoyage-voiture": {
+    slug: "nettoyage-voiture",
+    mode: "booking",
+    variantLabel: "Type de véhicule",
+    variants: [
+      { id: "citadine", label: "Citadine", amount: 6000 },
+      { id: "berline", label: "Berline / break", amount: 8000 },
+      { id: "suv", label: "SUV / 4x4", amount: 9500 },
+      { id: "utilitaire", label: "Monospace / utilitaire", amount: 11000 },
+    ],
+    formulaLabel: "Formule",
+    formulas: [
+      { id: "interieur", label: "Intérieur", description: "Sièges, textiles, plastiques, vitres", amount: 0 },
+      { id: "exterieur", label: "Extérieur", description: "Carrosserie, jantes, finitions", amount: 3000 },
+      { id: "complet", label: "Complet", description: "Intérieur + extérieur", amount: 5000 },
+    ],
+    options: [
+      { id: "odeurs", label: "Traitement anti-odeurs", amount: 2000 },
+      { id: "cuir", label: "Soin cuir", amount: 2500 },
+      { id: "poils", label: "Poils d'animaux", amount: 1500 },
+    ],
+  },
+  "nettoyage-canape": {
+    slug: "nettoyage-canape",
+    mode: "booking",
+    variantLabel: "Taille du canapé",
+    variants: [
+      { id: "2p", label: "2 places", amount: 6000 },
+      { id: "3p", label: "3 places", amount: 8000 },
+      { id: "angle", label: "Canapé d'angle", amount: 11000 },
+      { id: "fauteuils", label: "Canapé + fauteuils", amount: 13000 },
+    ],
+    options: [
+      { id: "taches", label: "Détachage renforcé", amount: 2000 },
+      { id: "odeurs", label: "Traitement anti-odeurs", amount: 2000 },
+      { id: "protection", label: "Protection anti-taches", amount: 2500 },
+    ],
+  },
+  "nettoyage-matelas": {
+    slug: "nettoyage-matelas",
+    mode: "booking",
+    variantLabel: "Taille du matelas",
+    variants: [
+      { id: "1p", label: "1 place (90)", amount: 5000 },
+      { id: "2p", label: "2 places (140)", amount: 6500 },
+      { id: "queen", label: "Queen / King (160+)", amount: 8000 },
+    ],
+    options: [
+      { id: "acariens", label: "Traitement anti-acariens", amount: 2000 },
+      { id: "faces", label: "Nettoyage des deux faces", amount: 2500 },
+    ],
+  },
+  "nettoyage-tapis-moquette": {
+    slug: "nettoyage-tapis-moquette",
+    mode: "booking",
+    variantLabel: "Surface",
+    variants: [
+      { id: "petit", label: "Petit tapis (jusqu'à 3 m²)", amount: 4000 },
+      { id: "moyen", label: "Tapis moyen (3 à 6 m²)", amount: 6000 },
+      { id: "grand", label: "Grand tapis / moquette (6 m²+)", amount: 9000 },
+    ],
+    options: [
+      { id: "taches", label: "Détachage renforcé", amount: 2000 },
+      { id: "protection", label: "Protection anti-taches", amount: 2500 },
+    ],
+  },
+  "nettoyage-airbnb": {
+    slug: "nettoyage-airbnb",
+    mode: "booking",
+    variantLabel: "Type de logement",
+    variants: [
+      { id: "studio", label: "Studio", amount: 7000 },
+      { id: "t2", label: "T2 / 2 pièces", amount: 9000 },
+      { id: "t3", label: "T3 et plus", amount: 12000 },
+    ],
+    options: [
+      { id: "linge", label: "Gestion du linge", amount: 2500 },
+      { id: "vitres", label: "Vitres intérieures", amount: 2000 },
+    ],
+  },
+  "nettoyage-terrasse": {
+    // Surface trop variable pour un tarif ferme en ligne : sur devis.
+    slug: "nettoyage-terrasse",
+    mode: "quote",
+    variantLabel: "Type de surface",
+    variants: [
+      { id: "dalles", label: "Dalles / carrelage", amount: null },
+      { id: "bois", label: "Bois", amount: null },
+      { id: "pierre", label: "Pierre", amount: null },
+    ],
+    options: [],
+  },
+}
+
+export function getRozanBooking(slug: RozanServiceSlug): RozanBookingConfig {
+  return ROZAN_BOOKING[slug]
+}
+
+/** Prix de départ (variante la moins chère) d'une prestation réservable, en centimes. */
+export function getRozanStartingPrice(slug: RozanServiceSlug): number | null {
+  const cfg = ROZAN_BOOKING[slug]
+  if (cfg.mode !== "booking") return null
+  const amounts = cfg.variants.map((v) => v.amount).filter((a): a is number => a !== null)
+  return amounts.length ? Math.min(...amounts) : null
+}
+
+/** Formatage monétaire centralisé (centimes → chaîne localisée). */
+export function formatRozanPrice(amountInCents: number, currency: "EUR" | "CHF" = ROZAN_CURRENCY): string {
+  return new Intl.NumberFormat(currency === "CHF" ? "fr-CH" : "fr-FR", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amountInCents / 100)
+}
+
+/** Calcule l'acompte (centimes) à partir d'un total, selon `ROZAN_DEPOSIT`. */
+export function computeRozanDeposit(totalInCents: number): number {
+  if (ROZAN_DEPOSIT.type === "fixed") return Math.min(ROZAN_DEPOSIT.value, totalInCents)
+  return Math.round((totalInCents * ROZAN_DEPOSIT.value) / 100)
+}

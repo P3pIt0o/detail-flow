@@ -71,10 +71,10 @@ export function RozanHero() {
               href={`#${ROZAN_SECTIONS.devis}`}
               className="inline-flex h-13 items-center justify-center gap-2 rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
             >
-              Obtenir mon devis
+              Réserver ma prestation
             </a>
-            <a href={`#${ROZAN_SECTIONS.avantApres}`} className={`${ROZAN_BTN_OUTLINE_DARK} h-13`}>
-              Voir les résultats
+            <a href={`#${ROZAN_SECTIONS.prestations}`} className={`${ROZAN_BTN_OUTLINE_DARK} h-13`}>
+              Voir les prestations
             </a>
           </div>
 
@@ -85,7 +85,16 @@ export function RozanHero() {
 
         {/* Composition photographique */}
         <div className="relative">
-          <RozanShot label="Photo phare Rozan — véhicule ou intérieur fraîchement nettoyé (portrait)" ratio="aspect-[4/5]" tone="dark" rounded="rounded-3xl" />
+          <RozanShot
+            src="/custom-sites/rozan/hero.png"
+            alt="Technicien Rozan nettoyant l'intérieur d'une voiture à la vapeur devant un domicile"
+            label="Photo phare Rozan"
+            ratio="aspect-[4/5]"
+            tone="dark"
+            rounded="rounded-3xl"
+            priority
+            sizes="(max-width: 1024px) 100vw, 45vw"
+          />
 
           {/* Carte flottante « preuve » (chiffre réel d'audit). */}
           <div className="absolute -bottom-5 -left-3 hidden rounded-2xl border border-white/10 bg-[var(--rozan-ink-2)] px-5 py-4 shadow-xl sm:block">
