@@ -81,11 +81,19 @@
  * NE JAMAIS appliquer aux titres, boutons, liens, menus ni coordonnées.
  */
 .spirit-acs .spirit-prose {
-  text-align: justify;
-  text-align-last: left;
+  /* Mobile : aligné à gauche pour éviter les espaces inter-mots anormalement
+     grands (justification sur colonne étroite). La justification n'est
+     réactivée qu'à partir de 640px, où les lignes sont assez larges. */
+  text-align: left;
   hyphens: auto;
   overflow-wrap: break-word;
   line-height: 1.7;
+}
+@media (min-width: 640px) {
+  .spirit-acs .spirit-prose {
+    text-align: justify;
+    text-align-last: left;
+  }
 }
 
 /* Décalage d'ancre pour compenser l'en-tête fixe immersif (72 px mobile /
