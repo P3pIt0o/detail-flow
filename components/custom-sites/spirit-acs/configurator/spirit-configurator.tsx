@@ -2,73 +2,58 @@
 
 /**
  * ============================================================================
- *  CONFIGURATEUR SPIRIT ACS (Phase 5) — UI progressive au-dessus du moteur
- *  existant de demandes personnalisées.
+ *  CONFIGURATEUR SPIRIT ACS — parcours de demande en 9 étapes (production)
  * ============================================================================
  *
- *  Ce composant N'EST QU'UNE INTERFACE : il assemble une sélection structurée
- *  (prestation → options → véhicule → coordonnées → demande → photos → récap)
- *  puis alimente EXACTEMENT la même Server Action `submitCustomRequest` que le
- *  formulaire libre. Aucun calcul de prix, aucun rendez-vous automatique,
- *  aucune écriture directe en base, aucun Stripe : le moteur reste unique.
+ *  UI reproduite À L'IDENTIQUE de la maquette validée
+ *  (`app/mockups/spirit-request`) : mêmes étapes, même ordre, mêmes composants,
+ *  même barre de progression, mêmes boutons, même écran récapitulatif et même
+ *  écran de confirmation. Le composant N'EST QU'UNE INTERFACE : il assemble une
+ *  sélection structurée puis alimente EXACTEMENT la même Server Action
+ *  `submitCustomRequest` que le formulaire libre, avec le pipeline de photos
+ *  réel (`usePhotoUploads` → Blob privé + `finalizeCustomRequest`). Aucun
+ *  Stripe, aucun rendez-vous automatique, aucune écriture directe en base.
  *
- *  Deux entrées (cf. cahier des charges) :
- *   1. depuis une page prestation → `?prestation=<slug>` : la prestation est
- *      VERROUILLÉE (le client ne la re-choisit pas) ;
- *   2. depuis « Demander un devis » (accueil) → le client choisit d'abord la
- *      prestation.
+ *  Deux entrées :
+ *   1. depuis une carte/page prestation → `?prestation=<slug>` : la prestation
+ *      est présélectionnée (l'étape « Prestation » est retirée du parcours) ;
+ *   2. depuis « Demander un devis » → le client choisit d'abord la prestation.
  *
- *  Repli « Autre demande » : le formulaire libre historique reste accessible
- *  (flotte, abonnement, besoin hors liste) sans dupliquer la logique.
- *
- *  Règles métier verrouillées (modèle validé) :
- *   - Polissage & Céramique : parcours combiné. Le client choisit un niveau de
- *     polissage (1/2/3) OU « Spirit ACS détermine après inspection » (exclusif),
- *     puis peut AJOUTER une protection céramique (facultative, indépendante).
- *     Une céramique carrosserie ne se commande jamais seule : l'entrée
- *     « Protection céramique » est ramenée vers ce parcours. Toujours sur devis.
- *   - PPF : sélection de zones, toujours sur devis (aucun prix par zone).
- *   - Photos : facultatives partout ; jamais bloquantes.
+ *  Estimation : PARTIELLE et jamais un devis ferme (cf. `flow-data.ts`). Le
+ *  Nettoyage applique la grille officielle Spirit ACS (Intérieur + Extérieur =
+ *  Int + Ext − 10 €). Un repli « Autre demande » ouvre le formulaire libre
+ *  historique (flotte, abonnement, besoin hors liste).
+ * ============================================================================
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import Image from "next/image"
-import { CheckCircle2, AlertCircle, Loader2, ChevronLeft, ArrowRight, Lock } from "lucide-react"
+import { useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { Oswald } from "next/font/google"
+import { MAX_PHOTOS } from "@/lib/quote-photos/config"
 import { submitCustomRequest, finalizeCustomRequest, type DemandeFormState } from "@/app/(site)/demande/actions"
 import type { CustomRequestType } from "@/lib/custom-requests"
 import { CustomRequestForm } from "@/components/custom-request-form"
-import { QuotePhotoUploader, usePhotoUploads } from "@/components/quote-photo-uploader"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
+import { usePhotoUploads, type UsePhotoUploads } from "@/components/quote-photo-uploader"
 import {
-  buildSummary,
-  canonicalServiceSlug,
-  CERAMIC_SLUG,
-  formulaPriceLabel,
-  getCeramicFormulas,
-  getServiceFormulas,
-  getServiceRule,
-  listConfiguratorServices,
-  POLISH_INSPECTION_VALUE,
-  PPF_ZONES,
-  serializeConfiguratorDescription,
-  suggestedVehicleType,
+  AVAILABILITY_CHOICES,
+  cleaningBaseCents,
+  CLEANING_LEVEL_LABEL,
+  CLEANING_ZONE_LABEL,
+  computeEstimate,
+  estimateHeadline,
+  euros,
+  FAMILIES,
+  familyKeyForSlug,
+  type CleaningLevel,
+  type CleaningZone,
+  type Family,
+  type FlowSelection,
+  getFamily,
+  priceText,
+  serializeFlow,
   VEHICLE_TYPES,
-  type ConfiguratorSelection,
-} from "./config"
-import { VehicleTypeIcon } from "./vehicle-icons"
+} from "./flow-data"
 
-type StepKey = "service" | "options" | "vehicle" | "contact" | "details" | "review"
-
-const STEP_LABEL: Record<StepKey, string> = {
-  service: "Prestation",
-  options: "Détails",
-  vehicle: "Véhicule",
-  contact: "Coordonnées",
-  details: "Votre demande",
-  review: "Validation",
-}
+const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-osw" })
 
 const initialServerState: DemandeFormState = { status: "idle", message: "" }
 
@@ -77,43 +62,144 @@ function newSubmissionId(): string {
   return `sub_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
 
-const SERVICES = listConfiguratorServices()
+/* -------------------------------------------------------------------------- */
+/*  STATE                                                                     */
+/* -------------------------------------------------------------------------- */
+
+type State = {
+  entry: "catalog" | "service"
+  locked: boolean
+  i: number
+  fromSummary: boolean
+  serviceKey: string | null
+  formulas: Record<number, string>
+  inspection: boolean
+  cleaningLevel: CleaningLevel | null
+  cleaningZone: CleaningZone | null
+  vehType: string | null
+  vehBrand: string
+  vehModel: string
+  options: string[]
+  contextual: string[]
+  description: string
+  avail: string[]
+  availNote: string
+  customerType: "particulier" | "professionnel"
+  firstName: string
+  lastName: string
+  phone: string
+  email: string
+  legalNumber: string
+}
+
+const initialState: State = {
+  entry: "catalog",
+  locked: false,
+  i: 0,
+  fromSummary: false,
+  serviceKey: null,
+  formulas: {},
+  inspection: false,
+  cleaningLevel: null,
+  cleaningZone: null,
+  vehType: null,
+  vehBrand: "",
+  vehModel: "",
+  options: [],
+  contextual: [],
+  description: "",
+  avail: [],
+  availNote: "",
+  customerType: "particulier",
+  firstName: "",
+  lastName: "",
+  phone: "",
+  email: "",
+  legalNumber: "",
+}
+
+type Action =
+  | { type: "init"; entry: "catalog" | "service"; serviceKey: string | null; locked: boolean; vehType: string | null }
+  | { type: "reset" }
+  | { type: "patch"; patch: Partial<State> }
+  | { type: "chooseService"; serviceKey: string }
+  | { type: "next" }
+  | { type: "back" }
+  | { type: "goto"; i: number; fromSummary?: boolean }
+  | { type: "toggle"; field: "options" | "contextual" | "avail"; value: string; multi?: boolean }
+
+/** Étapes actives selon l'entrée (depuis une carte = pas d'étape prestation). */
+function stepsFor(entry: State["entry"]): string[] {
+  const base = ["formules", "vehicule", "options", "details", "photos", "dispos", "coordonnees", "recap", "confirmation"]
+  return entry === "service" ? base : ["prestation", ...base]
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "init":
+      return {
+        ...initialState,
+        entry: action.entry,
+        serviceKey: action.serviceKey,
+        locked: action.locked,
+        vehType: action.vehType,
+        i: 0,
+      }
+    case "reset":
+      return { ...initialState, entry: state.entry, locked: state.locked, serviceKey: state.locked ? state.serviceKey : null }
+    case "patch":
+      return { ...state, ...action.patch }
+    case "chooseService":
+      // Changer de prestation réinitialise les choix dépendants de la famille.
+      return {
+        ...state,
+        serviceKey: action.serviceKey,
+        formulas: {},
+        inspection: false,
+        cleaningLevel: null,
+        cleaningZone: null,
+        options: [],
+        contextual: [],
+      }
+    case "next": {
+      const steps = stepsFor(state.entry)
+      if (state.fromSummary) {
+        return { ...state, i: steps.indexOf("recap"), fromSummary: false }
+      }
+      return { ...state, i: Math.min(state.i + 1, steps.length - 1) }
+    }
+    case "back":
+      return { ...state, i: Math.max(state.i - 1, 0), fromSummary: false }
+    case "goto":
+      return { ...state, i: action.i, fromSummary: action.fromSummary ?? false }
+    case "toggle": {
+      const arr = state[action.field]
+      if (action.multi === false) {
+        return { ...state, [action.field]: arr.includes(action.value) ? [] : [action.value] }
+      }
+      const next = arr.includes(action.value) ? arr.filter((v) => v !== action.value) : [...arr, action.value]
+      return { ...state, [action.field]: next }
+    }
+    default:
+      return state
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  COMPONENT                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
-  // Type de demande transmis au moteur : parcours « sur mesure » (repli sûr sur
-  // le premier type actif si le tenant a désactivé « sur-mesure »).
+  const [s, dispatch] = useReducer(reducer, initialState)
+  const patch = (p: Partial<State>) => dispatch({ type: "patch", patch: p })
+
+  // Type de demande transmis au moteur (repli sûr sur le premier type actif).
   const quoteTypeKey = useMemo(
     () => types.find((t) => t.key === "sur-mesure")?.key ?? types[0]?.key ?? "sur-mesure",
     [types],
   )
 
-  const [serviceSlug, setServiceSlug] = useState("")
-  const [locked, setLocked] = useState(false)
-  const [step, setStep] = useState<StepKey>("service")
   const [showClassic, setShowClassic] = useState(false)
-
-  // Sélection
-  const [formulaLabel, setFormulaLabel] = useState<string | null>(null)
-  // Parcours Polissage & Céramique : deux états INDÉPENDANTS (l'un ne réinitialise
-  // jamais l'autre) ; `polishLevel` requis, `ceramicLabel` facultatif.
-  const [polishLevel, setPolishLevel] = useState<string | null>(null)
-  const [ceramicLabel, setCeramicLabel] = useState<string | null>(null)
-  // Vrai si le client est arrivé par l'entrée « Protection céramique » (ramené
-  // vers le polissage) : sert uniquement à afficher une note pédagogique.
-  const [cameFromCeramic, setCameFromCeramic] = useState(false)
-  const [ppfZones, setPpfZones] = useState<string[]>([])
-  const [ppfOther, setPpfOther] = useState("")
-  const [vehicleType, setVehicleType] = useState("")
-  const [vehicleBrand, setVehicleBrand] = useState("")
-  const [vehicleModel, setVehicleModel] = useState("")
-  const [audience, setAudience] = useState<"particulier" | "professionnel">("particulier")
-  const [legal, setLegal] = useState("")
-  const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
-  const [email, setEmail] = useState("")
-  const [message, setMessage] = useState("")
-
-  const [errors, setErrors] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [phase, setPhase] = useState<"form" | "success" | "partial">("form")
@@ -121,164 +207,65 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   const uploader = usePhotoUploads()
   const submissionIdRef = useRef<string>("")
 
-  // POINT D'ENTRÉE DU PARCOURS — déterministe et piloté par l'URL.
-  //
-  //  CAS A · CTA général « Réserver ma prestation » (hero, CTA final, footer…) :
-  //          aucun `?prestation=` valide → le parcours COMMENCE TOUJOURS par
-  //          l'étape « Prestation » (le client choisit d'abord son service).
-  //          Jamais « Véhicule » en premier sans prestation sélectionnée.
-  //
-  //  CAS B · Clic « Réserver » depuis une carte/page prestation :
-  //          `?prestation=<slug>` valide → la prestation est VERROUILLÉE et le
-  //          parcours saute directement à l'étape suivante (options ou véhicule).
-  //
-  //  La barre de progression et la numérotation se dérivent de `steps`
-  //  (mémo ci-dessous) : elles s'adaptent donc automatiquement au parcours
-  //  réellement affiché (avec ou sans étape « Prestation »).
+  // Point d'entrée déterministe, piloté par l'URL (`?prestation=<slug>`).
   useEffect(() => {
     function applyEntryFromUrl() {
       const raw = new URLSearchParams(window.location.search).get("prestation")?.trim()
-      const match = raw ? SERVICES.find((s) => s.slug === raw) : undefined
-
-      // CAS A — pas de prestation valide : on repart du choix de prestation.
-      if (!match) {
-        setLocked(false)
-        setServiceSlug("")
-        setCameFromCeramic(false)
-        setStep("service")
+      const key = raw ? familyKeyForSlug(raw) : null
+      if (!key) {
+        dispatch({ type: "init", entry: "catalog", serviceKey: null, locked: false, vehType: null })
         return
       }
-
-      // CAS B — prestation présélectionnée (verrouillée). Une céramique
-      // carrosserie ne se commande jamais seule : l'entrée « Protection
-      // céramique » est ramenée vers le parcours Polissage & Céramique.
-      const slug = canonicalServiceSlug(match.slug)
-      setServiceSlug(slug)
-      setCameFromCeramic(match.slug === CERAMIC_SLUG)
-      setLocked(true)
-      setVehicleType(suggestedVehicleType(slug))
-      const rule = getServiceRule(slug)
-      setStep(rule.mode !== "none" ? "options" : "vehicle")
+      dispatch({
+        type: "init",
+        entry: "service",
+        serviceKey: key,
+        locked: true,
+        vehType: key === "moto" ? "Moto / Scooter" : null,
+      })
     }
-
     applyEntryFromUrl()
-    // Réagit aux navigations d'historique (retour arrière / avant) pour rester
-    // cohérent avec l'URL courante.
     window.addEventListener("popstate", applyEntryFromUrl)
     return () => window.removeEventListener("popstate", applyEntryFromUrl)
   }, [])
 
-  const rule = getServiceRule(serviceSlug)
-  const service = SERVICES.find((s) => s.slug === serviceSlug)
-  const formulas = getServiceFormulas(serviceSlug)
-
-  // Étapes actives (dépendent de la prestation choisie).
-  const steps = useMemo<StepKey[]>(() => {
-    const s: StepKey[] = []
-    if (!locked) s.push("service")
-    if (serviceSlug && rule.mode !== "none") s.push("options")
-    s.push("vehicle", "contact", "details", "review")
-    return s
-  }, [locked, serviceSlug, rule.mode])
-
-  const stepIndex = Math.max(0, steps.indexOf(step))
-
-  function chooseService(rawSlug: string) {
-    const slug = canonicalServiceSlug(rawSlug)
-    setServiceSlug(slug)
-    setCameFromCeramic(rawSlug === CERAMIC_SLUG)
-    setFormulaLabel(null)
-    setPolishLevel(null)
-    setCeramicLabel(null)
-    setPpfZones([])
-    setPpfOther("")
-    setVehicleType(suggestedVehicleType(slug))
-    const r = getServiceRule(slug)
-    setStep(r.mode !== "none" ? "options" : "vehicle")
-  }
-
-  function toggleZone(zone: string) {
-    setPpfZones((prev) => (prev.includes(zone) ? prev.filter((z) => z !== zone) : [...prev, zone]))
-  }
-
-  function validateStep(current: StepKey): boolean {
-    const e: Record<string, string> = {}
-    if (current === "options") {
-      if (rule.mode === "polish-and-ceramic" && !polishLevel) {
-        e.polish = "Choisissez un niveau de polissage, ou laissez Spirit ACS le déterminer."
-      }
-      if (rule.mode === "select-formula" && !formulaLabel) {
-        e.formula = "Sélectionnez une formule pour continuer."
-      }
-      if (rule.mode === "ppf-zones" && ppfZones.length === 0 && !ppfOther.trim()) {
-        e.ppf = "Sélectionnez au moins une zone ou précisez votre besoin."
-      }
-    }
-    if (current === "vehicle") {
-      if (!vehicleType.trim()) e.vehicleType = "Indiquez le type de véhicule."
-      if (!vehicleBrand.trim()) e.vehicleBrand = "Indiquez la marque."
-    }
-    if (current === "contact") {
-      if (!name.trim()) e.name = "Votre nom est requis."
-      if (!phone.trim()) e.phone = "Votre téléphone est requis."
-      if (!/\S+@\S+\.\S+/.test(email)) e.email = "Email invalide."
-      if (audience === "professionnel" && !legal.trim()) {
-        e.legal = "Ce numéro est requis pour un professionnel (SIREN/SIRET ou BCE)."
-      }
-    }
-    if (current === "details") {
-      if (rule.mode === "none" && message.trim().length < 5) {
-        e.message = "Décrivez votre besoin (5 caractères minimum)."
-      }
-    }
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  function goNext() {
-    if (!validateStep(step)) return
-    const idx = steps.indexOf(step)
-    if (idx < steps.length - 1) setStep(steps[idx + 1])
-  }
-
-  function goPrev() {
-    setErrors({})
-    const idx = steps.indexOf(step)
-    if (idx > 0) setStep(steps[idx - 1])
-    else if (!locked) setStep("service")
-  }
-
-  const currentSelection = (): ConfiguratorSelection => ({
-    serviceSlug,
-    serviceTitle: service?.title ?? serviceSlug,
-    formulaLabel,
-    polishLevel,
-    ceramicLabel,
-    ppfZones,
-    ppfOther,
-    vehicleType,
-    vehicleBrand,
-    vehicleModel,
-    audience,
-    message,
-  })
+  const steps = stepsFor(s.entry)
+  const stepKey = steps[s.i]
+  const family = getFamily(s.serviceKey)
+  const totalUserSteps = steps.filter((k) => k !== "confirmation").length
+  const humanStep = Math.min(s.i + 1, totalUserSteps)
 
   async function submit() {
-    if (pending) return
+    if (pending || !family) return
     setPending(true)
     setServerError(null)
     try {
+      const description = serializeFlow({
+        family,
+        vehType: s.vehType,
+        formulas: s.formulas,
+        inspection: s.inspection,
+        cleaningLevel: s.cleaningLevel,
+        cleaningZone: s.cleaningZone,
+        options: s.options,
+        description: s.description,
+        contextual: s.contextual,
+        availability: s.avail,
+        availabilityNote: s.availNote,
+        photoCount: uploader.count,
+      })
+
       const fd = new FormData()
       fd.set("typeKey", quoteTypeKey)
-      fd.set("customerName", name.trim())
-      fd.set("customerPhone", phone.trim())
-      fd.set("customerEmail", email.trim())
-      fd.set("customerType", audience)
-      if (audience === "professionnel") fd.set("customerLegalRegistrationNumber", legal.trim())
-      fd.set("vehicleType", vehicleType.trim())
-      fd.set("vehicleBrand", vehicleBrand.trim())
-      fd.set("vehicleModel", vehicleModel.trim())
-      fd.set("description", serializeConfiguratorDescription(currentSelection()))
+      fd.set("customerName", `${s.firstName} ${s.lastName}`.trim())
+      fd.set("customerPhone", s.phone.trim())
+      fd.set("customerEmail", s.email.trim())
+      fd.set("customerType", s.customerType)
+      if (s.customerType === "professionnel") fd.set("customerLegalRegistrationNumber", s.legalNumber.trim())
+      fd.set("vehicleType", s.vehType?.trim() ?? "")
+      fd.set("vehicleBrand", s.vehBrand.trim())
+      fd.set("vehicleModel", s.vehModel.trim())
+      fd.set("description", description)
       if (!submissionIdRef.current) submissionIdRef.current = newSubmissionId()
       fd.set("submissionId", submissionIdRef.current)
       fd.set("photosExpected", String(uploader.count))
@@ -295,6 +282,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       } else {
         setPhase("success")
       }
+      dispatch({ type: "next" }) // → écran de confirmation
     } catch {
       setServerError("Une erreur est survenue. Merci de réessayer.")
     } finally {
@@ -302,605 +290,1115 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
     }
   }
 
-  /* ----------------------------- Écran de succès --------------------------- */
-  if (phase === "success") {
-    const appointment = rule.finalAction === "appointment"
-    return (
-      <div
-        role="status"
-        className="flex flex-col items-center gap-3 rounded-2xl border border-[color:var(--spirit-pink)]/30 bg-[color:var(--spirit-pink)]/5 p-8 text-center"
-      >
-        <CheckCircle2 className="size-10 text-[color:var(--spirit-pink)]" aria-hidden="true" />
-        <h3 className="spirit-title text-2xl">Votre demande a bien été envoyée</h3>
-        <p className="text-pretty text-[color:var(--spirit-muted)]">
-          Merci ! Votre demande de réservation a bien été transmise{uploader.count > 0 ? ", photos comprises" : ""}.{" "}
-          Spirit ACS va l&apos;étudier et vous confirmer la prise en charge
-          {appointment ? ", puis convenir d'un rendez-vous pour constater l'état de votre véhicule." : "."}
-        </p>
-      </div>
-    )
-  }
-
   /* ------------------------- Repli « Autre demande » ----------------------- */
   if (showClassic) {
     return (
-      <div className="space-y-5">
-        <button
-          type="button"
-          onClick={() => setShowClassic(false)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-[color:var(--spirit-teal)] hover:underline"
-        >
-          <ChevronLeft className="size-4" aria-hidden="true" /> Revenir au configurateur
-        </button>
-        <CustomRequestForm types={types} audienceToggle />
+      <div className={`${oswald.variable} rq-flow`}>
+        <style>{css}</style>
+        <div className="rq-phone">
+          <button type="button" className="rq-textlink" onClick={() => setShowClassic(false)}>
+            ‹ Revenir au configurateur
+          </button>
+          <div className="mt-4">
+            {/* Formulaire libre historique : particulier / professionnel via audienceToggle. */}
+            <CustomRequestForm types={types} audienceToggle />
+          </div>
+        </div>
       </div>
     )
   }
 
-  const totalSteps = steps.length
-
-  /* ------------------------------- Rendu wizard ---------------------------- */
   return (
-    <div className="space-y-6">
-      {/* Progression */}
-      <div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="spirit-eyebrow" style={{ color: "var(--spirit-teal-strong)" }}>
-            Étape {stepIndex + 1} / {totalSteps}
-          </span>
-          <span className="font-medium text-[color:var(--spirit-fg)]">{STEP_LABEL[step]}</span>
-        </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
-          <div
-            className="h-full rounded-full bg-[color:var(--spirit-pink)] transition-[width]"
-            style={{ width: `${((stepIndex + 1) / totalSteps) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {serverError && (
-        <div
-          role="alert"
-          className="flex items-start gap-3 rounded-xl border border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/10 p-4 text-sm text-[color:var(--spirit-fg)]"
-        >
-          <AlertCircle className="mt-0.5 size-5 shrink-0 text-[color:var(--destructive)]" aria-hidden="true" />
-          <p>{serverError}</p>
-        </div>
-      )}
-
-      {phase === "partial" && (
-        <div
-          role="status"
-          className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-[color:var(--spirit-fg)]"
-        >
-          <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600" aria-hidden="true" />
-          <p>
-            Votre demande a bien été enregistrée, mais certaines photos n&apos;ont pas pu être envoyées. Vous pouvez
-            réessayer leur envoi.
-          </p>
-        </div>
-      )}
-
-      {/* ------------------------------- SERVICE ------------------------------ */}
-      {step === "service" && (
-        <div className="space-y-4">
-          <p className="text-sm text-[color:var(--spirit-muted)]">
-            Choisissez votre prestation et envoyez votre demande. Spirit ACS vous confirme ensuite la prise en charge.
-          </p>
-          {/*
-            Cartes de SÉLECTION en format paysage compact (photo réelle +
-            overlay sombre), une par ligne pour rester nettement plus larges que
-            hautes. Toute la carte est cliquable (choix de la catégorie) : un
-            seul CTA ici, contrairement à la homepage (Réserver + En savoir plus).
-          */}
-          <ul className="grid grid-cols-1 gap-3">
-            {SERVICES.map((s) => (
-              <li key={s.slug}>
-                <button
-                  type="button"
-                  onClick={() => chooseService(s.slug)}
-                  className="group relative flex min-h-[7.5rem] w-full flex-col justify-end overflow-hidden rounded-xl text-left ring-1 ring-white/12 transition-all duration-300 hover:ring-[color:var(--spirit-pink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--spirit-teal)] sm:min-h-[8.5rem]"
-                >
-                  {s.image && (
-                    <Image
-                      src={s.image || "/placeholder.svg"}
-                      alt={s.imageAlt || s.title}
-                      fill
-                      sizes="(min-width: 640px) 560px, 100vw"
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                    />
-                  )}
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 bg-gradient-to-t from-[color:var(--spirit-navy)] via-[color:var(--spirit-navy)]/55 to-transparent"
-                  />
-                  <span className="relative z-10 flex items-end justify-between gap-3 p-4">
-                    <span className="min-w-0">
-                      <span className="spirit-title block font-semibold uppercase leading-tight tracking-wide text-white [font-size:clamp(1rem,4.5vw,1.2rem)]">
-                        {s.title}
-                      </span>
-                      <span className="mt-1 block text-sm leading-snug text-white/85">{s.tagline}</span>
-                    </span>
-                    <ArrowRight
-                      className="size-5 shrink-0 text-white/90 transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="pt-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setShowClassic(true)}
-              className="font-medium text-[color:var(--spirit-teal)] hover:underline"
-            >
-              Autre demande (flotte, abonnement, besoin spécifique) →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------- OPTIONS ------------------------------ */}
-      {step === "options" && (
-        <div className="space-y-5">
-          {locked && service && (
-            <p className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--spirit-navy-3)] px-3 py-1 text-sm text-[color:var(--spirit-fg)]">
-              <Lock className="size-3.5 text-[color:var(--spirit-teal)]" aria-hidden="true" />
-              Prestation : <span className="font-semibold">{service.title}</span>
-            </p>
-          )}
-
-          {/* Polissage & Céramique : niveau de polissage (requis) + céramique (facultative). */}
-          {rule.mode === "polish-and-ceramic" && (
-            <div className="space-y-6">
-              {cameFromCeramic && (
-                <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-3 text-sm text-[color:var(--spirit-fg)]">
-                  Une protection céramique s&apos;applique toujours sur une carrosserie polie. Choisissez d&apos;abord
-                  votre polissage ci-dessous, puis ajoutez la protection céramique souhaitée.
-                </p>
-              )}
-
-              {/* Groupe A — Polissage (choix requis, exclusif) */}
-              <fieldset className="space-y-2">
-                <legend className="font-medium text-[color:var(--spirit-fg)]">Polissage</legend>
-                <p className="text-sm text-[color:var(--spirit-muted)]">
-                  Choisissez un niveau, ou laissez Spirit ACS le déterminer après inspection de la carrosserie.
-                </p>
-                <div className="grid gap-2">
-                  {formulas.map((f) => {
-                    const value = `${f.label} (${formulaPriceLabel(f)})`
-                    const checked = polishLevel === value
-                    return (
-                      <label key={f.label} className="cursor-pointer">
-                        <input
-                          type="radio"
-                          name="polish-level"
-                          value={value}
-                          checked={checked}
-                          onChange={() => setPolishLevel(value)}
-                          className="peer sr-only"
-                        />
-                        <span className="flex items-start justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
-                            {f.note && (
-                              <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">{f.note}</span>
-                            )}
-                          </span>
-                          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
-                            {formulaPriceLabel(f)}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  })}
-
-                  {/* Alternative EXCLUSIVE : détermination après inspection (jamais un niveau). */}
-                  <label className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="polish-level"
-                      value={POLISH_INSPECTION_VALUE}
-                      checked={polishLevel === POLISH_INSPECTION_VALUE}
-                      onChange={() => setPolishLevel(POLISH_INSPECTION_VALUE)}
-                      className="peer sr-only"
-                    />
-                    <span className="flex items-start gap-2 rounded-xl border border-dashed border-white/25 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-[color:var(--spirit-fg)]">
-                          Laisser Spirit ACS déterminer le niveau après inspection
-                        </span>
-                        <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">
-                          Le niveau de correction est défini après examen de la carrosserie, sans être choisi à
-                          l&apos;avance.
-                        </span>
-                      </span>
-                    </span>
-                  </label>
-                </div>
-                {errors.polish && <p className="text-sm text-[color:var(--destructive)]">{errors.polish}</p>}
-              </fieldset>
-
-              {/* Groupe B — Protection céramique (facultative, indépendante du polissage) */}
-              <fieldset className="space-y-2">
-                <legend className="font-medium text-[color:var(--spirit-fg)]">
-                  Protection céramique{" "}
-                  <span className="font-normal text-[color:var(--spirit-muted)]">(facultatif)</span>
-                </legend>
-                <p className="text-sm text-[color:var(--spirit-muted)]">
-                  Ajoutez une protection si vous le souhaitez. Votre choix est confirmé par Spirit ACS après analyse.
-                </p>
-                <div className="grid gap-2">
-                  <label className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="ceramic-option"
-                      checked={ceramicLabel === null}
-                      onChange={() => setCeramicLabel(null)}
-                      className="peer sr-only"
-                    />
-                    <span className="flex items-center rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                      Sans protection céramique
-                    </span>
-                  </label>
-                  {getCeramicFormulas().map((f) => {
-                    const value = `${f.label} (${formulaPriceLabel(f)})`
-                    const checked = ceramicLabel === value
-                    return (
-                      <label key={f.label} className="cursor-pointer">
-                        <input
-                          type="radio"
-                          name="ceramic-option"
-                          value={value}
-                          checked={checked}
-                          onChange={() => setCeramicLabel(value)}
-                          className="peer sr-only"
-                        />
-                        <span className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                          <span className="text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
-                          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
-                            {formulaPriceLabel(f)}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
-            </div>
-          )}
-
-          {/* Céramique : sélection d'une formule par le client. */}
-          {rule.mode === "select-formula" && (
-            <fieldset className="space-y-2">
-              <legend className="font-medium text-[color:var(--spirit-fg)]">Quelle protection souhaitez-vous ?</legend>
-              <p className="text-sm text-[color:var(--spirit-muted)]">
-                Votre choix est confirmé par Spirit ACS après analyse de la carrosserie (une préparation ou un polissage
-                peuvent être conseillés).
-              </p>
-              <div className="grid gap-2">
-                {formulas.map((f) => {
-                  const value = `${f.label} (${formulaPriceLabel(f)})`
-                  const checked = formulaLabel === value
-                  return (
-                    <label key={f.label} className="cursor-pointer">
-                      <input
-                        type="radio"
-                        name="ceramic-formula"
-                        value={value}
-                        checked={checked}
-                        onChange={() => setFormulaLabel(value)}
-                        className="peer sr-only"
-                      />
-                      <span className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                        <span className="text-sm font-medium text-[color:var(--spirit-fg)]">{f.label}</span>
-                        <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
-                          {formulaPriceLabel(f)}
-                        </span>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-              {errors.formula && <p className="text-sm text-[color:var(--destructive)]">{errors.formula}</p>}
-            </fieldset>
-          )}
-
-          {/* Polissage : formules INFORMATIVES, aucune sélection. Aboutit à un RDV. */}
-          {rule.mode === "info-formula" && (
-            <div className="space-y-3">
-              <div className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-fg)]">
-                {rule.photoHint}
-              </div>
-              {formulas.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-[color:var(--spirit-fg)]">
-                    Formules à titre indicatif
-                  </p>
-                  <ul className="mt-2 divide-y divide-white/10 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)]">
-                    {formulas.map((f) => (
-                      <li key={f.label} className="flex items-baseline justify-between gap-3 p-3">
-                        <span className="min-w-0 text-sm text-[color:var(--spirit-fg)]">
-                          {f.label}
-                          {f.note && <span className="mt-0.5 block text-xs text-[color:var(--spirit-muted)]">{f.note}</span>}
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-[color:var(--spirit-teal-strong)]">
-                          {formulaPriceLabel(f)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-xs text-[color:var(--spirit-muted)]">
-                    Le niveau de correction adapté est déterminé par Spirit ACS lors du rendez-vous : il n&apos;est pas
-                    choisi à l&apos;avance.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PPF : sélection de zones (toujours sur devis, aucun prix par zone). */}
-          {rule.mode === "ppf-zones" && (
-            <fieldset className="space-y-2">
-              <legend className="font-medium text-[color:var(--spirit-fg)]">Quelles zones souhaitez-vous protéger ?</legend>
-              <p className="text-sm text-[color:var(--spirit-muted)]">
-                La pose PPF est toujours établie sur devis, après analyse du véhicule.
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {PPF_ZONES.map((zone) => {
-                  const checked = ppfZones.includes(zone)
-                  return (
-                    <label key={zone} className="cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleZone(zone)}
-                        className="peer sr-only"
-                      />
-                      <span className="flex items-center gap-2 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-3 text-sm text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)]/5 peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                        <span
-                          aria-hidden="true"
-                          className={`flex size-4 shrink-0 items-center justify-center rounded border ${checked ? "border-[color:var(--spirit-pink)] bg-[color:var(--spirit-pink)] text-white" : "border-white/30"}`}
-                        >
-                          {checked && <CheckCircle2 className="size-3" />}
-                        </span>
-                        {zone}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-              <div className="space-y-2 pt-1">
-                <Label htmlFor="ppf-other">Autre zone ou « je ne sais pas » (facultatif)</Label>
-                <Input
-                  id="ppf-other"
-                  value={ppfOther}
-                  onChange={(e) => setPpfOther(e.target.value)}
-                  placeholder="Décrivez la zone ou indiquez que vous hésitez"
-                />
-              </div>
-              {errors.ppf && <p className="text-sm text-[color:var(--destructive)]">{errors.ppf}</p>}
-            </fieldset>
-          )}
-        </div>
-      )}
-
-      {/* ------------------------------- VEHICLE ------------------------------ */}
-      {step === "vehicle" && (
-        <div className="space-y-5">
-          <fieldset className="space-y-2">
-            <legend className="font-medium text-[color:var(--spirit-fg)]">Type de véhicule</legend>
-            {/* Grille de 6 (2 × 3) alignée sur la maquette. L'état sélectionné
-                est signalé par TROIS indices cumulés (pas uniquement la couleur,
-                a11y) : fond magenta, bordure magenta et picto en blanc. */}
-            <div className="grid grid-cols-3 gap-2.5">
-              {VEHICLE_TYPES.map((t) => {
-                const checked = vehicleType === t
-                return (
-                  <label key={t} className="cursor-pointer">
-                    <input
-                      type="radio"
-                      name="vehicle-type"
-                      value={t}
-                      checked={checked}
-                      onChange={() => setVehicleType(t)}
-                      className="peer sr-only"
-                    />
-                    <span className="flex h-full min-h-[5.5rem] flex-col items-center justify-center gap-2 rounded-xl border border-white/15 bg-[color:var(--spirit-navy-3)] px-2 py-3 text-center text-xs font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[color:var(--spirit-navy-2)]">
-                      <VehicleTypeIcon
-                        type={t}
-                        className={`block w-10 ${checked ? "text-white" : "text-[color:var(--spirit-teal)]"}`}
-                      />
-                      <span className="leading-tight text-balance">{t}</span>
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
-            {errors.vehicleType && <p className="text-sm text-[color:var(--destructive)]">{errors.vehicleType}</p>}
-          </fieldset>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="vehicle-brand">Marque</Label>
-              <Input
-                id="vehicle-brand"
-                value={vehicleBrand}
-                onChange={(e) => setVehicleBrand(e.target.value)}
-                placeholder="Peugeot, BMW, Porsche…"
-                aria-invalid={!!errors.vehicleBrand}
-              />
-              {errors.vehicleBrand && <p className="text-sm text-[color:var(--destructive)]">{errors.vehicleBrand}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vehicle-model">Modèle (facultatif)</Label>
-              <Input
-                id="vehicle-model"
-                value={vehicleModel}
-                onChange={(e) => setVehicleModel(e.target.value)}
-                placeholder="308, Série 3, 911…"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------- CONTACT ------------------------------ */}
-      {step === "contact" && (
-        <div className="space-y-5">
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-[color:var(--spirit-fg)]">Vous êtes :</legend>
-            <div role="radiogroup" aria-label="Type de client" className="grid grid-cols-2 gap-2">
-              {[
-                { value: "particulier", label: "Un particulier" },
-                { value: "professionnel", label: "Un professionnel" },
-              ].map((opt) => (
-                <label key={opt.value} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="audience"
-                    value={opt.value}
-                    checked={audience === opt.value}
-                    onChange={() => setAudience(opt.value as "particulier" | "professionnel")}
-                    className="peer sr-only"
-                  />
-                  <span className="flex h-11 items-center justify-center rounded-md border border-white/15 bg-[color:var(--spirit-navy-3)] px-4 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors peer-checked:border-[color:var(--spirit-pink)] peer-checked:bg-[color:var(--spirit-pink)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--spirit-teal)]">
-                    {opt.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cfg-name">Nom complet</Label>
-              <Input id="cfg-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" aria-invalid={!!errors.name} />
-              {errors.name && <p className="text-sm text-[color:var(--destructive)]">{errors.name}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cfg-phone">Téléphone</Label>
-              <Input id="cfg-phone" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" autoComplete="tel" aria-invalid={!!errors.phone} />
-              {errors.phone && <p className="text-sm text-[color:var(--destructive)]">{errors.phone}</p>}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="cfg-email">Email</Label>
-            <Input id="cfg-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" aria-invalid={!!errors.email} />
-            {errors.email && <p className="text-sm text-[color:var(--destructive)]">{errors.email}</p>}
-          </div>
-
-          {audience === "professionnel" && (
-            <div className="space-y-2">
-              <Label htmlFor="cfg-legal">SIREN / SIRET ou numéro BCE</Label>
-              <Input id="cfg-legal" value={legal} onChange={(e) => setLegal(e.target.value)} maxLength={60} autoComplete="off" aria-invalid={!!errors.legal} />
-              <p className="text-sm text-[color:var(--spirit-muted)]">SIREN ou SIRET en France, numéro BCE en Belgique.</p>
-              {errors.legal && <p className="text-sm text-[color:var(--destructive)]">{errors.legal}</p>}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ------------------------------- DETAILS ------------------------------ */}
-      {step === "details" && (
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="cfg-message">
-              {rule.mode === "none" ? "Décrivez votre besoin" : "Précisions (facultatif)"}
-            </Label>
-            <Textarea
-              id="cfg-message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              placeholder="État du véhicule, résultat recherché, contraintes de date…"
-              aria-invalid={!!errors.message}
-            />
-            {errors.message && <p className="text-sm text-[color:var(--destructive)]">{errors.message}</p>}
-          </div>
-
-          <div className="rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)] p-4 text-sm text-[color:var(--spirit-fg)]">
-            {rule.photoHint}
-          </div>
-          <QuotePhotoUploader uploader={uploader} disabled={pending} />
-        </div>
-      )}
-
-      {/* ------------------------------- REVIEW ------------------------------- */}
-      {step === "review" && (
-        <div className="space-y-5">
-          <p className="text-sm text-[color:var(--spirit-muted)]">
-            Vérifiez votre demande avant l&apos;envoi. Vous pouvez revenir en arrière pour la modifier.
-          </p>
-          <dl className="divide-y divide-white/10 rounded-xl border border-white/12 bg-[color:var(--spirit-navy-3)]">
-            {buildSummary(currentSelection()).map((line) => (
-              <div key={line.label} className="flex flex-col gap-0.5 p-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-                <dt className="shrink-0 text-sm font-medium text-[color:var(--spirit-muted)]">{line.label}</dt>
-                <dd className="text-sm text-[color:var(--spirit-fg)] sm:text-right">{line.value}</dd>
-              </div>
-            ))}
-            {uploader.count > 0 && (
-              <div className="flex items-baseline justify-between gap-4 p-3">
-                <dt className="text-sm font-medium text-[color:var(--spirit-muted)]">Photos</dt>
-                <dd className="text-sm text-[color:var(--spirit-fg)]">
-                  {uploader.count} photo{uploader.count > 1 ? "s" : ""} à envoyer
-                </dd>
-              </div>
-            )}
-          </dl>
-          {/* Rappel systématique : la réservation n'est jamais confirmée à
-              l'envoi (aucun paiement, aucun créneau garanti). */}
-          <p className="rounded-xl border border-[color:var(--spirit-teal)]/30 bg-[color:var(--spirit-teal)]/5 p-4 text-sm text-[color:var(--spirit-fg)]">
-            {rule.finalAction === "appointment"
-              ? "Votre demande sera étudiée et confirmée par Spirit ACS, qui vous recontacte ensuite pour convenir d'un rendez-vous et constater l'état de votre véhicule."
-              : "Votre demande sera étudiée et confirmée par Spirit ACS. Aucun paiement à cette étape."}
-          </p>
-        </div>
-      )}
-
-      {/* ------------------------------ Navigation ---------------------------- */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        {stepIndex > 0 || (!locked && step !== "service") ? (
-          <button
-            type="button"
-            onClick={goPrev}
-            disabled={pending}
-            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-4 py-2.5 text-sm font-medium text-[color:var(--spirit-fg)] transition-colors hover:bg-white/5 disabled:opacity-60"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" /> Retour
-          </button>
+    <div className={`${oswald.variable} rq-flow`}>
+      <style>{css}</style>
+      <div className="rq-phone">
+        {stepKey === "confirmation" ? (
+          <Confirmation phase={phase} dispatch={dispatch} onReset={() => { uploader.reset(); setPhase("form"); submissionIdRef.current = "" }} />
         ) : (
-          <span />
+          <>
+            <FlowHeader
+              stepKey={stepKey}
+              humanStep={humanStep}
+              total={totalUserSteps}
+              canBack={s.i > 0}
+              onBack={() => dispatch({ type: "back" })}
+            />
+            {serverError && (
+              <p role="alert" className="rq-alert">
+                {serverError}
+              </p>
+            )}
+            {phase === "partial" && (
+              <p role="status" className="rq-alert rq-alert-warn">
+                Votre demande a bien été enregistrée, mais certaines photos n&apos;ont pas pu être envoyées.
+              </p>
+            )}
+            <div className="rq-scroll">
+              <Step s={s} dispatch={dispatch} patch={patch} family={family} stepKey={stepKey} uploader={uploader} />
+            </div>
+            <FlowFooter
+              s={s}
+              dispatch={dispatch}
+              stepKey={stepKey}
+              family={family}
+              pending={pending}
+              onSubmit={submit}
+              onClassic={() => setShowClassic(true)}
+            />
+          </>
         )}
-
-        {step !== "service" &&
-          (step === "review" ? (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--spirit-pink)] px-8 text-base font-semibold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {pending
-                ? "Envoi en cours…"
-                : phase === "partial"
-                  ? "Réessayer l'envoi"
-                  : "Envoyer ma demande de réservation"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={goNext}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[color:var(--spirit-pink)] px-8 text-base font-semibold text-white transition-all hover:brightness-110"
-            >
-              Continuer <ArrowRight className="size-4" aria-hidden="true" />
-            </button>
-          ))}
       </div>
     </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/*  HEADER / FOOTER                                                           */
+/* -------------------------------------------------------------------------- */
+
+const STEP_LABEL: Record<string, string> = {
+  prestation: "Prestation",
+  formules: "Formules",
+  vehicule: "Véhicule",
+  options: "Options",
+  details: "Votre demande",
+  photos: "Photos",
+  dispos: "Disponibilités",
+  coordonnees: "Coordonnées",
+  recap: "Récapitulatif",
+}
+
+function FlowHeader({
+  stepKey,
+  humanStep,
+  total,
+  canBack,
+  onBack,
+}: {
+  stepKey: string
+  humanStep: number
+  total: number
+  canBack: boolean
+  onBack: () => void
+}) {
+  return (
+    <header className="rq-head">
+      <button className="rq-icon-btn" onClick={onBack} disabled={!canBack} aria-label="Précédent">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <div className="rq-head-mid">
+        <span className="rq-head-step">
+          Étape {humanStep} / {total}
+        </span>
+        <span className="rq-head-label">{STEP_LABEL[stepKey]}</span>
+      </div>
+      <span aria-hidden="true" />
+      <div className="rq-progress" aria-hidden="true">
+        <span style={{ width: `${(humanStep / total) * 100}%` }} />
+      </div>
+    </header>
+  )
+}
+
+function FlowFooter({
+  s,
+  dispatch,
+  stepKey,
+  family,
+  pending,
+  onSubmit,
+  onClassic,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  stepKey: string
+  family?: Family
+  pending: boolean
+  onSubmit: () => void
+  onClassic: () => void
+}) {
+  const disabled = pending || !canContinue(s, stepKey, family)
+  const isRecap = stepKey === "recap"
+  const primaryLabel = isRecap
+    ? pending
+      ? "Envoi en cours…"
+      : "Envoyer ma demande"
+    : s.fromSummary
+      ? "Enregistrer"
+      : "Continuer"
+  const showSkip = stepKey === "options" && s.options.length === 0
+
+  return (
+    <footer className="rq-foot">
+      <button className="rq-btn rq-btn-pink" disabled={disabled} onClick={() => (isRecap ? onSubmit() : dispatch({ type: "next" }))}>
+        {showSkip ? "Continuer sans option" : primaryLabel}
+      </button>
+      {isRecap && <p className="rq-foot-legal">Aucun paiement. Spirit ACS étudie votre demande avant toute confirmation.</p>}
+      {stepKey === "prestation" && (
+        <button type="button" className="rq-textlink rq-foot-alt" onClick={onClassic}>
+          Autre demande (flotte, abonnement, besoin spécifique) ›
+        </button>
+      )}
+    </footer>
+  )
+}
+
+/** Validation minimale par étape (empêche d'avancer si champ requis manquant). */
+function canContinue(s: State, stepKey: string, family?: Family): boolean {
+  switch (stepKey) {
+    case "prestation":
+      return s.serviceKey != null
+    case "formules":
+      if (family?.kind === "nettoyage") return s.cleaningZone != null && s.cleaningLevel != null
+      return true
+    case "vehicule":
+      return s.vehType != null
+    case "coordonnees": {
+      const base = s.firstName.trim() && s.lastName.trim() && /\S+@\S+\.\S+/.test(s.email) && s.phone.trim()
+      const pro = s.customerType === "professionnel" ? s.legalNumber.trim().length > 0 : true
+      return Boolean(base && pro)
+    }
+    default:
+      return true
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  STEP ROUTER                                                               */
+/* -------------------------------------------------------------------------- */
+
+function Step({
+  s,
+  dispatch,
+  patch,
+  family,
+  stepKey,
+  uploader,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  patch: (p: Partial<State>) => void
+  family?: Family
+  stepKey: string
+  uploader: UsePhotoUploads
+}) {
+  switch (stepKey) {
+    case "prestation":
+      return <PrestationStep s={s} dispatch={dispatch} />
+    case "formules":
+      return <FormulesStep s={s} patch={patch} family={family} />
+    case "vehicule":
+      return <VehiculeStep s={s} patch={patch} />
+    case "options":
+      return <OptionsStep s={s} dispatch={dispatch} family={family} />
+    case "details":
+      return <DetailsStep s={s} dispatch={dispatch} patch={patch} family={family} />
+    case "photos":
+      return <PhotosStep uploader={uploader} />
+    case "dispos":
+      return <DisposStep s={s} dispatch={dispatch} patch={patch} />
+    case "coordonnees":
+      return <CoordonneesStep s={s} patch={patch} />
+    case "recap":
+      return <RecapStep s={s} dispatch={dispatch} family={family} uploader={uploader} />
+    default:
+      return null
+  }
+}
+
+function StepIntro({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="rq-intro">
+      <h2 className="rq-title rq-h2">{title}</h2>
+      {sub && <p className="rq-sub">{sub}</p>}
+    </div>
+  )
+}
+
+function PrestationStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Action> }) {
+  return (
+    <section>
+      <StepIntro title="Sélectionnez votre prestation" sub="Découvrez ensuite les formules puis demandez votre devis." />
+      <div className="rq-cards">
+        {FAMILIES.map((f) => {
+          const active = s.serviceKey === f.key
+          return (
+            <button
+              key={f.key}
+              className={`rq-card${active ? " is-active" : ""}`}
+              onClick={() => dispatch({ type: "chooseService", serviceKey: f.key })}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={f.image || "/placeholder.svg"} alt={f.alt} className="rq-card-img" />
+              <span className="rq-card-veil" />
+              <span className="rq-card-body">
+                <span className="rq-card-title">{f.title}</span>
+                <span className="rq-card-price">{f.priceLabel}</span>
+              </span>
+              {active && (
+                <span className="rq-card-check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State>) => void; family?: Family }) {
+  if (!family) return null
+
+  return (
+    <section>
+      <StepIntro title={family.title} sub={family.tagline} />
+
+      <div className="rq-included">
+        <p className="rq-included-h">Ce qui est inclus</p>
+        <ul>
+          {family.included.map((it) => (
+            <li key={it}>{it}</li>
+          ))}
+        </ul>
+      </div>
+
+      {family.kind === "nettoyage" ? (
+        <NettoyageChooser s={s} patch={patch} />
+      ) : family.kind === "devis" ? (
+        <div className="rq-devis-card">
+          <span className="rq-devis-badge">Sur devis</span>
+          <p>Cette prestation est établie sur devis, après étude de votre demande par Spirit ACS.</p>
+        </div>
+      ) : (
+        family.formulaGroups.map((g, gi) => (
+          <div key={gi} className="rq-fgroup">
+            {g.title && <p className="rq-fgroup-title">{g.title}</p>}
+            {g.note && <p className="rq-fgroup-note">{g.note}</p>}
+            <div className="rq-formulas">
+              {g.formulas.map((f) => {
+                const active = s.formulas[gi] === f.label
+                return (
+                  <button
+                    key={f.label}
+                    className={`rq-formula${active ? " is-active" : ""}`}
+                    onClick={() => {
+                      const next = { ...s.formulas }
+                      if (active) delete next[gi]
+                      else next[gi] = f.label
+                      patch({ formulas: next, inspection: false })
+                    }}
+                  >
+                    <span className="rq-formula-main">
+                      <span className="rq-formula-label">{f.label}</span>
+                      {f.note && <span className="rq-formula-note">{f.note}</span>}
+                    </span>
+                    <span className="rq-formula-price">{priceText(f)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))
+      )}
+
+      {family.caveat && <p className="rq-caveat">{family.caveat}</p>}
+
+      {family.kind === "formulas" && (
+        <button
+          className={`rq-softchoice${s.inspection ? " is-active" : ""}`}
+          onClick={() => patch({ inspection: !s.inspection, formulas: {} })}
+        >
+          Laisser Spirit ACS déterminer la formule après inspection
+        </button>
+      )}
+    </section>
+  )
+}
+
+const CLEANING_ZONES: CleaningZone[] = ["interieur", "exterieur", "les-deux"]
+const CLEANING_LEVELS: CleaningLevel[] = ["indispensable", "comme-neuf"]
+
+function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+  const zone = s.cleaningZone
+  return (
+    <div className="rq-fgroup">
+      <p className="rq-fgroup-title">Que souhaitez-vous nettoyer ?</p>
+      <div className="rq-seg rq-seg-3">
+        {CLEANING_ZONES.map((z) => (
+          <button
+            key={z}
+            className={`rq-seg-btn${s.cleaningZone === z ? " is-active" : ""}`}
+            onClick={() => patch({ cleaningZone: z })}
+          >
+            {CLEANING_ZONE_LABEL[z]}
+          </button>
+        ))}
+      </div>
+      {zone === "les-deux" && (
+        <p className="rq-fgroup-note" style={{ marginTop: 8 }}>
+          Intérieur + Extérieur : 10 € de réduction appliquée automatiquement.
+        </p>
+      )}
+
+      <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
+        Choisissez votre formule
+      </p>
+      <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
+      <div className="rq-formulas">
+        {CLEANING_LEVELS.map((lvl) => {
+          const active = s.cleaningLevel === lvl
+          // Plancher « dès » (citadine) — l'exact est calculé une fois le véhicule connu.
+          const floor = cleaningBaseCents(zone ?? "les-deux", lvl, "citadine")
+          return (
+            <button
+              key={lvl}
+              className={`rq-formula${active ? " is-active" : ""}`}
+              onClick={() => patch({ cleaningLevel: lvl })}
+            >
+              <span className="rq-formula-main">
+                <span className="rq-formula-label">{CLEANING_LEVEL_LABEL[lvl]}</span>
+                <span className="rq-formula-note">
+                  {lvl === "indispensable" ? "Nettoyage soigné et complet" : "Remise en état la plus poussée"}
+                </span>
+              </span>
+              <span className="rq-formula-price">dès {euros(floor)}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function VehiculeStep({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+  return (
+    <section>
+      <StepIntro title="Votre véhicule" sub="Sélectionnez le type, puis indiquez la marque et le modèle." />
+      <div className="rq-types">
+        {VEHICLE_TYPES.map((t) => {
+          const active = s.vehType === t
+          return (
+            <button key={t} className={`rq-type${active ? " is-active" : ""}`} onClick={() => patch({ vehType: t })}>
+              <span className="rq-type-ic" aria-hidden="true">
+                <VehicleIcon type={t} />
+              </span>
+              <span className="rq-type-label">{t}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="rq-field">
+        <label htmlFor="veh-brand">Marque</label>
+        <input
+          id="veh-brand"
+          type="text"
+          autoComplete="off"
+          placeholder="Ex. Peugeot, BMW, Yamaha…"
+          value={s.vehBrand}
+          onChange={(e) => patch({ vehBrand: e.target.value })}
+        />
+      </div>
+      <div className="rq-field">
+        <label htmlFor="veh-model">Modèle</label>
+        <input
+          id="veh-model"
+          type="text"
+          autoComplete="off"
+          placeholder="Ex. 308, Série 3, MT-07…"
+          value={s.vehModel}
+          onChange={(e) => patch({ vehModel: e.target.value })}
+        />
+      </div>
+      <p className="rq-hint">Marque et modèle en saisie libre — aucune liste imposée.</p>
+    </section>
+  )
+}
+
+function OptionsStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch<Action>; family?: Family }) {
+  if (!family) return null
+  if (family.options.length === 0) {
+    return (
+      <section>
+        <StepIntro title="Options complémentaires" sub="Aucune option pour cette prestation. Vous pouvez continuer." />
+      </section>
+    )
+  }
+  return (
+    <section>
+      <StepIntro title="Complétez votre prestation" sub="Facultatif — ajoutez une option pertinente, ou continuez." />
+      <div className="rq-opts">
+        {family.options.map((o) => {
+          const active = s.options.includes(o.id)
+          return (
+            <button
+              key={o.id}
+              className={`rq-opt${active ? " is-active" : ""}`}
+              onClick={() => dispatch({ type: "toggle", field: "options", value: o.id })}
+            >
+              <span className="rq-opt-check" aria-hidden="true">
+                {active ? "✓" : "+"}
+              </span>
+              <span className="rq-opt-main">
+                <span className="rq-opt-label">{o.label}</span>
+                <span className="rq-opt-benefit">{o.benefit}</span>
+              </span>
+              <span className="rq-opt-price">{o.price}</span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function DetailsStep({
+  s,
+  dispatch,
+  patch,
+  family,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  patch: (p: Partial<State>) => void
+  family?: Family
+}) {
+  const ctx = family?.contextual
+  return (
+    <section>
+      <StepIntro title="Précisez votre demande" sub="Quelques éléments utiles à Spirit ACS pour étudier votre besoin." />
+      {ctx && (
+        <div className="rq-ctx">
+          <p className="rq-ctx-q">{ctx.question}</p>
+          <div className="rq-chips">
+            {ctx.choices.map((c) => {
+              const active = s.contextual.includes(c)
+              return (
+                <button
+                  key={c}
+                  className={`rq-chip${active ? " is-active" : ""}`}
+                  onClick={() => dispatch({ type: "toggle", field: "contextual", value: c, multi: ctx.multi ?? false })}
+                >
+                  {c}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      <div className="rq-field">
+        <label htmlFor="desc">Décrivez votre besoin</label>
+        <textarea
+          id="desc"
+          rows={5}
+          placeholder="État du véhicule, résultat recherché, éléments particuliers…"
+          value={s.description}
+          onChange={(e) => patch({ description: e.target.value })}
+        />
+      </div>
+    </section>
+  )
+}
+
+function PhotosStep({ uploader }: { uploader: UsePhotoUploads }) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const { items, addFiles, removeItem, count } = uploader
+
+  return (
+    <section>
+      <StepIntro
+        title="Ajoutez des photos de votre véhicule"
+        sub="Facultatif — elles aident Spirit ACS à mieux comprendre votre demande."
+      />
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files?.length) addFiles(e.target.files)
+          e.target.value = ""
+        }}
+      />
+
+      {items.length === 0 ? (
+        <button className="rq-drop" onClick={() => inputRef.current?.click()}>
+          <span className="rq-drop-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="9" cy="10" r="1.6" />
+              <path d="M21 16l-5-5-9 8" />
+            </svg>
+          </span>
+          <span className="rq-drop-t">Ajouter des photos</span>
+          <span className="rq-drop-s">JPEG, PNG, HEIC — {MAX_PHOTOS} photos max.</span>
+        </button>
+      ) : (
+        <>
+          <div className="rq-photos">
+            {items.map((p) => (
+              <div key={p.id} className={`rq-photo${p.status === "error" ? " is-error" : ""}`}>
+                {p.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.previewUrl || "/placeholder.svg"} alt={p.name} />
+                ) : (
+                  <span className="rq-photo-err">{p.status === "error" ? "!" : "HEIC"}</span>
+                )}
+                {p.status === "error" && p.error && <span className="rq-photo-msg">{p.error}</span>}
+                <button className="rq-photo-x" onClick={() => removeItem(p.id)} aria-label="Supprimer">
+                  ×
+                </button>
+              </div>
+            ))}
+            {count < MAX_PHOTOS && (
+              <button className="rq-photo-add" onClick={() => inputRef.current?.click()} aria-label="Ajouter">
+                +
+              </button>
+            )}
+          </div>
+          <p className="rq-hint">
+            {count} photo(s) — {MAX_PHOTOS} max.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function DisposStep({
+  s,
+  dispatch,
+  patch,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  patch: (p: Partial<State>) => void
+}) {
+  return (
+    <section>
+      <StepIntro title="Choisissez vos disponibilités" sub="Indiquez les créneaux qui vous conviennent." />
+      <div className="rq-banner">
+        Ces créneaux ne sont pas confirmés. Spirit ACS vous proposera un rendez-vous après étude de votre demande.
+      </div>
+      <div className="rq-chips">
+        {AVAILABILITY_CHOICES.map((c) => {
+          const active = s.avail.includes(c)
+          return (
+            <button
+              key={c}
+              className={`rq-chip${active ? " is-active" : ""}`}
+              onClick={() => dispatch({ type: "toggle", field: "avail", value: c })}
+            >
+              {c}
+            </button>
+          )
+        })}
+      </div>
+      <div className="rq-field" style={{ marginTop: 14 }}>
+        <label htmlFor="avail-note">Précisez si besoin</label>
+        <textarea
+          id="avail-note"
+          rows={3}
+          placeholder="Ex. plutôt en fin de journée, semaine prochaine…"
+          value={s.availNote}
+          onChange={(e) => patch({ availNote: e.target.value })}
+        />
+      </div>
+    </section>
+  )
+}
+
+function CoordonneesStep({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+  return (
+    <section>
+      <StepIntro title="Vos coordonnées" sub="Pour que Spirit ACS puisse vous recontacter." />
+      <div className="rq-seg">
+        {(["particulier", "professionnel"] as const).map((t) => (
+          <button
+            key={t}
+            className={`rq-seg-btn${s.customerType === t ? " is-active" : ""}`}
+            onClick={() => patch({ customerType: t })}
+          >
+            {t === "particulier" ? "Particulier" : "Professionnel"}
+          </button>
+        ))}
+      </div>
+
+      <div className="rq-row">
+        <div className="rq-field">
+          <label htmlFor="fn">Prénom</label>
+          <input id="fn" type="text" autoComplete="given-name" value={s.firstName} onChange={(e) => patch({ firstName: e.target.value })} />
+        </div>
+        <div className="rq-field">
+          <label htmlFor="ln">Nom</label>
+          <input id="ln" type="text" autoComplete="family-name" value={s.lastName} onChange={(e) => patch({ lastName: e.target.value })} />
+        </div>
+      </div>
+      <div className="rq-field">
+        <label htmlFor="tel">Téléphone</label>
+        <input id="tel" type="tel" inputMode="tel" autoComplete="tel" value={s.phone} onChange={(e) => patch({ phone: e.target.value })} />
+      </div>
+      <div className="rq-field">
+        <label htmlFor="mail">Email</label>
+        <input id="mail" type="email" inputMode="email" autoComplete="email" value={s.email} onChange={(e) => patch({ email: e.target.value })} />
+      </div>
+      {s.customerType === "professionnel" && (
+        <div className="rq-field">
+          <label htmlFor="siret">SIREN / SIRET ou numéro BCE</label>
+          <input id="siret" type="text" inputMode="numeric" value={s.legalNumber} onChange={(e) => patch({ legalNumber: e.target.value })} />
+          <p className="rq-hint">SIREN ou SIRET en France, numéro BCE en Belgique.</p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function RecapStep({
+  s,
+  dispatch,
+  family,
+  uploader,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  family?: Family
+  uploader: UsePhotoUploads
+}) {
+  const steps = stepsFor(s.entry)
+  const go = (key: string) => dispatch({ type: "goto", i: steps.indexOf(key), fromSummary: true })
+  if (!family) return null
+
+  const optionLabels = family.options.filter((o) => s.options.includes(o.id)).map((o) => o.label)
+  const est = computeEstimate({
+    family,
+    vehType: s.vehType,
+    formulas: s.formulas,
+    inspection: s.inspection,
+    cleaningLevel: s.cleaningLevel,
+    cleaningZone: s.cleaningZone,
+    options: s.options,
+  } as FlowSelection)
+
+  const selectedByGroup =
+    family.kind === "formulas"
+      ? family.formulaGroups
+          .map((g, gi) => {
+            const label = s.formulas[gi]
+            if (!label) return null
+            const f = g.formulas.find((x) => x.label === label)
+            return { group: g.title ?? "Formule", label, price: f ? priceText(f) : "" }
+          })
+          .filter((x): x is { group: string; label: string; price: string } => x !== null)
+      : []
+
+  return (
+    <section>
+      <StepIntro title="Récapitulatif" sub="Vérifiez votre demande avant de l'envoyer. Chaque bloc reste modifiable." />
+
+      <RecapBlock label="Prestation" onEdit={s.entry === "catalog" ? () => go("prestation") : undefined}>
+        {family.title}
+      </RecapBlock>
+
+      <RecapBlock label="Formule" onEdit={() => go("formules")}>
+        {family.kind === "nettoyage" ? (
+          s.cleaningZone && s.cleaningLevel ? (
+            `${CLEANING_ZONE_LABEL[s.cleaningZone]} · ${CLEANING_LEVEL_LABEL[s.cleaningLevel]}`
+          ) : (
+            "Non précisée"
+          )
+        ) : family.kind === "devis" ? (
+          "Sur devis"
+        ) : s.inspection ? (
+          "À déterminer après inspection"
+        ) : selectedByGroup.length ? (
+          <div className="rq-recap-formulas">
+            {selectedByGroup.map((r) => (
+              <div key={r.group + r.label} className="rq-recap-formula">
+                <span className="rq-recap-fgroup">{r.group}</span>
+                <span className="rq-recap-fline">
+                  <span>{r.label}</span>
+                  <span className="rq-recap-fprice">{r.price}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          "Non précisée"
+        )}
+      </RecapBlock>
+
+      <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
+        {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
+      </RecapBlock>
+
+      {family.options.length > 0 && (
+        <RecapBlock label="Options" onEdit={() => go("options")}>
+          {optionLabels.length ? optionLabels.join(", ") : "Aucune"}
+        </RecapBlock>
+      )}
+
+      <RecapBlock label="Votre demande" onEdit={() => go("details")}>
+        {[...s.contextual, s.description].filter(Boolean).join(" — ") || "—"}
+      </RecapBlock>
+
+      <RecapBlock label="Photos" onEdit={() => go("photos")}>
+        {uploader.count ? `${uploader.count} photo(s)` : "Aucune"}
+      </RecapBlock>
+
+      <RecapBlock label="Disponibilités" onEdit={() => go("dispos")}>
+        {[s.avail.join(", "), s.availNote].filter(Boolean).join(" — ") || "—"}
+      </RecapBlock>
+
+      <RecapBlock label="Coordonnées" onEdit={() => go("coordonnees")}>
+        {`${s.firstName} ${s.lastName}`.trim() || "—"}
+        {s.customerType === "professionnel" ? " · Professionnel" : ""}
+        <br />
+        <span className="rq-recap-sub">{[s.phone, s.email].filter(Boolean).join(" · ")}</span>
+      </RecapBlock>
+
+      {/* Estimation — total calculé + estimation partielle (jamais un devis ferme). */}
+      <div className="rq-estimate">
+        <div className="rq-estimate-head">
+          <span className="rq-estimate-label">{est.partial ? "Estimation (à partir de)" : "Estimation"}</span>
+          <span className="rq-estimate-total">{estimateHeadline(est)}</span>
+        </div>
+        {est.lines.length > 0 && (
+          <ul className="rq-estimate-lines">
+            {est.lines.map((l, idx) => (
+              <li key={idx}>
+                <span>{l.label}</span>
+                <span>{l.value}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="rq-estimate-note">
+          Montant indicatif à confirmer par Spirit ACS après étude de votre demande. Aucun paiement à cette étape.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function RecapBlock({ label, onEdit, children }: { label: string; onEdit?: () => void; children: React.ReactNode }) {
+  return (
+    <div className="rq-recap">
+      <div className="rq-recap-top">
+        <span className="rq-recap-label">{label}</span>
+        {onEdit && (
+          <button className="rq-recap-edit" onClick={onEdit}>
+            Modifier
+          </button>
+        )}
+      </div>
+      <div className="rq-recap-val">{children}</div>
+    </div>
+  )
+}
+
+function Confirmation({
+  phase,
+  onReset,
+}: {
+  phase: "form" | "success" | "partial"
+  dispatch: React.Dispatch<Action>
+  onReset: () => void
+}) {
+  return (
+    <div className="rq-confirm">
+      <span className="rq-confirm-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      </span>
+      <h2 className="rq-title rq-confirm-h">Votre demande a bien été envoyée</h2>
+      <p className="rq-confirm-t">
+        Merci. Spirit ACS va étudier votre demande et vous recontactera pour confirmer votre rendez-vous
+        {phase === "partial" ? ". Certaines photos n'ont pas pu être envoyées, mais votre demande est bien enregistrée." : "."}
+      </p>
+      <p className="rq-confirm-meta">Réponse généralement sous 48 h ouvrées · Aucun paiement à ce stade.</p>
+      <button className="rq-btn rq-btn-ghost" onClick={onReset}>
+        Faire une autre demande
+      </button>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  ICONS (silhouettes automobiles — aucun logo de marque)                     */
+/* -------------------------------------------------------------------------- */
+
+const ICON_SVG = {
+  viewBox: "0 0 48 30",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+}
+
+function CitadineIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <path d="M7 23 L7 19 L10 17.5 L14.5 12.5 Q15.4 11.5 17 11.5 L25 11.5 Q26.6 11.5 27.6 12.8 L31 17.5 L40 18 L40 23" />
+      <path d="M7 23 L9.1 23 A4.4 4.4 0 0 1 17.9 23 L29.1 23 A4.4 4.4 0 0 1 37.9 23 L40 23" />
+      <circle cx="13.5" cy="23" r="3.3" />
+      <circle cx="33.5" cy="23" r="3.3" />
+    </svg>
+  )
+}
+
+function BerlineIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <path d="M4 23 L4 19.5 L9 17.5 L16 13.5 L28 13.5 L33 16.5 L38 17.8 L44 18 L44 23" />
+      <path d="M4 23 L8.6 23 A4.4 4.4 0 0 1 17.4 23 L31.6 23 A4.4 4.4 0 0 1 40.4 23 L44 23" />
+      <circle cx="13" cy="23" r="3.3" />
+      <circle cx="36" cy="23" r="3.3" />
+    </svg>
+  )
+}
+
+function SuvIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <path d="M6 22 L6 15 L9 13 L12.5 8.5 Q13.2 7.5 14.6 7.5 L31 7.5 Q32.5 7.5 33.5 9 L37 13 L42 14 L42 22" />
+      <path d="M6 22 L9 22 A5 5 0 0 1 19 22 L29 22 A5 5 0 0 1 39 22 L42 22" />
+      <circle cx="14" cy="22" r="3.8" />
+      <circle cx="34" cy="22" r="3.8" />
+    </svg>
+  )
+}
+
+function MonospaceIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <path d="M5 22.5 L5 18 L7 16.5 L14 8 Q14.6 7.2 16 7.2 L36 7.2 Q37.5 7.2 38 8.6 L41 13 L43 14 L43 22.5" />
+      <path d="M5 22.5 L8.6 22.5 A4.4 4.4 0 0 1 17.4 22.5 L30.6 22.5 A4.4 4.4 0 0 1 39.4 22.5 L43 22.5" />
+      <circle cx="13" cy="22.5" r="3.3" />
+      <circle cx="35" cy="22.5" r="3.3" />
+    </svg>
+  )
+}
+
+function VanIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <path d="M4 23 L4 12 L6.5 9 Q7 8 8.5 8 L44 8 L44 23" />
+      <path d="M4 23 L7.6 23 A4.4 4.4 0 0 1 16.4 23 L32.6 23 A4.4 4.4 0 0 1 41.4 23 L44 23" />
+      <circle cx="12" cy="23" r="3.3" />
+      <circle cx="37" cy="23" r="3.3" />
+    </svg>
+  )
+}
+
+function MotoIcon() {
+  return (
+    <svg {...ICON_SVG}>
+      <circle cx="10" cy="20" r="4.2" />
+      <circle cx="38" cy="20" r="4.2" />
+      <path d="M10 20 L19 20 L23 12.5 L30 12.5" />
+      <path d="M23 12.5 L27 20 L34 20" />
+      <path d="M30 12.5 L34 9 L37.5 9.6" />
+      <path d="M13.5 20 L17.5 13.5 L23 13.5" />
+    </svg>
+  )
+}
+
+const VEHICLE_ICONS: Record<string, () => React.ReactElement> = {
+  Citadine: CitadineIcon,
+  Berline: BerlineIcon,
+  "SUV / 4x4": SuvIcon,
+  Monospace: MonospaceIcon,
+  "Utilitaire / Van": VanIcon,
+  "Moto / Scooter": MotoIcon,
+}
+
+function VehicleIcon({ type }: { type: string }) {
+  const Ic = VEHICLE_ICONS[type] ?? CitadineIcon
+  return <Ic />
+}
+
+/* -------------------------------------------------------------------------- */
+/*  CSS — reprend la maquette validée, adapté à l'intégration (pas de cadre    */
+/*  « téléphone » plein écran : le parcours s'insère dans le panneau devis).   */
+/* -------------------------------------------------------------------------- */
+
+const css = `
+.rq-flow{ width:100%; }
+.rq-phone{
+  --navy:#06131c; --navy2:#0e2b3b; --navy3:#123a4d;
+  --teal:#17b3c9; --pink:#e51e7a; --pink2:#c4136a;
+  --paper:#eef2f4; --fg:#f4f8fa; --muted:#9fb1bc; --line:rgba(255,255,255,.10);
+  width:100%; color:var(--fg);
+  font-family:var(--font-sans),system-ui,sans-serif;
+  display:flex; flex-direction:column; position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+.rq-title{ font-family:var(--font-osw),"Oswald",system-ui,sans-serif; text-transform:uppercase; font-weight:700; line-height:1; letter-spacing:.01em; margin:0; }
+.rq-eyebrow{ font-family:var(--font-osw),"Oswald",system-ui,sans-serif; text-transform:uppercase; letter-spacing:.2em; font-weight:600; font-size:11px; color:var(--teal); margin:0; }
+.rq-h2{ font-size:24px; color:#fff; }
+.rq-sub{ margin:8px 0 0; font-size:14px; line-height:1.5; color:var(--muted); }
+.rq-hint{ margin:10px 0 0; font-size:12.5px; color:var(--muted); }
+.rq-textlink{ background:none; border:none; color:var(--teal); font-size:13.5px; font-weight:600; cursor:pointer; padding:0; }
+.rq-textlink:hover{ text-decoration:underline; }
+
+/* BUTTONS */
+.rq-btn{ display:flex; align-items:center; justify-content:center; width:100%; height:52px; border:none; border-radius:12px; font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.06em; font-weight:600; font-size:15px; cursor:pointer; }
+.rq-btn-pink{ background:var(--pink); color:#fff; box-shadow:0 12px 30px -14px rgba(229,30,122,.9); }
+.rq-btn-pink:disabled{ opacity:.4; box-shadow:none; cursor:not-allowed; }
+.rq-btn-ghost{ background:rgba(255,255,255,.06); color:var(--fg); border:1px solid rgba(23,179,201,.55); }
+
+/* HEADER */
+.rq-head{ display:grid; grid-template-columns:40px 1fr 40px; align-items:center; gap:8px; padding-bottom:12px; }
+.rq-icon-btn{ width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--fg); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.rq-icon-btn:disabled{ opacity:.3; cursor:not-allowed; }
+.rq-icon-btn svg{ width:20px; height:20px; }
+.rq-head-mid{ text-align:center; }
+.rq-head-step{ display:block; font-size:11px; color:var(--teal); font-family:var(--font-osw),"Oswald",sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+.rq-head-label{ display:block; font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:14px; color:#fff; letter-spacing:.03em; }
+.rq-progress{ grid-column:1 / -1; height:2px; margin-top:12px; background:rgba(255,255,255,.08); }
+.rq-progress span{ display:block; height:100%; background:var(--teal); transition:width .3s ease; }
+
+/* CONTENT + FOOTER */
+.rq-scroll{ padding:20px 0 4px; }
+.rq-intro{ margin-bottom:18px; }
+.rq-foot{ padding:16px 0 0; margin-top:18px; border-top:1px solid var(--line); }
+.rq-foot-legal{ margin:9px 0 0; font-size:11px; line-height:1.4; color:var(--muted); text-align:center; }
+.rq-foot-alt{ display:block; width:100%; text-align:center; margin-top:12px; }
+
+/* ALERTS */
+.rq-alert{ margin:0 0 12px; padding:11px 13px; border-radius:11px; font-size:13px; line-height:1.4; background:rgba(229,30,122,.1); border:1px solid rgba(229,30,122,.4); color:#f7c9dd; }
+.rq-alert-warn{ background:rgba(230,160,30,.1); border-color:rgba(230,160,30,.4); color:#f2d49b; }
+
+/* PRESTATION CARDS */
+.rq-cards{ display:flex; flex-direction:column; gap:11px; }
+.rq-card{ position:relative; border:1px solid var(--line); border-radius:14px; overflow:hidden; height:104px; background:none; cursor:pointer; padding:0; text-align:left; }
+.rq-card.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); }
+.rq-card-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.rq-card-veil{ position:absolute; inset:0; background:linear-gradient(90deg, rgba(2,9,14,.86) 6%, rgba(2,9,14,.35) 62%, rgba(2,9,14,.15) 100%); }
+.rq-card-body{ position:absolute; left:15px; bottom:0; top:0; z-index:2; display:flex; flex-direction:column; justify-content:center; gap:4px; right:52px; }
+.rq-card-title{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:16px; line-height:1.05; color:#fff; }
+.rq-card-price{ font-size:12.5px; font-weight:600; color:var(--teal); }
+.rq-card-check{ position:absolute; top:12px; right:12px; z-index:3; width:24px; height:24px; border-radius:50%; background:var(--teal); color:var(--navy); font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+/* INCLUDED / FORMULES */
+.rq-included{ background:var(--navy2); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+.rq-included-h{ margin:0 0 8px; font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.1em; font-size:11px; color:var(--teal); }
+.rq-included ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:7px; }
+.rq-included li{ position:relative; padding-left:18px; font-size:13.5px; line-height:1.4; color:var(--paper); }
+.rq-included li::before{ content:""; position:absolute; left:0; top:7px; width:7px; height:7px; border-radius:50%; background:var(--teal); }
+.rq-fgroup{ margin-bottom:16px; }
+.rq-fgroup-title{ margin:0 0 3px; font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:14px; color:#fff; letter-spacing:.04em; }
+.rq-fgroup-note{ margin:0 0 10px; font-size:12px; color:var(--muted); }
+.rq-formulas{ display:flex; flex-direction:column; gap:9px; }
+.rq-formula{ display:flex; align-items:center; gap:12px; text-align:left; background:var(--navy2); border:1px solid var(--line); border-radius:12px; padding:13px 14px; cursor:pointer; }
+.rq-formula.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); background:var(--navy3); }
+.rq-formula-main{ flex:1; display:flex; flex-direction:column; gap:3px; }
+.rq-formula-label{ font-size:14px; font-weight:600; color:#fff; line-height:1.2; }
+.rq-formula-note{ font-size:11.5px; color:var(--muted); line-height:1.35; }
+.rq-formula-price{ flex:0 0 auto; font-family:var(--font-osw),"Oswald",sans-serif; font-weight:600; font-size:14px; color:var(--teal); white-space:nowrap; }
+.rq-devis-card{ background:var(--navy2); border:1px solid var(--line); border-radius:12px; padding:16px; }
+.rq-devis-badge{ display:inline-block; margin-bottom:8px; padding:4px 10px; border-radius:20px; background:rgba(23,179,201,.14); color:var(--teal); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; }
+.rq-devis-card p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--paper); }
+.rq-caveat{ margin:14px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted); padding:11px 13px; background:rgba(255,255,255,.03); border-left:2px solid var(--teal); border-radius:0 8px 8px 0; }
+.rq-softchoice{ margin-top:12px; width:100%; text-align:left; background:none; border:1px dashed var(--line); border-radius:12px; padding:13px 14px; color:var(--paper); font-size:13.5px; cursor:pointer; }
+.rq-softchoice.is-active{ border-style:solid; border-color:var(--teal); color:#fff; }
+
+/* VEHICLE TYPES */
+.rq-types{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; margin-bottom:20px; }
+.rq-type{ display:flex; flex-direction:column; align-items:center; gap:7px; padding:14px 6px; background:var(--navy2); border:1px solid var(--line); border-radius:12px; cursor:pointer; color:var(--paper); }
+.rq-type.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); background:var(--navy3); color:#fff; }
+.rq-type-ic{ color:var(--muted); display:flex; align-items:center; justify-content:center; height:30px; }
+.rq-type.is-active .rq-type-ic{ color:var(--teal); }
+.rq-type-ic svg{ width:46px; height:29px; }
+.rq-type-label{ font-size:11.5px; font-weight:600; text-align:center; line-height:1.15; }
+
+/* FIELDS */
+.rq-field{ margin-bottom:14px; display:flex; flex-direction:column; }
+.rq-field label{ margin-bottom:6px; font-size:12.5px; font-weight:600; color:var(--paper); }
+.rq-field input, .rq-field textarea{ width:100%; background:var(--navy2); border:1px solid var(--line); border-radius:11px; padding:13px 14px; color:#fff; font-size:15px; font-family:inherit; -webkit-appearance:none; }
+.rq-field input:focus, .rq-field textarea:focus{ outline:none; border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); }
+.rq-field textarea{ resize:vertical; line-height:1.5; }
+.rq-field input::placeholder, .rq-field textarea::placeholder{ color:rgba(159,177,188,.6); }
+.rq-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* OPTIONS */
+.rq-opts{ display:flex; flex-direction:column; gap:10px; }
+.rq-opt{ display:flex; align-items:center; gap:12px; text-align:left; background:var(--navy2); border:1px solid var(--line); border-radius:12px; padding:13px 14px; cursor:pointer; }
+.rq-opt.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); background:var(--navy3); }
+.rq-opt-check{ flex:0 0 auto; width:26px; height:26px; border-radius:50%; border:1px solid var(--teal); color:var(--teal); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; }
+.rq-opt.is-active .rq-opt-check{ background:var(--teal); color:var(--navy); }
+.rq-opt-main{ flex:1; display:flex; flex-direction:column; gap:2px; }
+.rq-opt-label{ font-size:14px; font-weight:600; color:#fff; }
+.rq-opt-benefit{ font-size:12px; color:var(--muted); }
+.rq-opt-price{ flex:0 0 auto; font-family:var(--font-osw),"Oswald",sans-serif; font-weight:600; font-size:13.5px; color:var(--teal); white-space:nowrap; }
+
+/* CONTEXTUAL / CHIPS / BANNER */
+.rq-ctx{ margin-bottom:18px; }
+.rq-ctx-q{ margin:0 0 10px; font-size:13.5px; font-weight:600; color:var(--paper); }
+.rq-chips{ display:flex; flex-wrap:wrap; gap:9px; }
+.rq-chip{ padding:10px 15px; border-radius:22px; background:var(--navy2); border:1px solid var(--line); color:var(--paper); font-size:13.5px; cursor:pointer; }
+.rq-chip.is-active{ border-color:var(--teal); background:rgba(23,179,201,.14); color:#fff; }
+.rq-banner{ margin-bottom:16px; padding:12px 14px; border-radius:11px; background:rgba(23,179,201,.1); border:1px solid rgba(23,179,201,.3); color:var(--paper); font-size:12.5px; line-height:1.45; }
+
+/* PHOTOS */
+.rq-drop{ width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; padding:34px 20px; background:var(--navy2); border:1.5px dashed rgba(255,255,255,.18); border-radius:14px; cursor:pointer; color:var(--fg); }
+.rq-drop-ic{ color:var(--teal); }
+.rq-drop-ic svg{ width:34px; height:34px; }
+.rq-drop-t{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; font-weight:600; font-size:15px; }
+.rq-drop-s{ font-size:12px; color:var(--muted); }
+.rq-photos{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+.rq-photo{ position:relative; aspect-ratio:1; border-radius:11px; overflow:hidden; background:var(--navy2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+.rq-photo img{ width:100%; height:100%; object-fit:cover; }
+.rq-photo.is-error{ border-color:var(--pink); }
+.rq-photo-err{ color:var(--pink); font-size:20px; font-weight:700; }
+.rq-photo-msg{ position:absolute; left:0; right:0; bottom:0; padding:4px 6px; background:rgba(196,19,106,.9); color:#fff; font-size:9.5px; line-height:1.2; text-align:center; }
+.rq-photo-x{ position:absolute; top:5px; right:5px; width:22px; height:22px; border-radius:50%; background:rgba(2,9,14,.7); border:none; color:#fff; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.rq-photo-add{ aspect-ratio:1; border-radius:11px; background:var(--navy2); border:1.5px dashed rgba(255,255,255,.18); color:var(--teal); font-size:28px; cursor:pointer; }
+@media (prefers-reduced-motion: reduce){ .rq-progress span{ transition:none; } }
+
+/* SEGMENTED */
+.rq-seg{ display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; background:var(--navy2); border:1px solid var(--line); border-radius:12px; margin-bottom:18px; }
+.rq-seg-3{ grid-template-columns:1fr 1fr 1fr; margin-bottom:0; }
+.rq-seg-btn{ height:40px; border-radius:9px; background:none; border:none; color:var(--muted); font-size:13.5px; font-weight:600; cursor:pointer; padding:0 4px; }
+.rq-seg-btn.is-active{ background:var(--teal); color:var(--navy); }
+
+/* RECAP */
+.rq-recap{ border:1px solid var(--line); border-radius:12px; padding:13px 14px; margin-bottom:10px; background:var(--navy2); }
+.rq-recap-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
+.rq-recap-label{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.1em; font-size:11px; color:var(--teal); }
+.rq-recap-edit{ background:none; border:none; color:var(--fg); font-size:12.5px; text-decoration:underline; cursor:pointer; padding:0; }
+.rq-recap-val{ font-size:14px; line-height:1.45; color:#fff; }
+.rq-recap-sub{ color:var(--muted); font-size:13px; }
+.rq-recap-formulas{ display:flex; flex-direction:column; gap:11px; }
+.rq-recap-formula{ display:flex; flex-direction:column; gap:2px; }
+.rq-recap-fgroup{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.08em; font-size:10.5px; color:var(--muted); }
+.rq-recap-fline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.rq-recap-fprice{ flex:0 0 auto; font-family:var(--font-osw),"Oswald",sans-serif; font-weight:600; color:var(--teal); white-space:nowrap; }
+
+/* ESTIMATE */
+.rq-estimate{ margin-top:6px; border:1px solid rgba(23,179,201,.35); border-radius:12px; padding:14px 15px; background:rgba(23,179,201,.06); }
+.rq-estimate-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.rq-estimate-label{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.08em; font-size:12px; color:var(--paper); }
+.rq-estimate-total{ font-family:var(--font-osw),"Oswald",sans-serif; font-weight:700; font-size:22px; color:#fff; white-space:nowrap; }
+.rq-estimate-lines{ list-style:none; margin:12px 0 0; padding:12px 0 0; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:7px; }
+.rq-estimate-lines li{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; font-size:13px; color:var(--paper); }
+.rq-estimate-lines li span:last-child{ color:var(--teal); font-weight:600; white-space:nowrap; }
+.rq-estimate-note{ margin:12px 0 0; font-size:11.5px; line-height:1.45; color:var(--muted); }
+
+/* CONFIRMATION */
+.rq-confirm{ display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 10px; gap:6px; }
+.rq-confirm-ic{ width:74px; height:74px; border-radius:50%; background:rgba(23,179,201,.14); border:1px solid rgba(23,179,201,.4); color:var(--teal); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+.rq-confirm-ic svg{ width:36px; height:36px; }
+.rq-confirm-h{ font-size:24px; color:#fff; }
+.rq-confirm-t{ margin:10px 0 10px; font-size:14px; line-height:1.55; color:var(--paper); max-width:340px; }
+.rq-confirm-meta{ margin:0 0 26px; font-size:12px; line-height:1.5; color:var(--muted); max-width:320px; }
+`
