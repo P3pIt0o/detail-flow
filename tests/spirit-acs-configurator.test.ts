@@ -22,13 +22,14 @@ import { SPIRIT_SERVICES } from "@/components/custom-sites/spirit-acs/seo-conten
  * 1 an sur devis).
  */
 describe("configurateur — source unique & projection", () => {
-  it("liste exactement les 5 familles commerciales (céramique intégrée au polissage, aucune inventée)", () => {
+  it("liste les familles commerciales depuis la source unique (céramique intégrée au polissage, aucune inventée)", () => {
     const slugs = listConfiguratorServices().map((s) => s.slug)
     // La « protection céramique » n'est PAS une entrée autonome (ramenée dans
     // « Polissage & protection céramique »), mais reste dans SPIRIT_SERVICES
-    // (page SEO dédiée conservée).
+    // (page SEO dédiée conservée). Les autres prestations proviennent toutes de
+    // la source éditoriale unique — leur nombre suit donc SPIRIT_SERVICES.
     expect(slugs).toEqual(SPIRIT_SERVICES.filter((s) => s.slug !== "protection-ceramique").map((s) => s.slug))
-    expect(slugs).toHaveLength(5)
+    expect(slugs).toHaveLength(SPIRIT_SERVICES.length - 1)
     expect(slugs).not.toContain("protection-ceramique")
     // Aucun slug inventé : tous proviennent de la source éditoriale unique.
     expect(slugs.every((slug) => SPIRIT_SERVICES.some((s) => s.slug === slug))).toBe(true)

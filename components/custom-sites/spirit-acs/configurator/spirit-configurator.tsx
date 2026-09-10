@@ -39,12 +39,15 @@ import {
   CLEANING_LEVEL_LABEL,
   CLEANING_ZONE_LABEL,
   computeEstimate,
+  ENTRETIEN_FLOOR,
+  ENTRETIEN_FREQUENCY_LABEL,
   estimateHeadline,
   euros,
   FAMILIES,
   familyKeyForSlug,
   type CleaningLevel,
   type CleaningZone,
+  type EntretienFrequency,
   type Family,
   type FlowSelection,
   getFamily,
@@ -76,6 +79,7 @@ type State = {
   inspection: boolean
   cleaningLevel: CleaningLevel | null
   cleaningZone: CleaningZone | null
+  entretienFrequency: EntretienFrequency | null
   vehType: string | null
   vehBrand: string
   vehModel: string
@@ -102,6 +106,7 @@ const initialState: State = {
   inspection: false,
   cleaningLevel: null,
   cleaningZone: null,
+  entretienFrequency: null,
   vehType: null,
   vehBrand: "",
   vehModel: "",
@@ -158,6 +163,8 @@ function reducer(state: State, action: Action): State {
         inspection: false,
         cleaningLevel: null,
         cleaningZone: null,
+        entretienFrequency: null,
+        vehType: null,
         options: [],
         contextual: [],
       }
@@ -247,6 +254,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         inspection: s.inspection,
         cleaningLevel: s.cleaningLevel,
         cleaningZone: s.cleaningZone,
+        entretienFrequency: s.entretienFrequency,
         options: s.options,
         description: s.description,
         contextual: s.contextual,
@@ -317,7 +325,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         ) : (
           <>
             <FlowHeader
-              stepKey={stepKey}
+              label={stepKey === "vehicule" && family?.kind === "textile" ? "Textile" : STEP_LABEL[stepKey]}
               humanStep={humanStep}
               total={totalUserSteps}
               canBack={s.i > 0}
@@ -369,13 +377,13 @@ const STEP_LABEL: Record<string, string> = {
 }
 
 function FlowHeader({
-  stepKey,
+  label,
   humanStep,
   total,
   canBack,
   onBack,
 }: {
-  stepKey: string
+  label: string
   humanStep: number
   total: number
   canBack: boolean
@@ -392,7 +400,7 @@ function FlowHeader({
         <span className="rq-head-step">
           Étape {humanStep} / {total}
         </span>
-        <span className="rq-head-label">{STEP_LABEL[stepKey]}</span>
+        <span className="rq-head-label">{label}</span>
       </div>
       <span aria-hidden="true" />
       <div className="rq-progress" aria-hidden="true">
@@ -429,9 +437,17 @@ function FlowFooter({
       ? "Enregistrer"
       : "Continuer"
   const showSkip = stepKey === "options" && s.options.length === 0
+  // Étapes obligatoires (questions 2, 3, 5, 7, 8) : indication claire tant
+  // qu'un champ requis manque. Neutre, non alarmant.
+  const hint = pending ? null : requiredHint(s, stepKey, family)
 
   return (
     <footer className="rq-foot">
+      {hint && (
+        <p className="rq-reqhint" role="status">
+          {hint}
+        </p>
+      )}
       <button className="rq-btn rq-btn-pink" disabled={disabled} onClick={() => (isRecap ? onSubmit() : dispatch({ type: "next" }))}>
         {showSkip ? "Continuer sans option" : primaryLabel}
       </button>
@@ -445,23 +461,61 @@ function FlowFooter({
   )
 }
 
-/** Validation minimale par étape (empêche d'avancer si champ requis manquant). */
+/**
+ * Validation par étape. Les questions OBLIGATOIRES du cahier des charges sont
+ * 2 (formules), 3 (véhicule / textile), 5 (votre demande), 7 (disponibilités)
+ * et 8 (coordonnées) : on empêche d'avancer tant qu'elles ne sont pas remplies.
+ * Les étapes 4 (options) et 6 (photos) restent facultatives.
+ */
 function canContinue(s: State, stepKey: string, family?: Family): boolean {
   switch (stepKey) {
     case "prestation":
       return s.serviceKey != null
-    case "formules":
+    case "formules": // Q2
       if (family?.kind === "nettoyage") return s.cleaningZone != null && s.cleaningLevel != null
-      return true
-    case "vehicule":
+      if (family?.kind === "entretien") return s.entretienFrequency != null
+      if (family?.kind === "formulas" || family?.kind === "textile")
+        return s.inspection || Object.keys(s.formulas).length > 0
+      return true // « devis » (PPF, moteur & échappement) : pas de formule à choisir
+    case "vehicule": // Q3
       return s.vehType != null
-    case "coordonnees": {
+    case "details": // Q5
+      return s.description.trim().length > 0 || s.contextual.length > 0
+    case "dispos": // Q7
+      return s.avail.length > 0 || s.availNote.trim().length > 0
+    case "coordonnees": { // Q8
       const base = s.firstName.trim() && s.lastName.trim() && /\S+@\S+\.\S+/.test(s.email) && s.phone.trim()
       const pro = s.customerType === "professionnel" ? s.legalNumber.trim().length > 0 : true
       return Boolean(base && pro)
     }
     default:
       return true
+  }
+}
+
+/** Message d'aide affiché tant qu'une étape obligatoire n'est pas complète. */
+function requiredHint(s: State, stepKey: string, family?: Family): string | null {
+  if (canContinue(s, stepKey, family)) return null
+  switch (stepKey) {
+    case "prestation":
+      return "Sélectionnez une prestation pour continuer."
+    case "formules":
+      if (family?.kind === "nettoyage") return "Choisissez le périmètre et la formule pour continuer."
+      if (family?.kind === "entretien") return "Choisissez la fréquence d'entretien pour continuer."
+      if (family?.kind === "textile") return "Choisissez un élément à nettoyer pour continuer."
+      return "Choisissez une formule (ou laissez Spirit ACS décider après inspection)."
+    case "vehicule":
+      return family?.kind === "textile"
+        ? "Indiquez le type de textile pour continuer."
+        : "Sélectionnez le type de véhicule pour continuer."
+    case "details":
+      return "Décrivez votre demande pour continuer."
+    case "dispos":
+      return "Indiquez au moins une disponibilité pour continuer."
+    case "coordonnees":
+      return "Renseignez vos coordonnées (nom, téléphone et email valides)."
+    default:
+      return null
   }
 }
 
@@ -490,7 +544,7 @@ function Step({
     case "formules":
       return <FormulesStep s={s} patch={patch} family={family} />
     case "vehicule":
-      return <VehiculeStep s={s} patch={patch} />
+      return <VehiculeStep s={s} patch={patch} family={family} />
     case "options":
       return <OptionsStep s={s} dispatch={dispatch} family={family} />
     case "details":
@@ -568,10 +622,15 @@ function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State
 
       {family.kind === "nettoyage" ? (
         <NettoyageChooser s={s} patch={patch} />
+      ) : family.kind === "entretien" ? (
+        <EntretienChooser s={s} patch={patch} />
       ) : family.kind === "devis" ? (
         <div className="rq-devis-card">
           <span className="rq-devis-badge">Sur devis</span>
-          <p>Cette prestation est établie sur devis, après étude de votre demande par Spirit ACS.</p>
+          <p>
+            Cette prestation est établie sur devis, après étude de votre demande par Spirit ACS. Précisez les zones et
+            options souhaitées aux étapes suivantes.
+          </p>
         </div>
       ) : (
         family.formulaGroups.map((g, gi) => (
@@ -674,7 +733,63 @@ function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
   )
 }
 
-function VehiculeStep({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+const ENTRETIEN_FREQS: EntretienFrequency[] = ["mensuel", "trimestriel"]
+
+function EntretienChooser({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+  return (
+    <div className="rq-fgroup">
+      <p className="rq-fgroup-title">Fréquence d&apos;entretien</p>
+      <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
+      <div className="rq-formulas">
+        {ENTRETIEN_FREQS.map((f) => {
+          const active = s.entretienFrequency === f
+          return (
+            <button
+              key={f}
+              className={`rq-formula${active ? " is-active" : ""}`}
+              onClick={() => patch({ entretienFrequency: f })}
+            >
+              <span className="rq-formula-main">
+                <span className="rq-formula-label">{ENTRETIEN_FREQUENCY_LABEL[f]}</span>
+                <span className="rq-formula-note">
+                  {f === "mensuel" ? "Une intervention par mois" : "Une intervention par trimestre"}
+                </span>
+              </span>
+              <span className="rq-formula-price">dès {euros(ENTRETIEN_FLOOR[f])}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const TEXTILE_TYPES = ["Canapé", "Fauteuil", "Chaises", "Sièges de véhicule", "Cuir", "Autre"] as const
+
+function TextileStep({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
+  return (
+    <section>
+      <StepIntro
+        title="Type de textile"
+        sub="Indiquez le principal élément à traiter. Le détail des tarifs est présenté à l'étape précédente."
+      />
+      <div className="rq-chips">
+        {TEXTILE_TYPES.map((t) => {
+          const active = s.vehType === t
+          return (
+            <button key={t} className={`rq-chip${active ? " is-active" : ""}`} onClick={() => patch({ vehType: t })}>
+              {t}
+            </button>
+          )
+        })}
+      </div>
+      <p className="rq-hint">Déplacement offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà.</p>
+    </section>
+  )
+}
+
+function VehiculeStep({ s, patch, family }: { s: State; patch: (p: Partial<State>) => void; family?: Family }) {
+  if (family?.kind === "textile") return <TextileStep s={s} patch={patch} />
   return (
     <section>
       <StepIntro title="Votre véhicule" sub="Sélectionnez le type, puis indiquez la marque et le modèle." />
@@ -982,11 +1097,12 @@ function RecapStep({
     inspection: s.inspection,
     cleaningLevel: s.cleaningLevel,
     cleaningZone: s.cleaningZone,
+    entretienFrequency: s.entretienFrequency,
     options: s.options,
   } as FlowSelection)
 
   const selectedByGroup =
-    family.kind === "formulas"
+    family.kind === "formulas" || family.kind === "textile"
       ? family.formulaGroups
           .map((g, gi) => {
             const label = s.formulas[gi]
@@ -1012,6 +1128,8 @@ function RecapStep({
           ) : (
             "Non précisée"
           )
+        ) : family.kind === "entretien" ? (
+          s.entretienFrequency ? ENTRETIEN_FREQUENCY_LABEL[s.entretienFrequency] : "Non précisée"
         ) : family.kind === "devis" ? (
           "Sur devis"
         ) : s.inspection ? (
@@ -1033,7 +1151,7 @@ function RecapStep({
         )}
       </RecapBlock>
 
-      <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
+      <RecapBlock label={family.kind === "textile" ? "Textile" : "Véhicule"} onEdit={() => go("vehicule")}>
         {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
       </RecapBlock>
 
@@ -1273,6 +1391,7 @@ const css = `
 .rq-foot{ padding:16px 0 0; margin-top:18px; border-top:1px solid var(--line); }
 .rq-foot-legal{ margin:9px 0 0; font-size:11px; line-height:1.4; color:var(--muted); text-align:center; }
 .rq-foot-alt{ display:block; width:100%; text-align:center; margin-top:12px; }
+.rq-reqhint{ margin:0 0 10px; font-size:12px; line-height:1.4; color:var(--teal); text-align:center; }
 
 /* ALERTS */
 .rq-alert{ margin:0 0 12px; padding:11px 13px; border-radius:11px; font-size:13px; line-height:1.4; background:rgba(229,30,122,.1); border:1px solid rgba(229,30,122,.4); color:#f7c9dd; }

@@ -48,9 +48,10 @@ export function SpiritPrestations({
           </h2>
           {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué). */}
           <p className="spirit-prose mt-4 max-w-3xl text-base text-[color:var(--spirit-muted)]">
-            Spirit ACS propose à Lagny-sur-Marne des prestations de nettoyage automobile, polissage, protection
-            céramique, PPF, rénovation des phares et detailing moto. Découvrez chaque service et trouvez la solution
-            adaptée à votre véhicule.
+            Spirit ACS propose à Lagny-sur-Marne et aux alentours des prestations de detailing automobile, nettoyage
+            intérieur et extérieur, nettoyage textile, polissage, protection céramique, PPF, personnalisation,
+            rénovation et entretien esthétique. Certaines prestations peuvent également être réalisées directement à
+            votre domicile. Découvrez chaque service et trouvez la solution adaptée à votre véhicule ou à vos textiles.
           </p>
         </Reveal>
 

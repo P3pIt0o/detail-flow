@@ -121,7 +121,7 @@ export function SpiritHero({
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[63%_34%] [filter:contrast(1.1)_saturate(1.07)_brightness(0.94)]"
+          className="object-cover object-[63%_34%] [filter:contrast(1.1)_saturate(1.07)_brightness(0.94)] lg:object-[50%_42%]"
         />
         {/* 1 · Vignettage radial : bords assombris, voiture lumineuse au centre. */}
         <div

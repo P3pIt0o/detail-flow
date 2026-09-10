@@ -14,8 +14,8 @@
 
 import { MapPin } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
-import { SPIRIT_SECTIONS } from "./tokens"
-import { SPIRIT_ZONE_TEXT } from "./seo-content"
+import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_ZONE_TEXT, SPIRIT_ZONE_TEXTILE_NOTE } from "./seo-content"
 
 export function SpiritZone({ cities, city }: { cities: string[]; city?: string | null }) {
   // Titre = ville réelle du tenant + « et alentours » (aucune géographie
@@ -51,6 +51,16 @@ export function SpiritZone({ cities, city }: { cities: string[]; city?: string |
                 ))}
               </ul>
             )}
+
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-[color:var(--spirit-muted)]/90">
+              {SPIRIT_ZONE_TEXTILE_NOTE}
+            </p>
+
+            <div className="mt-7 flex justify-center">
+              <a href={`#${SPIRIT_SECTIONS.demandeDevis}`} className={SPIRIT_ANCHOR_PRIMARY}>
+                Demander un devis
+              </a>
+            </div>
           </div>
         </Reveal>
       </div>

@@ -46,7 +46,7 @@ export type Option = {
 }
 
 /** Familles particulières nécessitant un rendu/tarif dédié. */
-export type FamilyKind = "nettoyage" | "formulas" | "devis"
+export type FamilyKind = "nettoyage" | "formulas" | "devis" | "textile" | "entretien"
 
 export type Family = {
   key: string
@@ -137,7 +137,34 @@ export function cleaningVehicleKey(vehType: string | null): CleaningVehicleKey |
 }
 
 /* -------------------------------------------------------------------------- */
-/*  FAMILLES DE PRESTATIONS (5 — céramique intégrée au polissage)             */
+/*  GRILLE ENTRETIEN RÉGULIER (officielle Spirit ACS — en centimes)           */
+/* -------------------------------------------------------------------------- */
+
+export type EntretienFrequency = "mensuel" | "trimestriel"
+
+const ENTRETIEN: Record<EntretienFrequency, Record<CleaningVehicleKey, number>> = {
+  mensuel: { citadine: 7500, berline: 8000, suv: 9000, monospace5: 10000 },
+  trimestriel: { citadine: 9500, berline: 10000, suv: 11000, monospace5: 13000 },
+}
+
+export const ENTRETIEN_FLOOR: Record<EntretienFrequency, number> = {
+  mensuel: ENTRETIEN.mensuel.citadine,
+  trimestriel: ENTRETIEN.trimestriel.citadine,
+}
+
+export const ENTRETIEN_FREQUENCY_LABEL: Record<EntretienFrequency, string> = {
+  mensuel: "Entretien mensuel",
+  trimestriel: "Entretien trimestriel",
+}
+
+/** Prix entretien (centimes) pour une fréquence + gabarit, ou `null` hors grille. */
+export function entretienBaseCents(freq: EntretienFrequency, vk: CleaningVehicleKey | null): number | null {
+  if (!vk) return null
+  return ENTRETIEN[freq][vk]
+}
+
+/* -------------------------------------------------------------------------- */
+/*  FAMILLES DE PRESTATIONS                                                    */
 /* -------------------------------------------------------------------------- */
 
 export const FAMILIES: Family[] = [
@@ -146,7 +173,7 @@ export const FAMILIES: Family[] = [
     serviceSlug: "nettoyage-automobile",
     title: "Nettoyage intérieur et extérieur",
     tagline: "Habitacle et extérieur nettoyés avec soin",
-    priceLabel: "dès 90 €",
+    priceLabel: "dès 50 €",
     image: `${BASE}/nettoyage-interieur-cuir.jpg`,
     alt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
     kind: "nettoyage",
@@ -219,18 +246,25 @@ export const FAMILIES: Family[] = [
     alt: "Avant de Porsche 911 aux surfaces exposées préservées",
     kind: "devis",
     included: [
-      "Film transparent sur les zones exposées (avant, arêtes, seuils)",
-      "Limitation des impacts sur les surfaces sensibles",
+      "PPF : film transparent sur les zones exposées de la carrosserie",
+      "Personnalisation : peinture d'étriers, passages de roues, dépose covering…",
       "Pose et personnalisation définies selon le véhicule",
     ],
     formulaGroups: [],
-    caveat: "La pose PPF et la personnalisation sont réalisées sur devis, après analyse des zones à traiter.",
+    caveat:
+      "Le PPF est réalisé sur devis, après analyse des zones à traiter. Sélectionnez ci-dessous les zones PPF et/ou les prestations de personnalisation souhaitées.",
     options: [
+      { id: "peinture-etriers", label: "Peinture d'étriers", benefit: "Étriers repeints, aspect sportif", price: "200 €", priceCents: 20000, kind: "exact" },
+      { id: "peinture-etriers-sticker", label: "Peinture d'étriers avec sticker", benefit: "Étriers repeints + logo/sticker", price: "220 €", priceCents: 22000, kind: "exact" },
+      { id: "passages-roues", label: "Traitement des passages de roues", benefit: "Passages de roues protégés et nets", price: "Sur devis", kind: "quote" },
+      { id: "depose-covering", label: "Dépose de covering", benefit: "Retrait du covering sans abîmer la peinture", price: "Sur devis", kind: "quote" },
+      { id: "destickage", label: "Destickage / dépose d'autocollants", benefit: "Retrait des autocollants et adhésifs", price: "Sur devis", kind: "quote" },
+      { id: "ceramique-jantes", label: "Céramique jantes", benefit: "Jantes protégées, entretien facilité", price: "Sur devis", kind: "quote" },
       { id: "ceramique", label: "Protection céramique", benefit: "Entretien facilité en complément", price: "Sur devis", kind: "quote" },
     ],
     contextual: {
-      question: "Zones à protéger (indicatif) :",
-      choices: ["Avant complet", "Arêtes et seuils", "Éléments ciblés", "À définir avec Spirit ACS"],
+      question: "Zones PPF souhaitées :",
+      choices: ["Phares", "Montants de portes", "Vitres", "Bas de coffre", "Pare-pierre latéraux"],
       multi: true,
     },
   },
@@ -277,6 +311,85 @@ export const FAMILIES: Family[] = [
       { id: "visiere", label: "Céramique visière de casque (~1 an)", benefit: "Vision facilitée par tous temps", price: "20 €", priceCents: 2000, kind: "exact" },
       { id: "plastique", label: "Rénovation / céramique plastique (~2 ans)", benefit: "Plastiques ravivés et protégés", price: "20 €", priceCents: 2000, kind: "exact" },
     ],
+  },
+  {
+    key: "nettoyage-textile",
+    serviceSlug: "nettoyage-textile",
+    title: "Nettoyage textile",
+    tagline: "Canapés, fauteuils, chaises et sièges nettoyés en profondeur",
+    priceLabel: "dès 20 €",
+    image: `${BASE}/nettoyage-textile.png`,
+    alt: "Canapé et textiles d'ameublement nettoyés en profondeur par Spirit ACS",
+    kind: "textile",
+    included: [
+      "Aspiration puis nettoyage en profondeur des textiles",
+      "Canapés, fauteuils, chaises et sièges de véhicule",
+      "Soin et protection du cuir en complément si besoin",
+    ],
+    formulaGroups: [
+      {
+        title: "Élément à nettoyer",
+        note: "Déplacement offert à moins de 10 km, puis 0,70 €/km au-delà.",
+        formulas: [
+          { label: "Canapé 2 places", priceCents: 8000, kind: "exact" },
+          { label: "Canapé 3 places", priceCents: 9000, kind: "exact" },
+          { label: "Canapé 4 places ou canapé d'angle", priceCents: 11000, kind: "exact" },
+          { label: "Canapé 5 places ou canapé d'angle", priceCents: 12000, kind: "exact" },
+          { label: "Fauteuil", priceCents: 5000, kind: "exact" },
+          { label: "Chaise", priceCents: 2000, kind: "exact" },
+          { label: "À partir de 5 chaises", priceCents: 1500, kind: "from", note: "15 € par chaise" },
+          { label: "Pressing des sièges (véhicule)", priceCents: 5000, kind: "exact" },
+          { label: "Nettoyage cuir", priceCents: 5000, kind: "exact" },
+        ],
+      },
+    ],
+    caveat:
+      "Le tarif dépend des éléments à traiter et de leur état ; il est confirmé par Spirit ACS après étude. Déplacement offert à moins de 10 km, puis 0,70 €/km.",
+    options: [
+      { id: "hydratation-cuir", label: "Hydratation du cuir", benefit: "Cuir nourri et protégé", price: "+30 €", priceCents: 3000, kind: "exact" },
+    ],
+  },
+  {
+    key: "entretien-regulier",
+    serviceSlug: "entretien-regulier",
+    title: "Entretien régulier",
+    tagline: "Véhicule entretenu toute l'année à tarif préférentiel",
+    priceLabel: "dès 75 €",
+    image: `${BASE}/nettoyage-interieur-cuir.jpg`,
+    alt: "Véhicule entretenu régulièrement par Spirit ACS",
+    kind: "entretien",
+    included: [
+      "Entretien récurrent à tarif préférentiel",
+      "Fréquence mensuelle ou trimestrielle au choix",
+      "Véhicule maintenu propre toute l'année",
+    ],
+    formulaGroups: [],
+    caveat:
+      "L'entretien régulier maintient votre véhicule propre toute l'année à un tarif préférentiel. Le tarif dépend de la fréquence et du type de véhicule.",
+    options: [],
+  },
+  {
+    key: "moteur-echappement",
+    serviceSlug: "nettoyage-moteur",
+    title: "Moteur & échappement",
+    tagline: "Nettoyage moteur et rénovation d'échappement",
+    priceLabel: "Sur devis",
+    image: `${BASE}/echappement-titane.jpg`,
+    alt: "Sorties d'échappement en titane rénovées par Spirit ACS",
+    kind: "devis",
+    included: [
+      "Nettoyage du compartiment moteur",
+      "Rénovation des sorties d'échappement",
+      "Intervention adaptée après analyse",
+    ],
+    formulaGroups: [],
+    caveat: "Ces prestations sont réalisées sur devis, après analyse de l'état du véhicule.",
+    options: [],
+    contextual: {
+      question: "Prestation souhaitée :",
+      choices: ["Nettoyage moteur", "Rénovation d'échappement"],
+      multi: true,
+    },
   },
 ]
 
@@ -339,6 +452,8 @@ export type FlowSelection = {
   /** Nettoyage : niveau + zone. */
   cleaningLevel: CleaningLevel | null
   cleaningZone: CleaningZone | null
+  /** Entretien régulier : fréquence choisie. */
+  entretienFrequency: EntretienFrequency | null
   /** Ids d'options sélectionnées. */
   options: string[]
 }
@@ -388,7 +503,7 @@ export function computeEstimate(sel: FlowSelection): Estimate {
         if (sel.vehType === "Monospace") partial = true
       }
     }
-  } else if (family.kind === "formulas") {
+  } else if (family.kind === "formulas" || family.kind === "textile") {
     sel.family.formulaGroups.forEach((g, gi) => {
       const label = sel.formulas[gi]
       if (!label) return
@@ -408,8 +523,23 @@ export function computeEstimate(sel: FlowSelection): Estimate {
       partial = true
       lines.push({ label: "Formule", value: "À déterminer après inspection" })
     }
+  } else if (family.kind === "entretien") {
+    const freq = sel.entretienFrequency
+    if (freq) {
+      const vk = cleaningVehicleKey(sel.vehType)
+      const base = entretienBaseCents(freq, vk)
+      if (base == null) {
+        partial = true
+        lines.push({ label: ENTRETIEN_FREQUENCY_LABEL[freq], value: "Sur devis" })
+      } else {
+        total += base
+        priced = true
+        lines.push({ label: ENTRETIEN_FREQUENCY_LABEL[freq], value: euros(base) })
+        if (sel.vehType === "Monospace") partial = true
+      }
+    }
   } else {
-    // Famille « sur devis » (PPF & personnalisation).
+    // Famille « sur devis » (PPF & personnalisation, moteur & échappement).
     partial = true
   }
 
@@ -462,7 +592,9 @@ export function serializeFlow(input: SerializeInput): string {
   if (family.kind === "nettoyage") {
     if (input.cleaningZone) lines.push(`Périmètre : ${CLEANING_ZONE_LABEL[input.cleaningZone]}`)
     if (input.cleaningLevel) lines.push(`Formule : ${CLEANING_LEVEL_LABEL[input.cleaningLevel]}`)
-  } else if (family.kind === "formulas") {
+  } else if (family.kind === "entretien") {
+    if (input.entretienFrequency) lines.push(`Fréquence : ${ENTRETIEN_FREQUENCY_LABEL[input.entretienFrequency]}`)
+  } else if (family.kind === "formulas" || family.kind === "textile") {
     if (input.inspection) {
       lines.push("Formule : à déterminer par Spirit ACS après inspection")
     } else {
