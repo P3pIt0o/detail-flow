@@ -130,9 +130,10 @@ export const SPIRIT_ZONE_TEXTILE_NOTE =
 /* -------------------------------------------------------------------------- */
 
 /**
- * Profils sociaux officiels de Spirit ACS. `facebook` reste `null` : aucune URL
- * officielle n'a été fournie — on n'invente jamais de lien. Il suffira de
- * renseigner l'URL réelle ici le jour où elle est connue.
+ * Profils sociaux officiels de Spirit ACS. Le compte Facebook existe (« Spirit
+ * Acs ») mais son URL officielle complète n'a pas été fournie : `facebook`
+ * reste donc `null` — on n'invente jamais de lien. Renseigner l'URL réelle ici
+ * pour que l'icône Facebook apparaisse automatiquement dans le footer.
  */
 export const SPIRIT_SOCIALS: { instagram: string | null; tiktok: string | null; facebook: string | null } = {
   instagram: "https://www.instagram.com/spiritacs?stkn=eDZkZ3BmMjhocTRh",

@@ -25,6 +25,7 @@ import { SpiritProcess } from "./spirit-process"
 import { SpiritZone } from "./spirit-zone"
 import { SpiritFaq } from "./spirit-faq"
 import { SpiritDemandeDevis } from "./spirit-demande-devis"
+import { SpiritFlotteCta } from "./spirit-flotte-cta"
 import { SpiritAvis } from "./spirit-avis"
 import { SpiritAvisGoogle } from "./spirit-avis-google"
 import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
@@ -228,6 +229,15 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {/* Zone d'intervention : ville réelle + éventuelles communes confirmées
           (SPIRIT_ZONE_CITIES, vide par défaut → aucune ville inventée). */}
       <SpiritZone cities={SPIRIT_ZONE_CITIES} city={contact.city} />
+
+      {/* Bandeau flotte / professionnels : conduit vers la MÊME demande de devis
+          avec le contexte « flotte » (?demande=flotte → formulaire libre du
+          configurateur). Rendu uniquement si le module de devis est actif. */}
+      {quoteEnabled && (
+        <SpiritFlotteCta
+          href={withTenant(`/?demande=flotte#${SPIRIT_SECTIONS.demandeDevis}`, data.tenant.slug)}
+        />
+      )}
 
       {quoteEnabled && (
         <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />

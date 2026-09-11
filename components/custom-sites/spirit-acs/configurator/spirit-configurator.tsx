@@ -306,7 +306,14 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   // jamais une prestation interne. Sans paramètre → écran des 6 familles (§3).
   useEffect(() => {
     function applyEntryFromUrl() {
-      const raw = new URLSearchParams(window.location.search).get("prestation")?.trim()
+      const params = new URLSearchParams(window.location.search)
+      // Contexte « flotte » (bandeau professionnels) : on ouvre directement le
+      // formulaire libre, là où atterrissent déjà les demandes flotte /
+      // abonnement / hors-liste. Aucune donnée inventée, même Server Action.
+      if (params.get("demande")?.trim() === "flotte") {
+        setShowClassic(true)
+      }
+      const raw = params.get("prestation")?.trim()
       const familyKey = raw ? mainFamilyKeyForSlug(raw) : null
       if (!familyKey) {
         dispatch({ type: "init", familyKey: null, serviceKey: null, familyLocked: false, vehType: null })
