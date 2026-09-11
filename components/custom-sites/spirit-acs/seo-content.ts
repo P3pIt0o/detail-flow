@@ -328,24 +328,27 @@ export type ServiceContent = {
 export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "nettoyage-automobile",
-    cardTitle: "Nettoyage intérieur et extérieur",
-    cardTagline: "Intérieur et extérieur nettoyés en profondeur.",
+    cardTitle: "Nettoyage intérieur & extérieur",
+    cardTagline: "Nettoyage, entretien régulier, moteur & échappement.",
     cardText:
-      "Nettoyage soigné de l'habitacle et de l'extérieur du véhicule : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
+      "Nettoyage soigné de l'habitacle et de l'extérieur, formules d'entretien régulier, nettoyage moteur et rénovation d'échappement : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
     image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
     imageAlt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
-    metaTitle: "Nettoyage automobile à Lagny-sur-Marne | Spirit ACS",
+    metaTitle: "Nettoyage automobile intérieur & extérieur à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
-      "Nettoyage automobile intérieur et extérieur par Spirit ACS à Lagny-sur-Marne : habitacle, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
+      "Nettoyage automobile intérieur et extérieur, entretien régulier mensuel ou trimestriel, nettoyage moteur et rénovation d'échappement par Spirit ACS à Lagny-sur-Marne.",
     h1: "Nettoyage automobile intérieur et extérieur",
     breadcrumbLabel: "Nettoyage automobile",
     intro: [
       "Le nettoyage automobile de Spirit ACS traite l'habitacle et l'extérieur du véhicule de façon méthodique. L'objectif est de retrouver des surfaces propres et soignées, en adaptant le soin à l'état du véhicule.",
-      "Chaque étape est ajustée après observation du véhicule, qu'il s'agisse d'un entretien régulier ou d'un nettoyage plus approfondi.",
+      "Cette famille regroupe trois besoins complémentaires : le nettoyage ponctuel intérieur et extérieur, l'entretien régulier (mensuel ou trimestriel) à tarif préférentiel, et les prestations complémentaires de nettoyage moteur et de rénovation d'échappement.",
+      "Chaque étape est ajustée après observation du véhicule, qu'il s'agisse d'un entretien récurrent ou d'un nettoyage plus approfondi.",
     ],
     benefits: [
       "Habitacle assaini : textiles, plastiques, vitres et finitions.",
       "Extérieur nettoyé : carrosserie, jantes et détails.",
+      "Entretien régulier mensuel ou trimestriel à tarif préférentiel.",
+      "Prestations complémentaires : nettoyage moteur et rénovation d'échappement.",
       "Rendu soigné adapté à l'état du véhicule.",
     ],
     steps: [
@@ -355,7 +358,22 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Contrôle des finitions avant restitution.",
     ],
     vehicles: ["Citadines et berlines", "SUV et monospaces", "Véhicules professionnels"],
-    priceKind: "quote",
+    priceKind: "from",
+    // Grille FUSIONNÉE (ex-pages « entretien régulier » et « moteur & échappement »
+    // fusionnées ici lors du regroupement en 6 familles). Les tarifs d'entretien
+    // récurrent sont distincts des prestations ponctuelles : les notes précisent
+    // mensuel/trimestriel pour ne jamais mélanger les prix (§7 du cahier des charges).
+    formules: [
+      { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €." },
+      { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
+      { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €." },
+      { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €." },
+      { label: "Entretien régulier — Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €." },
+      { label: "Nettoyage moteur", priceKind: "quote", note: "Sur devis, après analyse du compartiment moteur." },
+      { label: "Rénovation d'échappement", priceKind: "quote", note: "Sur devis, selon l'état et le type de véhicule." },
+    ],
+    priceCaveat:
+      "Le nettoyage ponctuel intérieur et extérieur est établi sur devis selon le périmètre choisi. Les tarifs d'entretien mensuels et trimestriels sont distincts et dépendent du type de véhicule. Le nettoyage moteur et la rénovation d'échappement sont réalisés sur devis après analyse.",
     ctaLabel: "Réserver cette prestation",
     related: ["polissage-automobile", "protection-ceramique", "renovation-phares"],
     faq: [
@@ -368,6 +386,21 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
         question: "Combien de temps prévoir ?",
         answer:
           "La durée dépend de l'état du véhicule et du périmètre choisi. Elle vous est précisée après étude de votre demande.",
+      },
+      {
+        question: "Comment fonctionne l'entretien régulier ?",
+        answer:
+          "Spirit ACS entretient votre véhicule à fréquence mensuelle ou trimestrielle, à un tarif préférentiel (à partir de 75 € par mois pour une citadine). Les tarifs mensuels et trimestriels sont distincts et dépendent du type de véhicule.",
+      },
+      {
+        question: "Quelle différence entre entretien mensuel et trimestriel ?",
+        answer:
+          "L'entretien mensuel intervient chaque mois, l'entretien trimestriel tous les trois mois. Les tarifs sont distincts : par exemple 75 € (mensuel) ou 95 € (trimestriel) pour une citadine.",
+      },
+      {
+        question: "Proposez-vous le nettoyage moteur et la rénovation d'échappement ?",
+        answer:
+          "Oui. Le nettoyage du compartiment moteur est réalisé avec précaution, en protégeant les éléments sensibles, et les sorties d'échappement peuvent être rénovées. Ces prestations complémentaires sont établies sur devis après analyse du véhicule.",
       },
     ],
   },
@@ -740,7 +773,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     priceCaveat:
       "Déplacement offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà. Le tarif final est confirmé après étude de votre demande.",
     ctaLabel: "Réserver cette prestation",
-    related: ["nettoyage-automobile", "entretien-regulier", "polissage-automobile"],
+    related: ["nettoyage-automobile", "polissage-automobile", "renovation-phares"],
     faq: [
       {
         question: "Combien coûte un nettoyage de canapé ?",
@@ -761,106 +794,6 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
         question: "Quel est le délai de séchage ?",
         answer:
           "Le délai de séchage dépend de la matière et des conditions. Spirit ACS vous indique le temps à prévoir lors de l'intervention.",
-      },
-    ],
-  },
-  {
-    slug: "entretien-regulier",
-    cardTitle: "Entretien régulier",
-    cardTagline: "Véhicule entretenu toute l'année à tarif préférentiel.",
-    cardText:
-      "Formules d'entretien récurrent, mensuel ou trimestriel, pour garder votre véhicule propre toute l'année à un tarif préférentiel.",
-    image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
-    imageAlt: "Véhicule entretenu régulièrement par Spirit ACS",
-    metaTitle: "Entretien automobile régulier à Lagny-sur-Marne | Spirit ACS",
-    metaDescription:
-      "Entretien automobile mensuel ou trimestriel par Spirit ACS à Lagny-sur-Marne : véhicule maintenu propre toute l'année à un tarif préférentiel.",
-    h1: "Entretien automobile mensuel et trimestriel",
-    breadcrumbLabel: "Entretien régulier",
-    intro: [
-      "L'entretien régulier permet de garder votre véhicule propre toute l'année à un tarif préférentiel. Vous choisissez la fréquence adaptée à votre usage : mensuelle ou trimestrielle.",
-      "Le tarif dépend du type de véhicule et de la fréquence retenue.",
-    ],
-    benefits: [
-      "Véhicule entretenu toute l'année.",
-      "Tarif préférentiel par rapport aux prestations ponctuelles.",
-      "Fréquence adaptée à votre besoin (mensuelle ou trimestrielle).",
-    ],
-    steps: [
-      "Choix de la fréquence et du type de véhicule.",
-      "Planification des passages avec Spirit ACS.",
-      "Entretien récurrent du véhicule.",
-      "Suivi dans le temps.",
-    ],
-    vehicles: ["Citadines et berlines", "Sportives", "SUV et monospaces"],
-    priceKind: "from",
-    formules: [
-      { label: "Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €." },
-      { label: "Berline", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
-      { label: "Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
-      { label: "SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €." },
-      { label: "Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €." },
-      { label: "Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €." },
-    ],
-    priceCaveat:
-      "Les tarifs mensuels et trimestriels sont distincts. Le tarif exact dépend du type de véhicule et de la fréquence retenue.",
-    ctaLabel: "Réserver cette prestation",
-    related: ["nettoyage-automobile", "nettoyage-textile", "polissage-automobile"],
-    faq: [
-      {
-        question: "Comment fonctionne l'entretien mensuel ?",
-        answer:
-          "Spirit ACS entretient votre véhicule une fois par mois à un tarif préférentiel, à partir de 75 € pour une citadine. La prestation est adaptée à l'état du véhicule à chaque passage.",
-      },
-      {
-        question: "Quelle différence entre mensuel et trimestriel ?",
-        answer:
-          "L'entretien mensuel intervient chaque mois, l'entretien trimestriel tous les trois mois. Les tarifs sont distincts et dépendent du type de véhicule.",
-      },
-    ],
-  },
-  {
-    slug: "nettoyage-moteur",
-    cardTitle: "Moteur & échappement",
-    cardTagline: "Nettoyage moteur et rénovation d'échappement.",
-    cardText:
-      "Nettoyage du compartiment moteur et rénovation des sorties d'échappement, réalisés sur devis après analyse du véhicule.",
-    image: "/custom-sites/spirit-acs/echappement-titane.jpg",
-    imageAlt: "Sorties d'échappement en titane rénovées par Spirit ACS",
-    metaTitle: "Nettoyage moteur et rénovation d'échappement à Lagny-sur-Marne | Spirit ACS",
-    metaDescription:
-      "Nettoyage du compartiment moteur et rénovation des sorties d'échappement par Spirit ACS à Lagny-sur-Marne, sur devis après analyse du véhicule.",
-    h1: "Nettoyage moteur et rénovation d'échappement",
-    breadcrumbLabel: "Moteur & échappement",
-    intro: [
-      "Spirit ACS nettoie le compartiment moteur et rénove les sorties d'échappement pour retrouver un aspect net et soigné.",
-      "Ces prestations sont réalisées sur devis, car elles dépendent de l'état et du type de véhicule.",
-    ],
-    benefits: [
-      "Compartiment moteur nettoyé avec précaution.",
-      "Sorties d'échappement rénovées.",
-      "Intervention adaptée après analyse.",
-    ],
-    steps: [
-      "Analyse du compartiment moteur et de l'échappement.",
-      "Protection des éléments sensibles.",
-      "Nettoyage ou rénovation adapté.",
-      "Contrôle final.",
-    ],
-    vehicles: ["Véhicules du quotidien", "Véhicules soignés", "Véhicules avant revente"],
-    priceKind: "quote",
-    ctaLabel: "Demander un devis",
-    related: ["nettoyage-automobile", "polissage-automobile", "protection-ppf"],
-    faq: [
-      {
-        question: "Le nettoyage moteur présente-t-il un risque ?",
-        answer:
-          "Le nettoyage du compartiment moteur est réalisé avec précaution, en protégeant les éléments sensibles. Il est établi sur devis après analyse du véhicule.",
-      },
-      {
-        question: "Comment est établi le tarif ?",
-        answer:
-          "Le nettoyage moteur et la rénovation d'échappement sont réalisés sur devis : le tarif dépend de l'état et du type de véhicule.",
       },
     ],
   },

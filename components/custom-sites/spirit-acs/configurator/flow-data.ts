@@ -64,6 +64,12 @@ export type Family = {
   options: Option[]
   /** Question contextuelle courte (étape « Votre demande »). */
   contextual?: { question: string; choices: string[]; multi?: boolean }
+  /**
+   * Prestation dont le tarif ne dépend PAS du véhicule → l'étape « Véhicule »
+   * est retirée du parcours (parcours court, ex. rénovation de phares) ou
+   * inutile (le textile est déjà identifié par les éléments choisis).
+   */
+  skipVehicle?: boolean
 }
 
 /* -------------------------------------------------------------------------- */
@@ -280,7 +286,11 @@ export const FAMILIES: Family[] = [
     included: ["Optiques plus claires", "Aspect de l'avant amélioré", "Intervention adaptée à l'état des phares"],
     formulaGroups: [{ formulas: [{ label: "Rénovation de phares", priceCents: 8000, kind: "from" }] }],
     caveat: "Le tarif final dépend de l'état initial des optiques, évalué avant l'intervention.",
-    options: [{ id: "nettoyage", label: "Nettoyage extérieur", benefit: "Un avant net et homogène", price: "Sur devis", kind: "quote" }],
+    // Parcours court (§10) : prix unique quel que soit le modèle → ni étape
+    // véhicule ni options superflues. On ne demande que l'essentiel pour
+    // transmettre la demande.
+    options: [],
+    skipVehicle: true,
   },
   {
     key: "moto",
@@ -348,6 +358,9 @@ export const FAMILIES: Family[] = [
     options: [
       { id: "hydratation-cuir", label: "Hydratation du cuir", benefit: "Cuir nourri et protégé", price: "+30 €", priceCents: 3000, kind: "exact" },
     ],
+    // Les éléments choisis identifient déjà ce qui est traité → pas d'étape
+    // « type de véhicule » (le textile n'est pas rattaché à un gabarit).
+    skipVehicle: true,
   },
   {
     key: "entretien-regulier",
@@ -397,13 +410,104 @@ export function getFamily(key: string | null): Family | undefined {
   return FAMILIES.find((f) => f.key === key)
 }
 
-/** Slug (URL `?prestation=`) → clé de famille du parcours. */
+/** Slug (URL `?prestation=`) → clé de PROFIL de prestation (usage interne). */
 export function familyKeyForSlug(slug: string | null | undefined): string | null {
   if (!slug) return null
   // La céramique carrosserie ne se commande jamais seule → ramenée au polissage.
   if (slug === "protection-ceramique") return "polissage-ceramique"
   const match = FAMILIES.find((f) => f.serviceSlug === slug)
   return match?.key ?? null
+}
+
+/* -------------------------------------------------------------------------- */
+/*  NIVEAU 1 — LES 6 GRANDES FAMILLES DE PRESTATIONS                          */
+/* -------------------------------------------------------------------------- */
+/*
+ *  Le parcours suit une hiérarchie stricte (cf. cahier des charges) :
+ *    NIVEAU 1  → choix de l'UNE des 6 familles ci-dessous ;
+ *    NIVEAU 2  → choix de la prestation / formule de cette famille ;
+ *    NIVEAU 3+ → uniquement les étapes pertinentes pour cette prestation.
+ *
+ *  Une famille regroupe une ou plusieurs PRESTATIONS (profils `Family`
+ *  ci-dessus). La famille « Nettoyage intérieur & extérieur » regroupe ainsi
+ *  la prestation ponctuelle, l'entretien régulier et les prestations
+ *  complémentaires moteur & échappement — qui ne sont donc PAS des familles.
+ */
+
+export type MainFamily = {
+  key: string
+  title: string
+  tagline: string
+  priceLabel: string
+  image: string
+  alt: string
+  /** Slug de la page SEO dédiée (« En savoir plus »). */
+  seoSlug: string
+  /** Clés des profils `Family` (niveau 2) rattachés à cette famille. */
+  prestationKeys: string[]
+}
+
+function buildMainFamily(
+  key: string,
+  seoSlug: string,
+  prestationKeys: string[],
+  overrides?: Partial<Pick<MainFamily, "title" | "tagline" | "priceLabel">>,
+): MainFamily {
+  const p = getFamily(key)
+  if (!p) throw new Error(`MainFamily: profil introuvable « ${key} »`)
+  return {
+    key,
+    title: overrides?.title ?? p.title,
+    tagline: overrides?.tagline ?? p.tagline,
+    priceLabel: overrides?.priceLabel ?? p.priceLabel,
+    image: p.image,
+    alt: p.alt,
+    seoSlug,
+    prestationKeys,
+  }
+}
+
+/** LES 6 FAMILLES — exactement, dans l'ordre affiché. Aucune autre. */
+export const MAIN_FAMILIES: MainFamily[] = [
+  buildMainFamily("nettoyage", "nettoyage-automobile", ["nettoyage", "entretien-regulier", "moteur-echappement"], {
+    title: "Nettoyage intérieur & extérieur",
+    tagline: "Nettoyage, entretien régulier, moteur & échappement",
+    priceLabel: "dès 50 €",
+  }),
+  buildMainFamily("polissage-ceramique", "polissage-automobile", ["polissage-ceramique"], {
+    title: "Polissage & protection céramique",
+  }),
+  buildMainFamily("ppf-personnalisation", "protection-ppf", ["ppf-personnalisation"], {
+    title: "PPF & personnalisation",
+  }),
+  buildMainFamily("renovation-phares", "renovation-phares", ["renovation-phares"]),
+  buildMainFamily("moto", "detailing-moto", ["moto"]),
+  buildMainFamily("nettoyage-textile", "nettoyage-textile", ["nettoyage-textile"]),
+]
+
+export function getMainFamily(key: string | null): MainFamily | undefined {
+  return MAIN_FAMILIES.find((f) => f.key === key)
+}
+
+/**
+ * Slug (URL `?prestation=<seoSlug>`) → clé de la GRANDE FAMILLE (niveau 1).
+ * Une carte de la homepage ne présélectionne QUE la famille, jamais une
+ * prestation interne. Les anciens slugs (entretien, moteur) sont rattachés à
+ * la famille « Nettoyage » — le client choisit ensuite la prestation.
+ */
+export function mainFamilyKeyForSlug(slug: string | null | undefined): string | null {
+  if (!slug) return null
+  if (slug === "protection-ceramique") return "polissage-ceramique"
+  if (slug === "entretien-regulier" || slug === "nettoyage-moteur") return "nettoyage"
+  const match = MAIN_FAMILIES.find((f) => f.seoSlug === slug)
+  return match?.key ?? null
+}
+
+/** Profils (niveau 2) d'une famille, dans l'ordre. */
+export function prestationsForFamily(familyKey: string | null): Family[] {
+  const mf = getMainFamily(familyKey)
+  if (!mf) return []
+  return mf.prestationKeys.map((k) => getFamily(k)).filter((p): p is Family => Boolean(p))
 }
 
 export const VEHICLE_TYPES = ["Citadine", "Berline", "SUV / 4x4", "Monospace", "Utilitaire / Van", "Moto / Scooter"] as const
@@ -454,6 +558,8 @@ export type FlowSelection = {
   cleaningZone: CleaningZone | null
   /** Entretien régulier : fréquence choisie. */
   entretienFrequency: EntretienFrequency | null
+  /** Nettoyage textile : éléments à traiter (MULTI-sélection, libellés). */
+  textileItems: string[]
   /** Ids d'options sélectionnées. */
   options: string[]
 }
@@ -503,7 +609,23 @@ export function computeEstimate(sel: FlowSelection): Estimate {
         if (sel.vehType === "Monospace") partial = true
       }
     }
-  } else if (family.kind === "formulas" || family.kind === "textile") {
+  } else if (family.kind === "textile") {
+    // MULTI-sélection : somme des éléments choisis (§6).
+    const flatFormulas = family.formulaGroups.flatMap((g) => g.formulas)
+    for (const label of sel.textileItems) {
+      const f = flatFormulas.find((x) => x.label === label)
+      if (!f) continue
+      if (f.kind === "quote" || f.priceCents == null) {
+        partial = true
+        lines.push({ label: f.label, value: "Sur devis" })
+      } else {
+        total += f.priceCents
+        priced = true
+        if (f.kind === "from") partial = true
+        lines.push({ label: f.label, value: priceText(f) })
+      }
+    }
+  } else if (family.kind === "formulas") {
     sel.family.formulaGroups.forEach((g, gi) => {
       const label = sel.formulas[gi]
       if (!label) return
@@ -594,7 +716,13 @@ export function serializeFlow(input: SerializeInput): string {
     if (input.cleaningLevel) lines.push(`Formule : ${CLEANING_LEVEL_LABEL[input.cleaningLevel]}`)
   } else if (family.kind === "entretien") {
     if (input.entretienFrequency) lines.push(`Fréquence : ${ENTRETIEN_FREQUENCY_LABEL[input.entretienFrequency]}`)
-  } else if (family.kind === "formulas" || family.kind === "textile") {
+  } else if (family.kind === "textile") {
+    const flatFormulas = family.formulaGroups.flatMap((g) => g.formulas)
+    for (const label of input.textileItems) {
+      const f = flatFormulas.find((x) => x.label === label)
+      lines.push(`Élément : ${label}${f ? ` (${priceText(f)})` : ""}`)
+    }
+  } else if (family.kind === "formulas") {
     if (input.inspection) {
       lines.push("Formule : à déterminer par Spirit ACS après inspection")
     } else {

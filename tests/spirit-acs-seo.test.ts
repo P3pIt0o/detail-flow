@@ -264,8 +264,10 @@ describe("SEO — CTA de la page Avis (vers le devis, jamais /reservation)", () 
 })
 
 describe("SEO — pages de prestations dédiées", () => {
-  it("les 6 prestations attendues existent dans le config", () => {
+  it("expose exactement les pages SEO canoniques (6 familles + céramique), sans les pages retirées", () => {
     const slugs = SPIRIT_SERVICES.map((s) => s.slug).sort()
+    // Les 6 familles + la page SEO « protection céramique » conservée (elle
+    // n'est pas une carte d'accueil autonome mais garde sa page/URL dédiée).
     expect(slugs).toEqual(
       [
         "nettoyage-automobile",
@@ -274,8 +276,13 @@ describe("SEO — pages de prestations dédiées", () => {
         "protection-ppf",
         "renovation-phares",
         "detailing-moto",
+        "nettoyage-textile",
       ].sort(),
     )
+    // Pages fusionnées dans « nettoyage-automobile » puis retirées (301) : elles
+    // ne doivent plus exister comme entrées indexables autonomes.
+    expect(slugs).not.toContain("entretien-regulier")
+    expect(slugs).not.toContain("nettoyage-moteur")
   })
 
   it("chaque prestation a un title, une description et une FAQ non vides", () => {
