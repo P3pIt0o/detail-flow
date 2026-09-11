@@ -290,15 +290,21 @@ describe("Cartes prestations — plus aucun titre rogné sur mobile", () => {
   const prest = read("components/custom-sites/spirit-acs/spirit-prestations.tsx")
 
   it("hauteur minimale extensible (min-h), pas de ratio fixe qui rogne", () => {
-    // La carte porte désormais DEUX actions (« Réserver » + « En savoir plus »)
-    // sous le titre : la hauteur minimale a été augmentée en conséquence, mais
-    // reste un min-h extensible (jamais un ratio fixe qui rognerait le titre).
-    expect(prest).toMatch(/min-h-\[1[0-9]rem\]/)
+    // La carte porte DEUX actions (« Réserver » + « En savoir plus ») sous le
+    // titre : la hauteur reste un min-h extensible (jamais un ratio fixe qui
+    // rognerait le titre). Format paysage compact ~11.5–12.5rem.
+    expect(prest).toMatch(/min-h-\[11\.5rem\]/)
+    expect(prest).toMatch(/min-h-\[12\.5rem\]/)
     expect(prest).not.toMatch(/aspect-\[4\/3\]/)
   })
 
-  it("titres jamais tronqués : pas de line-clamp, ni marge/position négative sur le contenu", () => {
-    expect(prest).not.toMatch(/line-clamp/)
+  it("titre (h3) jamais tronqué ; seule la description secondaire est limitée à 2 lignes", () => {
+    const h3Line = prest.split("\n").find((l) => l.includes("<h3"))
+    expect(h3Line).toBeDefined()
+    // Le titre lui-même n'est JAMAIS tronqué…
+    expect(h3Line).not.toMatch(/line-clamp/)
+    // …et la seule troncature tolérée est `line-clamp-2` (description secondaire).
+    expect(prest).not.toMatch(/line-clamp-(?:[13-9]|1[0-9])/)
     // Aucune marge négative ni décalage vertical négatif du bloc de contenu.
     expect(prest).not.toMatch(/-mt-|-top-|translate-y-\[-/)
   })

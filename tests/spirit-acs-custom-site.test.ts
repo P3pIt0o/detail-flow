@@ -14,10 +14,18 @@ import { describe, it, expect, vi } from "vitest"
  *  - la métadonnée renvoyée reste cohérente avec meta.ts (nom, ownShell).
  */
 
-// Stub du composant de page Spirit : évite d'importer Oswald/next/font.
-// La factory est hoistée : on ne référence donc AUCUNE variable de module ici.
+// Stub des composants de page personnalisés : évite d'importer leurs polices
+// `next/font` (Oswald pour Spirit, Sora pour Rozan), indisponibles en
+// environnement de test Node. `registry.ts` importe TOUS les sites enregistrés,
+// donc chaque page réelle doit être stubée, sinon l'import du registre échoue.
+// Les factories sont hoistées : on ne référence AUCUNE variable de module ici.
 vi.mock("@/components/custom-sites/spirit-acs/home-page", () => ({
   SpiritAcsHome: function SpiritAcsHomeStub() {
+    return null
+  },
+}))
+vi.mock("@/components/custom-sites/rozan/home-page", () => ({
+  RozanHome: function RozanHomeStub() {
     return null
   },
 }))
