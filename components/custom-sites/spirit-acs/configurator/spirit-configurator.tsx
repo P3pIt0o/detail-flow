@@ -43,8 +43,10 @@ import {
   ENTRETIEN_FREQUENCY_LABEL,
   estimateHeadline,
   euros,
-  FAMILIES,
-  familyKeyForSlug,
+  getMainFamily,
+  MAIN_FAMILIES,
+  mainFamilyKeyForSlug,
+  prestationsForFamily,
   type CleaningLevel,
   type CleaningZone,
   type EntretienFrequency,
@@ -55,6 +57,13 @@ import {
   serializeFlow,
   VEHICLE_TYPES,
 } from "./flow-data"
+
+/** Libellés courts des sous-prestations (niveau 2) affichés dans le sélecteur. */
+const PRESTATION_LABELS: Record<string, string> = {
+  nettoyage: "Nettoyage ponctuel",
+  "entretien-regulier": "Entretien régulier",
+  "moteur-echappement": "Moteur & échappement",
+}
 
 const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-osw" })
 
@@ -69,17 +78,26 @@ function newSubmissionId(): string {
 /*  STATE                                                                     */
 /* -------------------------------------------------------------------------- */
 
+type PpfBranch = "ppf" | "personnalisation"
+
 type State = {
-  entry: "catalog" | "service"
-  locked: boolean
+  /** NIVEAU 1 — grande famille choisie (l'une des 6). */
+  familyKey: string | null
+  /** Famille verrouillée (entrée depuis une carte homepage → pas d'écran familles). */
+  familyLocked: boolean
+  /** NIVEAU 2 — profil de prestation résolu (pilote la tarification). */
+  serviceKey: string | null
+  /** PPF : branche choisie (film PPF vs personnalisation) → étapes conditionnelles. */
+  ppfBranch: PpfBranch | null
   i: number
   fromSummary: boolean
-  serviceKey: string | null
   formulas: Record<number, string>
   inspection: boolean
   cleaningLevel: CleaningLevel | null
   cleaningZone: CleaningZone | null
   entretienFrequency: EntretienFrequency | null
+  /** Nettoyage textile : éléments à traiter (MULTI-sélection). */
+  textileItems: string[]
   vehType: string | null
   vehBrand: string
   vehModel: string
@@ -97,16 +115,18 @@ type State = {
 }
 
 const initialState: State = {
-  entry: "catalog",
-  locked: false,
+  familyKey: null,
+  familyLocked: false,
+  serviceKey: null,
+  ppfBranch: null,
   i: 0,
   fromSummary: false,
-  serviceKey: null,
   formulas: {},
   inspection: false,
   cleaningLevel: null,
   cleaningZone: null,
   entretienFrequency: null,
+  textileItems: [],
   vehType: null,
   vehBrand: "",
   vehModel: "",
@@ -124,19 +144,69 @@ const initialState: State = {
 }
 
 type Action =
-  | { type: "init"; entry: "catalog" | "service"; serviceKey: string | null; locked: boolean; vehType: string | null }
+  | { type: "init"; familyKey: string | null; serviceKey: string | null; familyLocked: boolean; vehType: string | null }
   | { type: "reset" }
   | { type: "patch"; patch: Partial<State> }
+  | { type: "chooseFamily"; familyKey: string }
   | { type: "chooseService"; serviceKey: string }
   | { type: "next" }
   | { type: "back" }
-  | { type: "goto"; i: number; fromSummary?: boolean }
-  | { type: "toggle"; field: "options" | "contextual" | "avail"; value: string; multi?: boolean }
+  | { type: "goto"; key: string; fromSummary?: boolean }
+  | { type: "toggle"; field: "options" | "contextual" | "avail" | "textileItems"; value: string; multi?: boolean }
 
-/** Étapes actives selon l'entrée (depuis une carte = pas d'étape prestation). */
-function stepsFor(entry: State["entry"]): string[] {
-  const base = ["formules", "vehicule", "options", "details", "photos", "dispos", "coordonnees", "recap", "confirmation"]
-  return entry === "service" ? base : ["prestation", ...base]
+/** Réinitialise tous les choix dépendants d'une prestation (famille/profil). */
+const RESET_DEPENDENT: Pick<
+  State,
+  "formulas" | "inspection" | "cleaningLevel" | "cleaningZone" | "entretienFrequency" | "textileItems" | "ppfBranch" | "options" | "contextual"
+> = {
+  formulas: {},
+  inspection: false,
+  cleaningLevel: null,
+  cleaningZone: null,
+  entretienFrequency: null,
+  textileItems: [],
+  ppfBranch: null,
+  options: [],
+  contextual: [],
+}
+
+/**
+ * Étapes ACTIVES calculées dynamiquement à partir de l'état (§14) : la
+ * hiérarchie famille → prestation → étapes conditionnelles + coordonnées. Le
+ * dénominateur du compteur évolue si une réponse ajoute/retire une étape.
+ */
+function computeSteps(s: State): string[] {
+  if (!s.familyKey) return s.familyLocked ? [] : ["famille"]
+  const steps: string[] = []
+  if (!s.familyLocked) steps.push("famille")
+  const mf = getMainFamily(s.familyKey)
+  const multi = (mf?.prestationKeys.length ?? 0) > 1
+  if (multi) steps.push("prestation")
+  // Profil résolu, ou représentatif (1er profil) pour projeter un compteur
+  // réaliste tant que la sous-prestation n'est pas choisie.
+  const profileKey = s.serviceKey ?? mf?.prestationKeys[0] ?? null
+  const p = getFamily(profileKey)
+  if (!p) return steps
+  steps.push("formules")
+  const isPpf = p.key === "ppf-personnalisation"
+  if (isPpf) {
+    if (s.ppfBranch === "ppf") steps.push("ppfzones")
+    else if (s.ppfBranch === "personnalisation" && p.options.length) steps.push("options")
+    if (!p.skipVehicle) steps.push("vehicule")
+  } else {
+    if (!p.skipVehicle) steps.push("vehicule")
+    if (p.options.length) steps.push("options")
+  }
+  steps.push("details", "photos", "dispos", "coordonnees", "recap", "confirmation")
+  return steps
+}
+
+/** Index de l'étape suivant `curKey` dans les étapes calculées après mutation. */
+function advanceFrom(next: State, curKey: string): number {
+  const steps = computeSteps(next)
+  if (next.fromSummary) return steps.indexOf("recap")
+  const idx = steps.indexOf(curKey)
+  return Math.min((idx < 0 ? next.i : idx) + 1, steps.length - 1)
 }
 
 function reducer(state: State, action: Action): State {
@@ -144,41 +214,56 @@ function reducer(state: State, action: Action): State {
     case "init":
       return {
         ...initialState,
-        entry: action.entry,
+        familyKey: action.familyKey,
         serviceKey: action.serviceKey,
-        locked: action.locked,
+        familyLocked: action.familyLocked,
         vehType: action.vehType,
         i: 0,
       }
     case "reset":
-      return { ...initialState, entry: state.entry, locked: state.locked, serviceKey: state.locked ? state.serviceKey : null }
+      return {
+        ...initialState,
+        familyKey: state.familyLocked ? state.familyKey : null,
+        familyLocked: state.familyLocked,
+        serviceKey: state.familyLocked ? state.serviceKey : null,
+        vehType: state.familyLocked && state.familyKey === "moto" ? "Moto / Scooter" : null,
+      }
     case "patch":
       return { ...state, ...action.patch }
-    case "chooseService":
-      // Changer de prestation réinitialise les choix dépendants de la famille.
-      return {
+    case "chooseFamily": {
+      const mf = getMainFamily(action.familyKey)
+      const single = (mf?.prestationKeys.length ?? 0) === 1
+      const next: State = {
         ...state,
+        ...RESET_DEPENDENT,
+        familyKey: action.familyKey,
+        serviceKey: single ? (mf?.prestationKeys[0] ?? null) : null,
+        vehType: action.familyKey === "moto" ? "Moto / Scooter" : null,
+      }
+      return { ...next, i: advanceFrom(next, "famille"), fromSummary: false }
+    }
+    case "chooseService": {
+      // Changer de sous-prestation réinitialise les choix dépendants.
+      const next: State = {
+        ...state,
+        ...RESET_DEPENDENT,
         serviceKey: action.serviceKey,
-        formulas: {},
-        inspection: false,
-        cleaningLevel: null,
-        cleaningZone: null,
-        entretienFrequency: null,
-        vehType: null,
-        options: [],
-        contextual: [],
+        vehType: state.familyKey === "moto" ? "Moto / Scooter" : null,
       }
+      return { ...next, i: advanceFrom(next, "prestation"), fromSummary: false }
+    }
     case "next": {
-      const steps = stepsFor(state.entry)
-      if (state.fromSummary) {
-        return { ...state, i: steps.indexOf("recap"), fromSummary: false }
-      }
+      const steps = computeSteps(state)
+      if (state.fromSummary) return { ...state, i: steps.indexOf("recap"), fromSummary: false }
       return { ...state, i: Math.min(state.i + 1, steps.length - 1) }
     }
     case "back":
       return { ...state, i: Math.max(state.i - 1, 0), fromSummary: false }
-    case "goto":
-      return { ...state, i: action.i, fromSummary: action.fromSummary ?? false }
+    case "goto": {
+      const steps = computeSteps(state)
+      const idx = steps.indexOf(action.key)
+      return { ...state, i: idx < 0 ? state.i : idx, fromSummary: action.fromSummary ?? false }
+    }
     case "toggle": {
       const arr = state[action.field]
       if (action.multi === false) {
@@ -214,21 +299,28 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   const uploader = usePhotoUploads()
   const submissionIdRef = useRef<string>("")
 
-  // Point d'entrée déterministe, piloté par l'URL (`?prestation=<slug>`).
+  // Point d'entrée déterministe, piloté par l'URL (`?prestation=<slug>`). Une
+  // carte de la homepage présélectionne UNIQUEMENT la GRANDE FAMILLE (§4) :
+  // jamais une prestation interne. Sans paramètre → écran des 6 familles (§3).
   useEffect(() => {
     function applyEntryFromUrl() {
       const raw = new URLSearchParams(window.location.search).get("prestation")?.trim()
-      const key = raw ? familyKeyForSlug(raw) : null
-      if (!key) {
-        dispatch({ type: "init", entry: "catalog", serviceKey: null, locked: false, vehType: null })
+      const familyKey = raw ? mainFamilyKeyForSlug(raw) : null
+      if (!familyKey) {
+        dispatch({ type: "init", familyKey: null, serviceKey: null, familyLocked: false, vehType: null })
         return
       }
+      const mf = getMainFamily(familyKey)
+      const single = (mf?.prestationKeys.length ?? 0) === 1
       dispatch({
         type: "init",
-        entry: "service",
-        serviceKey: key,
-        locked: true,
-        vehType: key === "moto" ? "Moto / Scooter" : null,
+        familyKey,
+        // Famille à prestation unique → le profil est résolu d'office (le
+        // client verra directement ses formules) ; famille à prestations
+        // multiples (Nettoyage) → il choisit d'abord la prestation.
+        serviceKey: single ? (mf?.prestationKeys[0] ?? null) : null,
+        familyLocked: true,
+        vehType: familyKey === "moto" ? "Moto / Scooter" : null,
       })
     }
     applyEntryFromUrl()
@@ -236,9 +328,10 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
     return () => window.removeEventListener("popstate", applyEntryFromUrl)
   }, [])
 
-  const steps = stepsFor(s.entry)
-  const stepKey = steps[s.i]
+  const steps = computeSteps(s)
+  const stepKey = steps[Math.min(s.i, Math.max(steps.length - 1, 0))] ?? "famille"
   const family = getFamily(s.serviceKey)
+  const mainFamily = getMainFamily(s.familyKey)
   const totalUserSteps = steps.filter((k) => k !== "confirmation").length
   const humanStep = Math.min(s.i + 1, totalUserSteps)
 
@@ -255,6 +348,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         cleaningLevel: s.cleaningLevel,
         cleaningZone: s.cleaningZone,
         entretienFrequency: s.entretienFrequency,
+        textileItems: s.textileItems,
         options: s.options,
         description: s.description,
         contextual: s.contextual,
@@ -325,9 +419,12 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         ) : (
           <>
             <FlowHeader
-              label={stepKey === "vehicule" && family?.kind === "textile" ? "Textile" : STEP_LABEL[stepKey]}
+              label={STEP_LABEL[stepKey] ?? "Prestation"}
               humanStep={humanStep}
               total={totalUserSteps}
+              // L'écran des 6 familles est un choix d'entrée (§15) : aucun
+              // « Étape X / Y » artificiel tant que le parcours n'a pas commencé.
+              showCounter={stepKey !== "famille"}
               canBack={s.i > 0}
               onBack={() => dispatch({ type: "back" })}
             />
@@ -342,7 +439,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
               </p>
             )}
             <div className="rq-scroll">
-              <Step s={s} dispatch={dispatch} patch={patch} family={family} stepKey={stepKey} uploader={uploader} />
+              <Step s={s} dispatch={dispatch} patch={patch} family={family} mainFamily={mainFamily} stepKey={stepKey} uploader={uploader} />
             </div>
             <FlowFooter
               s={s}
@@ -365,8 +462,10 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 /* -------------------------------------------------------------------------- */
 
 const STEP_LABEL: Record<string, string> = {
+  famille: "Prestation",
   prestation: "Prestation",
   formules: "Formules",
+  ppfzones: "Zones PPF",
   vehicule: "Véhicule",
   options: "Options",
   details: "Votre demande",
@@ -376,16 +475,36 @@ const STEP_LABEL: Record<string, string> = {
   recap: "Récapitulatif",
 }
 
+/**
+ * Étapes à AUTO-NAVIGATION (§12) : un seul choix → clic → avance. Le bouton
+ * « Continuer » y est masqué. Toutes les autres étapes (multi-sélection,
+ * saisies, coordonnées) conservent un bouton de validation.
+ */
+function isAutoNavStep(stepKey: string, family?: Family): boolean {
+  if (stepKey === "famille" || stepKey === "prestation") return true
+  if (stepKey === "formules") {
+    if (family?.kind === "entretien") return true // fréquence unique
+    if (family?.key === "ppf-personnalisation") return true // choix de branche
+    if (family?.kind === "formulas") {
+      const count = family.formulaGroups.reduce((n, g) => n + g.formulas.length, 0)
+      return family.formulaGroups.length === 1 && count === 1 // rénovation de phares
+    }
+  }
+  return false
+}
+
 function FlowHeader({
   label,
   humanStep,
   total,
+  showCounter,
   canBack,
   onBack,
 }: {
   label: string
   humanStep: number
   total: number
+  showCounter: boolean
   canBack: boolean
   onBack: () => void
 }) {
@@ -397,14 +516,16 @@ function FlowHeader({
         </svg>
       </button>
       <div className="rq-head-mid">
-        <span className="rq-head-step">
-          Étape {humanStep} / {total}
-        </span>
+        {showCounter && (
+          <span className="rq-head-step">
+            Étape {humanStep} / {total}
+          </span>
+        )}
         <span className="rq-head-label">{label}</span>
       </div>
       <span aria-hidden="true" />
       <div className="rq-progress" aria-hidden="true">
-        <span style={{ width: `${(humanStep / total) * 100}%` }} />
+        <span style={{ width: showCounter ? `${(humanStep / total) * 100}%` : "0%" }} />
       </div>
     </header>
   )
@@ -427,8 +548,12 @@ function FlowFooter({
   onSubmit: () => void
   onClassic: () => void
 }) {
-  const disabled = pending || !canContinue(s, stepKey, family)
+  // Écran de choix (famille / prestation) et étapes à choix unique : le clic
+  // fait avancer, aucun bouton « Continuer » (§12). On conserve seulement le
+  // repli « Autre demande » sur l'écran des familles.
+  const autoNav = isAutoNavStep(stepKey, family)
   const isRecap = stepKey === "recap"
+  const disabled = pending || !canContinue(s, stepKey, family)
   const primaryLabel = isRecap
     ? pending
       ? "Envoi en cours…"
@@ -437,9 +562,8 @@ function FlowFooter({
       ? "Enregistrer"
       : "Continuer"
   const showSkip = stepKey === "options" && s.options.length === 0
-  // Étapes obligatoires (questions 2, 3, 5, 7, 8) : indication claire tant
-  // qu'un champ requis manque. Neutre, non alarmant.
-  const hint = pending ? null : requiredHint(s, stepKey, family)
+  // Étapes obligatoires : indication claire tant qu'un champ requis manque.
+  const hint = pending || autoNav ? null : requiredHint(s, stepKey, family)
 
   return (
     <footer className="rq-foot">
@@ -448,11 +572,13 @@ function FlowFooter({
           {hint}
         </p>
       )}
-      <button className="rq-btn rq-btn-pink" disabled={disabled} onClick={() => (isRecap ? onSubmit() : dispatch({ type: "next" }))}>
-        {showSkip ? "Continuer sans option" : primaryLabel}
-      </button>
+      {!autoNav && (
+        <button className="rq-btn rq-btn-pink" disabled={disabled} onClick={() => (isRecap ? onSubmit() : dispatch({ type: "next" }))}>
+          {showSkip ? "Continuer sans option" : primaryLabel}
+        </button>
+      )}
       {isRecap && <p className="rq-foot-legal">Aucun paiement. Spirit ACS étudie votre demande avant toute confirmation.</p>}
-      {stepKey === "prestation" && (
+      {stepKey === "famille" && (
         <button type="button" className="rq-textlink rq-foot-alt" onClick={onClassic}>
           Autre demande (flotte, abonnement, besoin spécifique) ›
         </button>
@@ -469,14 +595,20 @@ function FlowFooter({
  */
 function canContinue(s: State, stepKey: string, family?: Family): boolean {
   switch (stepKey) {
+    case "famille":
+      return s.familyKey != null
     case "prestation":
       return s.serviceKey != null
     case "formules": // Q2
       if (family?.kind === "nettoyage") return s.cleaningZone != null && s.cleaningLevel != null
       if (family?.kind === "entretien") return s.entretienFrequency != null
-      if (family?.kind === "formulas" || family?.kind === "textile")
-        return s.inspection || Object.keys(s.formulas).length > 0
-      return true // « devis » (PPF, moteur & échappement) : pas de formule à choisir
+      if (family?.kind === "textile") return s.textileItems.length > 0
+      if (family?.key === "ppf-personnalisation") return s.ppfBranch != null
+      if (family?.kind === "formulas") return s.inspection || Object.keys(s.formulas).length > 0
+      return true // « devis » (moteur & échappement) : pas de formule à choisir
+    case "ppfzones":
+      // Multi-sélection ; « Je ne sais pas » permet toujours de continuer (§9).
+      return s.contextual.length > 0
     case "vehicule": // Q3
       return s.vehType != null
     case "details": // Q5
@@ -501,13 +633,13 @@ function requiredHint(s: State, stepKey: string, family?: Family): string | null
       return "Sélectionnez une prestation pour continuer."
     case "formules":
       if (family?.kind === "nettoyage") return "Choisissez le périmètre et la formule pour continuer."
-      if (family?.kind === "entretien") return "Choisissez la fréquence d'entretien pour continuer."
-      if (family?.kind === "textile") return "Choisissez un élément à nettoyer pour continuer."
+      if (family?.kind === "textile") return "Choisissez au moins un élément à nettoyer pour continuer."
+      if (family?.key === "ppf-personnalisation") return "Choisissez PPF ou personnalisation pour continuer."
       return "Choisissez une formule (ou laissez Spirit ACS décider après inspection)."
+    case "ppfzones":
+      return "Sélectionnez au moins une zone (ou « Je ne sais pas ») pour continuer."
     case "vehicule":
-      return family?.kind === "textile"
-        ? "Indiquez le type de textile pour continuer."
-        : "Sélectionnez le type de véhicule pour continuer."
+      return "Sélectionnez le type de véhicule pour continuer."
     case "details":
       return "Décrivez votre demande pour continuer."
     case "dispos":
@@ -528,6 +660,7 @@ function Step({
   dispatch,
   patch,
   family,
+  mainFamily,
   stepKey,
   uploader,
 }: {
@@ -535,14 +668,19 @@ function Step({
   dispatch: React.Dispatch<Action>
   patch: (p: Partial<State>) => void
   family?: Family
+  mainFamily?: ReturnType<typeof getMainFamily>
   stepKey: string
   uploader: UsePhotoUploads
 }) {
   switch (stepKey) {
+    case "famille":
+      return <FamilleStep s={s} dispatch={dispatch} />
     case "prestation":
-      return <PrestationStep s={s} dispatch={dispatch} />
+      return <PrestationSousStep s={s} dispatch={dispatch} mainFamily={mainFamily} />
     case "formules":
-      return <FormulesStep s={s} patch={patch} family={family} />
+      return <FormulesStep s={s} patch={patch} dispatch={dispatch} family={family} />
+    case "ppfzones":
+      return <PpfZonesStep s={s} dispatch={dispatch} family={family} />
     case "vehicule":
       return <VehiculeStep s={s} patch={patch} family={family} />
     case "options":
@@ -556,7 +694,7 @@ function Step({
     case "coordonnees":
       return <CoordonneesStep s={s} patch={patch} />
     case "recap":
-      return <RecapStep s={s} dispatch={dispatch} family={family} uploader={uploader} />
+      return <RecapStep s={s} dispatch={dispatch} family={family} mainFamily={mainFamily} uploader={uploader} />
     default:
       return null
   }
