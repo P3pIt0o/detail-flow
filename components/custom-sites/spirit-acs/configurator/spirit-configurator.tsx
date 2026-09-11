@@ -709,18 +709,19 @@ function StepIntro({ title, sub }: { title: string; sub?: string }) {
   )
 }
 
-function PrestationStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Action> }) {
+/** NIVEAU 1 — écran des 6 grandes familles. Clic = famille + avance (§3). */
+function FamilleStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Action> }) {
   return (
     <section>
-      <StepIntro title="Sélectionnez votre prestation" sub="Découvrez ensuite les formules puis demandez votre devis." />
+      <StepIntro title="Choisissez votre prestation" sub="Sélectionnez la famille correspondant à votre besoin." />
       <div className="rq-cards">
-        {FAMILIES.map((f) => {
-          const active = s.serviceKey === f.key
+        {MAIN_FAMILIES.map((f) => {
+          const active = s.familyKey === f.key
           return (
             <button
               key={f.key}
               className={`rq-card${active ? " is-active" : ""}`}
-              onClick={() => dispatch({ type: "chooseService", serviceKey: f.key })}
+              onClick={() => dispatch({ type: "chooseFamily", familyKey: f.key })}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={f.image || "/placeholder.svg"} alt={f.alt} className="rq-card-img" />
@@ -742,8 +743,69 @@ function PrestationStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Ac
   )
 }
 
-function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State>) => void; family?: Family }) {
+/** NIVEAU 2 — choix de la prestation d'une famille à branches multiples. */
+function PrestationSousStep({
+  s,
+  dispatch,
+  mainFamily,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  mainFamily?: ReturnType<typeof getMainFamily>
+}) {
+  const prestations = prestationsForFamily(s.familyKey)
+  return (
+    <section>
+      <StepIntro
+        title={mainFamily?.title ?? "Prestation"}
+        sub="Sélectionnez la prestation souhaitée dans cette famille."
+      />
+      <div className="rq-formulas">
+        {prestations.map((p) => {
+          const active = s.serviceKey === p.key
+          return (
+            <button
+              key={p.key}
+              className={`rq-formula${active ? " is-active" : ""}`}
+              onClick={() => dispatch({ type: "chooseService", serviceKey: p.key })}
+            >
+              <span className="rq-formula-main">
+                <span className="rq-formula-label">{PRESTATION_LABELS[p.key] ?? p.title}</span>
+                <span className="rq-formula-note">{p.tagline}</span>
+              </span>
+              <span className="rq-formula-price">{p.priceLabel}</span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function FormulesStep({
+  s,
+  patch,
+  dispatch,
+  family,
+}: {
+  s: State
+  patch: (p: Partial<State>) => void
+  dispatch: React.Dispatch<Action>
+  family?: Family
+}) {
   if (!family) return null
+
+  // PPF & personnalisation : deux branches distinctes (§9). Le choix pilote
+  // les étapes suivantes — PPF → zones ; personnalisation → options — et
+  // n'affiche JAMAIS les zones PPF pour une prestation de personnalisation.
+  if (family.key === "ppf-personnalisation") {
+    return <PpfBranchStep s={s} dispatch={dispatch} family={family} />
+  }
+
+  // Nettoyage textile : MULTI-sélection des éléments à traiter (§6).
+  if (family.kind === "textile") {
+    return <TextileFormulesStep s={s} dispatch={dispatch} family={family} />
+  }
 
   return (
     <section>
@@ -812,6 +874,127 @@ function FormulesStep({ s, patch, family }: { s: State; patch: (p: Partial<State
           Laisser Spirit ACS déterminer la formule après inspection
         </button>
       )}
+    </section>
+  )
+}
+
+/** PPF : choix de branche (film PPF vs personnalisation). Clic → avance. */
+function PpfBranchStep({
+  s,
+  dispatch,
+  family,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  family: Family
+}) {
+  const BRANCHES: { key: PpfBranch; label: string; note: string }[] = [
+    { key: "ppf", label: "Film de protection (PPF)", note: "Protection transparente des zones exposées de la carrosserie" },
+    { key: "personnalisation", label: "Personnalisation", note: "Étriers, passages de roues, dépose covering, destickage, céramique jantes…" },
+  ]
+  return (
+    <section>
+      <StepIntro title={family.title} sub="Quel type de prestation souhaitez-vous ?" />
+      <div className="rq-formulas">
+        {BRANCHES.map((b) => {
+          const active = s.ppfBranch === b.key
+          return (
+            <button
+              key={b.key}
+              className={`rq-formula${active ? " is-active" : ""}`}
+              // Le choix de branche réinitialise les sélections dépendantes pour
+              // qu'aucune zone/option d'une autre branche ne subsiste.
+              onClick={() => dispatch({ type: "patch", patch: { ppfBranch: b.key, contextual: [], options: [] } })}
+            >
+              <span className="rq-formula-main">
+                <span className="rq-formula-label">{b.label}</span>
+                <span className="rq-formula-note">{b.note}</span>
+              </span>
+              <span className="rq-formula-price">Sur devis</span>
+            </button>
+          )
+        })}
+      </div>
+      <p className="rq-caveat">
+        Les prestations PPF et de personnalisation sont établies sur devis, après étude de votre véhicule.
+      </p>
+    </section>
+  )
+}
+
+const PPF_UNSURE = "Je ne sais pas / Je souhaite préciser mon besoin"
+
+/**
+ * Étape « Zones PPF » — affichée UNIQUEMENT quand la branche PPF est choisie
+ * (§9). Multi-sélection → bouton « Continuer » (pas d'auto-navigation). Une
+ * option « Je ne sais pas » évite tout blocage.
+ */
+function PpfZonesStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch<Action>; family?: Family }) {
+  const zones = family?.contextual?.choices ?? []
+  const choices = [...zones, PPF_UNSURE]
+  return (
+    <section>
+      <StepIntro title="Zones PPF souhaitées" sub="Sélectionnez une ou plusieurs zones à protéger." />
+      <div className="rq-chips">
+        {choices.map((z) => {
+          const active = s.contextual.includes(z)
+          return (
+            <button
+              key={z}
+              className={`rq-chip${active ? " is-active" : ""}`}
+              onClick={() => dispatch({ type: "toggle", field: "contextual", value: z, multi: true })}
+            >
+              {z}
+            </button>
+          )
+        })}
+      </div>
+      <p className="rq-hint">Le devis PPF est établi après étude des zones et de l&apos;état de la carrosserie.</p>
+    </section>
+  )
+}
+
+/** Nettoyage textile — MULTI-sélection des éléments à traiter (§6). */
+function TextileFormulesStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch<Action>; family: Family }) {
+  return (
+    <section>
+      <StepIntro title={family.title} sub="Sélectionnez le ou les éléments à nettoyer." />
+
+      <div className="rq-included">
+        <p className="rq-included-h">Ce qui est inclus</p>
+        <ul>
+          {family.included.map((it) => (
+            <li key={it}>{it}</li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="rq-fgroup-title">Éléments à nettoyer</p>
+      <p className="rq-fgroup-note">
+        Vous pouvez sélectionner plusieurs éléments. Déplacement offert à moins de 10 km, puis 0,70 €/km au-delà.
+      </p>
+      <div className="rq-formulas">
+        {family.formulaGroups
+          .flatMap((g) => g.formulas)
+          .map((f) => {
+            const active = s.textileItems.includes(f.label)
+            return (
+              <button
+                key={f.label}
+                className={`rq-formula${active ? " is-active" : ""}`}
+                onClick={() => dispatch({ type: "toggle", field: "textileItems", value: f.label, multi: true })}
+              >
+                <span className="rq-formula-main">
+                  <span className="rq-formula-label">{f.label}</span>
+                  {f.note && <span className="rq-formula-note">{f.note}</span>}
+                </span>
+                <span className="rq-formula-price">{priceText(f)}</span>
+              </button>
+            )
+          })}
+      </div>
+
+      {family.caveat && <p className="rq-caveat">{family.caveat}</p>}
     </section>
   )
 }
@@ -902,32 +1085,7 @@ function EntretienChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
   )
 }
 
-const TEXTILE_TYPES = ["Canapé", "Fauteuil", "Chaises", "Sièges de véhicule", "Cuir", "Autre"] as const
-
-function TextileStep({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
-  return (
-    <section>
-      <StepIntro
-        title="Type de textile"
-        sub="Indiquez le principal élément à traiter. Le détail des tarifs est présenté à l'étape précédente."
-      />
-      <div className="rq-chips">
-        {TEXTILE_TYPES.map((t) => {
-          const active = s.vehType === t
-          return (
-            <button key={t} className={`rq-chip${active ? " is-active" : ""}`} onClick={() => patch({ vehType: t })}>
-              {t}
-            </button>
-          )
-        })}
-      </div>
-      <p className="rq-hint">Déplacement offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà.</p>
-    </section>
-  )
-}
-
 function VehiculeStep({ s, patch, family }: { s: State; patch: (p: Partial<State>) => void; family?: Family }) {
-  if (family?.kind === "textile") return <TextileStep s={s} patch={patch} />
   return (
     <section>
       <StepIntro title="Votre véhicule" sub="Sélectionnez le type, puis indiquez la marque et le modèle." />
@@ -1020,7 +1178,9 @@ function DetailsStep({
   patch: (p: Partial<State>) => void
   family?: Family
 }) {
-  const ctx = family?.contextual
+  // Les zones PPF ont leur propre étape conditionnelle (branche PPF uniquement)
+  // et ne doivent jamais réapparaître ici — surtout pas pour la personnalisation.
+  const ctx = family?.key === "ppf-personnalisation" ? undefined : family?.contextual
   return (
     <section>
       <StepIntro title="Précisez votre demande" sub="Quelques éléments utiles à Spirit ACS pour étudier votre besoin." />
@@ -1216,17 +1376,19 @@ function RecapStep({
   s,
   dispatch,
   family,
+  mainFamily,
   uploader,
 }: {
   s: State
   dispatch: React.Dispatch<Action>
   family?: Family
+  mainFamily?: ReturnType<typeof getMainFamily>
   uploader: UsePhotoUploads
 }) {
-  const steps = stepsFor(s.entry)
-  const go = (key: string) => dispatch({ type: "goto", i: steps.indexOf(key), fromSummary: true })
+  const go = (key: string) => dispatch({ type: "goto", key, fromSummary: true })
   if (!family) return null
 
+  const isPpf = family.key === "ppf-personnalisation"
   const optionLabels = family.options.filter((o) => s.options.includes(o.id)).map((o) => o.label)
   const est = computeEstimate({
     family,
@@ -1236,11 +1398,12 @@ function RecapStep({
     cleaningLevel: s.cleaningLevel,
     cleaningZone: s.cleaningZone,
     entretienFrequency: s.entretienFrequency,
+    textileItems: s.textileItems,
     options: s.options,
   } as FlowSelection)
 
   const selectedByGroup =
-    family.kind === "formulas" || family.kind === "textile"
+    family.kind === "formulas"
       ? family.formulaGroups
           .map((g, gi) => {
             const label = s.formulas[gi]
@@ -1251,15 +1414,17 @@ function RecapStep({
           .filter((x): x is { group: string; label: string; price: string } => x !== null)
       : []
 
+  const textileFlat = family.kind === "textile" ? family.formulaGroups.flatMap((g) => g.formulas) : []
+
   return (
     <section>
       <StepIntro title="Récapitulatif" sub="Vérifiez votre demande avant de l'envoyer. Chaque bloc reste modifiable." />
 
-      <RecapBlock label="Prestation" onEdit={s.entry === "catalog" ? () => go("prestation") : undefined}>
-        {family.title}
+      <RecapBlock label="Prestation" onEdit={() => go(mainFamily && mainFamily.prestationKeys.length > 1 ? "prestation" : "formules")}>
+        {mainFamily?.title ?? family.title}
       </RecapBlock>
 
-      <RecapBlock label="Formule" onEdit={() => go("formules")}>
+      <RecapBlock label={isPpf ? "Prestation souhaitée" : "Formule"} onEdit={() => go("formules")}>
         {family.kind === "nettoyage" ? (
           s.cleaningZone && s.cleaningLevel ? (
             `${CLEANING_ZONE_LABEL[s.cleaningZone]} · ${CLEANING_LEVEL_LABEL[s.cleaningLevel]}`
@@ -1268,8 +1433,28 @@ function RecapStep({
           )
         ) : family.kind === "entretien" ? (
           s.entretienFrequency ? ENTRETIEN_FREQUENCY_LABEL[s.entretienFrequency] : "Non précisée"
+        ) : isPpf ? (
+          s.ppfBranch === "ppf" ? "Film de protection (PPF) · Sur devis" : s.ppfBranch === "personnalisation" ? "Personnalisation · Sur devis" : "Non précisée"
         ) : family.kind === "devis" ? (
           "Sur devis"
+        ) : family.kind === "textile" ? (
+          s.textileItems.length ? (
+            <div className="rq-recap-formulas">
+              {s.textileItems.map((label) => {
+                const f = textileFlat.find((x) => x.label === label)
+                return (
+                  <div key={label} className="rq-recap-formula">
+                    <span className="rq-recap-fline">
+                      <span>{label}</span>
+                      <span className="rq-recap-fprice">{f ? priceText(f) : ""}</span>
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            "Non précisée"
+          )
         ) : s.inspection ? (
           "À déterminer après inspection"
         ) : selectedByGroup.length ? (
@@ -1289,18 +1474,28 @@ function RecapStep({
         )}
       </RecapBlock>
 
-      <RecapBlock label={family.kind === "textile" ? "Textile" : "Véhicule"} onEdit={() => go("vehicule")}>
-        {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
-      </RecapBlock>
+      {isPpf && s.ppfBranch === "ppf" && (
+        <RecapBlock label="Zones PPF" onEdit={() => go("ppfzones")}>
+          {s.contextual.length ? s.contextual.join(", ") : "Non précisées"}
+        </RecapBlock>
+      )}
 
-      {family.options.length > 0 && (
-        <RecapBlock label="Options" onEdit={() => go("options")}>
+      {/* L'étape véhicule est retirée pour les prestations à prix fixe (textile,
+          rénovation de phares) → pas de bloc « Véhicule » vide dans le récap. */}
+      {!family.skipVehicle && (
+        <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
+          {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
+        </RecapBlock>
+      )}
+
+      {family.options.length > 0 && (!isPpf || s.ppfBranch === "personnalisation") && (
+        <RecapBlock label={isPpf ? "Personnalisation" : "Options"} onEdit={() => go("options")}>
           {optionLabels.length ? optionLabels.join(", ") : "Aucune"}
         </RecapBlock>
       )}
 
       <RecapBlock label="Votre demande" onEdit={() => go("details")}>
-        {[...s.contextual, s.description].filter(Boolean).join(" — ") || "—"}
+        {[...(isPpf ? [] : s.contextual), s.description].filter(Boolean).join(" — ") || "—"}
       </RecapBlock>
 
       <RecapBlock label="Photos" onEdit={() => go("photos")}>
