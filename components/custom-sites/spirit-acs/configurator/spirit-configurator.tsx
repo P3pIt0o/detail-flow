@@ -36,6 +36,7 @@ import { usePhotoUploads, type UsePhotoUploads } from "@/components/quote-photo-
 import {
   AVAILABILITY_CHOICES,
   cleaningBaseCents,
+  CLEANING_COMBO_FLOOR,
   CLEANING_LEVEL_LABEL,
   CLEANING_ZONE_LABEL,
   computeEstimate,
@@ -44,6 +45,7 @@ import {
   estimateHeadline,
   euros,
   getMainFamily,
+  interiorAddonCentsFor,
   MAIN_FAMILIES,
   mainFamilyKeyForSlug,
   prestationsForFamily,
@@ -55,7 +57,7 @@ import {
   getFamily,
   priceText,
   serializeFlow,
-  VEHICLE_TYPES,
+  vehicleTypesForFamily,
 } from "./flow-data"
 
 /** Libellés courts des sous-prestations (niveau 2) affichés dans le sélecteur. */
@@ -226,7 +228,7 @@ function reducer(state: State, action: Action): State {
         familyKey: state.familyLocked ? state.familyKey : null,
         familyLocked: state.familyLocked,
         serviceKey: state.familyLocked ? state.serviceKey : null,
-        vehType: state.familyLocked && state.familyKey === "moto" ? "Moto / Scooter" : null,
+        vehType: state.familyLocked && state.familyKey === "moto" ? "Moto" : null,
       }
     case "patch":
       return { ...state, ...action.patch }
@@ -238,7 +240,7 @@ function reducer(state: State, action: Action): State {
         ...RESET_DEPENDENT,
         familyKey: action.familyKey,
         serviceKey: single ? (mf?.prestationKeys[0] ?? null) : null,
-        vehType: action.familyKey === "moto" ? "Moto / Scooter" : null,
+        vehType: action.familyKey === "moto" ? "Moto" : null,
       }
       return { ...next, i: advanceFrom(next, "famille"), fromSummary: false }
     }
@@ -248,7 +250,7 @@ function reducer(state: State, action: Action): State {
         ...state,
         ...RESET_DEPENDENT,
         serviceKey: action.serviceKey,
-        vehType: state.familyKey === "moto" ? "Moto / Scooter" : null,
+        vehType: state.familyKey === "moto" ? "Moto" : null,
       }
       return { ...next, i: advanceFrom(next, "prestation"), fromSummary: false }
     }
@@ -320,7 +322,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
         // multiples (Nettoyage) → il choisit d'abord la prestation.
         serviceKey: single ? (mf?.prestationKeys[0] ?? null) : null,
         familyLocked: true,
-        vehType: familyKey === "moto" ? "Moto / Scooter" : null,
+        vehType: familyKey === "moto" ? "Moto" : null,
       })
     }
     applyEntryFromUrl()
@@ -476,21 +478,15 @@ const STEP_LABEL: Record<string, string> = {
 }
 
 /**
- * Étapes à AUTO-NAVIGATION (§12) : un seul choix → clic → avance. Le bouton
- * « Continuer » y est masqué. Toutes les autres étapes (multi-sélection,
- * saisies, coordonnées) conservent un bouton de validation.
+ * Étapes à AUTO-NAVIGATION : SEULS les écrans « famille » et « prestation »
+ * avancent au clic (leurs boutons dispatchent `chooseFamily` / `chooseService`,
+ * qui font progresser le parcours). TOUTES les autres étapes — y compris les
+ * formules à choix unique (PPF, entretien, rénovation de phares) — conservent
+ * un bouton « Continuer » validé (§11) : sinon, comme ces boutons ne font que
+ * mémoriser la sélection sans avancer, une sélection valide restait bloquée.
  */
-function isAutoNavStep(stepKey: string, family?: Family): boolean {
-  if (stepKey === "famille" || stepKey === "prestation") return true
-  if (stepKey === "formules") {
-    if (family?.kind === "entretien") return true // fréquence unique
-    if (family?.key === "ppf-personnalisation") return true // choix de branche
-    if (family?.kind === "formulas") {
-      const count = family.formulaGroups.reduce((n, g) => n + g.formulas.length, 0)
-      return family.formulaGroups.length === 1 && count === 1 // rénovation de phares
-    }
-  }
-  return false
+function isAutoNavStep(stepKey: string): boolean {
+  return stepKey === "famille" || stepKey === "prestation"
 }
 
 function FlowHeader({
@@ -551,7 +547,7 @@ function FlowFooter({
   // Écran de choix (famille / prestation) et étapes à choix unique : le clic
   // fait avancer, aucun bouton « Continuer » (§12). On conserve seulement le
   // repli « Autre demande » sur l'écran des familles.
-  const autoNav = isAutoNavStep(stepKey, family)
+  const autoNav = isAutoNavStep(stepKey)
   const isRecap = stepKey === "recap"
   const disabled = pending || !canContinue(s, stepKey, family)
   const primaryLabel = isRecap
@@ -600,7 +596,9 @@ function canContinue(s: State, stepKey: string, family?: Family): boolean {
     case "prestation":
       return s.serviceKey != null
     case "formules": // Q2
-      if (family?.kind === "nettoyage") return s.cleaningZone != null && s.cleaningLevel != null
+      // Formule combinée (§8) : le périmètre « les-deux » suffit (aucun niveau).
+      if (family?.kind === "nettoyage")
+        return s.cleaningZone === "les-deux" || (s.cleaningZone != null && s.cleaningLevel != null)
       if (family?.kind === "entretien") return s.entretienFrequency != null
       if (family?.kind === "textile") return s.textileItems.length > 0
       if (family?.key === "ppf-personnalisation") return s.ppfBranch != null
@@ -688,7 +686,7 @@ function Step({
     case "details":
       return <DetailsStep s={s} dispatch={dispatch} patch={patch} family={family} />
     case "photos":
-      return <PhotosStep uploader={uploader} />
+      return <PhotosStep uploader={uploader} family={family} />
     case "dispos":
       return <DisposStep s={s} dispatch={dispatch} patch={patch} />
     case "coordonnees":
@@ -793,6 +791,9 @@ function FormulesStep({
   dispatch: React.Dispatch<Action>
   family?: Family
 }) {
+  // Accordéon « En savoir plus » des protections céramiques (§5) : un seul
+  // ouvert à la fois. Déclaré avant tout retour anticipé (règle des hooks).
+  const [openBlurb, setOpenBlurb] = useState<string | null>(null)
   if (!family) return null
 
   // PPF & personnalisation : deux branches distinctes (§9). Le choix pilote
@@ -833,35 +834,73 @@ function FormulesStep({
           </p>
         </div>
       ) : (
-        family.formulaGroups.map((g, gi) => (
-          <div key={gi} className="rq-fgroup">
-            {g.title && <p className="rq-fgroup-title">{g.title}</p>}
-            {g.note && <p className="rq-fgroup-note">{g.note}</p>}
-            <div className="rq-formulas">
-              {g.formulas.map((f) => {
-                const active = s.formulas[gi] === f.label
-                return (
-                  <button
-                    key={f.label}
-                    className={`rq-formula${active ? " is-active" : ""}`}
-                    onClick={() => {
-                      const next = { ...s.formulas }
-                      if (active) delete next[gi]
-                      else next[gi] = f.label
-                      patch({ formulas: next, inspection: false })
-                    }}
-                  >
-                    <span className="rq-formula-main">
-                      <span className="rq-formula-label">{f.label}</span>
-                      {f.note && <span className="rq-formula-note">{f.note}</span>}
-                    </span>
-                    <span className="rq-formula-price">{priceText(f)}</span>
-                  </button>
-                )
-              })}
+        family.formulaGroups.map((g, gi) => {
+          // §4 : une protection céramique carrosserie (requiresPolish) ne peut
+          // être choisie qu'après un polissage — niveau explicite (groupe 0) OU
+          // « à déterminer après inspection ». Sinon elle reste verrouillée.
+          const polishChosen = Boolean(s.formulas[0]) || s.inspection
+          return (
+            <div key={gi} className="rq-fgroup">
+              {g.title && <p className="rq-fgroup-title">{g.title}</p>}
+              {g.note && <p className="rq-fgroup-note">{g.note}</p>}
+              <div className="rq-formulas">
+                {g.formulas.map((f) => {
+                  const active = s.formulas[gi] === f.label
+                  const locked = Boolean(f.requiresPolish) && !polishChosen
+                  const open = openBlurb === f.label
+                  return (
+                    <div key={f.label}>
+                      <button
+                        className={`rq-formula${active ? " is-active" : ""}${locked ? " is-locked" : ""}`}
+                        disabled={locked}
+                        aria-disabled={locked}
+                        onClick={() => {
+                          if (locked) return
+                          const next = { ...s.formulas }
+                          if (active) delete next[gi]
+                          else next[gi] = f.label
+                          if (gi === 0) {
+                            // Choisir/retirer un niveau de polissage annule
+                            // l'option « inspection » ; sans polissage, aucune
+                            // céramique carrosserie ne peut subsister (§4).
+                            if (!next[0]) delete next[1]
+                            patch({ formulas: next, inspection: false })
+                          } else {
+                            patch({ formulas: next })
+                          }
+                        }}
+                      >
+                        <span className="rq-formula-main">
+                          <span className="rq-formula-label">{f.label}</span>
+                          {f.note && <span className="rq-formula-note">{f.note}</span>}
+                          {locked && (
+                            <span className="rq-formula-note rq-lock-note">
+                              Sélectionnez d&apos;abord un niveau de polissage
+                            </span>
+                          )}
+                        </span>
+                        <span className="rq-formula-price">{priceText(f)}</span>
+                      </button>
+                      {f.blurb && (
+                        <>
+                          <button
+                            type="button"
+                            className="rq-more"
+                            aria-expanded={open}
+                            onClick={() => setOpenBlurb(open ? null : f.label)}
+                          >
+                            {open ? "Masquer" : "En savoir plus"}
+                          </button>
+                          {open && <p className="rq-more-panel">{f.blurb}</p>}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))
+          )
+        })
       )}
 
       {family.caveat && <p className="rq-caveat">{family.caveat}</p>}
@@ -869,7 +908,13 @@ function FormulesStep({
       {family.kind === "formulas" && (
         <button
           className={`rq-softchoice${s.inspection ? " is-active" : ""}`}
-          onClick={() => patch({ inspection: !s.inspection, formulas: {} })}
+          onClick={() => {
+            // « Inspection » remplace le CHOIX DE NIVEAU (groupe 0) sans effacer
+            // une éventuelle protection céramique déjà retenue (groupe 1).
+            const next = { ...s.formulas }
+            delete next[0]
+            patch({ inspection: !s.inspection, formulas: next })
+          }}
         >
           Laisser Spirit ACS déterminer la formule après inspection
         </button>
@@ -890,7 +935,7 @@ function PpfBranchStep({
 }) {
   const BRANCHES: { key: PpfBranch; label: string; note: string }[] = [
     { key: "ppf", label: "Film de protection (PPF)", note: "Protection transparente des zones exposées de la carrosserie" },
-    { key: "personnalisation", label: "Personnalisation", note: "Étriers, passages de roues, dépose covering, destickage, céramique jantes…" },
+    { key: "personnalisation", label: "Personnalisation", note: "Étriers, passages de roues, dépose covering, destickage, céramique jantes 1 an…" },
   ]
   return (
     <section>
@@ -1012,44 +1057,63 @@ function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
           <button
             key={z}
             className={`rq-seg-btn${s.cleaningZone === z ? " is-active" : ""}`}
-            onClick={() => patch({ cleaningZone: z })}
+            // Changer de périmètre réinitialise le niveau : la formule combinée
+            // n'a pas de niveau à choisir (§8).
+            onClick={() => patch({ cleaningZone: z, cleaningLevel: null })}
           >
             {CLEANING_ZONE_LABEL[z]}
           </button>
         ))}
       </div>
-      {zone === "les-deux" && (
-        <p className="rq-fgroup-note" style={{ marginTop: 8 }}>
-          Intérieur + Extérieur : 10 € de réduction appliquée automatiquement.
-        </p>
-      )}
 
-      <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
-        Choisissez votre formule
-      </p>
-      <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
-      <div className="rq-formulas">
-        {CLEANING_LEVELS.map((lvl) => {
-          const active = s.cleaningLevel === lvl
-          // Plancher « dès » (citadine) — l'exact est calculé une fois le véhicule connu.
-          const floor = cleaningBaseCents(zone ?? "les-deux", lvl, "citadine")
-          return (
-            <button
-              key={lvl}
-              className={`rq-formula${active ? " is-active" : ""}`}
-              onClick={() => patch({ cleaningLevel: lvl })}
-            >
+      {zone === "les-deux" ? (
+        // §8 : UNE seule formule combinée (Intérieur comme neuf + Extérieur
+        // indispensable). Aucun choix Indispensable / Comme neuf ici.
+        <>
+          <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
+            Votre formule
+          </p>
+          <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
+          <div className="rq-formulas">
+            <div className="rq-formula is-active">
               <span className="rq-formula-main">
-                <span className="rq-formula-label">{CLEANING_LEVEL_LABEL[lvl]}</span>
-                <span className="rq-formula-note">
-                  {lvl === "indispensable" ? "Nettoyage soigné et complet" : "Remise en état la plus poussée"}
-                </span>
+                <span className="rq-formula-label">Intérieur + Extérieur complet</span>
+                <span className="rq-formula-note">Intérieur comme neuf + Extérieur indispensable</span>
               </span>
-              <span className="rq-formula-price">dès {euros(floor)}</span>
-            </button>
-          )
-        })}
-      </div>
+              <span className="rq-formula-price">dès {euros(CLEANING_COMBO_FLOOR)}</span>
+            </div>
+          </div>
+        </>
+      ) : zone ? (
+        <>
+          <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
+            Choisissez votre formule
+          </p>
+          <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
+          <div className="rq-formulas">
+            {CLEANING_LEVELS.map((lvl) => {
+              const active = s.cleaningLevel === lvl
+              // Plancher « dès » (citadine) — l'exact est calculé une fois le véhicule connu.
+              const floor = cleaningBaseCents(zone, lvl, "citadine")
+              return (
+                <button
+                  key={lvl}
+                  className={`rq-formula${active ? " is-active" : ""}`}
+                  onClick={() => patch({ cleaningLevel: lvl })}
+                >
+                  <span className="rq-formula-main">
+                    <span className="rq-formula-label">{CLEANING_LEVEL_LABEL[lvl]}</span>
+                    <span className="rq-formula-note">
+                      {lvl === "indispensable" ? "Nettoyage soigné et complet" : "Remise en état la plus poussée"}
+                    </span>
+                  </span>
+                  <span className="rq-formula-price">dès {euros(floor)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -1086,11 +1150,14 @@ function EntretienChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
 }
 
 function VehiculeStep({ s, patch, family }: { s: State; patch: (p: Partial<State>) => void; family?: Family }) {
+  // §10/§13 : la liste des types dépend de la famille — le parcours moto ne
+  // propose que « Moto », les parcours auto proposent les 6 gabarits.
+  const vehicleTypes = vehicleTypesForFamily(family?.key)
   return (
     <section>
       <StepIntro title="Votre véhicule" sub="Sélectionnez le type, puis indiquez la marque et le modèle." />
       <div className="rq-types">
-        {VEHICLE_TYPES.map((t) => {
+        {vehicleTypes.map((t) => {
           const active = s.vehType === t
           return (
             <button key={t} className={`rq-type${active ? " is-active" : ""}`} onClick={() => patch({ vehType: t })}>
@@ -1132,18 +1199,42 @@ function VehiculeStep({ s, patch, family }: { s: State; patch: (p: Partial<State
 
 function OptionsStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch<Action>; family?: Family }) {
   if (!family) return null
-  if (family.options.length === 0) {
+
+  // §9 : n'afficher que les options COHÉRENTES avec le périmètre nettoyage
+  // choisi. Une option « intérieur »/« extérieur » n'apparaît que pour ce
+  // périmètre (ou la formule complète) ; sans `scope` elle est toujours
+  // proposée. Les autres familles affichent toutes leurs options.
+  const visible =
+    family.kind === "nettoyage"
+      ? family.options.filter((o) => {
+          if (!o.scope) return true
+          return s.cleaningZone === "les-deux" || s.cleaningZone === o.scope
+        })
+      : family.options
+
+  if (visible.length === 0) {
     return (
       <section>
         <StepIntro title="Options complémentaires" sub="Aucune option pour cette prestation. Vous pouvez continuer." />
       </section>
     )
   }
+
+  // §3 : l'option « Nettoyage intérieur » du polissage est chiffrée selon le
+  // gabarit sélectionné (jamais un prix générique).
+  const priceFor = (o: (typeof visible)[number]): string => {
+    if (o.id === "nettoyage-interieur") {
+      const cents = interiorAddonCentsFor(s.vehType)
+      return cents == null ? "Sur devis" : euros(cents)
+    }
+    return o.price
+  }
+
   return (
     <section>
       <StepIntro title="Complétez votre prestation" sub="Facultatif — ajoutez une option pertinente, ou continuez." />
       <div className="rq-opts">
-        {family.options.map((o) => {
+        {visible.map((o) => {
           const active = s.options.includes(o.id)
           return (
             <button
@@ -1158,7 +1249,7 @@ function OptionsStep({ s, dispatch, family }: { s: State; dispatch: React.Dispat
                 <span className="rq-opt-label">{o.label}</span>
                 <span className="rq-opt-benefit">{o.benefit}</span>
               </span>
-              <span className="rq-opt-price">{o.price}</span>
+              <span className="rq-opt-price">{priceFor(o)}</span>
             </button>
           )
         })}
@@ -1217,16 +1308,21 @@ function DetailsStep({
   )
 }
 
-function PhotosStep({ uploader }: { uploader: UsePhotoUploads }) {
+function PhotosStep({ uploader, family }: { uploader: UsePhotoUploads; family?: Family }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const { items, addFiles, removeItem, count } = uploader
 
+  // §17 : pour le nettoyage textile, on demande des photos DU TEXTILE (canapé,
+  // fauteuil, chaise…), jamais du véhicule.
+  const isTextile = family?.kind === "textile"
+  const title = isTextile ? "Ajoutez des photos du textile" : "Ajoutez des photos de votre véhicule"
+  const sub = isTextile
+    ? "Facultatif — photos du canapé, fauteuil, chaise ou autre textile concerné."
+    : "Facultatif — elles aident Spirit ACS à mieux comprendre votre demande."
+
   return (
     <section>
-      <StepIntro
-        title="Ajoutez des photos de votre véhicule"
-        sub="Facultatif — elles aident Spirit ACS à mieux comprendre votre demande."
-      />
+      <StepIntro title={title} sub={sub} />
 
       <input
         ref={inputRef}
@@ -1426,7 +1522,9 @@ function RecapStep({
 
       <RecapBlock label={isPpf ? "Prestation souhaitée" : "Formule"} onEdit={() => go("formules")}>
         {family.kind === "nettoyage" ? (
-          s.cleaningZone && s.cleaningLevel ? (
+          s.cleaningZone === "les-deux" ? (
+            "Intérieur + Extérieur complet"
+          ) : s.cleaningZone && s.cleaningLevel ? (
             `${CLEANING_ZONE_LABEL[s.cleaningZone]} · ${CLEANING_LEVEL_LABEL[s.cleaningLevel]}`
           ) : (
             "Non précisée"
@@ -1483,7 +1581,7 @@ function RecapStep({
       {/* L'étape véhicule est retirée pour les prestations à prix fixe (textile,
           rénovation de phares) → pas de bloc « Véhicule » vide dans le récap. */}
       {!family.skipVehicle && (
-        <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
+        <RecapBlock label="V��hicule" onEdit={() => go("vehicule")}>
           {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
         </RecapBlock>
       )}
@@ -1639,13 +1737,14 @@ function MonospaceIcon() {
   )
 }
 
-function VanIcon() {
+function SportiveIcon() {
+  // Silhouette sportive : très basse, pare-brise fortement incliné, capot long.
   return (
     <svg {...ICON_SVG}>
-      <path d="M4 23 L4 12 L6.5 9 Q7 8 8.5 8 L44 8 L44 23" />
-      <path d="M4 23 L7.6 23 A4.4 4.4 0 0 1 16.4 23 L32.6 23 A4.4 4.4 0 0 1 41.4 23 L44 23" />
-      <circle cx="12" cy="23" r="3.3" />
-      <circle cx="37" cy="23" r="3.3" />
+      <path d="M4 22 L5 18.5 L13 15.5 L20 11.5 Q22 10.4 25 10.6 L33 11.6 Q36 12 38 14 L44 17.5 L44 22" />
+      <path d="M4 22 L8.2 22 A4.2 4.2 0 0 1 16.6 22 L31.4 22 A4.2 4.2 0 0 1 39.8 22 L44 22" />
+      <circle cx="12.4" cy="22" r="3.2" />
+      <circle cx="35.6" cy="22" r="3.2" />
     </svg>
   )
 }
@@ -1666,10 +1765,11 @@ function MotoIcon() {
 const VEHICLE_ICONS: Record<string, () => React.ReactElement> = {
   Citadine: CitadineIcon,
   Berline: BerlineIcon,
-  "SUV / 4x4": SuvIcon,
-  Monospace: MonospaceIcon,
-  "Utilitaire / Van": VanIcon,
-  "Moto / Scooter": MotoIcon,
+  Sportive: SportiveIcon,
+  SUV: SuvIcon,
+  "Monospace 5 places": MonospaceIcon,
+  "Monospace 7 places": MonospaceIcon,
+  Moto: MotoIcon,
 }
 
 function VehicleIcon({ type }: { type: string }) {
@@ -1761,6 +1861,14 @@ const css = `
 .rq-devis-badge{ display:inline-block; margin-bottom:8px; padding:4px 10px; border-radius:20px; background:rgba(23,179,201,.14); color:var(--teal); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; }
 .rq-devis-card p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--paper); }
 .rq-caveat{ margin:14px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted); padding:11px 13px; background:rgba(255,255,255,.03); border-left:2px solid var(--teal); border-radius:0 8px 8px 0; }
+/* Protection céramique verrouillée tant qu'aucun polissage n'est choisi (§4). */
+.rq-formula.is-locked{ opacity:.5; cursor:not-allowed; }
+.rq-formula.is-locked:hover{ border-color:var(--line); box-shadow:none; }
+.rq-lock-note{ color:var(--pink) !important; }
+/* Accordéon « En savoir plus » des protections céramiques (§5). */
+.rq-more{ margin:6px 0 2px 2px; background:none; border:none; padding:0; color:var(--teal); font-size:12px; font-weight:600; cursor:pointer; }
+.rq-more:hover{ text-decoration:underline; }
+.rq-more-panel{ margin:2px 0 4px; padding:10px 12px; border-radius:9px; background:rgba(255,255,255,.03); border:1px solid var(--line); font-size:12.5px; line-height:1.5; color:var(--paper); }
 .rq-softchoice{ margin-top:12px; width:100%; text-align:left; background:none; border:1px dashed var(--line); border-radius:12px; padding:13px 14px; color:var(--paper); font-size:13.5px; cursor:pointer; }
 .rq-softchoice.is-active{ border-style:solid; border-color:var(--teal); color:#fff; }
 
