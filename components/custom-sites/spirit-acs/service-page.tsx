@@ -262,9 +262,11 @@ export async function SpiritServicePage({
           <Reveal>
             <div className="mt-10 rounded-sm bg-[var(--spirit-navy)] p-6 text-white sm:p-8">
               <h2 className="spirit-title text-xl font-semibold text-white sm:text-2xl">
-                Un projet pour votre véhicule ?
+                {service.ctaHeading ?? "Un projet pour votre véhicule ?"}
               </h2>
-              <p className="mt-2 text-white/75">Décrivez votre véhicule et la prestation souhaitée.</p>
+              <p className="mt-2 text-white/75">
+                {service.ctaText ?? "Décrivez votre véhicule et la prestation souhaitée."}
+              </p>
               <Link
                 href={quoteHref}
                 className="mt-5 inline-flex items-center justify-center rounded-sm bg-[var(--spirit-pink)] px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"

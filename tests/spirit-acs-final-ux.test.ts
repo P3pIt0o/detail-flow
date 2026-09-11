@@ -97,21 +97,24 @@ describe("Spirit — WhatsApp monté dans le shell (pas de doublon)", () => {
 describe("Spirit — header animé/compact au défilement", () => {
   const nav = () => read(`${SPIRIT}/spirit-navigation.tsx`)
 
-  it("gère l'escamotage et le mode compact au scroll, avec seuil anti-clignotement", () => {
+  it("en-tête TOUJOURS visible : fond opaque au défilement (aucun escamotage)", () => {
     const src = nav()
-    expect(src).toMatch(/setHidden/)
-    expect(src).toMatch(/setCompact/)
-    // Seuil de delta (ignore les micro-mouvements 1–2 px).
-    expect(src).toMatch(/Math\.abs\(delta\) < 6/)
-    // Escamotage vers le haut.
-    expect(src).toMatch(/-translate-y-full/)
+    // Design validé : l'en-tête reste visible en permanence. On ne masque plus
+    // la barre au scroll ; seul le fond passe de transparent à bleu nuit opaque
+    // au-delà d'un seuil (70 px), via un état `scrolled`.
+    expect(src).toMatch(/setScrolled/)
+    expect(src).toMatch(/window\.scrollY > 70/)
+    // Plus aucun escamotage vers le haut ni état « caché ».
+    expect(src).not.toMatch(/-translate-y-full/)
+    expect(src).not.toMatch(/setHidden/)
   })
 
-  it("respecte prefers-reduced-motion (header stable, jamais escamoté)", () => {
+  it("respecte prefers-reduced-motion (transitions neutralisées, header stable)", () => {
     const src = nav()
     expect(src).toMatch(/prefers-reduced-motion/)
-    expect(src).toMatch(/if \(reduce\) setHidden\(false\)/)
     expect(src).toMatch(/motion-reduce:transition-none/)
+    // Header stable : jamais escamoté, donc aucun état « hidden » à rétablir.
+    expect(src).not.toMatch(/-translate-y-full/)
   })
 
   it("ferme le menu au clic et bloque le scroll du body à l'ouverture", () => {
@@ -150,16 +153,16 @@ describe("Spirit — transitions éditoriales (séparateurs décoratifs supprim�
 describe("Spirit — header compact premium", () => {
   const nav = () => read(`${SPIRIT}/spirit-navigation.tsx`)
 
-  it("hauteurs compactes (barre principale ≤ 76px, mode réduit 60px) et transition courte", () => {
+  it("hauteur d'en-tête stable (72px mobile / 80px bureau) et transition courte", () => {
     const src = nav()
-    expect(src).toMatch(/h-\[76px\]/)
-    expect(src).toMatch(/h-\[60px\]/)
+    expect(src).toMatch(/h-\[72px\]/)
+    expect(src).toMatch(/lg:h-20/)
     // Transition courte (180–240ms) → duration-200.
     expect(src).toMatch(/duration-200/)
   })
 
-  it("le décalage du shell suit la hauteur compacte (pas de grand bloc blanc)", () => {
-    expect(read(`${SPIRIT}/site-shell.tsx`)).toMatch(/pt-\[112px\] lg:pt-\[116px\]/)
+  it("le décalage du shell suit la hauteur d'en-tête (pas de grand bloc blanc)", () => {
+    expect(read(`${SPIRIT}/site-shell.tsx`)).toMatch(/pt-\[72px\] lg:pt-20/)
   })
 })
 

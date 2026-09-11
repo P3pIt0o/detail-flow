@@ -109,7 +109,11 @@ export function SpiritHero({
     <section
       id={SPIRIT_SECTIONS.accueil}
       data-spirit-anchor
-      className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] lg:min-h-[640px]"
+      // §1 · Desktop : on plafonne la hauteur (lg:min-h-0 + hauteur explicite
+      // plus « paysage ») pour que `object-cover` sur la photo paysage de la
+      // Porsche rogne beaucoup moins → la voiture est nettement plus visible,
+      // sans cadrage serré. Le mobile conserve exactement son plein écran.
+      className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-[var(--spirit-navy)] pt-[72px] lg:min-h-0 lg:h-[clamp(560px,78vh,780px)]"
     >
       {/* Photo RÉELLE de la Porsche 911 de l'atelier — élément visuel fort.
           Traitement cinéma (contraste + saturation légers) et cadrage repris de
@@ -121,7 +125,7 @@ export function SpiritHero({
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[63%_34%] [filter:contrast(1.1)_saturate(1.07)_brightness(0.94)] lg:object-[50%_42%]"
+          className="object-cover object-[63%_34%] [filter:contrast(1.1)_saturate(1.07)_brightness(0.94)] lg:object-[50%_38%]"
         />
         {/* 1 · Vignettage radial : bords assombris, voiture lumineuse au centre. */}
         <div

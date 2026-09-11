@@ -83,7 +83,7 @@ describe("Spirit — section familles de prestations (#2)", () => {
     // Titre de section repris de la maquette validée.
     expect(src.toLowerCase()).toMatch(/choisissez, puis demandez votre devis/)
     // Paragraphe SEO visible présent dans le HTML initial (non masqué).
-    expect(src).toMatch(/Spirit ACS propose à Lagny-sur-Marne des prestations/)
+    expect(src).toMatch(/Spirit ACS propose à Lagny-sur-Marne et aux alentours des prestations/)
     // Section SOMBRE (fond navy) — conformité maquette (plus de grande surface blanche).
     expect(src).toMatch(/bg-\[var\(--spirit-navy\)\]/)
     // Grille pilotée par le catalogue public : aucune liste de slugs en dur, on
@@ -109,11 +109,12 @@ describe("Spirit — section familles de prestations (#2)", () => {
     }
   })
 
-  it("grille responsive 1 → 2 → 3 colonnes, sans carrousel ni doublon de liste grise", () => {
+  it("grille responsive panoramique 1 → 2 colonnes, sans carrousel ni doublon de liste grise", () => {
     const src = prest()
+    // Cartes panoramiques (nettement plus larges que hautes) : 1 colonne sur
+    // mobile, 2 colonnes dès `md`. Plus de 3ᵉ colonne (format paysage validé).
     expect(src).toMatch(/grid-cols-1/)
-    expect(src).toMatch(/min-\[420px\]:grid-cols-2/)
-    expect(src).toMatch(/lg:grid-cols-3/)
+    expect(src).toMatch(/md:grid-cols-2/)
     expect(src).not.toMatch(/carousel|Carousel|embla|swiper/)
     // L'ancien bloc doublon « Découvrir toutes nos prestations » a été supprimé.
     expect(src).not.toMatch(/Découvrir toutes nos prestations/)

@@ -92,17 +92,9 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
                     <InstagramIcon className="size-[18px]" />
                   </a>
                 )}
-                {SPIRIT_SOCIALS.tiktok && (
-                  <a
-                    href={SPIRIT_SOCIALS.tiktok}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`TikTok de ${brandName}`}
-                    className="inline-flex size-9 items-center justify-center rounded-full bg-white/5 text-[color:var(--spirit-muted)] ring-1 ring-white/10 transition-colors hover:bg-[var(--spirit-teal)]/15 hover:text-white"
-                  >
-                    <TikTokIcon className="size-[18px]" />
-                  </a>
-                )}
+                {/* §19 : Facebook affiché juste à côté d'Instagram. Il
+                    n'apparaît que si une URL officielle est renseignée dans
+                    SPIRIT_SOCIALS.facebook (jamais de lien inventé). */}
                 {SPIRIT_SOCIALS.facebook && (
                   <a
                     href={SPIRIT_SOCIALS.facebook}
@@ -112,6 +104,17 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
                     className="inline-flex size-9 items-center justify-center rounded-full bg-white/5 text-[color:var(--spirit-muted)] ring-1 ring-white/10 transition-colors hover:bg-[var(--spirit-teal)]/15 hover:text-white"
                   >
                     <FacebookIcon className="size-[18px]" />
+                  </a>
+                )}
+                {SPIRIT_SOCIALS.tiktok && (
+                  <a
+                    href={SPIRIT_SOCIALS.tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`TikTok de ${brandName}`}
+                    className="inline-flex size-9 items-center justify-center rounded-full bg-white/5 text-[color:var(--spirit-muted)] ring-1 ring-white/10 transition-colors hover:bg-[var(--spirit-teal)]/15 hover:text-white"
+                  >
+                    <TikTokIcon className="size-[18px]" />
                   </a>
                 )}
               </div>

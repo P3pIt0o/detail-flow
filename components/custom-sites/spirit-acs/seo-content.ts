@@ -130,9 +130,10 @@ export const SPIRIT_ZONE_TEXTILE_NOTE =
 /* -------------------------------------------------------------------------- */
 
 /**
- * Profils sociaux officiels de Spirit ACS. `facebook` reste `null` : aucune URL
- * officielle n'a été fournie — on n'invente jamais de lien. Il suffira de
- * renseigner l'URL réelle ici le jour où elle est connue.
+ * Profils sociaux officiels de Spirit ACS. Le compte Facebook existe (« Spirit
+ * Acs ») mais son URL officielle complète n'a pas été fournie : `facebook`
+ * reste donc `null` — on n'invente jamais de lien. Renseigner l'URL réelle ici
+ * pour que l'icône Facebook apparaisse automatiquement dans le footer.
  */
 export const SPIRIT_SOCIALS: { instagram: string | null; tiktok: string | null; facebook: string | null } = {
   instagram: "https://www.instagram.com/spiritacs?stkn=eDZkZ3BmMjhocTRh",
@@ -207,7 +208,7 @@ export const SPIRIT_FAQ: FaqItem[] = [
   {
     question: "Spirit ACS nettoie-t-il aussi les canapés et textiles ?",
     answer:
-      "Oui. Spirit ACS propose un nettoyage textile en profondeur : canapés, fauteuils, chaises, sièges de véhicule et soin du cuir. Le déplacement est offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà.",
+      "Oui. Spirit ACS propose un nettoyage textile d'ameublement en profondeur : canapés, fauteuils, chaises et assises, ainsi que le soin du cuir. Le déplacement est offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà.",
   },
   {
     question: "Proposez-vous un entretien régulier du véhicule ?",
@@ -310,6 +311,10 @@ export type ServiceContent = {
   conversionMode?: SpiritConversionMode
   /** Libellé du CTA contextualisé (repli : « Demander un devis »). */
   ctaLabel?: string
+  /** Titre de l'encart CTA de bas de page (repli : « Un projet pour votre véhicule ? »). */
+  ctaHeading?: string
+  /** Texte de l'encart CTA (repli : « Décrivez votre véhicule et la prestation souhaitée. »). */
+  ctaText?: string
 
   /* --- Maillage interne --- */
   /**
@@ -559,11 +564,11 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     breadcrumbLabel: "PPF & personnalisation",
     intro: [
       "Le film de protection PPF est un film transparent posé sur les zones sensibles du véhicule pour limiter les impacts et préserver les surfaces exposées. Spirit ACS propose le PPF sur les zones suivantes : phares, montants de portes, vitres, bas de coffre et pare-pierre latéraux.",
-      "La personnalisation regroupe la peinture d'étriers, le traitement des passages de roues, la dépose de covering, le destickage et la dépose d'autocollants, ainsi que la céramique jantes. Les zones et prestations sont définies selon le véhicule et l'usage, après analyse.",
+      "La personnalisation regroupe la peinture d'étriers, le traitement des passages de roues, la dépose de covering, le destickage et la dépose d'autocollants, ainsi que la céramique jantes 1 an. Les zones et prestations sont définies selon le véhicule et l'usage, après analyse.",
     ],
     benefits: [
       "PPF transparent sur les zones exposées (phares, montants de portes, vitres, bas de coffre, pare-pierre latéraux).",
-      "Personnalisation : peinture d'étriers, passages de roues, céramique jantes.",
+      "Personnalisation : peinture d'étriers, passages de roues, céramique jantes 1 an.",
       "Retrait maîtrisé : dépose de covering, destickage et dépose d'autocollants.",
     ],
     steps: [
@@ -580,7 +585,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       { label: "Traitement des passages de roues", priceKind: "quote" },
       { label: "Dépose de covering", priceKind: "quote" },
       { label: "Destickage / dépose d'autocollants", priceKind: "quote" },
-      { label: "Céramique jantes", priceKind: "quote" },
+      { label: "Céramique jantes 1 an", priceKind: "quote" },
     ],
     priceCaveat:
       "Le PPF et la plupart des prestations de personnalisation sont établis sur devis, selon les zones à traiter et l'état du véhicule.",
@@ -732,23 +737,23 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
   {
     slug: "nettoyage-textile",
     cardTitle: "Nettoyage textile",
-    cardTagline: "Canapés, fauteuils, chaises et sièges nettoyés en profondeur.",
+    cardTagline: "Canapés, fauteuils et chaises nettoyés en profondeur.",
     cardText:
-      "Nettoyage en profondeur des textiles d'ameublement et des sièges : canapés, fauteuils, chaises, sièges de véhicule et soin du cuir.",
+      "Nettoyage en profondeur des textiles d'ameublement : canapés, fauteuils, chaises, assises et soin du cuir.",
     image: "/custom-sites/spirit-acs/nettoyage-textile.png",
     imageAlt: "Canapé et textiles d'ameublement nettoyés en profondeur par Spirit ACS",
     metaTitle: "Nettoyage textile à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
-      "Nettoyage textile par Spirit ACS à Lagny-sur-Marne : canapés, fauteuils, chaises, pressing de sièges et soin du cuir. Déplacement offert à moins de 10 km.",
+      "Nettoyage textile d'ameublement par Spirit ACS à Lagny-sur-Marne : canapés, fauteuils, chaises et soin du cuir. Déplacement offert à moins de 10 km.",
     h1: "Nettoyage textile à Lagny-sur-Marne",
     breadcrumbLabel: "Nettoyage textile",
     intro: [
-      "Spirit ACS nettoie en profondeur vos textiles d'ameublement et vos sièges : canapés, fauteuils, chaises et sièges de véhicule. Chaque élément est aspiré puis nettoyé selon sa matière et son état.",
+      "Spirit ACS nettoie en profondeur vos textiles d'ameublement : canapés, fauteuils, chaises et assises. Chaque élément est aspiré puis nettoyé selon sa matière et son état.",
       "La prestation peut être réalisée à domicile : le déplacement est offert à moins de 10 km de Lagny-sur-Marne, puis facturé 0,70 €/km au-delà.",
     ],
     benefits: [
       "Textiles assainis et rafraîchis en profondeur.",
-      "Canapés, fauteuils, chaises et sièges de véhicule.",
+      "Canapés, fauteuils, chaises et assises.",
       "Soin et hydratation du cuir en complément si besoin.",
     ],
     steps: [
@@ -757,7 +762,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Traitement des taches lorsque c'est possible.",
       "Séchage et contrôle du rendu.",
     ],
-    vehicles: ["Canapés et fauteuils", "Chaises", "Sièges de véhicule et cuir"],
+    vehicles: ["Canapés et fauteuils", "Chaises et assises", "Textiles en tissu et cuir"],
     priceKind: "from",
     formules: [
       { label: "Canapé 2 places", priceCents: 8000, priceKind: "exact" },
@@ -767,12 +772,13 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       { label: "Fauteuil", priceCents: 5000, priceKind: "exact" },
       { label: "Chaise", priceCents: 2000, priceKind: "exact" },
       { label: "À partir de 5 chaises", priceCents: 1500, priceKind: "from", note: "15 € par chaise." },
-      { label: "Pressing des sièges (véhicule)", priceCents: 5000, priceKind: "exact" },
-      { label: "Nettoyage cuir", priceCents: 5000, priceKind: "exact", note: "Hydratation du cuir : +30 €." },
+      { label: "Nettoyage cuir", priceCents: 5000, priceKind: "exact", note: "Hydratation du cuir en complément : sur devis." },
     ],
     priceCaveat:
       "Déplacement offert à moins de 10 km de Lagny-sur-Marne, puis 0,70 €/km au-delà. Le tarif final est confirmé après étude de votre demande.",
     ctaLabel: "Réserver cette prestation",
+    ctaHeading: "Un projet pour votre textile ?",
+    ctaText: "Décrivez votre textile et la prestation souhaitée.",
     related: ["nettoyage-automobile", "polissage-automobile", "renovation-phares"],
     faq: [
       {
@@ -783,7 +789,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       {
         question: "Quels textiles peuvent être nettoyés ?",
         answer:
-          "Spirit ACS nettoie les canapés, fauteuils, chaises et sièges de véhicule, en tissu comme en cuir. Le soin est adapté à la matière et à l'état du textile.",
+          "Spirit ACS nettoie les canapés, fauteuils, chaises et assises, en tissu comme en cuir. Le soin est adapté à la matière et à l'état du textile.",
       },
       {
         question: "Spirit ACS se déplace-t-il à domicile pour le nettoyage textile ?",

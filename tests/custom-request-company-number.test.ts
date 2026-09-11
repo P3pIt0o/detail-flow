@@ -43,9 +43,9 @@ describe("Demande spéciale — numéro d'entreprise (normalisation)", () => {
 describe("Demande spéciale — câblage serveur", () => {
   const code = stripComments(actions)
 
-  it("lit le champ via le helper str limité à 60", () => {
+  it("lit le champ via le helper str limité à 80", () => {
     expect(code).toMatch(
-      new RegExp(`const ${FIELD} = str\\(formData\\.get\\("${FIELD}"\\), 60\\)`),
+      new RegExp(`const ${FIELD} = str\\(formData\\.get\\("${FIELD}"\\), 80\\)`),
     )
   })
 
@@ -54,14 +54,19 @@ describe("Demande spéciale — câblage serveur", () => {
   })
 
   it("ajoute le numéro aux detailLines de l'email quand présent", () => {
-    // push() n'ajoute la ligne que si la valeur est non vide.
-    expect(code).toMatch(new RegExp(`push\\("[^"]*identifiant légal", ${FIELD}\\)`))
+    // push() n'ajoute la ligne que si la valeur est non vide (lue sur `req`).
+    expect(code).toMatch(new RegExp(`push\\("[^"]*identifiant légal", req\\.${FIELD}\\)`))
   })
 
-  it("aucune validation / déduction pays ou type d'entreprise", () => {
-    // Le champ ne pilote aucune logique conditionnelle.
-    expect(code).not.toMatch(new RegExp(`if\\s*\\([^)]*${FIELD}`))
-    expect(code).not.toMatch(new RegExp(`${FIELD}[^\\n]*(country|customerType|vatNumber|siren|siret|bce)`, "i"))
+  it("numéro requis pour un professionnel, sans validation de format ni déduction pays", () => {
+    // Seule règle conditionnelle : le numéro est OBLIGATOIRE lorsque le client
+    // est un « professionnel ». Aucune autre logique ne dépend du champ.
+    expect(code).toMatch(new RegExp(`customerType === "professionnel" && !${FIELD}`))
+    // Aucune validation de FORMAT du numéro (pas de parsing regex sur le champ)
+    // ni déduction pays. La mention « SIREN/SIRET ou BCE » dans le message
+    // d'aide est du texte, pas de la logique — elle reste autorisée.
+    expect(code).not.toMatch(new RegExp(`${FIELD}\\.(match|test|replace|split)\\(`))
+    expect(code).not.toMatch(new RegExp(`${FIELD}[^\\n]*\\b(country|vatNumber)\\b`, "i"))
   })
 })
 

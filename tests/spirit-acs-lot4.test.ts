@@ -94,13 +94,21 @@ describe("Spirit — localisation limitée à la ville", () => {
     expect(contact).toMatch(/city:\s*string \| null/)
   })
 
-  it("nav, footer et CTA final affichent la ville (jamais l'adresse exacte)", () => {
-    for (const file of ["spirit-navigation.tsx", "spirit-footer.tsx", "spirit-final-cta.tsx"]) {
+  it("nav et CTA final s'en tiennent à la ville ; le footer expose l'adresse vérifiée", () => {
+    // Nav + CTA final : localisation par la VILLE uniquement, aucune adresse
+    // postale (prop `address` proscrite).
+    for (const file of ["spirit-navigation.tsx", "spirit-final-cta.tsx"]) {
       const src = read(`${SPIRIT}/${file}`)
       expect(src).toMatch(/city/)
-      // Plus aucune prop `address` résiduelle dans ces composants Spirit.
       expect(src).not.toMatch(/\baddress\b/)
     }
+    // Footer : coordonnées complètes et VÉRIFIÉES de l'établissement — adresse
+    // réelle issue de la constante `SPIRIT_BUSINESS`, rendue en <address>
+    // sémantique (jamais une valeur inventée). La ville reste disponible.
+    const footer = read(`${SPIRIT}/spirit-footer.tsx`)
+    expect(footer).toMatch(/city/)
+    expect(footer).toMatch(/SPIRIT_BUSINESS/)
+    expect(footer).toMatch(/<address/)
   })
 })
 
