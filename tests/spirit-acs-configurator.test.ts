@@ -13,6 +13,12 @@ import {
   type ConfiguratorSelection,
 } from "@/components/custom-sites/spirit-acs/configurator/config"
 import { SPIRIT_SERVICES } from "@/components/custom-sites/spirit-acs/seo-content"
+import {
+  FAMILIES,
+  includedCleaningOptionIds,
+  type CleaningZone,
+  type CleaningLevel,
+} from "@/components/custom-sites/spirit-acs/configurator/flow-data"
 
 /**
  * Phase 5 — Configurateur Spirit ACS. Ces tests verrouillent les RÈGLES métier
@@ -167,5 +173,53 @@ describe("récapitulatif", () => {
     expect(map["Prestation"]).toBe("Nettoyage intérieur et extérieur")
     expect(map["Véhicule"]).toBe("Citadine · Renault · Clio")
     expect(map["Vous êtes"]).toBe("Un particulier")
+  })
+})
+
+describe("nettoyage — options / upsells (pas de double-comptage)", () => {
+  const nettoyage = FAMILIES.find((f) => f.key === "nettoyage")!
+  const exhaust = nettoyage.options.find((o) => o.id === "renovation-echappement")!
+
+  // Réplique le filtrage réel de OptionsStep (scope + prestations déjà incluses).
+  function visibleOptionIds(zone: CleaningZone | null, level: CleaningLevel | null): string[] {
+    const included = includedCleaningOptionIds(zone, level)
+    return nettoyage.options
+      .filter((o) => {
+        if (included.includes(o.id)) return false
+        if (!o.scope) return true
+        return zone === "les-deux" || zone === o.scope
+      })
+      .map((o) => o.id)
+  }
+
+  it("l'option rénovation d'échappement est rattachée au périmètre extérieur", () => {
+    expect(exhaust.scope).toBe("exterieur")
+  })
+
+  it("CAS 1 — Extérieur Indispensable : la rénovation d'échappement EST proposée", () => {
+    expect(visibleOptionIds("exterieur", "indispensable")).toContain("renovation-echappement")
+  })
+
+  it("CAS 2 — Extérieur Comme neuf : la rénovation d'échappement N'EST PAS reproposée (déjà incluse)", () => {
+    expect(includedCleaningOptionIds("exterieur", "comme-neuf")).toContain("renovation-echappement")
+    expect(visibleOptionIds("exterieur", "comme-neuf")).not.toContain("renovation-echappement")
+  })
+
+  it("CAS 3 — Intérieur seul : la rénovation d'échappement n'est pas proposée", () => {
+    expect(visibleOptionIds("interieur", "comme-neuf")).not.toContain("renovation-echappement")
+    expect(visibleOptionIds("interieur", "indispensable")).not.toContain("renovation-echappement")
+  })
+
+  it("CAS 4 — Intérieur + Extérieur (extérieur = Indispensable, §8) : elle EST proposée", () => {
+    expect(includedCleaningOptionIds("les-deux", null)).not.toContain("renovation-echappement")
+    expect(visibleOptionIds("les-deux", null)).toContain("renovation-echappement")
+  })
+
+  it("Nettoyage moteur et « très sale » restent toujours proposés (aucun scope)", () => {
+    for (const zone of ["interieur", "exterieur", "les-deux"] as CleaningZone[]) {
+      const ids = visibleOptionIds(zone, "comme-neuf")
+      expect(ids).toContain("nettoyage-moteur")
+      expect(ids).toContain("tres-sale")
+    }
   })
 })

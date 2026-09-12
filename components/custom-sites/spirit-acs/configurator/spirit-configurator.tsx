@@ -47,6 +47,7 @@ import {
   estimateHeadline,
   euros,
   getMainFamily,
+  includedCleaningOptionIds,
   interiorAddonCentsFor,
   MAIN_FAMILIES,
   mainFamilyKeyForSlug,
@@ -310,6 +311,9 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
 
   const uploader = usePhotoUploads()
   const submissionIdRef = useRef<string>("")
+  // Racine du configurateur : cible du repositionnement au changement d'étape.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const didMountRef = useRef(false)
 
   // Point d'entrée déterministe, piloté par l'URL (`?prestation=<slug>`). Une
   // carte de la homepage présélectionne UNIQUEMENT la GRANDE FAMILLE (§4) :
@@ -412,6 +416,34 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
     }
   }
 
+  // À CHAQUE vrai changement d'étape (Continuer / Continuer sans option /
+  // retour / navigation / « Modifier » depuis le récap), repositionner le
+  // viewport en haut du configurateur, juste sous le header sticky du site.
+  // Déclenché uniquement par un changement de `stepKey` / `s.i` : une simple
+  // (dé)sélection d'option ou de carte ne modifie pas ces valeurs, donc l'écran
+  // ne remonte JAMAIS pour ces interactions. Le premier rendu est ignoré pour
+  // ne pas « sauter » au chargement de la page.
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    const el = rootRef.current
+    if (!el || typeof window === "undefined") return
+    // Hauteur réelle du header fixe/sticky du site (repli 80px), pour que le
+    // haut du configurateur apparaisse juste dessous avec un petit espace.
+    let headerH = 0
+    document.querySelectorAll("header").forEach((h) => {
+      if (el.contains(h)) return // ignore le header interne du configurateur
+      const pos = getComputedStyle(h).position
+      if (pos === "fixed" || pos === "sticky") headerH = Math.max(headerH, h.getBoundingClientRect().height)
+    })
+    if (headerH === 0) headerH = 80
+    const top = window.scrollY + el.getBoundingClientRect().top - headerH - 12
+    window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepKey, s.i])
+
   /* ------------------------- Repli « Autre demande » ----------------------- */
   if (showClassic) {
     return (
@@ -431,7 +463,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   }
 
   return (
-    <div className={`${oswald.variable} rq-flow`}>
+    <div ref={rootRef} className={`${oswald.variable} rq-flow`}>
       <style>{css}</style>
       <div className="rq-phone">
         {stepKey === "confirmation" ? (
@@ -1258,19 +1290,38 @@ function VehiculeStep({ s, patch, family }: { s: State; patch: (p: Partial<State
 }
 
 function OptionsStep({ s, dispatch, family }: { s: State; dispatch: React.Dispatch<Action>; family?: Family }) {
-  if (!family) return null
-
   // §9 : n'afficher que les options COHÉRENTES avec le périmètre nettoyage
   // choisi. Une option « intérieur »/« extérieur » n'apparaît que pour ce
   // périmètre (ou la formule complète) ; sans `scope` elle est toujours
   // proposée. Les autres familles affichent toutes leurs options.
-  const visible =
-    family.kind === "nettoyage"
+  // De plus, une prestation DÉJÀ INCLUSE dans la formule choisie n'est jamais
+  // reproposée en upsell (ex. rénovation d'échappement dans Extérieur « Comme
+  // neuf ») : filtre piloté par identifiant, cf. includedCleaningOptionIds.
+  const includedIds =
+    family?.kind === "nettoyage" ? includedCleaningOptionIds(s.cleaningZone, s.cleaningLevel) : []
+  const visible = !family
+    ? []
+    : family.kind === "nettoyage"
       ? family.options.filter((o) => {
+          if (includedIds.includes(o.id)) return false
           if (!o.scope) return true
           return s.cleaningZone === "les-deux" || s.cleaningZone === o.scope
         })
       : family.options
+
+  // Purge des options sélectionnées devenues invisibles (périmètre/formule
+  // modifiés en revenant en arrière) : garantit qu'aucune option masquée ou
+  // déjà incluse n'est comptée dans l'estimation ni le récapitulatif.
+  useEffect(() => {
+    if (!family) return
+    const allowed = new Set(visible.map((o) => o.id))
+    if (s.options.some((id) => !allowed.has(id))) {
+      dispatch({ type: "patch", patch: { options: s.options.filter((id) => allowed.has(id)) } })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.cleaningZone, s.cleaningLevel, s.options, family])
+
+  if (!family) return null
 
   if (visible.length === 0) {
     return (
