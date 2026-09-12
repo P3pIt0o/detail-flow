@@ -26,6 +26,16 @@ type SpiritAvisGoogleProps = {
 }
 
 export function SpiritAvisGoogle({ title, intro, details }: SpiritAvisGoogleProps) {
+  // Filtrage de la SÉLECTION affichée comme témoignages : on ne présente que
+  // les avis Google notés 4 ou 5 étoiles (pas d'avis négatif sur le site
+  // commercial). Aucun avis n'est modifié, inventé ou supprimé côté Google — on
+  // se contente de restreindre la liste transmise à la section. La note Google
+  // globale (`rating`), l'URL « Voir tous les avis » (`googleMapsUri`) et les
+  // liens individuels portés par chaque avis conservé restent intacts.
+  const curatedDetails: GooglePlaceDetails = {
+    ...details,
+    reviews: details.reviews.filter((r) => r.rating >= 4),
+  }
   return (
     <div
       id={SPIRIT_SECTIONS.avis}
@@ -33,7 +43,7 @@ export function SpiritAvisGoogle({ title, intro, details }: SpiritAvisGoogleProp
       className="spirit-reviews-google bg-[var(--spirit-navy-2)]"
     >
       <GoogleReviewsSection
-        details={details}
+        details={curatedDetails}
         appearance={{
           title,
           // Une phrase par ligne (présentation) : `reviews.intro` non réécrit.
