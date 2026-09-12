@@ -178,6 +178,35 @@ export async function associateAttachment(input: {
   return { ok: false, error: "Association impossible.", code: "invalid" }
 }
 
+/**
+ * Nombre de photos par demande, pour un lot d'identifiants, STRICTEMENT scopé
+ * à l'entreprise. Lecture seule (aperçu dashboard) : renvoie une Map id→count.
+ * Requête unique groupée (jamais N+1). Un id sans photo est simplement absent
+ * de la Map (le lecteur utilise `?? 0`).
+ */
+export async function countAttachmentsByRequest(
+  requestIds: number[],
+  companyId: number,
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>()
+  if (requestIds.length === 0) return out
+  const rows = await db
+    .select({
+      requestId: quoteRequestAttachments.requestId,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(quoteRequestAttachments)
+    .where(
+      and(
+        eq(quoteRequestAttachments.companyId, companyId),
+        inArray(quoteRequestAttachments.requestId, requestIds),
+      ),
+    )
+    .groupBy(quoteRequestAttachments.requestId)
+  for (const r of rows) out.set(r.requestId, Number(r.n))
+  return out
+}
+
 /** Liste ordonnée des pièces jointes d'une demande (scopée entreprise). */
 export async function listAttachments(requestId: number, companyId: number): Promise<AttachmentRow[]> {
   return db
