@@ -162,7 +162,9 @@ describe("2B lot 3 — structurel : chemins serveur gatés", () => {
   it("les blocs OPÉRATIONNELS du dashboard restent non gatés (semaine, prochains RDV, alerte acompte)", () => {
     const src = read("app/admin/(dashboard)/page.tsx")
     // Ces lectures sont hors de toute condition de feature.
-    expect(src).toContain("getUpcomingBookingsDetailed(5)")
+    // Le limit dépend du tenant (Spirit sépare aujourd'hui/prochains) mais la
+    // lecture reste hors de toute condition de feature premium.
+    expect(src).toContain("getUpcomingBookingsDetailed(isSpirit ? 8 : 5)")
     expect(src).toContain("getDashboardWeek()")
     // Le compteur d'acompte est OPÉRATIONNEL et toujours chargé.
     expect(src).toContain("getPendingDepositCount(companyId)")

@@ -7,8 +7,10 @@ import {
   getDashboardWeek,
   getPendingDepositCount,
   getBookingCount,
+  type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
+import { countAttachmentsByRequest } from "@/lib/quote-photos/server"
 import { getVisitStats } from "@/lib/analytics/queries"
 import { getSettings, getServices, getBusinessHours } from "@/lib/booking/queries"
 import { getFullSettings } from "@/lib/invoice/queries"
@@ -18,6 +20,7 @@ import { DashboardWeek } from "@/components/admin/dashboard-week"
 import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
 import { OnboardingPanel } from "@/components/admin/onboarding-panel"
 import { SiteLinkCard } from "@/components/admin/site-link-card"
+import { SpiritDashboardRequests, type SpiritActionItem } from "@/components/admin/spirit-dashboard-requests"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
 import { tenantPublicUrl } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
@@ -39,6 +42,11 @@ export default async function DashboardPage({
   // NB: `tenant` (ci-dessus) = slug d'URL ; `company` = entité résolue serveur.
   const { tenant: company } = await requireCompanyMember()
   const companyId = company.id
+
+  // Dashboard Spirit ACS : réorganisation UX spécifique (Demandes → Planning →
+  // Activité → Site), strictement gatée par `customSiteKey`. Tout autre tenant
+  // (`customSiteKey` nul/autre) conserve EXACTEMENT le dashboard actuel.
+  const isSpirit = company.customSiteKey === "spirit-acs"
 
   // Onboarding « Vos premiers pas » — signaux dérivés des données RÉELLES du
   // tenant (aucune case cochée à la main). Toutes les lectures sont scopées au
@@ -80,7 +88,8 @@ export default async function DashboardPage({
   const needStats = canStats || canProfit
   const [stats, upcoming, week, requests, visitStats, pendingDepositCount] = await Promise.all([
     needStats ? getDashboardStats(companyId) : Promise.resolve(null),
-    getUpcomingBookingsDetailed(5),
+    // Spirit sépare « aujourd'hui » et « prochains » : on charge un peu plus large.
+    getUpcomingBookingsDetailed(isSpirit ? 8 : 5),
     getDashboardWeek(),
     listCustomRequests(),
     canStats ? getVisitStats() : Promise.resolve(null),
@@ -125,7 +134,8 @@ export default async function DashboardPage({
   }
 
   // Zone d'alertes : uniquement si une action est réellement nécessaire.
-  // OPÉRATIONNEL — jamais gaté par une feature premium.
+  // OPÉRATIONNEL — jamais gaté par une feature premium. NON utilisée pour Spirit
+  // (le bloc « À traiter » couvre les demandes, et « Réservations » est masqué).
   const alerts: { label: string; href: string }[] = []
   if (pendingDepositCount > 0) {
     alerts.push({
@@ -140,12 +150,205 @@ export default async function DashboardPage({
     })
   }
 
+  // Bloc KPI réutilisé à l'identique par les deux dispositions (Spirit / standard).
+  const kpiBlock =
+    kpis.length > 0 ? (
+      <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {kpis.map(({ label, value, icon: Icon, accent }) => (
+            <div key={label} className="rounded-xl border border-border bg-card p-4">
+              <div
+                className={
+                  accent
+                    ? "mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                    : "mb-3 flex size-9 items-center justify-center rounded-lg bg-muted text-foreground"
+                }
+              >
+                <Icon className="size-4" aria-hidden="true" />
+              </div>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">{value}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
+        {canStats ? (
+          <p className="mt-2 text-[11px] text-muted-foreground text-pretty">
+            CA facturé = factures émises (moins avoirs). Encaissé = paiements réellement reçus ce mois (par date de
+            paiement), montant brut avant frais Stripe et net des remboursements. Ces deux montants sont distincts.
+          </p>
+        ) : null}
+        {canProfit ? (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Bénéfice estimé = CA facturé − dépenses produits du mois. Estimation indicative, non comptable.
+          </p>
+        ) : null}
+      </>
+    ) : (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">Cette fonctionnalité n&apos;est pas incluse dans votre licence.</p>
+      </div>
+    )
+
+  // Ligne « prochain rendez-vous » réutilisée par les deux dispositions et, pour
+  // Spirit, par « Aujourd'hui » comme par « Prochains rendez-vous ». Une seule
+  // source de vérité pour le rendu d'un rendez-vous.
+  const renderUpcoming = (b: UpcomingBookingDetailed) => {
+    const mapsUrl = buildMapsDirectionsUrl(b.address)
+    return (
+      <li key={b.id} className="flex items-start justify-between gap-3 py-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex shrink-0 flex-col items-center rounded-lg bg-muted px-2.5 py-1.5 text-center">
+            <Clock className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="mt-0.5 text-xs font-semibold text-foreground">{b.startTime}</span>
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{b.customerName}</p>
+            <p className="text-xs text-muted-foreground">{formatDateShort(b.date)}</p>
+            {b.services.length > 0 && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {b.services.join(" · ")}
+                {b.vehicles.length > 0 && ` — ${b.vehicles.join(", ")}`}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-sm font-semibold text-foreground">{formatPrice(b.totalCents)}</span>
+          <StatusBadge status={b.status} />
+          {mapsUrl ? (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:underline"
+              aria-label={`Itinéraire vers ${b.address}`}
+            >
+              <Navigation className="size-3.5" aria-hidden="true" />
+              Itinéraire
+            </a>
+          ) : null}
+        </div>
+      </li>
+    )
+  }
+
+  const header = (
+    <header className="mb-6">
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">Tableau de bord</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Votre activité en un coup d&apos;œil.</p>
+    </header>
+  )
+
+  /* ------------------------------------------------------------------ */
+  /*  Disposition Spirit ACS : Demandes → Planning → Activité → Site.   */
+  /* ------------------------------------------------------------------ */
+  if (isSpirit) {
+    // « À traiter » = état RÉEL nécessitant une action de Corentin :
+    //  - new      : demande reçue, à étudier ;
+    //  - accepted : proposition acceptée, à organiser (RDV).
+    // `proposal_sent` = en attente de réponse client (pas une action de Corentin).
+    // `declined` / `converted` = terminées. Statuts issus du module Demandes existant.
+    const ACTION_STATUSES = new Set(["new", "accepted"])
+    const actionRequests = requests.filter((r) => ACTION_STATUSES.has(r.status))
+    const waitingClientCount = requests.filter((r) => r.status === "proposal_sent").length
+    const topActionRequests = actionRequests.slice(0, 3)
+    const photoCounts = await countAttachmentsByRequest(
+      topActionRequests.map((r) => r.id),
+      companyId,
+    )
+    const actionItems: SpiritActionItem[] = topActionRequests.map((r) => ({
+      id: r.id,
+      href: href(`/admin/demandes/${r.id}`),
+      customerName: r.customerName,
+      vehicle: [r.vehicleBrand, r.vehicleModel].filter(Boolean).join(" ").trim() || r.vehicleType || null,
+      typeLabel: r.typeLabel,
+      createdAt: r.createdAt,
+      status: r.status,
+      photoCount: photoCounts.get(r.id) ?? 0,
+      isNew: r.status === "new",
+    }))
+
+    // « Aujourd'hui » vs « Prochains » : on réutilise le MÊME jeu de rendez-vous
+    // (aucun 2ᵉ système de calendrier). Le seuil « aujourd'hui » suit exactement
+    // la borne serveur de getUpcomingBookingsDetailed (date ISO UTC courante).
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayBookings = upcoming.filter((b) => b.date === todayStr)
+    const laterBookings = upcoming.filter((b) => b.date > todayStr)
+
+    return (
+      <div className="mx-auto max-w-5xl">
+        {header}
+
+        {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
+        <OnboardingPanel data={onboardingData} />
+
+        {/* 1. À TRAITER — élément le plus visible dès qu'une action est nécessaire. */}
+        <SpiritDashboardRequests
+          items={actionItems}
+          actionCount={actionRequests.length}
+          waitingClientCount={waitingClientCount}
+          allHref={href("/admin/demandes")}
+        />
+
+        {/* 2. PLANNING — Aujourd'hui, puis prochains rendez-vous, puis la semaine. */}
+        <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Aujourd&apos;hui</h2>
+            <Link
+              href={href("/admin/calendrier")}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Planning complet
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+          {todayBookings.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Aucun rendez-vous aujourd&apos;hui.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">{todayBookings.map(renderUpcoming)}</ul>
+          )}
+        </section>
+
+        {laterBookings.length > 0 && (
+          <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">Prochains rendez-vous</h2>
+              <Link href={href("/admin/calendrier")} className="text-xs font-medium text-primary hover:underline">
+                Tout voir
+              </Link>
+            </div>
+            <ul className="flex flex-col divide-y divide-border">{laterBookings.map(renderUpcoming)}</ul>
+          </section>
+        )}
+
+        <div className="mt-6">
+          <DashboardWeek week={week} planningHref={href("/admin/calendrier")} />
+        </div>
+
+        {/* 3. ACTIVITÉ / CA — repositionné après les demandes et le planning. */}
+        <div className="mt-6">{kpiBlock}</div>
+
+        {/* Visites du site (analytics V1) — statistique métier (business_stats). */}
+        {visitStats ? (
+          <div className="mt-6">
+            <DashboardAnalytics stats={visitStats} />
+          </div>
+        ) : null}
+
+        {/* 4. MON SITE INTERNET — déplacé en dernier (élément secondaire). */}
+        <div className="mt-6">
+          <SiteLinkCard url={siteUrl} />
+        </div>
+      </div>
+    )
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Disposition STANDARD — inchangée pour tous les autres tenants.    */
+  /* ------------------------------------------------------------------ */
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Tableau de bord</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Votre activité en un coup d&apos;œil.</p>
-      </header>
+      {header}
 
       {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
       <OnboardingPanel data={onboardingData} />
@@ -158,42 +361,7 @@ export default async function DashboardPage({
       {/* 1. KPI principaux — zone PREMIUM (business_stats / profitability_analysis).
           Verrouillée proprement si aucune des deux features n'est incluse, sans
           casser le reste du dashboard (opérationnel ci-dessous). */}
-      {kpis.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {kpis.map(({ label, value, icon: Icon, accent }) => (
-              <div key={label} className="rounded-xl border border-border bg-card p-4">
-                <div
-                  className={
-                    accent
-                      ? "mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
-                      : "mb-3 flex size-9 items-center justify-center rounded-lg bg-muted text-foreground"
-                  }
-                >
-                  <Icon className="size-4" aria-hidden="true" />
-                </div>
-                <p className="text-xl font-bold text-foreground sm:text-2xl">{value}</p>
-                <p className="text-xs text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-          {canStats ? (
-            <p className="mt-2 text-[11px] text-muted-foreground text-pretty">
-              CA facturé = factures émises (moins avoirs). Encaissé = paiements réellement reçus ce mois (par date de
-              paiement), montant brut avant frais Stripe et net des remboursements. Ces deux montants sont distincts.
-            </p>
-          ) : null}
-          {canProfit ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Bénéfice estimé = CA facturé − dépenses produits du mois. Estimation indicative, non comptable.
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Cette fonctionnalité n&apos;est pas incluse dans votre licence.</p>
-        </div>
-      )}
+      {kpiBlock}
 
       {/* 4. À surveiller — masqué s'il n'y a rien à signaler */}
       {alerts.length > 0 && (
@@ -243,47 +411,7 @@ export default async function DashboardPage({
         {upcoming.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Aucun rendez-vous à venir.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {upcoming.map((b) => (
-              <li key={b.id} className="flex items-start justify-between gap-3 py-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex shrink-0 flex-col items-center rounded-lg bg-muted px-2.5 py-1.5 text-center">
-                    <Clock className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                    <span className="mt-0.5 text-xs font-semibold text-foreground">{b.startTime}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{b.customerName}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateShort(b.date)}</p>
-                    {b.services.length > 0 && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {b.services.join(" · ")}
-                        {b.vehicles.length > 0 && ` — ${b.vehicles.join(", ")}`}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-sm font-semibold text-foreground">{formatPrice(b.totalCents)}</span>
-                  <StatusBadge status={b.status} />
-                  {(() => {
-                    const mapsUrl = buildMapsDirectionsUrl(b.address)
-                    return mapsUrl ? (
-                      <a
-                        href={mapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-0.5 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:underline"
-                        aria-label={`Itinéraire vers ${b.address}`}
-                      >
-                        <Navigation className="size-3.5" aria-hidden="true" />
-                        Itinéraire
-                      </a>
-                    ) : null
-                  })()}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ul className="flex flex-col divide-y divide-border">{upcoming.map(renderUpcoming)}</ul>
         )}
       </section>
     </div>
