@@ -635,7 +635,7 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   const year = new Date().getFullYear()
 
   const number = await db.transaction(async (tx) => {
-    // Compteur PROPRE à l'entreprise (num��rotation isolée par tenant).
+    // Compteur PROPRE à l'entreprise (numérotation isolée par tenant).
     // `FOR UPDATE` verrouille la ligne settings de CETTE entreprise pendant
     // toute la transaction : deux émissions concurrentes sont sérialisées et
     // ne peuvent donc pas obtenir le même numéro. Une autre entreprise

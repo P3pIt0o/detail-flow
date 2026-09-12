@@ -176,7 +176,7 @@ export const companies = pgTable("companies", {
 })
 
 /**
- * Overrides de fonctionnalit����s par entreprise (gestes commerciaux, modules
+ * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
  * achetés/offerts, essais temporaires, pilotes Founder…).
  *
  * Le moteur (lib/licensing) applique : droit du plan → override éventuel →
@@ -1186,7 +1186,7 @@ export const tenantAnalyticsVisits = pgTable(
 /* -------------------------------------------------------------------------- */
 /*  Paiements en ligne (V1 : Stripe Connect) — ajout ADDITIF                   */
 /*  Architecture générique multi-provider : le métier ne dépend jamais de      */
-/*  Stripe. Isolation stricte par companyId. Aucune donn��e bancaire stockée.   */
+/*  Stripe. Isolation stricte par companyId. Aucune donnée bancaire stockée.   */
 /* -------------------------------------------------------------------------- */
 
 /**

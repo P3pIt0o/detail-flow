@@ -456,7 +456,7 @@ export async function removeDemoData(companyId: number): Promise<number> {
 
   if (!demoBookings.length) return 0
 
-  // Suppression des lignes enfants puis des r��servations.
+  // Suppression des lignes enfants puis des réservations.
   for (const b of demoBookings) {
     await db.delete(bookingItems).where(eq(bookingItems.bookingId, b.id))
   }
