@@ -366,7 +366,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
       if (result.conflict === "promo_unavailable") {
         return { ok: false, error: "Code promo invalide ou indisponible.", code: "invalid" }
       }
-      return { ok: false, error: "Ce créneau vient d'être réserv��. Merci d'en choisir un autre.", code: "slot_taken" }
+      return { ok: false, error: "Ce créneau vient d'être réservé. Merci d'en choisir un autre.", code: "slot_taken" }
     }
 
     // Analytics (V1) : réservation terminée. companyId résolu côté serveur.

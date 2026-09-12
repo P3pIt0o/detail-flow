@@ -545,7 +545,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       {
         question: "La protection céramique dure-t-elle dans le temps ?",
         answer:
-          "Sa tenue dépend du produit adapté au v��hicule, de l'usage et de l'entretien. Ces éléments sont précisés lors de l'étude de votre demande.",
+          "Sa tenue dépend du produit adapté au véhicule, de l'usage et de l'entretien. Ces éléments sont précisés lors de l'étude de votre demande.",
       },
     ],
   },

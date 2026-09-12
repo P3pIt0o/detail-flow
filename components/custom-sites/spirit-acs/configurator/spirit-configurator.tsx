@@ -830,14 +830,20 @@ function FormulesStep({
     <section>
       <StepIntro title={family.title} sub={family.tagline} />
 
-      <div className="rq-included">
-        <p className="rq-included-h">Ce qui est inclus</p>
-        <ul>
-          {family.included.map((it) => (
-            <li key={it}>{it}</li>
-          ))}
-        </ul>
-      </div>
+      {/* L'encart « Ce qui est inclus » fait doublon pour le nettoyage : le
+          détail complet est désormais affiché DANS chaque carte de formule
+          (§2). On le conserve pour les autres familles dont les cartes ne
+          répètent pas la liste. */}
+      {family.kind !== "nettoyage" && (
+        <div className="rq-included">
+          <p className="rq-included-h">Ce qui est inclus</p>
+          <ul>
+            {family.included.map((it) => (
+              <li key={it}>{it}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {family.kind === "nettoyage" ? (
         <NettoyageChooser s={s} patch={patch} />
@@ -1083,7 +1089,15 @@ function cleaningPriceLabel(zone: CleaningZone, level: CleaningLevel, vehType: s
 }
 
 function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
-  const zone = s.cleaningZone
+  // §4 : une sélection est active PAR DÉFAUT (« Intérieur ») pour ne jamais
+  // afficher un écran vide en arrivant sur l'étape. On persiste ce défaut dans
+  // l'état (barre de progression / récap cohérents) tout en l'appliquant dès le
+  // premier rendu via le repli ci-dessous — aucun clic n'est nécessaire.
+  const zone: CleaningZone = s.cleaningZone ?? "interieur"
+  useEffect(() => {
+    if (s.cleaningZone == null) patch({ cleaningZone: "interieur" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.cleaningZone])
   return (
     <div className="rq-fgroup">
       <p className="rq-fgroup-title">Que souhaitez-vous nettoyer ?</p>
@@ -1091,7 +1105,7 @@ function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
         {CLEANING_ZONES.map((z) => (
           <button
             key={z}
-            className={`rq-seg-btn${s.cleaningZone === z ? " is-active" : ""}`}
+            className={`rq-seg-btn${zone === z ? " is-active" : ""}`}
             // Changer de périmètre réinitialise le niveau : la formule combinée
             // n'a pas de niveau à choisir (§8).
             onClick={() => patch({ cleaningZone: z, cleaningLevel: null })}
@@ -1627,7 +1641,7 @@ function RecapStep({
       {/* L'étape véhicule est retirée pour les prestations à prix fixe (textile,
           rénovation de phares) → pas de bloc « Véhicule » vide dans le récap. */}
       {!family.skipVehicle && (
-        <RecapBlock label="V��hicule" onEdit={() => go("vehicule")}>
+        <RecapBlock label="Véhicule" onEdit={() => go("vehicule")}>
           {[s.vehType, s.vehBrand, s.vehModel].filter(Boolean).join(" · ") || "—"}
         </RecapBlock>
       )}
@@ -1674,7 +1688,7 @@ function RecapStep({
           </ul>
         )}
         <p className="rq-estimate-note">
-          Montant indicatif �� confirmer par Spirit ACS après étude de votre demande. Aucun paiement à cette étape.
+          Montant indicatif à confirmer par Spirit ACS après étude de votre demande. Aucun paiement à cette étape.
         </p>
       </div>
     </section>
