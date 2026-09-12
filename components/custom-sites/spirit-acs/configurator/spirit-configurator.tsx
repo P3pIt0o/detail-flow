@@ -36,7 +36,9 @@ import { usePhotoUploads, type UsePhotoUploads } from "@/components/quote-photo-
 import {
   AVAILABILITY_CHOICES,
   cleaningBaseCents,
+  cleaningVehicleKey,
   CLEANING_COMBO_FLOOR,
+  CLEANING_DETAILS,
   CLEANING_LEVEL_LABEL,
   CLEANING_ZONE_LABEL,
   computeEstimate,
@@ -189,13 +191,21 @@ function computeSteps(s: State): string[] {
   const profileKey = s.serviceKey ?? mf?.prestationKeys[0] ?? null
   const p = getFamily(profileKey)
   if (!p) return steps
-  steps.push("formules")
   const isPpf = p.key === "ppf-personnalisation"
+  // Nettoyage : le type de véhicule est demandé AVANT le choix de la formule,
+  // afin d'afficher directement le tarif exact du gabarit sur les cartes
+  // « Indispensable » / « Comme neuf ».
+  const vehicleFirst = p.kind === "nettoyage" && !p.skipVehicle
   if (isPpf) {
+    steps.push("formules")
     if (s.ppfBranch === "ppf") steps.push("ppfzones")
     else if (s.ppfBranch === "personnalisation" && p.options.length) steps.push("options")
     if (!p.skipVehicle) steps.push("vehicule")
+  } else if (vehicleFirst) {
+    steps.push("vehicule", "formules")
+    if (p.options.length) steps.push("options")
   } else {
+    steps.push("formules")
     if (!p.skipVehicle) steps.push("vehicule")
     if (p.options.length) steps.push("options")
   }
@@ -324,9 +334,10 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
       dispatch({
         type: "init",
         familyKey,
-        // Famille à prestation unique → le profil est résolu d'office (le
-        // client verra directement ses formules) ; famille à prestations
-        // multiples (Nettoyage) → il choisit d'abord la prestation.
+        // Famille à prestation unique (dont Nettoyage) → le profil est résolu
+        // d'office : le client enchaîne directement sur le parcours (véhicule
+        // puis formule). Seule une famille à prestations multiples afficherait
+        // un écran de choix de prestation intermédiaire.
         serviceKey: single ? (mf?.prestationKeys[0] ?? null) : null,
         familyLocked: true,
         vehType: familyKey === "moto" ? "Moto" : null,
@@ -1054,6 +1065,23 @@ function TextileFormulesStep({ s, dispatch, family }: { s: State; dispatch: Reac
 const CLEANING_ZONES: CleaningZone[] = ["interieur", "exterieur", "les-deux"]
 const CLEANING_LEVELS: CleaningLevel[] = ["indispensable", "comme-neuf"]
 
+/** Liste d'opérations détaillées d'une carte formule (réutilise CLEANING_DETAILS). */
+function PackList({ items }: { items: string[] }) {
+  return (
+    <ul className="rq-pack-list">
+      {items.map((it) => (
+        <li key={it}>{it}</li>
+      ))}
+    </ul>
+  )
+}
+
+/** Prix affiché d'une formule nettoyage : exact selon le gabarit, sinon « dès ». */
+function cleaningPriceLabel(zone: CleaningZone, level: CleaningLevel, vehType: string | null, floorCents: number): string {
+  const vk = cleaningVehicleKey(vehType)
+  return vk ? euros(cleaningBaseCents(zone, level, vk)) : `dès ${euros(floorCents)}`
+}
+
 function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) => void }) {
   const zone = s.cleaningZone
   return (
@@ -1080,14 +1108,19 @@ function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
           <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
             Votre formule
           </p>
-          <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
-          <div className="rq-formulas">
-            <div className="rq-formula is-active">
-              <span className="rq-formula-main">
-                <span className="rq-formula-label">Intérieur + Extérieur complet</span>
-                <span className="rq-formula-note">Intérieur comme neuf + Extérieur indispensable</span>
-              </span>
-              <span className="rq-formula-price">dès {euros(CLEANING_COMBO_FLOOR)}</span>
+          <div className="rq-packs">
+            <div className="rq-pack is-active is-static">
+              <div className="rq-pack-head">
+                <span className="rq-pack-title">Intérieur + Extérieur complet</span>
+                <span className="rq-pack-price">
+                  {cleaningPriceLabel("les-deux", "comme-neuf", s.vehType, CLEANING_COMBO_FLOOR)}
+                </span>
+              </div>
+              <p className="rq-pack-sub">Intérieur « Comme neuf » + Extérieur « Indispensable »</p>
+              <p className="rq-pack-group">Intérieur</p>
+              <PackList items={CLEANING_DETAILS.interieur["comme-neuf"]} />
+              <p className="rq-pack-group">Extérieur</p>
+              <PackList items={CLEANING_DETAILS.exterieur.indispensable} />
             </div>
           </div>
         </>
@@ -1096,25 +1129,31 @@ function NettoyageChooser({ s, patch }: { s: State; patch: (p: Partial<State>) =
           <p className="rq-fgroup-title" style={{ marginTop: 16 }}>
             Choisissez votre formule
           </p>
-          <p className="rq-fgroup-note">Le tarif exact dépend du type de véhicule (indiqué à l&apos;étape suivante).</p>
-          <div className="rq-formulas">
+          <div className="rq-packs">
             {CLEANING_LEVELS.map((lvl) => {
               const active = s.cleaningLevel === lvl
-              // Plancher « dès » (citadine) — l'exact est calculé une fois le véhicule connu.
+              // Plancher « dès » (citadine) tant que le gabarit n'est pas résolu.
               const floor = cleaningBaseCents(zone, lvl, "citadine")
               return (
                 <button
                   key={lvl}
-                  className={`rq-formula${active ? " is-active" : ""}`}
+                  className={`rq-pack${active ? " is-active" : ""}`}
+                  aria-pressed={active}
                   onClick={() => patch({ cleaningLevel: lvl })}
                 >
-                  <span className="rq-formula-main">
-                    <span className="rq-formula-label">{CLEANING_LEVEL_LABEL[lvl]}</span>
-                    <span className="rq-formula-note">
-                      {lvl === "indispensable" ? "Nettoyage soigné et complet" : "Remise en état la plus poussée"}
-                    </span>
+                  <span className="rq-pack-head">
+                    <span className="rq-pack-title">{CLEANING_LEVEL_LABEL[lvl]}</span>
+                    <span className="rq-pack-price">{cleaningPriceLabel(zone, lvl, s.vehType, floor)}</span>
                   </span>
-                  <span className="rq-formula-price">dès {euros(floor)}</span>
+                  <span className="rq-pack-sub">
+                    {lvl === "indispensable" ? "Nettoyage soigné et complet" : "Remise en état la plus poussée"}
+                  </span>
+                  <PackList items={CLEANING_DETAILS[zone as "interieur" | "exterieur"][lvl]} />
+                  {active && (
+                    <span className="rq-pack-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -1635,7 +1674,7 @@ function RecapStep({
           </ul>
         )}
         <p className="rq-estimate-note">
-          Montant indicatif à confirmer par Spirit ACS après étude de votre demande. Aucun paiement à cette étape.
+          Montant indicatif �� confirmer par Spirit ACS après étude de votre demande. Aucun paiement à cette étape.
         </p>
       </div>
     </section>
@@ -1870,8 +1909,25 @@ const css = `
 .rq-caveat{ margin:14px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted); padding:11px 13px; background:rgba(255,255,255,.03); border-left:2px solid var(--teal); border-radius:0 8px 8px 0; }
 /* Protection céramique verrouillée tant qu'aucun polissage n'est choisi (§4). */
 .rq-formula.is-locked{ opacity:.5; cursor:not-allowed; }
-.rq-formula.is-locked:hover{ border-color:var(--line); box-shadow:none; }
-.rq-lock-note{ color:var(--pink) !important; }
+    .rq-formula.is-locked:hover{ border-color:var(--line); box-shadow:none; }
+    .rq-lock-note{ color:var(--pink) !important; }
+
+    /* Cartes comparatives de formules nettoyage (Indispensable / Comme neuf). */
+    .rq-packs{ display:flex; flex-direction:column; gap:12px; margin-top:12px; }
+    .rq-pack{ position:relative; display:block; width:100%; text-align:left; background:var(--navy2); border:1px solid var(--line); border-radius:14px; padding:15px 16px; cursor:pointer; }
+    .rq-pack.is-active{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal); background:var(--navy3); }
+    .rq-pack.is-static{ cursor:default; }
+    .rq-pack-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+    .rq-pack-title{ font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.04em; font-size:16px; font-weight:700; color:#fff; }
+    .rq-pack-price{ flex:0 0 auto; font-family:var(--font-osw),"Oswald",sans-serif; font-weight:700; font-size:17px; color:var(--teal); white-space:nowrap; }
+    .rq-pack-sub{ margin:3px 0 10px; font-size:12px; color:var(--muted); }
+    .rq-pack-group{ margin:12px 0 6px; font-family:var(--font-osw),"Oswald",sans-serif; text-transform:uppercase; letter-spacing:.1em; font-size:10.5px; color:var(--teal); }
+    .rq-pack-list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
+    .rq-pack-list li{ position:relative; padding-left:18px; font-size:13px; line-height:1.4; color:var(--paper); }
+    .rq-pack-list li::before{ content:""; position:absolute; left:0; top:6px; width:6px; height:6px; border-radius:50%; background:var(--teal); }
+    .rq-pack-check{ position:absolute; top:13px; right:14px; display:none; }
+    .rq-pack.is-active .rq-pack-check{ display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:var(--teal); color:var(--navy); font-size:13px; font-weight:700; }
+    .rq-pack.is-active .rq-pack-price{ margin-right:26px; }
 /* Accordéon « En savoir plus » des protections céramiques (§5). */
 .rq-more{ margin:6px 0 2px 2px; background:none; border:none; padding:0; color:var(--teal); font-size:12px; font-weight:600; cursor:pointer; }
 .rq-more:hover{ text-decoration:underline; }

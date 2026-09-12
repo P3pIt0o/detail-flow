@@ -163,6 +163,52 @@ export const CLEANING_ZONE_LABEL: Record<CleaningZone, string> = {
 }
 
 /**
+ * Opérations détaillées incluses par périmètre et par niveau (listes fournies
+ * par Spirit ACS — aucune invention). Affichées dans les cartes comparatives du
+ * parcours nettoyage. La formule combinée « Intérieur + Extérieur » (§8) =
+ * Intérieur « Comme neuf » + Extérieur « Indispensable » : elle réutilise donc
+ * ces mêmes listes, sans nouveau contenu.
+ */
+export const CLEANING_DETAILS: Record<"interieur" | "exterieur", Record<CleaningLevel, string[]>> = {
+  interieur: {
+    indispensable: [
+      "Dépoussiérage",
+      "Nettoyage des plastiques",
+      "Aspiration de l'habitacle et du coffre",
+      "Nettoyage du volant",
+      "Nettoyage des vitres",
+      "Nettoyage des tours de portes",
+      "Shampoing des tapis",
+    ],
+    "comme-neuf": [
+      "Tout le contenu de l'Indispensable",
+      "Shampoing des sièges cuir / tissus / Alcantara",
+      "Rénovateur plastique",
+    ],
+  },
+  exterieur: {
+    indispensable: [
+      "Jantes en profondeur",
+      "Pré-lavage",
+      "Lavage",
+      "Cire de finition toutes surfaces",
+      "Brillant pneus",
+    ],
+    "comme-neuf": [
+      "Jantes en profondeur",
+      "Pré-lavage",
+      "Décontamination chimique",
+      "Lavage",
+      "Suppression du goudron",
+      "Cire de finition toutes surfaces",
+      "Brillant pneus",
+      "Rénovation des plastiques",
+      "Rénovation des échappements",
+    ],
+  },
+}
+
+/**
  * Projette un type de véhicule (catégories visuelles du parcours) vers une clé
  * de la grille nettoyage. `null` = gabarit hors grille (utilitaire, moto) →
  * la prestation reste « sur devis » (aucun prix inventé).
@@ -246,6 +292,10 @@ export const FAMILIES: Family[] = [
       { id: "nettoyage-5-sieges", label: "Nettoyage 5 sièges", benefit: "Sièges détachés en profondeur", price: "+50 €", priceCents: 5000, kind: "exact", scope: "interieur" },
       { id: "desinfection-vapeur", label: "Désinfection vapeur", benefit: "Habitacle assaini", price: "+30 €", priceCents: 3000, kind: "exact", scope: "interieur" },
       { id: "ceramique-cuir", label: "Céramique cuir", benefit: "Protection durable du cuir", price: "249 €", priceCents: 24900, kind: "exact", scope: "interieur" },
+      // « Moteur & échappement » n'est plus une prestation distincte : ce sont des
+      // compléments proposés en option du nettoyage (tarifs réels Spirit ACS).
+      { id: "nettoyage-moteur", label: "Nettoyage moteur", benefit: "Compartiment moteur dégraissé et nettoyé", price: "Sur devis", kind: "quote" },
+      { id: "renovation-echappement", label: "Rénovation d'échappement", benefit: "Sorties d'échappement ravivées", price: "dès 20 €", priceCents: 2000, kind: "from" },
     ],
   },
   {
@@ -559,9 +609,14 @@ function buildMainFamily(
 
 /** LES 6 FAMILLES — exactement, dans l'ordre affiché. Aucune autre. */
 export const MAIN_FAMILIES: MainFamily[] = [
-  buildMainFamily("nettoyage", "nettoyage-automobile", ["nettoyage", "entretien-regulier", "moteur-echappement"], {
+  // « Nettoyage intérieur & extérieur » va directement au parcours nettoyage :
+  // le type de véhicule d'abord, puis le choix de la formule. « Entretien
+  // régulier » a été retiré du parcours ; « Moteur & échappement » devient une
+  // option (cf. profil « nettoyage »). Une seule sous-prestation → aucun écran
+  // intermédiaire de choix de prestation.
+  buildMainFamily("nettoyage", "nettoyage-automobile", ["nettoyage"], {
     title: "Nettoyage intérieur & extérieur",
-    tagline: "Nettoyage, entretien régulier, moteur & échappement",
+    tagline: "Intérieur et extérieur, deux niveaux au choix",
     priceLabel: "dès 90 €",
   }),
   buildMainFamily("polissage-ceramique", "polissage-automobile", ["polissage-ceramique"], {
