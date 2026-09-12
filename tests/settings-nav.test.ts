@@ -3,6 +3,7 @@ import {
   SETTINGS_CATEGORIES,
   ALL_SETTINGS_TABS,
   findCategoryByTab,
+  getVisibleSettingsCategories,
 } from "@/lib/admin/settings-nav"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
 
@@ -84,6 +85,69 @@ describe("settings navigation categories", () => {
       if (match) {
         expect(findCategoryByTab(match[1]), `tab ${match[1]}`).not.toBeNull()
       }
+    }
+  })
+})
+
+describe("masquage Paramètres — Spirit ACS uniquement", () => {
+  const SPIRIT = "spirit-acs"
+  // Onglets masqués pour Spirit (site custom + parcours demande → devis).
+  const HIDDEN = ["hours", "timeoff", "planning", "travel", "payments", "promo", "appearance"]
+
+  it("ISOLATION : un tenant standard (null/undefined/autre) garde la liste complète INCHANGÉE", () => {
+    expect(getVisibleSettingsCategories(null)).toEqual(SETTINGS_CATEGORIES)
+    expect(getVisibleSettingsCategories(undefined)).toEqual(SETTINGS_CATEGORIES)
+    expect(getVisibleSettingsCategories("autre-tenant")).toEqual(SETTINGS_CATEGORIES)
+  })
+
+  it("Spirit : la catégorie « Réservations » disparaît entièrement (tous ses onglets masqués)", () => {
+    const cats = getVisibleSettingsCategories(SPIRIT)
+    expect(cats.find((c) => c.id === "reservations")).toBeUndefined()
+  })
+
+  it("Spirit : « Paiements et facturation » conserve la Facturation mais retire Paiements + Codes promo", () => {
+    const billing = getVisibleSettingsCategories(SPIRIT).find((c) => c.id === "billing")
+    expect(billing).toBeDefined()
+    const tabs = billing!.subTabs.map((t) => t.value)
+    expect(tabs).toContain("invoicing")
+    expect(tabs).not.toContain("payments")
+    expect(tabs).not.toContain("promo")
+  })
+
+  it("Spirit : « Site public » retire Apparence mais garde Contenu, Galerie, Avis, Demandes", () => {
+    const site = getVisibleSettingsCategories(SPIRIT).find((c) => c.id === "site")
+    expect(site).toBeDefined()
+    const tabs = site!.subTabs.map((t) => t.value)
+    expect(tabs).not.toContain("appearance")
+    expect(tabs).toEqual(expect.arrayContaining(["site", "gallery", "reviews", "custom-requests"]))
+  })
+
+  it("Spirit : Entreprise, Communications et Compte restent intacts", () => {
+    const cats = getVisibleSettingsCategories(SPIRIT)
+    expect(cats.find((c) => c.id === "entreprise")?.subTabs.map((t) => t.value)).toEqual(["business"])
+    expect(cats.find((c) => c.id === "communications")?.subTabs.map((t) => t.value)).toEqual([
+      "sms",
+      "notifications",
+    ])
+    expect(cats.find((c) => c.id === "account")?.subTabs.map((t) => t.value)).toEqual([
+      "security",
+      "data",
+      "support",
+    ])
+  })
+
+  it("Spirit : un onglet masqué renvoie null (=> grille), un onglet conservé résout normalement", () => {
+    for (const tab of HIDDEN) {
+      expect(findCategoryByTab(tab, SPIRIT), `tab masqué ${tab}`).toBeNull()
+    }
+    expect(findCategoryByTab("invoicing", SPIRIT)?.id).toBe("billing")
+    expect(findCategoryByTab("business", SPIRIT)?.id).toBe("entreprise")
+    expect(findCategoryByTab("custom-requests", SPIRIT)?.id).toBe("site")
+  })
+
+  it("ISOLATION : les mêmes onglets restent accessibles pour un tenant standard", () => {
+    for (const tab of HIDDEN) {
+      expect(findCategoryByTab(tab, null), `tab standard ${tab}`).not.toBeNull()
     }
   })
 })

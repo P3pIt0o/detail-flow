@@ -186,10 +186,12 @@ describe("Spirit — bandeau de réassurance premium (3 engagements)", () => {
 describe("Admin — simplification Spirit (réglages standard sans effet masqués)", () => {
   const page = () => read("app/admin/(dashboard)/parametres/page.tsx")
 
-  it("détecte le site Spirit et filtre l'onglet Apparence", () => {
+  it("détecte le site Spirit et filtre les catégories via le helper centralisé", () => {
     const src = page()
     expect(src).toMatch(/customSiteKey === "spirit-acs"/)
-    expect(src).toMatch(/filter\(\(t\) => t\.value !== "appearance"\)/)
+    // Le masquage (dont l'onglet Apparence) passe désormais par le helper
+    // centralisé, isolé par customSiteKey, plutôt qu'un filtre inline.
+    expect(src).toMatch(/getVisibleSettingsCategories\(tenant\.customSiteKey\)/)
   })
 
   it("masque pour Spirit l'ordre des sections et l'onglet Apparence ; regroupe le contenu", () => {

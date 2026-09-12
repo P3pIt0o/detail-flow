@@ -21,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <AdminSidebar
         adminName={ctx.user.name || ctx.user.email}
         isSuperAdmin={ctx.isSuperAdmin}
+        customSiteKey={ctx.tenant.customSiteKey ?? null}
       />
       <main className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
         <PwaInstallHint />
