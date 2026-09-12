@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
-import { SETTINGS_CATEGORIES } from "@/lib/admin/settings-nav"
+import { SETTINGS_CATEGORIES, type SettingsCategory } from "@/lib/admin/settings-nav"
 import { withTenant } from "@/lib/tenant-link"
 
 /**
@@ -14,13 +14,16 @@ import { withTenant } from "@/lib/tenant-link"
 export function SettingsCategoryGrid({
   tenantParam,
   billingPercent,
+  categories = SETTINGS_CATEGORIES,
 }: {
   tenantParam: string | null
   billingPercent?: number
+  /** Catégories déjà filtrées selon le tenant. Défaut : liste complète. */
+  categories?: SettingsCategory[]
 }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {SETTINGS_CATEGORIES.map((cat) => {
+      {categories.map((cat) => {
         const Icon = cat.icon
         const firstTab = cat.subTabs[0]?.value
         const href = withTenant(`/admin/parametres?tab=${firstTab}`, tenantParam)

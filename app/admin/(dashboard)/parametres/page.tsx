@@ -43,7 +43,7 @@ import { getSmsBalance } from "@/lib/sms/credits"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
-import { findCategoryByTab } from "@/lib/admin/settings-nav"
+import { findCategoryByTab, getVisibleSettingsCategories } from "@/lib/admin/settings-nav"
 import { withTenant } from "@/lib/tenant-link"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
@@ -59,21 +59,22 @@ export default async function ParametresPage({
   const { tenant } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
   const { tab, tenant: tenantParam } = await searchParams
-  // Catégorie active déduite de l'onglet historique. Un ?tab= inconnu (ou absent)
-  // renvoie null => on affiche la page d'accueil à 6 catégories.
-  const activeCategory = findCategoryByTab(tab)
-  const activeTab = activeCategory && tab ? tab : undefined
-  const CategoryIcon = activeCategory?.icon
 
   // Site Spirit ACS : shell 100 % personnalisé. On masque UNIQUEMENT pour lui les
   // réglages du site standard sans effet (couleurs, ordre des sections, logo
   // standard, libellés de boutons Hero, sections « Pourquoi nous choisir » et
-  // intro « Prestations » non rendues). Les autres tenants restent inchangés.
+  // intro « Prestations » non rendues) et les modules non utilisés (Réservations,
+  // Paiements en ligne, Codes promo). Les autres tenants restent inchangés.
   const isSpiritSite = tenant.customSiteKey === "spirit-acs"
-  const visibleSubTabs =
-    activeCategory && isSpiritSite && activeCategory.id === "site"
-      ? activeCategory.subTabs.filter((t) => t.value !== "appearance")
-      : (activeCategory?.subTabs ?? [])
+  // Catégories visibles pour CE tenant (filtrage centralisé, isolé par
+  // customSiteKey). Standard => liste complète inchangée.
+  const visibleCategories = getVisibleSettingsCategories(tenant.customSiteKey)
+  // Catégorie active déduite de l'onglet historique, en respectant le masquage
+  // tenant : un ?tab= inconnu OU masqué pour Spirit renvoie null => grille d'accueil.
+  const activeCategory = findCategoryByTab(tab, tenant.customSiteKey)
+  const activeTab = activeCategory && tab ? tab : undefined
+  const CategoryIcon = activeCategory?.icon
+  const visibleSubTabs = activeCategory?.subTabs ?? []
 
   const [
     settings,
@@ -179,7 +180,11 @@ export default async function ParametresPage({
 
       {!activeCategory ? (
         // Accueil : 6 cartes (grille sur ordinateur, liste verticale sur mobile).
-        <SettingsCategoryGrid tenantParam={tenantParam ?? null} billingPercent={billingSetup.percent} />
+        <SettingsCategoryGrid
+          categories={visibleCategories}
+          tenantParam={tenantParam ?? null}
+          billingPercent={billingSetup.percent}
+        />
       ) : (
         <div className="space-y-6">
           {/* En-tête de catégorie + retour */}

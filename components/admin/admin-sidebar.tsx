@@ -35,13 +35,26 @@ const NAV = [
   { href: "/admin/parametres", label: "Paramètres", icon: Settings },
 ]
 
+// Entrées masquées POUR SPIRIT ACS UNIQUEMENT (site 100 % personnalisé, parcours
+// demande → devis) : les routes/modules restent intacts et disponibles pour tous
+// les autres tenants — seuls les liens disparaissent de SA navigation.
+const SPIRIT_ACS_HIDDEN_NAV = new Set([
+  "/admin/reservations",
+  "/admin/prestations",
+  "/admin/produits",
+])
+
 export function AdminSidebar({
   adminName,
   isSuperAdmin = false,
+  customSiteKey = null,
 }: {
   adminName: string
   isSuperAdmin?: boolean
+  customSiteKey?: string | null
 }) {
+  const navItems =
+    customSiteKey === "spirit-acs" ? NAV.filter((item) => !SPIRIT_ACS_HIDDEN_NAV.has(item.href)) : NAV
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -76,7 +89,7 @@ export function AdminSidebar({
       </div>
 
       <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Navigation dashboard">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={withTenant(href)}

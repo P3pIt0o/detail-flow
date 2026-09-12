@@ -105,8 +105,54 @@ export const ALL_SETTINGS_TABS: string[] = SETTINGS_CATEGORIES.flatMap((c) =>
   c.subTabs.map((t) => t.value),
 )
 
-/** Retourne la catégorie contenant l'onglet donné, ou null si inconnu. */
-export function findCategoryByTab(tab: string | undefined | null): SettingsCategory | null {
+/**
+ * Sous-onglets masqués POUR LE TENANT SPIRIT ACS UNIQUEMENT (site 100 %
+ * personnalisé). Aucune route/donnée n'est supprimée : ces réglages restent
+ * disponibles pour tous les autres detailers et réactivables plus tard.
+ * - Réservations (hours/timeoff/planning/travel) : Spirit fonctionne en
+ *   demande → devis, sans moteur de réservation standard.
+ * - payments : aucun paiement/acompte encaissé pendant le parcours public.
+ * - promo : aucun parcours Spirit ne consomme de code promo.
+ * - appearance : couleurs sans effet sur le shell custom.
+ */
+const SPIRIT_ACS_HIDDEN_TABS = new Set([
+  "hours",
+  "timeoff",
+  "planning",
+  "travel",
+  "payments",
+  "promo",
+  "appearance",
+])
+
+/**
+ * Catégories visibles pour un tenant. Standard (`customSiteKey` nul/autre) :
+ * liste complète inchangée. Spirit ACS : sous-onglets masqués retirés, et toute
+ * catégorie devenue vide (ex. « Réservations ») disparaît de la grille.
+ */
+export function getVisibleSettingsCategories(
+  customSiteKey: string | null | undefined,
+): SettingsCategory[] {
+  if (customSiteKey !== "spirit-acs") return SETTINGS_CATEGORIES
+  return SETTINGS_CATEGORIES.map((c) => ({
+    ...c,
+    subTabs: c.subTabs.filter((t) => !SPIRIT_ACS_HIDDEN_TABS.has(t.value)),
+  })).filter((c) => c.subTabs.length > 0)
+}
+
+/**
+ * Retourne la catégorie contenant l'onglet donné, ou null si inconnu.
+ * Respecte le masquage tenant : un onglet masqué pour Spirit renvoie null, ce
+ * qui ramène l'utilisateur à la grille d'accueil des paramètres.
+ */
+export function findCategoryByTab(
+  tab: string | undefined | null,
+  customSiteKey?: string | null,
+): SettingsCategory | null {
   if (!tab) return null
-  return SETTINGS_CATEGORIES.find((c) => c.subTabs.some((t) => t.value === tab)) ?? null
+  return (
+    getVisibleSettingsCategories(customSiteKey).find((c) =>
+      c.subTabs.some((t) => t.value === tab),
+    ) ?? null
+  )
 }
