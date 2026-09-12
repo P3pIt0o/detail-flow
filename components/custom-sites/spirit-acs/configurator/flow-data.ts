@@ -215,6 +215,28 @@ export const CLEANING_DETAILS: Record<"interieur" | "exterieur", Record<Cleaning
  * Le monospace utilise le palier « 5 places » comme plancher chiffré ; un
  * 7 places est ajusté par Spirit ACS (l'estimation reste partielle).
  */
+/**
+ * Ids d'options nettoyage DÉJÀ COUVERTES par la formule sélectionnée : une
+ * prestation incluse dans le pack ne doit jamais être reproposée (ni repayée)
+ * en option. Le lien est fait par IDENTIFIANT d'option — jamais par comparaison
+ * du texte affiché, volontairement fragile (« Rénovation d'échappement »
+ * l'option vs « Rénovation des échappements » le pack). Règle métier réelle
+ * Spirit ACS : seule la formule Extérieur « Comme neuf » embarque la rénovation
+ * des échappements ; la formule combinée fixe l'extérieur à « Indispensable »
+ * (§8) et ne la couvre donc pas.
+ */
+export function includedCleaningOptionIds(
+  zone: CleaningZone | null,
+  level: CleaningLevel | null,
+): string[] {
+  // Niveau extérieur réellement appliqué au périmètre choisi.
+  const exteriorLevel: CleaningLevel | null =
+    zone === "les-deux" ? "indispensable" : zone === "exterieur" ? level : null
+  const ids: string[] = []
+  if (exteriorLevel === "comme-neuf") ids.push("renovation-echappement")
+  return ids
+}
+
 export function cleaningVehicleKey(vehType: string | null): CleaningVehicleKey | null {
   switch (vehType) {
     case "Citadine":
@@ -295,7 +317,7 @@ export const FAMILIES: Family[] = [
       // « Moteur & échappement » n'est plus une prestation distincte : ce sont des
       // compléments proposés en option du nettoyage (tarifs réels Spirit ACS).
       { id: "nettoyage-moteur", label: "Nettoyage moteur", benefit: "Compartiment moteur dégraissé et nettoyé", price: "Sur devis", kind: "quote" },
-      { id: "renovation-echappement", label: "Rénovation d'échappement", benefit: "Sorties d'échappement ravivées", price: "dès 20 €", priceCents: 2000, kind: "from" },
+      { id: "renovation-echappement", label: "Rénovation d'échappement", benefit: "Sorties d'échappement ravivées", price: "dès 20 €", priceCents: 2000, kind: "from", scope: "exterieur" },
     ],
   },
   {
