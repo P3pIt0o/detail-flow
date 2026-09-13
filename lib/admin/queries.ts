@@ -4,6 +4,7 @@ import { bookings, bookingItems, bookingItemOptions, invoices, clients, productP
 import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
 import { requireCompanyId } from "@/lib/tenant"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
+import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
 
 /**
  * Lectures du dashboard administrateur — ISOLÉES PAR ENTREPRISE.
@@ -542,7 +543,15 @@ export async function getBookingDetail(id: number, companyId?: number) {
   return { booking: rows[0], items: itemsWithOptions }
 }
 
-/** Clients agrégés par email (avec total dépensé et nombre de réservations). */
+/**
+ * Clients agrégés par email : nombre de réservations, « Montant réservé » et
+ * réservation représentative servant d'ancrage à la fiche virtuelle.
+ *
+ * « Montant réservé » = somme des réservations NON annulées et NON marquées
+ * comme données de démonstration (jamais « CA » / « encaissé »). L'ancrage
+ * (`anchorBookingId`) est un id de réservation du tenant courant, dont
+ * l'appartenance est revérifiée côté serveur à l'ouverture de la fiche.
+ */
 export async function getClients(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
   const rows = await db
@@ -551,7 +560,8 @@ export async function getClients(companyId?: number) {
       name: sql<string>`max(${bookings.customerName})`,
       phone: sql<string>`max(${bookings.customerPhone})`,
       bookingsCount: count(),
-      totalSpent: sum(bookings.totalCents),
+      reserved: sql<string>`coalesce(sum(case when ${bookings.status} <> 'cancelled' and ${bookings.isDemoData} = false then ${bookings.totalCents} else 0 end), 0)`,
+      anchorBookingId: sql<number>`max(${bookings.id})`,
       lastDate: sql<string>`max(${bookings.date})`,
     })
     .from(bookings)
@@ -560,7 +570,8 @@ export async function getClients(companyId?: number) {
     .orderBy(desc(sql`max(${bookings.date})`))
   return rows.map((r) => ({
     ...r,
-    totalSpentCents: Number(r.totalSpent ?? 0),
+    reservedCents: Number(r.reserved ?? 0),
+    anchorBookingId: r.anchorBookingId != null ? Number(r.anchorBookingId) : null,
   }))
 }
 
@@ -569,25 +580,23 @@ export type MergedClient = {
   key: string
   /** id dans la table `clients` si le client a une fiche manuelle, sinon null. */
   clientId: number | null
+  /** Réservation représentative (ancrage d'une fiche virtuelle), sinon null. */
+  anchorBookingId: number | null
   name: string
   email: string | null
   phone: string | null
   address: string | null
   notes: string | null
   bookingsCount: number
-  totalSpentCents: number
+  /** Montant réservé (réservations non annulées et hors données de démo). */
+  reservedCents: number
   lastDate: string | null
   source: "manual" | "booking" | "both"
 }
 
-function normEmail(e?: string | null): string | null {
-  const v = (e ?? "").trim().toLowerCase()
-  return v || null
-}
-function normPhone(p?: string | null): string | null {
-  const v = (p ?? "").replace(/\D/g, "")
-  return v || null
-}
+// Normalisations partagées (source unique de vérité dans le module CRM pur).
+const normEmail = normalizeEmail
+const normPhone = normalizePhone
 
 /**
  * Liste des clients de l'entreprise : fiches créées manuellement (table
@@ -624,13 +633,14 @@ export async function getMergedClients(companyId?: number): Promise<MergedClient
       rec = {
         key: `client-${m.id}`,
         clientId: m.id,
+        anchorBookingId: null,
         name: m.name,
         email: m.email?.trim() || null,
         phone: m.phone?.trim() || null,
         address: m.address ?? null,
         notes: m.notes ?? null,
         bookingsCount: 0,
-        totalSpentCents: 0,
+        reservedCents: 0,
         lastDate: null,
         source: "manual",
       }
@@ -655,13 +665,14 @@ export async function getMergedClients(companyId?: number): Promise<MergedClient
       rec = {
         key: email ? `email-${email}` : phone ? `phone-${phone}` : `booking-${a.email}`,
         clientId: null,
+        anchorBookingId: a.anchorBookingId,
         name: a.name,
         email: a.email?.trim() || null,
         phone: a.phone?.trim() || null,
         address: null,
         notes: null,
         bookingsCount: a.bookingsCount,
-        totalSpentCents: a.totalSpentCents,
+        reservedCents: a.reservedCents,
         lastDate: a.lastDate ?? null,
         source: "booking",
       }
@@ -670,8 +681,9 @@ export async function getMergedClients(companyId?: number): Promise<MergedClient
       rec.name = rec.name || a.name
       rec.email = rec.email ?? (a.email?.trim() || null)
       rec.phone = rec.phone ?? (a.phone?.trim() || null)
+      rec.anchorBookingId = rec.anchorBookingId ?? a.anchorBookingId
       rec.bookingsCount += a.bookingsCount
-      rec.totalSpentCents += a.totalSpentCents
+      rec.reservedCents += a.reservedCents
       if (a.lastDate && (!rec.lastDate || a.lastDate > rec.lastDate)) rec.lastDate = a.lastDate
       rec.source = rec.source === "manual" ? "both" : rec.source
     }
