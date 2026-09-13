@@ -24,7 +24,7 @@ import { RozanFaq } from "./rozan-faq"
 import { RozanShot } from "./rozan-shot"
 import { RozanGoogleProof } from "./rozan-google-proof"
 import { ROZAN_SECTIONS, type RozanNavItem } from "./tokens"
-import { ROZAN_BRAND, ROZAN_GOOGLE, ROZAN_SERVICES, type RozanServiceSlug } from "./content"
+import { ROZAN_BRAND, ROZAN_GOOGLE, ROZAN_PHOTOS, ROZAN_SERVICES, type RozanServiceSlug } from "./content"
 
 const SUBPAGE_NAV: RozanNavItem[] = [
   { id: "p", label: "Prestations", route: `/#${ROZAN_SECTIONS.prestations}` },
@@ -127,26 +127,23 @@ export function RozanLocalPage({
               ))}
             </ul>
           </div>
-          <RozanShot label={`Intervention à domicile à ${city}`} ratio="aspect-[4/3]" rounded="rounded-3xl" />
+          {/* Vraie photo Rozan : l'utilitaire mobile équipé (autonome en eau et
+              électricité) illustre l'intervention à domicile pour toutes les
+              prestations, sans jamais détourner une photo auto pour un textile. */}
+          <RozanShot
+            src={ROZAN_PHOTOS.vanEquipement}
+            alt={`L'équipe mobile Rozan, autonome en eau et électricité, intervient à ${city}`}
+            label={`Intervention à domicile à ${city}`}
+            ratio="aspect-[4/3]"
+            rounded="rounded-3xl"
+          />
         </div>
       </section>
 
       <RozanProcess />
 
-      {/* Réalisations locales */}
-      <section className="bg-[var(--rozan-surface)]">
-        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-2xl">
-            <span className="rozan-rule" />
-            <h2 className="rozan-title rozan-h2 mt-4 text-balance text-[var(--rozan-fg)]">Nos réalisations à {city}</h2>
-          </div>
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <RozanShot key={i} label={`${service.shot} — ${city} ${i + 1}`} ratio="aspect-square" />
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Réalisations : la vraie galerie Rozan (`RozanAvantApres`) est rendue
+          plus haut. On ne duplique pas d'emplacements « photo à venir » ici. */}
 
       <RozanAvis />
 
