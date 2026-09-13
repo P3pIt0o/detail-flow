@@ -20,6 +20,7 @@
 
 import type { PublicServicePage, PublicSiteCatalog } from "./types"
 import { getSpiritPublicCatalog } from "@/components/custom-sites/spirit-acs/public-catalog"
+import { getRozanPublicCatalog } from "@/components/custom-sites/rozan/public-catalog"
 
 /**
  * Catalogue public d'un tenant à partir de sa clé de site personnalisé
@@ -31,6 +32,10 @@ import { getSpiritPublicCatalog } from "@/components/custom-sites/spirit-acs/pub
 export function getPublicSiteCatalog(key: string | null | undefined): PublicSiteCatalog | null {
   const k = (key ?? "").trim()
   if (k === "spirit-acs") return getSpiritPublicCatalog()
+  // Clé de SITE personnalisé « rozan » (registre) → catalogue du tenant réel
+  // « rozancleaningservice ». La distinction clé de site ≠ slug de tenant est
+  // portée par l'adaptateur (cf. `ROZAN_TENANT_SLUG`).
+  if (k === "rozan") return getRozanPublicCatalog()
   return null
 }
 

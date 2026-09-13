@@ -2,6 +2,7 @@
  * Section « Comment ça marche ? » — maximum 3 étapes, claires et rassurantes.
  */
 
+import Link from "next/link"
 import { ListChecks, Send, Sparkles } from "lucide-react"
 import { ROZAN_SECTIONS } from "./tokens"
 
@@ -34,12 +35,12 @@ export function RozanProcess() {
         </ol>
 
         <div className="mt-10">
-          <a
-            href={`#${ROZAN_SECTIONS.devis}`}
+          <Link
+            href="/reservation"
             className="inline-flex h-12 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
           >
             Réserver ma prestation
-          </a>
+          </Link>
         </div>
       </div>
     </section>

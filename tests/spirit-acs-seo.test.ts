@@ -384,9 +384,13 @@ describe("SEO — sitemap tenant-aware", () => {
   })
 
   it("ne contient aucune variante dupliquée sans tenant (hors accueil marketing)", () => {
+    // Intention : aucune URL de site tenant ne doit fuiter sans son paramètre
+    // « ?tenant= » (sinon canonique ambiguë / duplication). Le sitemap étant
+    // désormais multi-tenant (Spirit ACS + Rozan), on vérifie la présence d'UN
+    // paramètre tenant connu, et non plus spécifiquement « spirit-acs ».
     const nonRoot = urls.filter((u) => u !== "https://www.detailflow.fr")
     for (const u of nonRoot) {
-      expect(u, `URL sans tenant: ${u}`).toMatch(/tenant=spirit-acs/)
+      expect(u, `URL sans tenant: ${u}`).toMatch(/[?&]tenant=(spirit-acs|rozancleaningservice)/)
     }
   })
 })

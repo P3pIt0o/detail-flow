@@ -9,6 +9,7 @@ import {
 } from "@/lib/public-site/provider"
 import { resolveConversion } from "@/lib/public-site/conversion"
 import { SPIRIT_SERVICES } from "@/components/custom-sites/spirit-acs/seo-content"
+import { ROZAN_SERVICES, ROZAN_LOCAL_PAGES, ROZAN_TENANT_SLUG } from "@/components/custom-sites/rozan/content"
 
 /**
  * Phase 2 — Couche publique commune. Ces tests verrouillent le rôle de « source
@@ -74,6 +75,51 @@ describe("public-site provider", () => {
       expect(p.published).toBe(true)
       expect(p.inNavigation).toBe(true)
     }
+  })
+})
+
+describe("catalogue public Rozan (tenant existant, aucune duplication)", () => {
+  it("est résolu par la clé de SITE « rozan » mais porte le slug du TENANT réel", () => {
+    // Distinction verrouillée : clé de site personnalisé ≠ slug de tenant.
+    const catalog = getPublicSiteCatalog("rozan")
+    expect(catalog).not.toBeNull()
+    expect(catalog!.tenantSlug).toBe(ROZAN_TENANT_SLUG)
+    expect(catalog!.tenantSlug).toBe("rozancleaningservice")
+    // On ne crée jamais un tenant « rozan » distinct.
+    expect(getPublicSiteCatalog("rozancleaningservice")).toBeNull()
+  })
+
+  it("projette les prestations actives Rozan en pages publiées et transactionnelles", () => {
+    const catalog = getPublicSiteCatalog("rozan")!
+    const active = ROZAN_SERVICES.filter((s) => s.active)
+    expect(listPublishedServicePages(catalog)).toHaveLength(active.length)
+    // Rozan est transactionnel : réservation + acompte (piloté par l'admin).
+    for (const p of catalog.servicePages) {
+      expect(p.conversionMode).toBe("booking_deposit")
+      expect(resolveConversion(p.conversionMode)).toEqual({
+        mode: "booking_deposit",
+        engine: "booking",
+        paymentMode: "deposit",
+      })
+    }
+  })
+
+  it("le sitemap Rozan liste l'accueil, les prestations réelles et les pages locales", () => {
+    const catalog = getPublicSiteCatalog("rozan")!
+    const paths = listSitemapPaths(catalog).map((p) => p.path)
+    expect(paths).toContain("/")
+    // Chaque prestation active a une URL /prestations/{slug} réellement servie.
+    for (const s of ROZAN_SERVICES.filter((s) => s.active)) {
+      expect(paths).toContain(`/prestations/${s.slug}`)
+    }
+    // Chaque page locale publiée est présente au premier niveau « /{slug} ».
+    for (const slug of Object.keys(ROZAN_LOCAL_PAGES)) {
+      expect(paths).toContain(`/${slug}`)
+    }
+    // Aucune fuite du tunnel de conversion ni des pages au shell standard.
+    expect(paths).not.toContain("/reservation")
+    expect(paths).not.toContain("/avis")
+    expect(paths).not.toContain("/contact")
   })
 })
 

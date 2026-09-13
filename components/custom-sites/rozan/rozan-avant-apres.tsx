@@ -1,56 +1,74 @@
 /**
- * Section Avant / Après — « Les résultats parlent d'eux-mêmes. »
+ * Section « Réalisations » — VRAIES photos Rozan.
  *
- * Comparateurs premium extrêmement fluides (voir `RozanCompare`). En Phase 2,
- * les deux faces utilisent des emplacements photo `RozanShot` (Avant / Après)
- * pour démontrer l'interaction ; en Phase 4, on y branche les vraies
- * réalisations Rozan (remplacement du contenu du comparateur uniquement).
+ * On n'affiche AUCUN avant/après fabriqué : tant que Rozan ne fournit pas de
+ * vrais couples avant/après, on montre des réalisations authentiques (mosaïque
+ * premium). Le comparateur `RozanCompare` reste dans le code pour brancher de
+ * vrais couples le jour où ils seront fournis, sans réécrire cette section.
  *
- * Fond sombre pour faire ressortir les visuels (contraste premium).
+ * Fond sombre pour faire ressortir les visuels (contraste detailing premium).
  */
 
-import { RozanCompare } from "./rozan-compare"
-import { RozanShot } from "./rozan-shot"
+import Image from "next/image"
+import Link from "next/link"
 import { ROZAN_SECTIONS } from "./tokens"
-import { ROZAN_BEFORE_AFTER } from "./content"
+import { ROZAN_GALLERY } from "./content"
+
+const RATIO: Record<NonNullable<(typeof ROZAN_GALLERY)[number]["span"]>, string> = {
+  tall: "aspect-[3/4]",
+  wide: "aspect-[16/10]",
+  normal: "aspect-[4/3]",
+}
 
 export function RozanAvantApres() {
-  const items = ROZAN_BEFORE_AFTER.slice(0, 3)
-
   return (
-    <section id={ROZAN_SECTIONS.avantApres} className="bg-[var(--rozan-ink)] text-white">
+    <section id={ROZAN_SECTIONS.realisations} className="bg-[var(--rozan-ink)] text-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="max-w-2xl">
           <span className="rozan-rule" />
           <h2 className="rozan-title rozan-h2 mt-4 text-balance text-white">
-            Les résultats parlent d&apos;eux-mêmes.
+            Nos réalisations récentes.
           </h2>
           <p className="mt-3 text-pretty text-white/65">
-            Glissez le curseur pour révéler la différence. Un nettoyage en profondeur, réalisé
-            directement chez vous.
+            Des interventions réelles, réalisées directement chez nos clients dans le Pays de Gex
+            et à Genève. Voitures, intérieurs, jantes et carrosseries.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {items.map((it) => (
-            <figure key={it.id} className="rozan-compare">
-              <RozanCompare
-                alt={it.caption}
-                before={<RozanShot src={it.before} alt={it.beforeAlt} label={`${it.shot} — avant`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full" sizes="(max-width: 1024px) 100vw, 33vw" />}
-                after={<RozanShot src={it.after} alt={it.afterAlt} label={`${it.shot} — après`} ratio="aspect-[4/3]" tone="dark" rounded="rounded-none" className="size-full" sizes="(max-width: 1024px) 100vw, 33vw" />}
-              />
-              <figcaption className="mt-3 text-sm text-white/60">{it.caption}</figcaption>
+        <div className="mt-10 columns-1 gap-4 sm:columns-2 lg:columns-3 [column-fill:_balance]">
+          {ROZAN_GALLERY.map((it, i) => (
+            <figure
+              key={it.id}
+              className="group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-white/10"
+            >
+              <div className={`relative w-full ${RATIO[it.span ?? "normal"]}`}>
+                <Image
+                  src={it.src || "/placeholder.svg"}
+                  alt={it.alt}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  loading={i < 2 ? "eager" : "lazy"}
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+              </div>
+              <figcaption className="absolute inset-x-0 bottom-0 translate-y-1 p-4 text-sm font-medium text-white opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                {it.caption}
+              </figcaption>
             </figure>
           ))}
         </div>
 
         <div className="mt-10 flex justify-center">
-          <a
-            href={`#${ROZAN_SECTIONS.devis}`}
+          <Link
+            href="/reservation"
             className="inline-flex h-12 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
           >
-            Je veux le même résultat
-          </a>
+            Réserver ma prestation
+          </Link>
         </div>
       </div>
     </section>

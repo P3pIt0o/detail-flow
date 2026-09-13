@@ -15,13 +15,28 @@
  * seront résolues dynamiquement pour ne jamais devenir obsolètes.
  */
 
+/**
+ * Slug du TENANT Rozan existant dans DetailFlow (source de vérité unique).
+ *
+ * ATTENTION — deux identifiants DISTINCTS, à ne jamais confondre :
+ *   - la clé de SITE personnalisé (`customSiteKey` = « rozan ») sert au registre
+ *     des pages custom (`lib/custom-sites`) ;
+ *   - ce SLUG de tenant (« rozancleaningservice ») identifie l'entreprise réelle
+ *     et sert à construire les URL publiques (`?tenant=rozancleaningservice`) et
+ *     le SEO (canoniques, sitemap). Il correspond au tenant DÉJÀ enregistré :
+ *     on ne crée jamais de nouveau tenant « rozan », on ne duplique rien.
+ *
+ * Le jour où Rozan connectera un domaine personnalisé vérifié, seul
+ * `tenantSeoIdentity()` aura besoin d'être mappé — les URL basculeront partout
+ * automatiquement (cf. `lib/seo/tenant-url.ts`).
+ */
+export const ROZAN_TENANT_SLUG = "rozancleaningservice"
+
 export type RozanServiceSlug =
   | "nettoyage-voiture"
   | "nettoyage-canape"
   | "nettoyage-matelas"
   | "nettoyage-tapis-moquette"
-  | "nettoyage-airbnb"
-  | "nettoyage-terrasse"
 
 export const ROZAN_BRAND = {
   name: "Rozan Cleaning Services",
@@ -52,6 +67,35 @@ export const ROZAN_GOOGLE = {
   url: "https://www.google.com/maps",
 } as const
 
+/**
+ * VRAIES PHOTOS Rozan fournies par le client (dossier `/public/custom-sites/
+ * rozan/real/`, optimisées). SOURCE UNIQUE des chemins : aucune image en dur
+ * dans les composants. Toutes sont AUTOMOBILE (nettoyage voiture / detailing) ;
+ * on ne les détourne jamais pour illustrer une prestation textile.
+ */
+export const ROZAN_PHOTOS = {
+  /** Mercedes GLC noire fraîchement lavée sur tapis, devant un domicile. */
+  mercedesExterieur: "/custom-sites/rozan/real/mercedes-glc-exterieur.jpg",
+  /** MINI Countryman noire, extérieur brillant devant un garage. */
+  miniExterieur: "/custom-sites/rozan/real/mini-exterieur.jpg",
+  /** Intérieur Mercedes : sièges arrière cuir nettoyés. */
+  interieurMercedes: "/custom-sites/rozan/real/interieur-mercedes.jpg",
+  /** Intérieur MINI : tapis de sol et sellerie soignés. */
+  interieurMini: "/custom-sites/rozan/real/interieur-mini.jpg",
+  /** Coffre aspiré aux traces de passage nettes. */
+  coffreAspire: "/custom-sites/rozan/real/coffre-aspire.jpg",
+  /** Utilitaire Rozan équipé : autonome en eau et électricité. */
+  vanEquipement: "/custom-sites/rozan/real/van-equipement.jpg",
+  /** Lavage à la mousse active (snow foam) sous tente. */
+  lavageMousse: "/custom-sites/rozan/real/lavage-mousse.jpg",
+  /** Roue BMW couverte de mousse active. */
+  bmwMousseRoue: "/custom-sites/rozan/real/bmw-mousse-roue.jpg",
+  /** Jante BMW en détail, mousse active. */
+  janteDetail: "/custom-sites/rozan/real/jante-detail.jpg",
+  /** Serviette de séchage AMG (finition premium). */
+  detailAmg: "/custom-sites/rozan/real/detail-amg.jpg",
+} as const
+
 export type RozanService = {
   slug: RozanServiceSlug
   /** Libellé court affiché sur la carte (« Voiture »). */
@@ -60,9 +104,15 @@ export type RozanService = {
   title: string
   /** Accroche très courte pour la carte. */
   teaser: string
-  /** Visuel premium (placeholder remplaçable par la vraie photo Rozan). */
-  image: string
-  alt: string
+  /**
+   * Vraie photo Rozan (chemin public). OPTIONNEL : lorsqu'aucune vraie photo
+   * n'existe encore pour cette prestation, on laisse le champ vide plutôt que
+   * d'inventer un visuel — l'emplacement `RozanShot` affiche alors son repère
+   * premium « photo à venir ». En production, Rozan téléverse la vraie photo
+   * depuis son admin DetailFlow (aucune modification de code nécessaire).
+   */
+  image?: string
+  alt?: string
   /** Intitulé du cliché attendu, affiché dans l'emplacement photo `RozanShot`. */
   shot: string
   /** Activable/désactivable depuis l'admin en Phase 4. */
@@ -74,9 +124,10 @@ export const ROZAN_SERVICES: RozanService[] = [
     slug: "nettoyage-voiture",
     label: "Voiture",
     title: "Nettoyage de voiture à domicile",
-    teaser: "Intérieur, extérieur ou complet — vapeur, sièges et textiles.",
-    image: "/custom-sites/rozan/service-voiture.png",
-    alt: "Nettoyage intérieur de voiture premium à domicile",
+    teaser: "Intérieur, extérieur ou complet — sellerie, textiles et carrosserie.",
+    // Vraie photo Rozan : intérieur de véhicule fraîchement détaillé.
+    image: ROZAN_PHOTOS.interieurMercedes,
+    alt: "Intérieur de Mercedes fraîchement nettoyé par Rozan à domicile",
     shot: "Intérieur de voiture fraîchement nettoyé",
     active: true,
   },
@@ -85,8 +136,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     label: "Canapé",
     title: "Nettoyage de canapé à domicile",
     teaser: "Injection-extraction en profondeur, taches et odeurs.",
-    image: "/custom-sites/rozan/service-canape.png",
-    alt: "Nettoyage de canapé en tissu à domicile",
+    // Pas encore de vraie photo Rozan pour les textiles : slot « photo à venir ».
     shot: "Canapé en tissu nettoyé en profondeur",
     active: true,
   },
@@ -95,8 +145,6 @@ export const ROZAN_SERVICES: RozanService[] = [
     label: "Matelas",
     title: "Nettoyage de matelas à domicile",
     teaser: "Assainissement, acariens, traces et fraîcheur retrouvée.",
-    image: "/custom-sites/rozan/service-matelas.png",
-    alt: "Nettoyage et assainissement de matelas",
     shot: "Matelas propre et assaini",
     active: true,
   },
@@ -105,29 +153,7 @@ export const ROZAN_SERVICES: RozanService[] = [
     label: "Tapis & moquettes",
     title: "Nettoyage de tapis et moquettes",
     teaser: "Fibres ravivées, taches incrustées et poussières éliminées.",
-    image: "/custom-sites/rozan/service-tapis.png",
-    alt: "Nettoyage de tapis et moquettes",
     shot: "Tapis aux fibres ravivées",
-    active: true,
-  },
-  {
-    slug: "nettoyage-airbnb",
-    label: "Airbnb",
-    title: "Nettoyage Airbnb & locations saisonnières",
-    teaser: "Remise à neuf entre deux séjours, prête à accueillir.",
-    image: "/custom-sites/rozan/service-airbnb.png",
-    alt: "Remise en état de location saisonnière Airbnb",
-    shot: "Logement Airbnb remis à neuf",
-    active: true,
-  },
-  {
-    slug: "nettoyage-terrasse",
-    label: "Terrasse",
-    title: "Nettoyage de terrasse",
-    teaser: "Dalles, bois et pierre débarrassés des salissures.",
-    image: "/custom-sites/rozan/service-terrasse.png",
-    alt: "Nettoyage de terrasse au nettoyeur haute pression",
-    shot: "Terrasse nettoyée au jet haute pression",
     active: true,
   },
 ]
@@ -176,6 +202,77 @@ export const ROZAN_BEFORE_AFTER: RozanBeforeAfter[] = [
     beforeAlt: "Matelas taché avant nettoyage",
     afterAlt: "Matelas propre après nettoyage Rozan",
     caption: "Nettoyage matelas — Genève",
+  },
+]
+
+/**
+ * RÉALISATIONS — galerie de VRAIES photos Rozan (aucun avant/après fabriqué).
+ * Tant que Rozan ne fournit pas de vrais couples avant/après, on montre des
+ * réalisations authentiques plutôt que d'inventer une comparaison trompeuse.
+ * Le comparateur avant/après (`RozanCompare`) reste disponible dans le code
+ * pour le jour où de vrais couples seront fournis.
+ */
+export type RozanRealisation = {
+  id: string
+  src: string
+  alt: string
+  caption: string
+  /** Format d'affichage dans la mosaïque. */
+  span?: "wide" | "tall" | "normal"
+}
+
+export const ROZAN_GALLERY: RozanRealisation[] = [
+  {
+    id: "mercedes-ext",
+    src: ROZAN_PHOTOS.mercedesExterieur,
+    alt: "Mercedes GLC noire lavée par Rozan, carrosserie brillante devant un domicile",
+    caption: "Lavage extérieur à domicile — Mercedes GLC",
+    span: "tall",
+  },
+  {
+    id: "jante",
+    src: ROZAN_PHOTOS.janteDetail,
+    alt: "Jante BMW nettoyée à la mousse active en détail",
+    caption: "Jantes & pneus — mousse active",
+  },
+  {
+    id: "interieur-mini",
+    src: ROZAN_PHOTOS.interieurMini,
+    alt: "Intérieur de MINI détaillé, tapis de sol et sellerie",
+    caption: "Detailing intérieur — MINI",
+  },
+  {
+    id: "mousse",
+    src: ROZAN_PHOTOS.lavageMousse,
+    alt: "Véhicule couvert de mousse active lors d'un lavage Rozan",
+    caption: "Prélavage mousse active",
+    span: "wide",
+  },
+  {
+    id: "coffre",
+    src: ROZAN_PHOTOS.coffreAspire,
+    alt: "Coffre de véhicule aspiré par Rozan",
+    caption: "Aspiration & coffre",
+  },
+  {
+    id: "mini-ext",
+    src: ROZAN_PHOTOS.miniExterieur,
+    alt: "MINI Countryman noire brillante après lavage Rozan",
+    caption: "Extérieur brillant — MINI Countryman",
+    span: "tall",
+  },
+  {
+    id: "roue-mousse",
+    src: ROZAN_PHOTOS.bmwMousseRoue,
+    alt: "Passage de roue et pneu BMW couverts de mousse active",
+    caption: "Passages de roues traités",
+  },
+  {
+    id: "van",
+    src: ROZAN_PHOTOS.vanEquipement,
+    alt: "Utilitaire Rozan équipé, autonome en eau et en électricité",
+    caption: "Équipe mobile autonome",
+    span: "wide",
   },
 ]
 
@@ -664,32 +761,6 @@ export const ROZAN_BOOKING: Record<RozanServiceSlug, RozanBookingConfig> = {
       { id: "taches", label: "Détachage renforcé", amount: 2000 },
       { id: "protection", label: "Protection anti-taches", amount: 2500 },
     ],
-  },
-  "nettoyage-airbnb": {
-    slug: "nettoyage-airbnb",
-    mode: "booking",
-    variantLabel: "Type de logement",
-    variants: [
-      { id: "studio", label: "Studio", amount: 7000 },
-      { id: "t2", label: "T2 / 2 pièces", amount: 9000 },
-      { id: "t3", label: "T3 et plus", amount: 12000 },
-    ],
-    options: [
-      { id: "linge", label: "Gestion du linge", amount: 2500 },
-      { id: "vitres", label: "Vitres intérieures", amount: 2000 },
-    ],
-  },
-  "nettoyage-terrasse": {
-    // Surface trop variable pour un tarif ferme en ligne : sur devis.
-    slug: "nettoyage-terrasse",
-    mode: "quote",
-    variantLabel: "Type de surface",
-    variants: [
-      { id: "dalles", label: "Dalles / carrelage", amount: null },
-      { id: "bois", label: "Bois", amount: null },
-      { id: "pierre", label: "Pierre", amount: null },
-    ],
-    options: [],
   },
 }
 

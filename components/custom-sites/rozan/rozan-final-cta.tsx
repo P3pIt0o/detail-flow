@@ -2,7 +2,7 @@
  * Section CTA finale — forte, sombre, orientée conversion.
  */
 
-import { ROZAN_SECTIONS } from "./tokens"
+import Link from "next/link"
 
 export function RozanFinalCta() {
   return (
@@ -17,12 +17,12 @@ export function RozanFinalCta() {
           entièrement autonome en eau et en électricité.
         </p>
         <div className="mt-8 flex justify-center">
-          <a
-            href={`#${ROZAN_SECTIONS.devis}`}
+          <Link
+            href="/reservation"
             className="inline-flex h-13 items-center justify-center rounded-full bg-[var(--rozan-accent)] px-9 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
           >
             Réserver ma prestation
-          </a>
+          </Link>
         </div>
       </div>
     </section>

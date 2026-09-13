@@ -26,7 +26,7 @@ import { ROZAN_BRAND, ROZAN_GOOGLE, ROZAN_SERVICES, type RozanServiceSlug } from
 
 const SUBPAGE_NAV: RozanNavItem[] = [
   { id: "p", label: "Prestations", route: `/#${ROZAN_SECTIONS.prestations}` },
-  { id: "a", label: "Avant / Après", route: `/#${ROZAN_SECTIONS.avantApres}` },
+  { id: "a", label: "Réalisations", route: `/#${ROZAN_SECTIONS.realisations}` },
   { id: "z", label: "Zones d'intervention", route: `/#${ROZAN_SECTIONS.zones}` },
   { id: "v", label: "Avis", route: `/#${ROZAN_SECTIONS.avis}` },
   { id: "f", label: "FAQ", route: `/#${ROZAN_SECTIONS.faq}` },
@@ -194,21 +194,9 @@ export function RozanServicePage({ slug }: { slug: RozanServiceSlug }) {
 
       <RozanDevis />
 
-      {/* Réalisations (emplacements photos) */}
-      <section id={ROZAN_SECTIONS.realisations} className="bg-[var(--rozan-surface)]">
-        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-2xl">
-            <span className="rozan-rule" />
-            <h2 className="rozan-title rozan-h2 mt-4 text-balance text-[var(--rozan-fg)]">Nos réalisations</h2>
-            <p className="mt-3 text-pretty text-[var(--rozan-muted)]">Quelques interventions récentes. Vos vraies photos remplaceront ces emplacements.</p>
-          </div>
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <RozanShot key={i} label={`${service.shot} — réalisation ${i + 1}`} ratio="aspect-square" />
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Réalisations : la vraie galerie Rozan (`RozanAvantApres`, ancre
+          « #realisations ») est déjà rendue plus haut. On ne duplique donc pas
+          d'emplacements « photo à venir » ici (ni d'ancre en double). */}
 
       <RozanZones />
       <RozanAvis />
