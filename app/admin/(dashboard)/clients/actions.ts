@@ -8,6 +8,7 @@ import { clients } from "@/lib/db/schema"
 import { requireCompanyId } from "@/lib/tenant"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 import { getCountryProfile } from "@/lib/billing/country-profiles"
+import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
 
 /** Normalise + valide l'identité B2C/B2B d'un client selon SON pays. */
 function normalizeCustomerIdentity(fd: FormData):
@@ -63,6 +64,28 @@ export type CreateClientResult = {
   message: string
 }
 
+/**
+ * Recherche un doublon dans les fiches DÉJÀ scopées au tenant courant : priorité
+ * à l'email normalisé, repli sur le téléphone normalisé. `excludeId` permet
+ * d'ignorer la fiche en cours de modification. Réutilise les normalisations
+ * partagées du module CRM (source unique de vérité création/édition/affichage).
+ */
+function findDuplicateClient(
+  existing: { id: number; email: string | null; phone: string | null }[],
+  candidate: { email: string; phone: string },
+  excludeId?: number,
+): boolean {
+  const email = normalizeEmail(candidate.email)
+  const phone = normalizePhone(candidate.phone)
+  if (!email && !phone) return false
+  return existing.some((c) => {
+    if (excludeId != null && c.id === excludeId) return false
+    if (email && normalizeEmail(c.email) === email) return true
+    if (phone && normalizePhone(c.phone) === phone) return true
+    return false
+  })
+}
+
 export async function createClientAction(
   formData: FormData,
 ): Promise<CreateClientResult> {
@@ -98,18 +121,13 @@ export async function createClientAction(
   }
 
   // Anti-doublon dans l'entreprise : priorité à l'email, sinon le téléphone.
+  // Mêmes normalisations que l'affichage/rapprochement (source unique CRM).
   const existing = await db
-    .select({ email: clients.email, phone: clients.phone })
+    .select({ id: clients.id, email: clients.email, phone: clients.phone })
     .from(clients)
     .where(eq(clients.companyId, companyId))
 
-  const normPhone = phone.replace(/\D/g, "")
-  const duplicate = existing.find(
-    (c) =>
-      (email !== "" && (c.email ?? "").trim().toLowerCase() === email) ||
-      (normPhone !== "" && (c.phone ?? "").replace(/\D/g, "") === normPhone),
-  )
-  if (duplicate) {
+  if (findDuplicateClient(existing, { email, phone })) {
     return {
       success: false,
       message: "Un client avec cet email ou ce téléphone existe déjà.",
@@ -182,6 +200,18 @@ export async function updateClientAction(clientId: number, formData: FormData): 
   if (name.length < 2) return { success: false, message: "Le nom du client est obligatoire." }
   if (!email && !phone) return { success: false, message: "Renseignez au moins un email ou un numéro de téléphone." }
   if (email && !email.includes("@")) return { success: false, message: "L’adresse email n’est pas valide." }
+
+  // Contrôle d'intégrité (LOT clients v1) : anti-doublon SCOPÉ au tenant courant,
+  // en excluant la fiche en cours de modification. Mêmes normalisations que la
+  // création. NB : sans contrainte unique en base, une création concurrente
+  // reste théoriquement possible (voir rapport) — ce contrôle couvre l'édition.
+  const others = await db
+    .select({ id: clients.id, email: clients.email, phone: clients.phone })
+    .from(clients)
+    .where(eq(clients.companyId, companyId))
+  if (findDuplicateClient(others, { email, phone }, clientId)) {
+    return { success: false, message: "Un autre client avec cet email ou ce téléphone existe déjà." }
+  }
 
   const identity = normalizeCustomerIdentity(formData)
   if (!identity.ok) return { success: false, message: identity.message }
