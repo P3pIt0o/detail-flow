@@ -15,6 +15,23 @@
  * seront résolues dynamiquement pour ne jamais devenir obsolètes.
  */
 
+/**
+ * Slug du TENANT Rozan existant dans DetailFlow (source de vérité unique).
+ *
+ * ATTENTION — deux identifiants DISTINCTS, à ne jamais confondre :
+ *   - la clé de SITE personnalisé (`customSiteKey` = « rozan ») sert au registre
+ *     des pages custom (`lib/custom-sites`) ;
+ *   - ce SLUG de tenant (« rozancleaningservice ») identifie l'entreprise réelle
+ *     et sert à construire les URL publiques (`?tenant=rozancleaningservice`) et
+ *     le SEO (canoniques, sitemap). Il correspond au tenant DÉJÀ enregistré :
+ *     on ne crée jamais de nouveau tenant « rozan », on ne duplique rien.
+ *
+ * Le jour où Rozan connectera un domaine personnalisé vérifié, seul
+ * `tenantSeoIdentity()` aura besoin d'être mappé — les URL basculeront partout
+ * automatiquement (cf. `lib/seo/tenant-url.ts`).
+ */
+export const ROZAN_TENANT_SLUG = "rozancleaningservice"
+
 export type RozanServiceSlug =
   | "nettoyage-voiture"
   | "nettoyage-canape"
