@@ -20,8 +20,6 @@ export type RozanServiceSlug =
   | "nettoyage-canape"
   | "nettoyage-matelas"
   | "nettoyage-tapis-moquette"
-  | "nettoyage-airbnb"
-  | "nettoyage-terrasse"
 
 export const ROZAN_BRAND = {
   name: "Rozan Cleaning Services",
@@ -108,26 +106,6 @@ export const ROZAN_SERVICES: RozanService[] = [
     image: "/custom-sites/rozan/service-tapis.png",
     alt: "Nettoyage de tapis et moquettes",
     shot: "Tapis aux fibres ravivées",
-    active: true,
-  },
-  {
-    slug: "nettoyage-airbnb",
-    label: "Airbnb",
-    title: "Nettoyage Airbnb & locations saisonnières",
-    teaser: "Remise à neuf entre deux séjours, prête à accueillir.",
-    image: "/custom-sites/rozan/service-airbnb.png",
-    alt: "Remise en état de location saisonnière Airbnb",
-    shot: "Logement Airbnb remis à neuf",
-    active: true,
-  },
-  {
-    slug: "nettoyage-terrasse",
-    label: "Terrasse",
-    title: "Nettoyage de terrasse",
-    teaser: "Dalles, bois et pierre débarrassés des salissures.",
-    image: "/custom-sites/rozan/service-terrasse.png",
-    alt: "Nettoyage de terrasse au nettoyeur haute pression",
-    shot: "Terrasse nettoyée au jet haute pression",
     active: true,
   },
 ]
@@ -664,32 +642,6 @@ export const ROZAN_BOOKING: Record<RozanServiceSlug, RozanBookingConfig> = {
       { id: "taches", label: "Détachage renforcé", amount: 2000 },
       { id: "protection", label: "Protection anti-taches", amount: 2500 },
     ],
-  },
-  "nettoyage-airbnb": {
-    slug: "nettoyage-airbnb",
-    mode: "booking",
-    variantLabel: "Type de logement",
-    variants: [
-      { id: "studio", label: "Studio", amount: 7000 },
-      { id: "t2", label: "T2 / 2 pièces", amount: 9000 },
-      { id: "t3", label: "T3 et plus", amount: 12000 },
-    ],
-    options: [
-      { id: "linge", label: "Gestion du linge", amount: 2500 },
-      { id: "vitres", label: "Vitres intérieures", amount: 2000 },
-    ],
-  },
-  "nettoyage-terrasse": {
-    // Surface trop variable pour un tarif ferme en ligne : sur devis.
-    slug: "nettoyage-terrasse",
-    mode: "quote",
-    variantLabel: "Type de surface",
-    variants: [
-      { id: "dalles", label: "Dalles / carrelage", amount: null },
-      { id: "bois", label: "Bois", amount: null },
-      { id: "pierre", label: "Pierre", amount: null },
-    ],
-    options: [],
   },
 }
 
