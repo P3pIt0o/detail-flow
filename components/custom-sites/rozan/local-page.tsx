@@ -28,7 +28,7 @@ import { ROZAN_BRAND, ROZAN_GOOGLE, ROZAN_SERVICES, type RozanServiceSlug } from
 
 const SUBPAGE_NAV: RozanNavItem[] = [
   { id: "p", label: "Prestations", route: `/#${ROZAN_SECTIONS.prestations}` },
-  { id: "a", label: "Avant / Après", route: `/#${ROZAN_SECTIONS.avantApres}` },
+  { id: "a", label: "Réalisations", route: `/#${ROZAN_SECTIONS.realisations}` },
   { id: "z", label: "Zones d'intervention", route: `/#${ROZAN_SECTIONS.zones}` },
   { id: "v", label: "Avis", route: `/#${ROZAN_SECTIONS.avis}` },
   { id: "f", label: "FAQ", route: `/#${ROZAN_SECTIONS.faq}` },

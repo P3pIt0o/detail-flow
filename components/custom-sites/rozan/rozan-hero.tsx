@@ -10,10 +10,11 @@
  * accessibles, tout reste très lisible.
  */
 
+import Link from "next/link"
 import { RozanShot } from "./rozan-shot"
 import { RozanGoogleProof } from "./rozan-google-proof"
 import { ROZAN_SECTIONS, ROZAN_BTN_OUTLINE_DARK } from "./tokens"
-import { ROZAN_GOOGLE } from "./content"
+import { ROZAN_GOOGLE, ROZAN_PHOTOS } from "./content"
 import { Droplets, Zap, Home, Sparkles } from "lucide-react"
 
 const ARGS = [
@@ -67,12 +68,12 @@ export function RozanHero() {
           </ul>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              href={`#${ROZAN_SECTIONS.devis}`}
+            <Link
+              href="/reservation"
               className="inline-flex h-13 items-center justify-center gap-2 rounded-full bg-[var(--rozan-accent)] px-8 text-sm font-semibold text-white transition-colors hover:bg-[var(--rozan-accent-strong)]"
             >
-              Réserver ma prestation
-            </a>
+              Réserver
+            </Link>
             <a href={`#${ROZAN_SECTIONS.prestations}`} className={`${ROZAN_BTN_OUTLINE_DARK} h-13`}>
               Voir les prestations
             </a>
@@ -86,8 +87,8 @@ export function RozanHero() {
         {/* Composition photographique */}
         <div className="relative">
           <RozanShot
-            src="/custom-sites/rozan/hero.png"
-            alt="Technicien Rozan nettoyant l'intérieur d'une voiture à la vapeur devant un domicile"
+            src={ROZAN_PHOTOS.mercedesExterieur}
+            alt="Mercedes GLC noire fraîchement lavée par Rozan devant un domicile"
             label="Photo phare Rozan"
             ratio="aspect-[4/5]"
             tone="dark"

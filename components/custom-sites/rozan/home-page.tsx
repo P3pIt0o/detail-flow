@@ -29,7 +29,7 @@ import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 
 const NAV_ITEMS: RozanNavItem[] = [
   { id: ROZAN_SECTIONS.prestations, label: "Prestations" },
-  { id: ROZAN_SECTIONS.avantApres, label: "Avant / Après" },
+  { id: ROZAN_SECTIONS.realisations, label: "Réalisations" },
   { id: ROZAN_SECTIONS.zones, label: "Zones d'intervention" },
   { id: ROZAN_SECTIONS.avis, label: "Avis" },
   { id: ROZAN_SECTIONS.faq, label: "FAQ" },
@@ -47,11 +47,11 @@ export function RozanHome({ data }: { data?: CustomSitePublicData }) {
     <RozanSiteShell
       brandName={ROZAN_BRAND.name}
       navItems={NAV_ITEMS}
-      ctaHref={`#${ROZAN_SECTIONS.devis}`}
-      ctaLabel="Réserver ma prestation"
+      ctaHref="/reservation"
+      ctaLabel="Réserver"
       phoneRaw={ROZAN_BRAND.phoneRaw}
       phoneLabel={ROZAN_BRAND.phone}
-      stickyCtaHref={`#${ROZAN_SECTIONS.devis}`}
+      stickyCtaHref="/reservation"
       stickyCtaLabel="Réserver ma prestation"
       immersive
     >
