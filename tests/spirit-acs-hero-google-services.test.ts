@@ -82,8 +82,13 @@ describe("Spirit — section familles de prestations (#2)", () => {
     const src = prest()
     // Titre de section repris de la maquette validée.
     expect(src.toLowerCase()).toMatch(/choisissez, puis demandez votre devis/)
-    // Paragraphe SEO visible présent dans le HTML initial (non masqué).
-    expect(src).toMatch(/Spirit ACS propose à Lagny-sur-Marne et aux alentours des prestations/)
+    // Paragraphe SEO visible présent dans le HTML initial (non masqué). Le texte
+    // exact est le fallback partagé (source unique, site-texts.ts) que le
+    // composant rend quand aucun override tenant n'existe.
+    expect(read(`${SPIRIT}/site-texts.ts`)).toMatch(
+      /Spirit ACS propose à Lagny-sur-Marne et aux alentours des prestations/,
+    )
+    expect(src).toMatch(/SPIRIT_SERVICES_INTRO_FALLBACK/)
     // Section SOMBRE (fond navy) — conformité maquette (plus de grande surface blanche).
     expect(src).toMatch(/bg-\[var\(--spirit-navy\)\]/)
     // Grille pilotée par le catalogue public : aucune liste de slugs en dur, on
@@ -160,7 +165,10 @@ describe("Spirit — section « Qui sommes-nous ? » (présentation dirigeant)",
     expect(src).toMatch(/Qui sommes-nous \?/)
     expect(src).toMatch(/Corentin Gisclon/)
     expect(src).toMatch(/Dirigeant de Spirit ACS/)
-    expect(src).toMatch(/passionné par l’entretien esthétique/)
+    // Les 3 paragraphes de présentation sont désormais les fallbacks partagés
+    // (source unique, site-texts.ts), rendus par le composant sans override.
+    expect(src).toMatch(/SPIRIT_ABOUT_FALLBACKS/)
+    expect(read(`${SPIRIT}/site-texts.ts`)).toMatch(/passionné par l’entretien esthétique/)
     // Initiales stylisées (aucun faux portrait) — CG sur sa propre ligne.
     expect(src).toMatch(/>\s*CG\s*</)
   })
