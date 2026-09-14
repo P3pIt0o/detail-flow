@@ -15,6 +15,24 @@ export type ActionResult = { ok: boolean; error?: string; logoPathname?: string 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024 // 2 Mo
 
 /**
+ * Verrou Spirit ACS : pour ce tenant à site 100 % personnalisé, les textes
+ * éditoriaux passent EXCLUSIVEMENT par `saveSpiritSiteTexts` (liste blanche).
+ * Un membre normal ne peut donc pas contourner cette liste via les actions
+ * génériques (hero, contenu de site, ordre des sections, demandes). Le
+ * super-admin plateforme conserve un accès de maintenance. Les autres tenants
+ * ne sont jamais concernés (renvoie null → comportement inchangé).
+ */
+function spiritLockGuard(
+  customSiteKey: string | null | undefined,
+  isSuperAdmin: boolean,
+): ActionResult | null {
+  if (customSiteKey === "spirit-acs" && !isSuperAdmin) {
+    return { ok: false, error: "Ce réglage se modifie dans « Textes du site » pour votre site Spirit ACS." }
+  }
+  return null
+}
+
+/**
  * Personnalisation du site public de l'entreprise : logo + CGV.
  *
  * ISOLATION : l'écriture est TOUJOURS scopée à l'entreprise de l'admin connecté
@@ -92,7 +110,9 @@ export async function saveHeroContent(input: {
   heroCtaPrimary: string
   heroCtaSecondary: string
 }): Promise<ActionResult> {
-  const { tenant } = await requireCompanyMember()
+  const { tenant, isSuperAdmin } = await requireCompanyMember()
+  const spiritBlocked = spiritLockGuard(tenant.customSiteKey, isSuperAdmin)
+  if (spiritBlocked) return spiritBlocked
   if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const clean = (v: string, max: number): string | null => {
@@ -131,7 +151,9 @@ export async function saveHeroContent(input: {
  * configuré garde `siteContent = null` et affiche les textes par défaut.
  */
 export async function saveSiteContent(content: SiteContent): Promise<ActionResult> {
-  const { tenant } = await requireCompanyMember()
+  const { tenant, isSuperAdmin } = await requireCompanyMember()
+  const spiritBlocked = spiritLockGuard(tenant.customSiteKey, isSuperAdmin)
+  if (spiritBlocked) return spiritBlocked
   if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const str = (v: unknown, max: number): string | undefined => {
@@ -186,18 +208,17 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
     },
   }
 
-  // Préserve les autres clés stockées dans la même colonne jsonb que cet onglet
-  // ne gère pas : « Demandes personnalisées » (customRequests) et l'ordre des
-  // sections (sectionOrder). Elles ne doivent jamais être effacées ici.
-  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? null
-  const preserved: Record<string, unknown> = {}
-  if (existing?.customRequests !== undefined) preserved.customRequests = existing.customRequests
-  if (existing?.sectionOrder !== undefined) preserved.sectionOrder = existing.sectionOrder
+  // Préserve TOUTES les clés de la colonne jsonb que cet onglet ne gère pas :
+  // « Demandes personnalisées » (customRequests), l'ordre des sections
+  // (sectionOrder), le sous-arbre éditorial Spirit (spiritAcs) et toute clé
+  // future/inconnue. On part de l'existant et on n'écrase QUE les sections
+  // réellement gérées ici — jamais un remplacement complet par un objet partiel.
+  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? {}
 
   await db
     .update(companies)
     .set({
-      siteContent: { ...clean, ...preserved },
+      siteContent: { ...existing, ...clean },
       updatedAt: new Date(),
     })
     .where(eq(companies.id, tenant.id))
@@ -217,7 +238,9 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
  * par les sections manquantes) et les autres clés jsonb sont préservées.
  */
 export async function saveSectionOrder(order: string[]): Promise<ActionResult> {
-  const { tenant } = await requireCompanyMember()
+  const { tenant, isSuperAdmin } = await requireCompanyMember()
+  const spiritBlocked = spiritLockGuard(tenant.customSiteKey, isSuperAdmin)
+  if (spiritBlocked) return spiritBlocked
   if (!(await canUseFeature(tenant.id, "website"))) return { ok: false, error: FEATURE_LOCKED_MESSAGE }
 
   const normalized = resolveSectionOrder({ sectionOrder: order })

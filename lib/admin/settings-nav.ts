@@ -123,7 +123,20 @@ const SPIRIT_ACS_HIDDEN_TABS = new Set([
   "payments",
   "promo",
   "appearance",
+  // Demandes : les options métier (types, CTA, activation) restent verrouillées
+  // pour Spirit. Les seuls textes éditables (titre/description) passent par
+  // « Textes du site ». L'action serveur est également protégée.
+  "custom-requests",
 ])
+
+/**
+ * Renommage de sous-onglets POUR SPIRIT ACS UNIQUEMENT. La valeur technique
+ * historique (`tab=`) est conservée : seuls les libellés changent. Ici, l'onglet
+ * « site » devient « Textes du site » (il n'expose plus les réglages standard).
+ */
+const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
+  site: "Textes du site",
+}
 
 /**
  * Catégories visibles pour un tenant. Standard (`customSiteKey` nul/autre) :
@@ -136,7 +149,9 @@ export function getVisibleSettingsCategories(
   if (customSiteKey !== "spirit-acs") return SETTINGS_CATEGORIES
   return SETTINGS_CATEGORIES.map((c) => ({
     ...c,
-    subTabs: c.subTabs.filter((t) => !SPIRIT_ACS_HIDDEN_TABS.has(t.value)),
+    subTabs: c.subTabs
+      .filter((t) => !SPIRIT_ACS_HIDDEN_TABS.has(t.value))
+      .map((t) => (SPIRIT_ACS_TAB_LABELS[t.value] ? { ...t, label: SPIRIT_ACS_TAB_LABELS[t.value] } : t)),
   })).filter((c) => c.subTabs.length > 0)
 }
 

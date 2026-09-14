@@ -58,10 +58,15 @@ export async function SpiritServicePage({
   service: ServiceContent
 }) {
   const slug = data.tenant.slug
-  const [shell, gallery] = await Promise.all([
+  const [shell, gallery, spiritTexts] = await Promise.all([
     buildSpiritShellPropsForSubpage(data),
     data.getGallery(),
+    data.getSpiritTexts(),
   ])
+  // Paragraphes d'introduction effectifs : override du tenant, sinon les
+  // paragraphes exacts de `SPIRIT_SERVICES` (aucun autre contenu n'est modifié —
+  // H1, breadcrumb, méta, tarifs, FAQ, mode de conversion restent statiques).
+  const introParagraphs = spiritTexts.serviceIntros[service.slug] ?? service.intro
 
   // Fil d'Ariane : Accueil → Prestations → prestation courante. Les URL du
   // JSON-LD sont ABSOLUES et tenant-aware (canonique DetailFlow tant que le
@@ -154,7 +159,7 @@ export async function SpiritServicePage({
           {/* Introduction */}
           <Reveal delay={0.05}>
             <div className="mt-8 space-y-4 text-pretty text-lg leading-relaxed text-[color:var(--spirit-ink)]/80">
-              {service.intro.map((p, i) => (
+              {introParagraphs.map((p, i) => (
                 <p key={i}>{p}</p>
               ))}
             </div>

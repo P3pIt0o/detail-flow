@@ -17,7 +17,16 @@ import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
 import { SPIRIT_ZONE_TEXT, SPIRIT_ZONE_TEXTILE_NOTE } from "./seo-content"
 
-export function SpiritZone({ cities, city }: { cities: string[]; city?: string | null }) {
+export function SpiritZone({
+  cities,
+  city,
+  text,
+}: {
+  cities: string[]
+  city?: string | null
+  /** Texte effectif de la zone (override → `SPIRIT_ZONE_TEXT`). */
+  text?: string
+}) {
   // Titre = ville réelle du tenant + « et alentours » (aucune géographie
   // inventée). Repli neutre si la ville n'est pas renseignée.
   const heading = city?.trim() ? `${city.trim()} et alentours` : "Notre zone d'intervention"
@@ -36,7 +45,7 @@ export function SpiritZone({ cities, city }: { cities: string[]; city?: string |
             <p className="spirit-eyebrow mt-4">Zone d&apos;intervention</p>
             <h2 className="spirit-title spirit-h2 mt-2 text-balance leading-[1.05] text-white">{heading}</h2>
             <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-[color:var(--spirit-muted)]">
-              {SPIRIT_ZONE_TEXT}
+              {text ?? SPIRIT_ZONE_TEXT}
             </p>
 
             {cities.length > 0 && (

@@ -91,8 +91,9 @@ describe("settings navigation categories", () => {
 
 describe("masquage Paramètres — Spirit ACS uniquement", () => {
   const SPIRIT = "spirit-acs"
-  // Onglets masqués pour Spirit (site custom + parcours demande → devis).
-  const HIDDEN = ["hours", "timeoff", "planning", "travel", "payments", "promo", "appearance"]
+  // Onglets masqués pour Spirit (site custom + parcours demande → devis +
+  // options métier « Demandes » verrouillées → gérées dans « Textes du site »).
+  const HIDDEN = ["hours", "timeoff", "planning", "travel", "payments", "promo", "appearance", "custom-requests"]
 
   it("ISOLATION : un tenant standard (null/undefined/autre) garde la liste complète INCHANGÉE", () => {
     expect(getVisibleSettingsCategories(null)).toEqual(SETTINGS_CATEGORIES)
@@ -114,12 +115,15 @@ describe("masquage Paramètres — Spirit ACS uniquement", () => {
     expect(tabs).not.toContain("promo")
   })
 
-  it("Spirit : « Site public » retire Apparence mais garde Contenu, Galerie, Avis, Demandes", () => {
+  it("Spirit : « Site public » retire Apparence et Demandes ; « site » devient « Textes du site »", () => {
     const site = getVisibleSettingsCategories(SPIRIT).find((c) => c.id === "site")
     expect(site).toBeDefined()
     const tabs = site!.subTabs.map((t) => t.value)
     expect(tabs).not.toContain("appearance")
-    expect(tabs).toEqual(expect.arrayContaining(["site", "gallery", "reviews", "custom-requests"]))
+    expect(tabs).not.toContain("custom-requests")
+    expect(tabs).toEqual(expect.arrayContaining(["site", "gallery", "reviews"]))
+    // Valeur technique conservée, libellé renommé pour Spirit uniquement.
+    expect(site!.subTabs.find((t) => t.value === "site")?.label).toBe("Textes du site")
   })
 
   it("Spirit : Entreprise, Communications et Compte restent intacts", () => {
@@ -142,7 +146,8 @@ describe("masquage Paramètres — Spirit ACS uniquement", () => {
     }
     expect(findCategoryByTab("invoicing", SPIRIT)?.id).toBe("billing")
     expect(findCategoryByTab("business", SPIRIT)?.id).toBe("entreprise")
-    expect(findCategoryByTab("custom-requests", SPIRIT)?.id).toBe("site")
+    // « site » reste résoluble (renommé « Textes du site »).
+    expect(findCategoryByTab("site", SPIRIT)?.id).toBe("site")
   })
 
   it("ISOLATION : les mêmes onglets restent accessibles pour un tenant standard", () => {

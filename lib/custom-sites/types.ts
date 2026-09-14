@@ -15,6 +15,7 @@ import type { PublicContact, PublicHours } from "@/lib/public-contact"
 import type { PublicGalleryItem } from "@/lib/public-gallery"
 import type { PublicPhotoGalleryItem } from "@/lib/public-photo-gallery"
 import type { Review } from "@/config/content"
+import type { SpiritEffectiveTexts } from "@/components/custom-sites/spirit-acs/site-texts"
 
 /**
  * CONTRAT DE DONNÉES PUBLIC exposé à un site personnalisé.
@@ -56,6 +57,12 @@ export interface CustomSitePublicData {
   getContent: () => Promise<unknown>
   /** Configuration résolue des « Demandes personnalisées ». */
   getCustomRequestsConfig: () => Promise<unknown>
+  /**
+   * Textes éditoriaux administrables de Spirit ACS, résolus côté serveur
+   * (override → fallback exact du code). Neutre pour les autres sites : renvoie
+   * simplement les fallbacks. Chargé paresseusement, jamais depuis le client.
+   */
+  getSpiritTexts: () => Promise<SpiritEffectiveTexts>
 }
 
 /**

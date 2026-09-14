@@ -22,9 +22,11 @@ import type { PublicPhotoGalleryItem } from "@/lib/public-photo-gallery"
 
 type SpiritGaleriePhotosProps = {
   items: PublicPhotoGalleryItem[]
+  /** Titre effectif de la section (override → fallback exact du code). */
+  title?: string
 }
 
-export function SpiritGaleriePhotos({ items }: SpiritGaleriePhotosProps) {
+export function SpiritGaleriePhotos({ items, title }: SpiritGaleriePhotosProps) {
   if (items.length === 0) return null
 
   return (
@@ -33,7 +35,7 @@ export function SpiritGaleriePhotos({ items }: SpiritGaleriePhotosProps) {
         <Reveal>
           <p className="spirit-eyebrow">Réalisations</p>
           <h2 className="spirit-title spirit-h2 mt-3 text-balance leading-[1.05] text-white">
-            Nos derniers passages à l&apos;atelier
+            {title ?? "Nos derniers passages à l'atelier"}
           </h2>
         </Reveal>
 

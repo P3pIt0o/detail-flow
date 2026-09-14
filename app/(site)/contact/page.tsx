@@ -5,9 +5,13 @@ import { Reveal } from "@/components/ui/reveal"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
 import { getPublicContact, getPublicHours } from "@/lib/public-contact"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
-import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { resolveCustomSite, getSpiritSiteTexts } from "@/lib/custom-sites/server"
 import { buildTenantMetadata, resolveTenantSeo } from "@/lib/seo/tenant-seo.server"
 import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
+import {
+  SPIRIT_CONTACT_HEADING_FALLBACK,
+  SPIRIT_CONTACT_INTRO_FALLBACK,
+} from "@/components/custom-sites/spirit-acs/site-texts"
 
 /**
  * Métadonnées tenant-aware : la canonique pointe vers l'URL PUBLIQUE réelle du
@@ -47,13 +51,18 @@ export default async function ContactPage() {
     customSite?.key === "spirit-acs" && contact.address
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address)}`
       : null
+
+  // Spirit ACS UNIQUEMENT : le titre et l'introduction de l'en-tête sont
+  // administrables (override → fallback EXACT, identique au texte standard grâce
+  // aux constantes partagées). Les autres tenants conservent strictement les
+  // textes et le comportement actuels (aucun override appliqué).
+  const isSpirit = customSite?.key === "spirit-acs"
+  const spiritTexts = isSpirit ? await getSpiritSiteTexts() : null
+  const contactHeading = spiritTexts?.contactHeading ?? SPIRIT_CONTACT_HEADING_FALLBACK
+  const contactIntro = spiritTexts?.contactIntro ?? SPIRIT_CONTACT_INTRO_FALLBACK
   return (
     <>
-      <PageHeader
-        eyebrow="Contact"
-        title="Parlons de votre véhicule"
-        description="Une question, une demande de devis ou une réservation ? Nous vous répondons rapidement."
-      />
+      <PageHeader eyebrow="Contact" title={contactHeading} description={contactIntro} />
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         {/* A2 — `lg:items-start` empêche l'étirement des colonnes de la grille :

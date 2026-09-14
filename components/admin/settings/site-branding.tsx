@@ -43,6 +43,12 @@ type Props = {
    * Par défaut `false` : les autres tenants restent strictement inchangés.
    */
   simplified?: boolean
+  /**
+   * Masque ENTIÈREMENT la carte « Texte de présentation » (Hero). Utilisé pour
+   * Spirit ACS, dont le texte secondaire du hero est désormais géré dans
+   * « Textes du site ». Par défaut `false` : les autres tenants sont inchangés.
+   */
+  hideHeroCard?: boolean
 }
 
 export function SiteBranding({
@@ -51,6 +57,7 @@ export function SiteBranding({
   socialLinks,
   hero,
   simplified = false,
+  hideHeroCard = false,
 }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -163,7 +170,9 @@ export function SiteBranding({
 
   return (
     <div className="space-y-6">
-      {/* Texte de présentation (Hero) */}
+      {/* Texte de présentation (Hero) — masqué pour les sites dont le hero est
+          géré ailleurs (Spirit : voir « Textes du site »). */}
+      {!hideHeroCard && (
       <div className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Texte de présentation</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
@@ -264,6 +273,7 @@ export function SiteBranding({
           Enregistrer les textes
         </Button>
       </div>
+      )}
 
       {/* Logo du site public — masqué pour les sites à shell personnalisé (Spirit),
           qui utilisent leur propre logo intégré et n'exploitent pas ce réglage. */}

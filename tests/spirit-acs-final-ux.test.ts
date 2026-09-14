@@ -197,8 +197,10 @@ describe("Admin — simplification Spirit (réglages standard sans effet masqué
   it("masque pour Spirit l'ordre des sections et l'onglet Apparence ; regroupe le contenu", () => {
     const src = page()
     expect(src).toMatch(/\{!isSpiritSite && \(\s*<TabsContent value="appearance"/)
-    expect(src).toMatch(/Contenu du site Spirit ACS/)
-    expect(src).toMatch(/simplified=\{isSpiritSite\}/)
+    expect(src).toMatch(/Textes du site Spirit ACS/)
+    // Spirit : éditeur dédié « Textes du site » + hero géré ailleurs (hideHeroCard).
+    expect(src).toMatch(/SpiritSiteTexts/)
+    expect(src).toMatch(/hideHeroCard/)
   })
 
   it("SiteBranding et PublicSiteContent acceptent un mode simplifié opt-in (défaut false)", () => {

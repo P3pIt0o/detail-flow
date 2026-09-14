@@ -18,19 +18,16 @@
 import { CtaButton } from "@/components/ui/cta-button"
 import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_SECTIONS } from "./tokens"
-
-const PARAGRAPHS = [
-  "Spirit ACS est dirigé par Corentin Gisclon, passionné par l’entretien esthétique et la mise en valeur des véhicules.",
-  "À Lagny-sur-Marne, il accompagne particuliers et professionnels pour leurs besoins en nettoyage automobile, polissage, protection céramique, PPF et detailing moto.",
-  "Chaque véhicule est étudié avec attention afin de proposer une prestation adaptée à son état, à son usage et au résultat recherché. L’objectif est de réaliser un travail soigné, d’apporter des conseils clairs et de restituer un véhicule soigneusement mis en valeur.",
-] as const
+import { SPIRIT_ABOUT_FALLBACKS } from "./site-texts"
 
 // Repères affichés UNIQUEMENT parce qu'ils sont confirmés par les données
 // existantes de Spirit ACS (ville réelle + prestations réelles). Aucune donnée
 // non confirmée (année, expérience, certifications, atelier/domicile…).
 const MARKERS = ["Lagny-sur-Marne", "Automobile & moto"] as const
 
-export function SpiritQuiSommesNous() {
+export function SpiritQuiSommesNous({ paragraphs }: { paragraphs?: readonly string[] } = {}) {
+  // Texte effectif : override du tenant (3 paragraphes), sinon fallback EXACT.
+  const displayParagraphs = paragraphs ?? SPIRIT_ABOUT_FALLBACKS
   return (
     <section
       id={SPIRIT_SECTIONS.apropos}
@@ -89,7 +86,7 @@ export function SpiritQuiSommesNous() {
               {/* Paragraphes éditoriaux justifiés (spirit-prose) ; l'espacement
                   inter-paragraphes reste géré par space-y-4 (aucun mélange). */}
               <div className="spirit-prose mt-6 space-y-4 text-lg text-[color:var(--spirit-ink)]/75">
-                {PARAGRAPHS.map((p, i) => (
+                {displayParagraphs.map((p, i) => (
                   <p key={i}>{p}</p>
                 ))}
               </div>

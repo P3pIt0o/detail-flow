@@ -19,11 +19,14 @@ import Image from "next/image"
 import { Reveal } from "@/components/ui/reveal"
 import type { PublicServicePage } from "@/lib/public-site/types"
 import { SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_SERVICES_INTRO_FALLBACK } from "./site-texts"
 
 export function SpiritPrestations({
   services,
   serviceHref,
   reserveHref,
+  intro,
+  taglines,
 }: {
   /** Pages de prestations (publiées + en navigation) issues du catalogue. */
   services: PublicServicePage[]
@@ -31,6 +34,10 @@ export function SpiritPrestations({
   serviceHref: (slug: string) => string
   /** Lien « Réserver » → configurateur contextualisé (tenant conservé). */
   reserveHref: (slug: string) => string
+  /** Paragraphe d'introduction effectif (override → fallback exact). */
+  intro?: string
+  /** Accroches effectives par slug (override → `cardTagline` du catalogue). */
+  taglines?: Record<string, string>
 }) {
   if (services.length === 0) return null
 
@@ -46,12 +53,10 @@ export function SpiritPrestations({
           <h2 className="spirit-title spirit-h2 mt-3 text-balance leading-[1.05] text-white">
             Choisissez, puis demandez votre devis
           </h2>
-          {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué). */}
+          {/* Paragraphe SEO visible, présent dans le HTML initial (non masqué).
+              Texte effectif : override du tenant, sinon fallback EXACT du code. */}
           <p className="spirit-prose mt-4 max-w-3xl text-base text-[color:var(--spirit-muted)]">
-            Spirit ACS propose à Lagny-sur-Marne et aux alentours des prestations de detailing automobile, nettoyage
-            intérieur et extérieur, nettoyage textile, polissage, protection céramique, PPF, personnalisation,
-            rénovation et entretien esthétique. Certaines prestations peuvent également être réalisées directement à
-            votre domicile. Découvrez chaque service et trouvez la solution adaptée à votre véhicule ou à vos textiles.
+            {intro ?? SPIRIT_SERVICES_INTRO_FALLBACK}
           </p>
         </Reveal>
 
@@ -109,7 +114,7 @@ export function SpiritPrestations({
                     </h3>
                     {/* Description clairement secondaire (13–14px, gris clair, ≤2 lignes). */}
                     <p className="line-clamp-2 text-[0.8125rem] font-normal leading-snug text-white/80 sm:text-sm">
-                      {page.cardTagline ?? page.cardTitle}
+                      {taglines?.[page.slug] ?? page.cardTagline ?? page.cardTitle}
                     </p>
                   </a>
 

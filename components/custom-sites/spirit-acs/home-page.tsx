@@ -51,13 +51,14 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // Chargement en parallèle — uniquement les données réellement affichées.
   // (Spirit n'affiche PAS de section « prestations » : on ne charge donc pas
   // le catalogue de services ici.)
-  const [contact, contentRaw, gallery, photoGallery, reviews, customRequestsRaw] = await Promise.all([
+  const [contact, contentRaw, gallery, photoGallery, reviews, customRequestsRaw, spiritTexts] = await Promise.all([
     data.getContact(),
     data.getContent(),
     data.getGallery(),
     data.getPhotoGallery(),
     data.getReviews(),
     data.getCustomRequestsConfig(),
+    data.getSpiritTexts(),
   ])
 
   const content = contentRaw as SpiritResolvedContent
@@ -208,7 +209,13 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
           maquette validée). La grille est alimentée par le catalogue public
           (source unique) ; chaque carte mène à la PAGE DÉDIÉE (SEO). */}
       {hasPrestations && (
-        <SpiritPrestations services={navServices} serviceHref={serviceHref} reserveHref={reserveHref} />
+        <SpiritPrestations
+          services={navServices}
+          serviceHref={serviceHref}
+          reserveHref={reserveHref}
+          intro={spiritTexts.servicesIntro}
+          taglines={spiritTexts.cardTaglines}
+        />
       )}
 
       {hasGallery && content.gallery.enabled && (
@@ -217,18 +224,18 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
 
       {/* Galerie de photos simples (distincte du comparateur Avant/Après).
           Se masque seule si le tenant n'a aucune photo publiée. */}
-      <SpiritGaleriePhotos items={photoGallery} />
+      <SpiritGaleriePhotos items={photoGallery} title={spiritTexts.photoGalleryTitle} />
 
       {/* « Qui sommes-nous ? » — présentation humaine et premium du dirigeant
           (contenu éditorial local Spirit, sémantique <h2>, CTA vers le devis). */}
-      <SpiritQuiSommesNous />
+      <SpiritQuiSommesNous paragraphs={spiritTexts.about} />
 
       {/* Déroulement en 4 étapes (contenu éditorial local). */}
       <SpiritProcess />
 
       {/* Zone d'intervention : ville réelle + éventuelles communes confirmées
           (SPIRIT_ZONE_CITIES, vide par défaut → aucune ville inventée). */}
-      <SpiritZone cities={SPIRIT_ZONE_CITIES} city={contact.city} />
+      <SpiritZone cities={SPIRIT_ZONE_CITIES} city={contact.city} text={spiritTexts.zoneText} />
 
       {/* Bandeau flotte / professionnels : conduit vers la MÊME demande de devis
           avec le contexte « flotte » (?demande=flotte → formulaire libre du
@@ -236,6 +243,8 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {quoteEnabled && (
         <SpiritFlotteCta
           href={withTenant(`/?demande=flotte#${SPIRIT_SECTIONS.demandeDevis}`, data.tenant.slug)}
+          heading={spiritTexts.fleetHeading}
+          text={spiritTexts.fleetText}
         />
       )}
 
