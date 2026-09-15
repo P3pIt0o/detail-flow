@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   resolveHost,
+  resolveCustomDomainSlug,
   normalizeSlug,
   isValidSlug,
   isReservedSlug,
@@ -45,6 +46,43 @@ describe("resolveHost — isolation par hostname", () => {
 
   it("traite un domaine inconnu comme racine (la DB renverra 404 au besoin)", () => {
     expect(resolveHost("exemple-inconnu.com", ROOT)).toEqual({ kind: "root" })
+  })
+
+  it("mappe le domaine personnalisé Spirit ACS (apex + www) vers spirit-acs", () => {
+    expect(resolveHost("spiritacs.com", ROOT)).toEqual({ kind: "tenant", slug: "spirit-acs" })
+    expect(resolveHost("www.spiritacs.com", ROOT)).toEqual({ kind: "tenant", slug: "spirit-acs" })
+    expect(resolveHost("SpiritACS.com", ROOT)).toEqual({ kind: "tenant", slug: "spirit-acs" })
+    expect(resolveHost("spiritacs.com:443", ROOT)).toEqual({ kind: "tenant", slug: "spirit-acs" })
+  })
+
+  it("mappe le domaine personnalisé même sans domaine racine configuré", () => {
+    expect(resolveHost("spiritacs.com", undefined)).toEqual({ kind: "tenant", slug: "spirit-acs" })
+    expect(resolveHost("www.spiritacs.com", "")).toEqual({ kind: "tenant", slug: "spirit-acs" })
+  })
+
+  it("n'affiche JAMAIS la vitrine DetailFlow sur le domaine Spirit", () => {
+    expect(resolveHost("spiritacs.com", ROOT)).not.toEqual({ kind: "root" })
+    expect(resolveHost("www.spiritacs.com", ROOT)).not.toEqual({ kind: "root" })
+  })
+
+  it("ne détourne aucun autre domaine inconnu (mapping strictement additif)", () => {
+    expect(resolveHost("spiritacs.fr", ROOT)).toEqual({ kind: "root" })
+    expect(resolveHost("notspiritacs.com", ROOT)).toEqual({ kind: "root" })
+    expect(resolveHost("spiritacs.com.evil.com", ROOT)).toEqual({ kind: "root" })
+  })
+})
+
+describe("resolveCustomDomainSlug — table fermée", () => {
+  it("reconnaît l'apex et le www d'un domaine personnalisé", () => {
+    expect(resolveCustomDomainSlug("spiritacs.com")).toBe("spirit-acs")
+    expect(resolveCustomDomainSlug("www.spiritacs.com")).toBe("spirit-acs")
+  })
+
+  it("renvoie null pour tout domaine hors table", () => {
+    expect(resolveCustomDomainSlug("detailflow.fr")).toBeNull()
+    expect(resolveCustomDomainSlug("elite.detailflow.fr")).toBeNull()
+    expect(resolveCustomDomainSlug("spiritacs.fr")).toBeNull()
+    expect(resolveCustomDomainSlug("www.spiritacs.com.evil.com")).toBeNull()
   })
 })
 

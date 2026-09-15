@@ -125,6 +125,32 @@ export function tenantPathUrl(path: string, slug: string, rootDomain?: string): 
   return `${p}${query}`
 }
 
+/**
+ * Domaines personnalisés VÉRIFIÉS, mappés explicitement vers le slug du tenant.
+ *
+ * Table FERMÉE et exhaustive : seuls les domaines listés ici sont reconnus
+ * comme appartenant à un tenant. Tout autre domaine inconnu reste traité comme
+ * la racine (vitrine DetailFlow), exactement comme avant. Ce mapping est donc
+ * strictement additif et ne peut jamais rediriger un domaine vers le mauvais
+ * tenant.
+ *
+ * Convention de clé : hostname en minuscules, SANS `www.` ni port. Le préfixe
+ * `www.` est retiré avant la correspondance, ce qui couvre à la fois l'apex
+ * (`spiritacs.com`) et le sous-domaine `www` (`www.spiritacs.com`).
+ */
+export const CUSTOM_DOMAIN_TENANTS: Record<string, string> = {
+  "spiritacs.com": "spirit-acs",
+}
+
+/**
+ * Résout le slug de tenant associé à un domaine personnalisé, ou `null` si le
+ * domaine n'est pas un domaine personnalisé connu. Fonction PURE.
+ */
+export function resolveCustomDomainSlug(cleanHost: string): string | null {
+  const apex = cleanHost.startsWith("www.") ? cleanHost.slice(4) : cleanHost
+  return CUSTOM_DOMAIN_TENANTS[apex] ?? null
+}
+
 export type HostResolution =
   | { kind: "root" } // domaine principal DetailFlow (vitrine)
   | { kind: "tenant"; slug: string } // sous-domaine d'une entreprise
@@ -165,6 +191,13 @@ export function resolveHost(
     const q = (queryTenant || "").toLowerCase().trim()
     return { kind: "preview", slug: q ? q : null }
   }
+
+  // Domaine personnalisé vérifié (table fermée) : mappe explicitement vers son
+  // tenant, avant même la logique du domaine racine. `www.` est ignoré, donc
+  // l'apex et le sous-domaine `www` renvoient le même tenant. Un domaine absent
+  // de la table poursuit vers la logique racine/sous-domaine habituelle.
+  const customSlug = resolveCustomDomainSlug(cleanHost)
+  if (customSlug) return { kind: "tenant", slug: customSlug }
 
   const root = (rootDomain || "").toLowerCase().trim()
   if (!root) {
