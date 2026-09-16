@@ -27,7 +27,9 @@
  */
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react"
+import Link from "next/link"
 import { Oswald } from "next/font/google"
+import { withTenant } from "@/lib/tenant-link"
 import { MAX_PHOTOS } from "@/lib/quote-photos/config"
 import { submitCustomRequest, finalizeCustomRequest, type DemandeFormState } from "@/app/(site)/demande/actions"
 import type { CustomRequestType } from "@/lib/custom-requests"
@@ -308,6 +310,10 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   const [pending, setPending] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [phase, setPhase] = useState<"form" | "success" | "partial">("form")
+  // Lien vers la politique de confidentialité en préservant le tenant courant
+  // (?tenant= en préproduction ; inutile sur le domaine spiritacs.com résolu par
+  // hôte). Rendu identique au SSR (repli « /confidentialite »), ajusté au montage.
+  const [privacyHref, setPrivacyHref] = useState("/confidentialite")
 
   const uploader = usePhotoUploads()
   const submissionIdRef = useRef<string>("")
@@ -321,6 +327,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
   useEffect(() => {
     function applyEntryFromUrl() {
       const params = new URLSearchParams(window.location.search)
+      setPrivacyHref(withTenant("/confidentialite", params.get("tenant")))
       // Contexte « flotte » (bandeau professionnels) : on ouvre directement le
       // formulaire libre, là où atterrissent déjà les demandes flotte /
       // abonnement / hors-liste. Aucune donnée inventée, même Server Action.
@@ -501,6 +508,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
               pending={pending}
               onSubmit={submit}
               onClassic={() => setShowClassic(true)}
+              privacyHref={privacyHref}
             />
           </>
         )}
@@ -585,6 +593,7 @@ function FlowFooter({
   pending,
   onSubmit,
   onClassic,
+  privacyHref,
 }: {
   s: State
   dispatch: React.Dispatch<Action>
@@ -593,6 +602,7 @@ function FlowFooter({
   pending: boolean
   onSubmit: () => void
   onClassic: () => void
+  privacyHref: string
 }) {
   // Écran de choix (famille / prestation) et étapes à choix unique : le clic
   // fait avancer, aucun bouton « Continuer » (§12). On conserve seulement le
@@ -623,7 +633,18 @@ function FlowFooter({
           {showSkip ? "Continuer sans option" : primaryLabel}
         </button>
       )}
-      {isRecap && <p className="rq-foot-legal">Aucun paiement. Spirit ACS étudie votre demande avant toute confirmation.</p>}
+      {isRecap && (
+        <p className="rq-foot-legal">
+          Aucun paiement. Spirit ACS étudie votre demande avant toute confirmation.
+          <br />
+          En envoyant votre demande, vous acceptez que vos informations soient utilisées uniquement pour traiter
+          votre demande, conformément à notre{" "}
+          <Link href={privacyHref} className="rq-textlink" target="_blank" rel="noopener noreferrer">
+            Politique de confidentialité
+          </Link>
+          .
+        </p>
+      )}
       {stepKey === "famille" && (
         <button type="button" className="rq-textlink rq-foot-alt" onClick={onClassic}>
           Autre demande (flotte, abonnement, besoin spécifique) ›

@@ -4,15 +4,41 @@ import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact } from "@/lib/public-contact"
+import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
+import { buildTenantMetadata } from "@/lib/seo/tenant-seo.server"
+import { SpiritMentionsLegales } from "@/components/custom-sites/spirit-acs/legal-page"
 
-export const metadata: Metadata = {
-  title: "Mentions légales",
-  description: "Mentions légales du site.",
-  alternates: { canonical: "/mentions-legales" },
-  robots: { index: false, follow: true },
+export async function generateMetadata(): Promise<Metadata> {
+  // Spirit ACS : métadonnées tenant-aware (canonique www.spiritacs.com adaptée à
+  // la ROUTE existante /mentions-legales, aucune route dupliquée). Tout autre
+  // tenant conserve EXACTEMENT les métadonnées historiques ci-dessous.
+  const customSite = await resolveCustomSite()
+  if (customSite?.key === "spirit-acs") {
+    return buildTenantMetadata({
+      path: "/mentions-legales",
+      title: "Mentions légales | Spirit ACS",
+      description:
+        "Mentions légales de Spirit Auto Clean Service (Spirit ACS), detailing automobile à Lagny-sur-Marne : éditeur, hébergeur et informations légales du site.",
+      robots: { index: false, follow: true },
+    })
+  }
+  return {
+    title: "Mentions légales",
+    description: "Mentions légales du site.",
+    alternates: { canonical: "/mentions-legales" },
+    robots: { index: false, follow: true },
+  }
 }
 
 export default async function MentionsLegalesPage() {
+  // Spirit ACS : page légale rendue dans la coquille Spirit (header + footer de
+  // marque) avec un contenu enrichi et lisible. Isolé par clé de site.
+  const customSite = await resolveCustomSite()
+  if (customSite?.key === "spirit-acs") {
+    const data = await getCustomSitePublicData()
+    if (data) return <SpiritMentionsLegales data={data} />
+  }
+
   // ISOLATION : les informations éditeur proviennent de l'entreprise résolue.
   // Source de vérité = coordonnées enregistrées dans les paramètres du tenant
   // (getPublicContact → table settings). Aucune donnée statique / de démo.
