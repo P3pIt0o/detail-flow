@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest"
 import {
   resolveHost,
   resolveCustomDomainSlug,
+  tenantCanonicalHost,
+  tenantCanonicalOrigin,
+  tenantPublicPathUrl,
   normalizeSlug,
   isValidSlug,
   isReservedSlug,
@@ -154,5 +157,51 @@ describe("tenantPathUrl — liens transactionnels (emails)", () => {
 
   it("retombe sur un chemin relatif sans domaine racine (aperçu / local)", () => {
     expect(tenantPathUrl("/demande/TOKEN123", "spirit-acs")).toBe("/demande/TOKEN123?tenant=spirit-acs")
+  })
+})
+
+describe("tenantCanonicalHost / tenantCanonicalOrigin — domaine public par tenant", () => {
+  it("Spirit ACS a pour hôte canonique www.spiritacs.com", () => {
+    expect(tenantCanonicalHost("spirit-acs")).toBe("www.spiritacs.com")
+    expect(tenantCanonicalOrigin("spirit-acs")).toBe("https://www.spiritacs.com")
+  })
+
+  it("les autres tenants n'ont aucun domaine personnalisé (null)", () => {
+    expect(tenantCanonicalHost("elite")).toBeNull()
+    expect(tenantCanonicalHost("rozancleaningservice")).toBeNull()
+    expect(tenantCanonicalOrigin("detailflow")).toBeNull()
+  })
+})
+
+describe("tenantPublicPathUrl — liens PUBLICS client (domaine personnalisé)", () => {
+  it("Spirit : utilise www.spiritacs.com SANS ?tenant=", () => {
+    expect(tenantPublicPathUrl("/demande/TOKEN123", "spirit-acs", ROOT)).toBe(
+      "https://www.spiritacs.com/demande/TOKEN123",
+    )
+    expect(tenantPublicPathUrl("/reservation", "spirit-acs", ROOT)).toBe(
+      "https://www.spiritacs.com/reservation",
+    )
+  })
+
+  it("Spirit : le domaine personnalisé prime même sans domaine racine", () => {
+    expect(tenantPublicPathUrl("/demande/TOKEN123", "spirit-acs")).toBe(
+      "https://www.spiritacs.com/demande/TOKEN123",
+    )
+  })
+
+  it("Spirit : ne contient jamais detailflow.fr ni ?tenant=", () => {
+    const url = tenantPublicPathUrl("/demande/TOKEN123", "spirit-acs", ROOT)
+    expect(url).not.toContain("detailflow.fr")
+    expect(url).not.toMatch(/tenant=/)
+    // Un intent accept/refuse s'ajoute proprement (base sans query → ?).
+    const withIntent = `${url}${url.includes("?") ? "&" : "?"}intent=accept`
+    expect(withIntent).toBe("https://www.spiritacs.com/demande/TOKEN123?intent=accept")
+  })
+
+  it("autre tenant : comportement historique inchangé (?tenant= sur la racine)", () => {
+    expect(tenantPublicPathUrl("/demande/TOKEN123", "elite", ROOT)).toBe(
+      "https://www.detailflow.fr/demande/TOKEN123?tenant=elite",
+    )
+    expect(tenantPublicPathUrl("/reservation", "elite")).toBe("/reservation?tenant=elite")
   })
 })

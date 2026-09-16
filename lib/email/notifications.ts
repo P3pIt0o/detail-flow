@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, companies, settings as settingsTable } from "@/lib/db/schema"
 import { sendEmail } from "./send"
-import { tenantPathUrl } from "@/lib/tenant-shared"
+import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import {
   clientConfirmationEmail,
   proNotificationEmail,
@@ -86,13 +86,16 @@ async function loadBookingEmailData(
   // Liens transactionnels ABSOLUS, rattachés au tenant de la réservation
   // (jamais un autre). Le lien de gestion n'existe que si un jeton est présent
   // (réservations historiques sans jeton = pas de bouton).
+  // Liens CÔTÉ CLIENT : sur le domaine personnalisé du tenant s'il est connecté
+  // (Spirit ACS → www.spiritacs.com, sans `?tenant=`), sinon forme historique
+  // `?tenant=` sur le domaine racine. `tenantPublicPathUrl` gère les deux cas.
   const slug = companyRows[0]?.slug ?? null
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
   const manageUrl =
     slug && booking.manageToken
-      ? tenantPathUrl(`/reservation/gerer/${booking.manageToken}`, slug, rootDomain)
+      ? tenantPublicPathUrl(`/reservation/gerer/${booking.manageToken}`, slug, rootDomain)
       : null
-  const newBookingUrl = slug ? tenantPathUrl("/reservation", slug, rootDomain) : null
+  const newBookingUrl = slug ? tenantPublicPathUrl("/reservation", slug, rootDomain) : null
 
   const data: BookingEmailData = {
     reference: booking.reference,

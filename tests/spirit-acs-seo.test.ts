@@ -35,27 +35,31 @@ const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
 const SPIRIT = "components/custom-sites/spirit-acs"
 const SLUG = "spirit-acs"
 
-// Identité sans domaine personnalisé (état actuel : domaine non connecté).
-const spiritIdentity = tenantSeoIdentity({ slug: SLUG })
+// Identité d'un tenant SANS domaine personnalisé connecté : la fonction pure
+// produit alors la forme historique `?tenant=<slug>` sur le domaine racine.
+// (En production, Spirit ACS a désormais un domaine personnalisé — voir le bloc
+// « bascule domaine personnalisé » ci-dessous ; ce `SLUG` sert ici uniquement à
+// éprouver le CONTRAT DE REPLI, identique pour tout tenant sans domaine.)
+const fallbackIdentity = tenantSeoIdentity({ slug: SLUG })
 
-describe("SEO — URL canoniques tenant-aware (domaine personnalisé non connecté)", () => {
+describe("SEO — URL canoniques : contrat de repli (tenant sans domaine personnalisé)", () => {
   it("accueil → https://www.detailflow.fr/?tenant=spirit-acs", () => {
-    expect(tenantCanonicalUrl("/", spiritIdentity)).toBe("https://www.detailflow.fr/?tenant=spirit-acs")
+    expect(tenantCanonicalUrl("/", fallbackIdentity)).toBe("https://www.detailflow.fr/?tenant=spirit-acs")
   })
 
   it("avis → https://www.detailflow.fr/avis?tenant=spirit-acs", () => {
-    expect(tenantCanonicalUrl("/avis", spiritIdentity)).toBe("https://www.detailflow.fr/avis?tenant=spirit-acs")
+    expect(tenantCanonicalUrl("/avis", fallbackIdentity)).toBe("https://www.detailflow.fr/avis?tenant=spirit-acs")
   })
 
   it("contact → https://www.detailflow.fr/contact?tenant=spirit-acs", () => {
-    expect(tenantCanonicalUrl("/contact", spiritIdentity)).toBe(
+    expect(tenantCanonicalUrl("/contact", fallbackIdentity)).toBe(
       "https://www.detailflow.fr/contact?tenant=spirit-acs",
     )
   })
 
   it("chaque page de prestation conserve tenant=spirit-acs", () => {
     for (const s of SPIRIT_SERVICES) {
-      expect(tenantCanonicalUrl(`/prestations/${s.slug}`, spiritIdentity)).toBe(
+      expect(tenantCanonicalUrl(`/prestations/${s.slug}`, fallbackIdentity)).toBe(
         `https://www.detailflow.fr/prestations/${s.slug}?tenant=spirit-acs`,
       )
     }
@@ -66,9 +70,34 @@ describe("SEO — URL canoniques tenant-aware (domaine personnalisé non connect
   })
 
   it("un query/hash passé dans le chemin est ignoré (forme canonique stricte)", () => {
-    expect(tenantCanonicalUrl("/avis?foo=1#x", spiritIdentity)).toBe(
+    expect(tenantCanonicalUrl("/avis?foo=1#x", fallbackIdentity)).toBe(
       "https://www.detailflow.fr/avis?tenant=spirit-acs",
     )
+  })
+})
+
+describe("SEO — bascule domaine personnalisé Spirit ACS (www.spiritacs.com)", () => {
+  // Reproduit EXACTEMENT ce que `resolveTenantSeo` injecte en production pour
+  // Spirit via `tenantCanonicalHost("spirit-acs")` = « www.spiritacs.com ».
+  const spiritLive = tenantSeoIdentity({ slug: SLUG, publicDomain: "www.spiritacs.com" })
+
+  it("accueil/avis/contact → https://www.spiritacs.com/... SANS ?tenant=", () => {
+    expect(tenantCanonicalUrl("/", spiritLive)).toBe("https://www.spiritacs.com/")
+    expect(tenantCanonicalUrl("/avis", spiritLive)).toBe("https://www.spiritacs.com/avis")
+    expect(tenantCanonicalUrl("/contact", spiritLive)).toBe("https://www.spiritacs.com/contact")
+  })
+
+  it("chaque page de prestation est canonique sur www.spiritacs.com", () => {
+    for (const s of SPIRIT_SERVICES) {
+      const url = tenantCanonicalUrl(`/prestations/${s.slug}`, spiritLive)
+      expect(url).toBe(`https://www.spiritacs.com/prestations/${s.slug}`)
+      expect(url).not.toMatch(/tenant=/)
+    }
+  })
+
+  it("ne référence jamais detailflow.fr comme origine SEO de Spirit", () => {
+    expect(resolveTenantOrigin(spiritLive)).toBe("https://www.spiritacs.com")
+    expect(tenantCanonicalUrl("/", spiritLive)).not.toContain("detailflow.fr")
   })
 })
 
@@ -82,7 +111,7 @@ describe("SEO — bascule automatique vers le futur domaine personnalisé vérif
   })
 
   it("sans domaine vérifié, aucune origine tenant n'est inventée", () => {
-    expect(resolveTenantOrigin(spiritIdentity)).toBeNull()
+    expect(resolveTenantOrigin(fallbackIdentity)).toBeNull()
   })
 
   it("normalizePath garantit un slash initial et retire les slashes finaux", () => {
@@ -365,15 +394,21 @@ describe("SEO — pages légales conservent noindex, follow", () => {
 describe("SEO — sitemap tenant-aware", () => {
   const urls = sitemap().map((e) => e.url)
 
-  it("inclut l'accueil, avis, contact Spirit avec l'URL tenant correcte", () => {
-    expect(urls).toContain("https://www.detailflow.fr/?tenant=spirit-acs")
-    expect(urls).toContain("https://www.detailflow.fr/avis?tenant=spirit-acs")
-    expect(urls).toContain("https://www.detailflow.fr/contact?tenant=spirit-acs")
+  it("Spirit ACS (domaine personnalisé connecté) : URL sur www.spiritacs.com SANS ?tenant=", () => {
+    expect(urls).toContain("https://www.spiritacs.com/")
+    expect(urls).toContain("https://www.spiritacs.com/avis")
+    expect(urls).toContain("https://www.spiritacs.com/contact")
   })
 
-  it("inclut les 6 pages de prestations Spirit", () => {
+  it("aucune URL Spirit ne pointe plus vers detailflow.fr?tenant=spirit-acs", () => {
+    for (const u of urls) {
+      expect(u).not.toContain("tenant=spirit-acs")
+    }
+  })
+
+  it("inclut les 6 pages de prestations Spirit sur www.spiritacs.com", () => {
     for (const s of SPIRIT_SERVICES) {
-      expect(urls).toContain(`https://www.detailflow.fr/prestations/${s.slug}?tenant=spirit-acs`)
+      expect(urls).toContain(`https://www.spiritacs.com/prestations/${s.slug}`)
     }
   })
 
@@ -383,14 +418,16 @@ describe("SEO — sitemap tenant-aware", () => {
     }
   })
 
-  it("ne contient aucune variante dupliquée sans tenant (hors accueil marketing)", () => {
-    // Intention : aucune URL de site tenant ne doit fuiter sans son paramètre
-    // « ?tenant= » (sinon canonique ambiguë / duplication). Le sitemap étant
-    // désormais multi-tenant (Spirit ACS + Rozan), on vérifie la présence d'UN
-    // paramètre tenant connu, et non plus spécifiquement « spirit-acs ».
+  it("chaque URL de site tenant est soit sur son domaine personnalisé, soit taguée ?tenant=", () => {
+    // Aucune URL de site tenant ne doit être ambiguë : soit elle vit sur un
+    // domaine personnalisé connecté (Spirit → www.spiritacs.com), soit elle
+    // porte son paramètre « ?tenant= » sur le domaine racine (Rozan).
     const nonRoot = urls.filter((u) => u !== "https://www.detailflow.fr")
     for (const u of nonRoot) {
-      expect(u, `URL sans tenant: ${u}`).toMatch(/[?&]tenant=(spirit-acs|rozancleaningservice)/)
+      const ok =
+        u.startsWith("https://www.spiritacs.com") ||
+        /[?&]tenant=rozancleaningservice/.test(u)
+      expect(ok, `URL tenant ambiguë: ${u}`).toBe(true)
     }
   })
 })

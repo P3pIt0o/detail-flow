@@ -2,7 +2,7 @@ import "server-only"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies, settings as settingsTable } from "@/lib/db/schema"
-import { tenantPathUrl } from "@/lib/tenant-shared"
+import { tenantPathUrl, tenantPublicPathUrl } from "@/lib/tenant-shared"
 import { sendEmail } from "./send"
 import {
   customRequestNewLeadEmail,
@@ -38,15 +38,15 @@ async function loadIdentity(companyId: number) {
 /**
  * URL publique d'une demande de devis (lien accepter/refuser des emails).
  *
- * RÉUTILISE le helper CANONIQUE `tenantPathUrl` : le routing multi-tenant se
- * fait par `?tenant=<slug>` sur le domaine racine (`https://www.<root>/…`),
- * JAMAIS par sous-domaine. L'ancienne construction `https://{slug}.{root}`
- * produisait des domaines inexistants (NXDOMAIN). Sans domaine racine
- * (aperçu / local), `tenantPathUrl` retombe proprement sur un chemin relatif.
- * Le token n'est jamais modifié.
+ * Lien CÔTÉ CLIENT → `tenantPublicPathUrl` : si le tenant a un domaine
+ * personnalisé connecté (ex. Spirit ACS → `https://www.spiritacs.com/demande/…`),
+ * l'URL utilise ce domaine SANS `?tenant=` (le hostname suffit). Sinon, forme
+ * historique par `?tenant=<slug>` sur le domaine racine ; sans domaine racine
+ * (aperçu / local), chemin relatif. Jamais de sous-domaine `{slug}.{root}`
+ * (produisait des domaines inexistants). Le token n'est jamais modifié.
  */
 function publicRequestUrl(slug: string, token: string, intent?: "accept" | "refuse"): string {
-  const base = tenantPathUrl(`/demande/${encodeURIComponent(token)}`, slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+  const base = tenantPublicPathUrl(`/demande/${encodeURIComponent(token)}`, slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
   if (!intent) return base
   const sep = base.includes("?") ? "&" : "?"
   return `${base}${sep}intent=${intent}`

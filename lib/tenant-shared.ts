@@ -151,6 +151,52 @@ export function resolveCustomDomainSlug(cleanHost: string): string | null {
   return CUSTOM_DOMAIN_TENANTS[apex] ?? null
 }
 
+/**
+ * Hôte public CANONIQUE (forme `www.` retenue) d'un tenant dont le domaine
+ * personnalisé est réellement connecté et vérifié, indexé par slug.
+ *
+ * UNIQUE SOURCE DE VÉRITÉ du domaine public d'un tenant, consommée par :
+ *   - la bascule SEO (canonical, og:url, image OG, JSON-LD, sitemap) ;
+ *   - l'origine des liens PUBLICS transactionnels (emails client).
+ *
+ * Un slug absent de cette table → `null` → comportement historique inchangé
+ * (URL DetailFlow avec `?tenant=<slug>`). N'affecte donc aucun autre tenant.
+ */
+export const TENANT_CANONICAL_HOST: Record<string, string> = {
+  "spirit-acs": "www.spiritacs.com",
+}
+
+/** Hôte canonique (`www.spiritacs.com`) d'un tenant, ou `null`. Fonction PURE. */
+export function tenantCanonicalHost(slug: string): string | null {
+  return TENANT_CANONICAL_HOST[slug] ?? null
+}
+
+/** Origine canonique absolue (`https://www.spiritacs.com`) d'un tenant, ou `null`. */
+export function tenantCanonicalOrigin(slug: string): string | null {
+  const host = tenantCanonicalHost(slug)
+  return host ? `https://${host}` : null
+}
+
+/**
+ * URL ABSOLUE d'un chemin PUBLIC (côté client) pour un tenant.
+ *
+ * - Tenant à domaine personnalisé connecté → `https://<domaine>{path}`, SANS
+ *   `?tenant=` : le hostname suffit à résoudre le tenant (voir `resolveHost`).
+ * - Sinon → comportement historique via `tenantPathUrl` (racine + `?tenant=`).
+ *
+ * RÉSERVÉ AUX LIENS PUBLICS (demande/devis, gestion de réservation, ajout de
+ * photos, liens client). NE PAS utiliser pour l'espace `/admin`, qui reste servi
+ * sur le domaine racine (session/cookies inchangés).
+ */
+export function tenantPublicPathUrl(path: string, slug: string, rootDomain?: string): string {
+  const origin = tenantCanonicalOrigin(slug)
+  if (origin) {
+    const p = path.startsWith("/") ? path : `/${path}`
+    return `${origin}${p}`
+  }
+  return tenantPathUrl(path, slug, rootDomain)
+}
+
 export type HostResolution =
   | { kind: "root" } // domaine principal DetailFlow (vitrine)
   | { kind: "tenant"; slug: string } // sous-domaine d'une entreprise

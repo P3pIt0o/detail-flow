@@ -25,8 +25,10 @@ import { getTenantGoogleRating } from "@/lib/reviews/public"
 import {
   tenantSeoIdentity,
   tenantCanonicalUrl,
+  resolveTenantOrigin,
   type TenantSeoIdentity,
 } from "./tenant-url"
+import { tenantCanonicalHost } from "@/lib/tenant-shared"
 import { buildTenantPageMetadata } from "./tenant-metadata"
 import { buildLocalBusinessJsonLd, type LocalBusinessInput } from "./structured-data"
 import { SPIRIT_TENANT_SLUG, SPIRIT_BUSINESS } from "@/components/custom-sites/spirit-acs/seo-content"
@@ -62,8 +64,10 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
   }
   const identity = tenantSeoIdentity({
     slug: tenant.slug,
-    // POINT D'EXTENSION futur domaine vérifié (n'existe pas encore en base).
-    publicDomain: null,
+    // Domaine personnalisé VÉRIFIÉ (table fermée `TENANT_CANONICAL_HOST`) :
+    // Spirit ACS bascule sur `www.spiritacs.com`. Tout autre tenant reste `null`
+    // → forme historique `?tenant=` (aucun changement pour les autres tenants).
+    publicDomain: tenantCanonicalHost(tenant.slug),
   })
   return {
     tenant,
@@ -107,7 +111,10 @@ export async function buildTenantMetadata(args: {
   }
 
   const useSpirit = seo.isSpirit
-  const imageUrl = `${BASE}${useSpirit ? SPIRIT_OG_IMAGE : siteConfig.seo.ogImage}`
+  // Image OG en URL absolue : sur le domaine personnalisé du tenant lorsqu'il
+  // existe (cohérence avec la canonique), sinon sur la base DetailFlow.
+  const originBase = resolveTenantOrigin(seo.identity) ?? BASE
+  const imageUrl = `${originBase}${useSpirit ? SPIRIT_OG_IMAGE : siteConfig.seo.ogImage}`
 
   return buildTenantPageMetadata({
     identity: seo.identity,
@@ -181,7 +188,7 @@ export async function buildTenantLocalBusiness(args?: {
     telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,
     logo: logoAbsolute,
-    image: seo.isSpirit ? `${BASE}${SPIRIT_OG_IMAGE}` : logoAbsolute,
+    image: seo.isSpirit ? `${resolveTenantOrigin(seo.identity) ?? BASE}${SPIRIT_OG_IMAGE}` : logoAbsolute,
     // Adresse postale structurée : donnée Neon réelle d'abord, repli Spirit
     // vérifié ensuite. Les champs absents ne produisent aucune propriété.
     address: {
