@@ -116,6 +116,24 @@ export const companies = pgTable("companies", {
   heroSubtitle: text("heroSubtitle"),
   heroCtaPrimary: text("heroCtaPrimary"),
   heroCtaSecondary: text("heroCtaSecondary"),
+  // Personnalisation avancée de l'IMAGE de fond du Hero (tenants STANDARD).
+  // Toutes ces colonnes sont ADDITIVES et NULLABLES : NULL = comportement
+  // historique EXACT (voir lib/hero-customization.ts et lib/tenant-hero.ts).
+  // heroImageUrl stocke le PATHNAME du Blob privé (servi publiquement via
+  // /api/company-hero?company={slug}), jamais une URL directe. NULL = fallback
+  // sur l'image statique du tenant. Les colonnes de cadrage ne sont APPLIQUÉES
+  // que lorsqu'une image personnalisée existe (heroImageUrl non NULL).
+  heroImageUrl: text("heroImageUrl"),
+  // Cadrage desktop : positions 0..100 (50 = centré), zoom 100..180 (100 = actuel).
+  heroPositionX: integer("heroPositionX"),
+  heroPositionY: integer("heroPositionY"),
+  heroZoom: integer("heroZoom"),
+  // Cadrage mobile indépendant. NULL sur un axe = héritage du réglage desktop.
+  heroMobilePositionX: integer("heroMobilePositionX"),
+  heroMobilePositionY: integer("heroMobilePositionY"),
+  heroMobileZoom: integer("heroMobileZoom"),
+  // Assombrissement commun desktop/mobile : 0..80. NULL = voile historique.
+  heroOverlayOpacity: integer("heroOverlayOpacity"),
   // Coordonnées
   email: text("email"),
   phone: text("phone"),
