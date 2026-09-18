@@ -197,6 +197,27 @@ export function tenantPublicPathUrl(path: string, slug: string, rootDomain?: str
   return tenantPathUrl(path, slug, rootDomain)
 }
 
+/**
+ * Origine officielle du site marketing DetailFlow. Sert de repli lorsque
+ * `NEXT_PUBLIC_ROOT_DOMAIN` n'est pas configuré (aperçu/local).
+ */
+export const DETAILFLOW_MARKETING_ORIGIN = "https://www.detailflow.fr"
+
+/**
+ * Origine ABSOLUE du site marketing DetailFlow (`https://www.<root>`), calculée
+ * depuis le domaine racine. Repli sur l'origine officielle si le domaine racine
+ * n'est pas fourni. Fonction PURE (importable en edge/middleware).
+ */
+export function marketingOrigin(rootDomain?: string): string {
+  const root = (rootDomain || "")
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "")
+    .replace(/^www\./, "")
+  if (!root) return DETAILFLOW_MARKETING_ORIGIN
+  return `https://www.${root}`
+}
+
 export type HostResolution =
   | { kind: "root" } // domaine principal DetailFlow (vitrine)
   | { kind: "tenant"; slug: string } // sous-domaine d'une entreprise

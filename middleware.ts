@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { DEFAULT_TENANT_SLUG, resolveHost } from "@/lib/tenant-shared"
+import { DEFAULT_TENANT_SLUG, marketingOrigin, resolveHost } from "@/lib/tenant-shared"
 
 /**
  * Routage multi-tenant par hostname.
@@ -20,6 +20,27 @@ export function middleware(req: NextRequest) {
   const res = resolveHost(host, rootDomain, queryTenant)
 
   const path = req.nextUrl.pathname
+
+  // ── PROTECTION ANTI-FUITE MARKETING ──────────────────────────────────────
+  // Le site marketing DetailFlow vit physiquement sous /marketing. Sur le
+  // domaine racine, le middleware y réécrit proprement `/` → /marketing. Mais
+  // rien n'empêchait une requête DIRECTE vers /marketing* d'être servie sous
+  // le domaine d'un TENANT (sous-domaine {slug}.detailflow.fr OU domaine
+  // personnalisé vérifié comme spiritacs.com) : la page marketing s'affichait
+  // alors que l'URL restait celle du tenant.
+  //
+  // Règle générique (vaut pour TOUT tenant présent et futur) : aucune route
+  // marketing ne doit être rendue sous un hôte tenant. On redirige (308,
+  // permanent) vers le domaine officiel DetailFlow en retirant le préfixe
+  // /marketing (le marketing est servi à la racine sur detailflow.fr). Cela
+  // corrige l'affichage ET empêche toute indexation d'une copie du marketing
+  // sous le domaine d'un tenant.
+  if (res.kind === "tenant" && (path === "/marketing" || path.startsWith("/marketing/"))) {
+    const rest = path.slice("/marketing".length) || "/"
+    const target = new URL(`${marketingOrigin(rootDomain)}${rest}`)
+    target.search = req.nextUrl.search
+    return NextResponse.redirect(target, 308)
+  }
 
   // Un tenant est « explicite » lorsqu'il provient d'un vrai sous-domaine
   // ({slug}.detailflow.fr) ou du paramètre ?tenant=. Le tenant PAR DÉFAUT
