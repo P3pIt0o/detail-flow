@@ -15,7 +15,17 @@ import { Truck } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { SPIRIT_ANCHOR_PRIMARY } from "./tokens"
 
-export function SpiritFlotteCta({ href }: { href: string }) {
+export function SpiritFlotteCta({
+  href,
+  heading,
+  text,
+}: {
+  href: string
+  /** Override du titre (null → rendu par défaut EXACT conservé). */
+  heading?: string | null
+  /** Override du paragraphe (null → rendu par défaut EXACT conservé). */
+  text?: string | null
+}) {
   return (
     <section
       aria-labelledby="spirit-flotte-titre"
@@ -34,11 +44,17 @@ export function SpiritFlotteCta({ href }: { href: string }) {
               <div>
                 <p className="spirit-eyebrow">Professionnels &amp; entreprises</p>
                 <h2 id="spirit-flotte-titre" className="spirit-title mt-2 text-balance text-2xl text-white sm:text-3xl">
-                  Vous gérez une flotte de véhicules&nbsp;?
+                  {heading ? heading : <>Vous gérez une flotte de véhicules&nbsp;?</>}
                 </h2>
                 <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-[color:var(--spirit-muted)] sm:text-base">
-                  Entretien récurrent, remise en état avant restitution, préparation esthétique&nbsp;: décrivez votre
-                  besoin, nous vous répondons avec une proposition adaptée au nombre de véhicules.
+                  {text ? (
+                    text
+                  ) : (
+                    <>
+                      Entretien récurrent, remise en état avant restitution, préparation esthétique&nbsp;: décrivez votre
+                      besoin, nous vous répondons avec une proposition adaptée au nombre de véhicules.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

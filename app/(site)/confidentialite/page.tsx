@@ -4,15 +4,40 @@ import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact } from "@/lib/public-contact"
+import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
+import { buildTenantMetadata } from "@/lib/seo/tenant-seo.server"
+import { SpiritConfidentialite } from "@/components/custom-sites/spirit-acs/legal-page"
 
-export const metadata: Metadata = {
-  title: "Politique de confidentialité",
-  description: "Politique de confidentialité et gestion des données personnelles.",
-  alternates: { canonical: "/confidentialite" },
-  robots: { index: false, follow: true },
+export async function generateMetadata(): Promise<Metadata> {
+  // Spirit ACS : canonique www.spiritacs.com adaptée à la ROUTE existante
+  // /confidentialite (aucun doublon /politique-de-confidentialite). Les autres
+  // tenants conservent les métadonnées historiques ci-dessous.
+  const customSite = await resolveCustomSite()
+  if (customSite?.key === "spirit-acs") {
+    return buildTenantMetadata({
+      path: "/confidentialite",
+      title: "Politique de confidentialité | Spirit ACS",
+      description:
+        "Politique de confidentialité de Spirit ACS : données collectées, finalités, durée de conservation, prestataires techniques et vos droits (RGPD).",
+      robots: { index: false, follow: true },
+    })
+  }
+  return {
+    title: "Politique de confidentialité",
+    description: "Politique de confidentialité et gestion des données personnelles.",
+    alternates: { canonical: "/confidentialite" },
+    robots: { index: false, follow: true },
+  }
 }
 
 export default async function ConfidentialitePage() {
+  // Spirit ACS : politique enrichie rendue dans la coquille Spirit. Isolé par clé.
+  const customSite = await resolveCustomSite()
+  if (customSite?.key === "spirit-acs") {
+    const data = await getCustomSitePublicData()
+    if (data) return <SpiritConfidentialite data={data} />
+  }
+
   // Coordonnées réelles du tenant (aucune donnée statique). Repli sur la config
   // DetailFlow uniquement sur la vitrine racine (aucun tenant).
   const tenant = await getCurrentTenant()

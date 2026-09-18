@@ -24,6 +24,7 @@ import { Gem, ShieldCheck, Car, MapPin } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
+import { SPIRIT_HERO_SUBTITLE_FALLBACK } from "./site-texts"
 
 type SpiritHeroProps = {
   title: string | null
@@ -54,7 +55,8 @@ type SpiritHeroProps = {
 
 const DEFAULTS = {
   title: "Prenez soin de votre véhicule",
-  subtitle: "Nettoyage, polissage et protection, réalisés avec exigence.",
+  // Repli partagé avec l'admin « Textes du site » (source unique).
+  subtitle: SPIRIT_HERO_SUBTITLE_FALLBACK,
 }
 
 export function SpiritHero({

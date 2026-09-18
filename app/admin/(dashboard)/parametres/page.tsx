@@ -31,6 +31,8 @@ import { SecuritySettings } from "@/components/admin/settings/security-settings"
 import { SupportForm } from "@/components/admin/settings/support-form"
 import { CustomRequestsSettings } from "@/components/admin/settings/custom-requests-settings"
 import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
+import { SpiritSiteTexts } from "@/components/admin/settings/spirit-site-texts"
+import { getSpiritSiteTexts } from "./spirit-texts-actions"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
 import { NotificationsSettings } from "@/components/admin/settings/notifications-settings"
 import { getLotDSettings, lotDColumnsExist } from "@/lib/notifications/settings-store"
@@ -56,7 +58,7 @@ export default async function ParametresPage({
 }: {
   searchParams: Promise<{ tab?: string; tenant?: string }>
 }) {
-  const { tenant } = await requireCompanyMember()
+  const { tenant, role, isSuperAdmin } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
   const { tab, tenant: tenantParam } = await searchParams
 
@@ -66,6 +68,12 @@ export default async function ParametresPage({
   // intro « Prestations » non rendues) et les modules non utilisés (Réservations,
   // Paiements en ligne, Codes promo). Les autres tenants restent inchangés.
   const isSpiritSite = tenant.customSiteKey === "spirit-acs"
+  // Éditeur « Textes du site » réservé aux administrateurs (OWNER/ADMIN) ou au
+  // super-admin plateforme. Un EMPLOYEE voit un message, sans faire échouer la
+  // page. Les valeurs effectives (override → fallback) sont résolues côté
+  // serveur, jamais depuis le client.
+  const canEditSpiritTexts = isSpiritSite && (isSuperAdmin || role === "OWNER" || role === "ADMIN")
+  const spiritTextsResult = canEditSpiritTexts ? await getSpiritSiteTexts() : null
   // Catégories visibles pour CE tenant (filtrage centralisé, isolé par
   // customSiteKey). Standard => liste complète inchangée.
   const visibleCategories = getVisibleSettingsCategories(tenant.customSiteKey)
@@ -271,44 +279,68 @@ export default async function ParametresPage({
             {activeCategory.id === "site" && (
               <>
                 <TabsContent value="site" className="mt-6">
-                  {isSpiritSite && (
-                    <div className="mb-6 rounded-2xl border border-border bg-muted/30 p-4">
-                      <h2 className="text-lg font-semibold text-foreground">Contenu du site Spirit ACS</h2>
-                      <p className="mt-1 text-sm text-muted-foreground text-pretty">
-                        Votre site utilise un modèle personnalisé. Seuls les textes réellement affichés sont
-                        modifiables ici : les réglages du modèle standard (couleurs, logo, ordre des sections) sont
-                        masqués car ils n&apos;ont aucun effet sur votre site.
-                      </p>
-                    </div>
-                  )}
-                  <SiteBranding
-                    logoPathname={tenant.logoUrl ?? null}
-                    cgv={tenant.cgv ?? ""}
-                    socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
-                    hero={{
-                      heroTitle: tenant.heroTitle ?? "",
-                      heroHighlight: tenant.heroHighlight ?? "",
-                      heroSubtitle: tenant.heroSubtitle ?? "",
-                      heroCtaPrimary: tenant.heroCtaPrimary ?? "",
-                      heroCtaSecondary: tenant.heroCtaSecondary ?? "",
-                    }}
-                    simplified={isSpiritSite}
-                  />
-                  <div className="mt-10 border-t border-border pt-8">
-                    {!isSpiritSite && (
-                      <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
-                    )}
-                    <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} simplified={isSpiritSite} />
-                  </div>
-                  {!isSpiritSite && (
-                    <div className="mt-10 border-t border-border pt-8">
-                      <SectionOrderSettings
-                        items={resolveSectionOrder(tenant.siteContent).map((key) => ({
-                          key,
-                          label: HOME_SECTION_LABELS[key],
-                        }))}
+                  {isSpiritSite ? (
+                    <>
+                      <div className="mb-6 rounded-2xl border border-border bg-muted/30 p-4">
+                        <h2 className="text-lg font-semibold text-foreground">Textes du site Spirit ACS</h2>
+                        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+                          Votre site utilise un modèle personnalisé. Seuls les textes réellement affichés sont
+                          modifiables ici : les réglages du modèle standard (couleurs, logo, ordre des sections) sont
+                          masqués car ils n&apos;ont aucun effet sur votre site.
+                        </p>
+                      </div>
+                      {spiritTextsResult?.ok && spiritTextsResult.values ? (
+                        <SpiritSiteTexts initialValues={spiritTextsResult.values} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-pretty">
+                          Les textes du site sont modifiables par un administrateur du compte.
+                        </p>
+                      )}
+                      <div className="mt-10 border-t border-border pt-8">
+                        <h2 className="mb-4 text-lg font-semibold text-foreground">CGV et réseaux sociaux</h2>
+                        <SiteBranding
+                          logoPathname={tenant.logoUrl ?? null}
+                          cgv={tenant.cgv ?? ""}
+                          socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+                          hero={{
+                            heroTitle: tenant.heroTitle ?? "",
+                            heroHighlight: tenant.heroHighlight ?? "",
+                            heroSubtitle: tenant.heroSubtitle ?? "",
+                            heroCtaPrimary: tenant.heroCtaPrimary ?? "",
+                            heroCtaSecondary: tenant.heroCtaSecondary ?? "",
+                          }}
+                          simplified
+                          hideHeroCard
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <SiteBranding
+                        logoPathname={tenant.logoUrl ?? null}
+                        cgv={tenant.cgv ?? ""}
+                        socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
+                        hero={{
+                          heroTitle: tenant.heroTitle ?? "",
+                          heroHighlight: tenant.heroHighlight ?? "",
+                          heroSubtitle: tenant.heroSubtitle ?? "",
+                          heroCtaPrimary: tenant.heroCtaPrimary ?? "",
+                          heroCtaSecondary: tenant.heroCtaSecondary ?? "",
+                        }}
                       />
-                    </div>
+                      <div className="mt-10 border-t border-border pt-8">
+                        <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
+                        <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+                      </div>
+                      <div className="mt-10 border-t border-border pt-8">
+                        <SectionOrderSettings
+                          items={resolveSectionOrder(tenant.siteContent).map((key) => ({
+                            key,
+                            label: HOME_SECTION_LABELS[key],
+                          }))}
+                        />
+                      </div>
+                    </>
                   )}
                 </TabsContent>
                 {!isSpiritSite && (
@@ -332,9 +364,11 @@ export default async function ParametresPage({
                     initialPreview={googlePlacePreview}
                   />
                 </TabsContent>
-                <TabsContent value="custom-requests" className="mt-6">
-                  <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
-                </TabsContent>
+                {!isSpiritSite && (
+                  <TabsContent value="custom-requests" className="mt-6">
+                    <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
+                  </TabsContent>
+                )}
               </>
             )}
 

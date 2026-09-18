@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 import { siteConfig } from "@/config/site"
 import { tenantSeoIdentity, tenantCanonicalUrl } from "@/lib/seo/tenant-url"
+import { tenantCanonicalHost } from "@/lib/tenant-shared"
 import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
 
 /**
@@ -41,7 +42,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
   for (const key of customSiteKeys) {
     const catalog = getPublicSiteCatalog(key)
     if (!catalog) continue
-    const identity = tenantSeoIdentity({ slug: catalog.tenantSlug })
+    // Domaine personnalisé connecté → URL sur ce domaine (sans `?tenant=`) ;
+    // sinon forme historique `?tenant=<slug>`. Bascule automatique par tenant.
+    const identity = tenantSeoIdentity({
+      slug: catalog.tenantSlug,
+      publicDomain: tenantCanonicalHost(catalog.tenantSlug),
+    })
     for (const { path, priority } of listSitemapPaths(catalog)) {
       entries.push({
         url: tenantCanonicalUrl(path, identity),

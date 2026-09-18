@@ -8,7 +8,11 @@ import * as schema from "./schema"
  * plus tard, Better Auth (espace client) utiliseront ce même Pool.
  */
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  // `DATABASE_URL` reste la source principale (production/preview). Repli sur
+  // `NEON_DATABASE_URL` (même base Neon, URL poolée fournie par l'intégration)
+  // lorsque `DATABASE_URL` n'est pas injecté dans l'environnement : sans ce
+  // repli, `pg` tente localhost:5432 et échoue (ECONNREFUSED).
+  connectionString: process.env.DATABASE_URL ?? process.env.NEON_DATABASE_URL,
 })
 
 export const db = drizzle(pool, { schema })

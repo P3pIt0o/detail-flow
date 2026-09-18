@@ -18,6 +18,7 @@ import { getPublicServices, getPublicReviews } from "@/lib/catalog-queries"
 import { getPublicGallery } from "@/lib/public-gallery"
 import { getPublicPhotoGallery } from "@/lib/public-photo-gallery"
 import { getPublicSiteContent, getPublicCustomRequestsConfig } from "@/lib/site-content"
+import { resolveSpiritEffectiveTexts, type SpiritEffectiveTexts } from "@/components/custom-sites/spirit-acs/site-texts"
 import { getCustomSiteDefinition } from "./registry"
 import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
 
@@ -74,5 +75,21 @@ export async function getCustomSitePublicData(): Promise<CustomSitePublicData | 
     getPhotoGallery: () => getPublicPhotoGallery(),
     getContent: () => getPublicSiteContent(),
     getCustomRequestsConfig: () => getPublicCustomRequestsConfig(),
+    getSpiritTexts: () => getSpiritSiteTexts(),
   }
+}
+
+/**
+ * Textes éditoriaux Spirit ACS effectifs du TENANT COURANT (override → fallback).
+ *
+ * Le tenant est résolu côté serveur (`getCurrentTenant`, en-tête du middleware),
+ * jamais depuis le client : ne peut donc jamais renvoyer les textes d'une autre
+ * entreprise. La résolution est PURE et défensive (valeur absente/invalide →
+ * fallback exact du code), donc sûre pour tout site (les non-Spirit obtiennent
+ * les fallbacks, qu'ils n'utilisent pas).
+ */
+export async function getSpiritSiteTexts(): Promise<SpiritEffectiveTexts> {
+  const tenant = await getCurrentTenant()
+  const raw = (tenant?.siteContent as { spiritAcs?: unknown } | null)?.spiritAcs
+  return resolveSpiritEffectiveTexts(raw)
 }

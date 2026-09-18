@@ -24,7 +24,14 @@ export type ActionResult = { ok: boolean; error?: string }
  * client. Les autres clés de `siteContent` sont préservées.
  */
 export async function saveCustomRequestsConfig(input: CustomRequestsConfig): Promise<ActionResult> {
-  const { tenant } = await requireCompanyMember()
+  const { tenant, isSuperAdmin } = await requireCompanyMember()
+  // Spirit ACS : les options métier des « Demandes » sont verrouillées. Le
+  // sous-onglet est masqué ET l'action refusée pour un membre normal (le
+  // super-admin plateforme conserve un accès de maintenance). Les autres tenants
+  // ne sont jamais concernés.
+  if (tenant.customSiteKey === "spirit-acs" && !isSuperAdmin) {
+    return { ok: false, error: "Les demandes ne sont pas modifiables pour le site Spirit ACS." }
+  }
 
   const str = (v: unknown, max: number): string | undefined => {
     if (typeof v !== "string") return undefined
