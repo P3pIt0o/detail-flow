@@ -29,6 +29,7 @@ export interface CustomSiteMeta {
 export const customSiteMetaRegistry: Readonly<Record<string, CustomSiteMeta>> = Object.freeze({
   "spirit-acs": { key: "spirit-acs", name: "Spirit ACS", ownShell: true },
   rozan: { key: "rozan", name: "Rozan Cleaning Services", ownShell: true },
+  cleanyzer: { key: "cleanyzer", name: "Cleanyzer", ownShell: true },
 })
 
 /** Normalise une clé entrante (défensif) avant toute recherche/validation. */

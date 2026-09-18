@@ -19,6 +19,7 @@ import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
 import { getCustomSiteMeta } from "./meta"
 import { SpiritAcsHome } from "@/components/custom-sites/spirit-acs/home-page"
 import { RozanHome } from "@/components/custom-sites/rozan/home-page"
+import { CleanyzerHome } from "@/components/custom-sites/cleanyzer/home-page"
 
 // Ré-export des helpers PURS (source de vérité : meta.ts). Permet aux modules
 // serveur qui importaient historiquement depuis "registry" de continuer.
@@ -36,6 +37,7 @@ export {
 const customSitePages: Readonly<Record<string, ComponentType<{ data: CustomSitePublicData }>>> = Object.freeze({
   "spirit-acs": SpiritAcsHome,
   rozan: RozanHome,
+  cleanyzer: CleanyzerHome,
 })
 
 /**
