@@ -68,7 +68,10 @@ export function middleware(req: NextRequest) {
     !path.startsWith("/super-admin") &&
     // Maquettes Rozan (Phase 2) : route ISOLÉE et temporaire, servie telle
     // quelle sans réécriture vers la vitrine. N'affecte aucun tenant.
-    !path.startsWith("/rozan-preview")
+    !path.startsWith("/rozan-preview") &&
+    // Maquettes CLEANYZER (Phase 1) : idem, route ISOLÉE et temporaire servie
+    // telle quelle. Validation DA/UX uniquement, aucun tenant impacté.
+    !path.startsWith("/cleanyzer-preview")
   ) {
     const url = req.nextUrl.clone()
     url.pathname = `/marketing${path === "/" ? "" : path}`
