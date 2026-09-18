@@ -10,11 +10,31 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
 import { BRAND } from "./content"
 import { CLZ_PREVIEW_BASE, type ClzNavItem } from "./tokens"
+import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
+
+// Typographie CLEANYZER (cahier §1) chargée ET scopée par la coquille elle-même,
+// afin que le site rende identiquement quel que soit son point d'entrée : la
+// route de preview (`/cleanyzer-preview`) OU le dispatch public par tenant
+// (`app/(site)` via le registry). Aucune dépendance à un layout externe, aucun
+// impact sur le thème global ni sur les autres tenants (scope `.cleanyzer`).
+const clzDisplay = Fraunces({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-clz-display",
+  display: "swap",
+})
+
+const clzSans = Inter({
+  subsets: ["latin"],
+  variable: "--font-clz-sans",
+  display: "swap",
+})
 
 export function CleanyzerShell({
   children,
@@ -31,7 +51,7 @@ export function CleanyzerShell({
   const devisHref = `${CLZ_PREVIEW_BASE}/demande`
 
   return (
-    <div className="cleanyzer min-h-dvh">
+    <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
       {/* En-tête */}
       <header className="sticky top-0 z-50 border-b border-[var(--clz-line)] bg-white/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:h-20 md:px-6">
