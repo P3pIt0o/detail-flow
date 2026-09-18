@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { DEFAULT_TENANT_SLUG, resolveHost } from "@/lib/tenant-shared"
+import { EMBED_HEADER, EMBED_QUERY_PARAM, shouldTreatAsEmbed } from "@/lib/embed"
 
 /**
  * Routage multi-tenant par hostname.
@@ -50,6 +51,15 @@ export function middleware(req: NextRequest) {
   requestHeaders.set("x-tenant-kind", res.kind)
   requestHeaders.set("x-tenant-slug", slug)
 
+  // Mode EMBED (module de réservation embarquable) : drapeau de présentation
+  // porté par le chemin `/embed/*` ou `?embed=1` (propagé dans tout le tunnel).
+  // Posé en en-tête car les layouts serveur ne reçoivent pas les searchParams.
+  // Purement additif : sans embed, l'en-tête est absent → chrome standard.
+  const embedParam = req.nextUrl.searchParams.get(EMBED_QUERY_PARAM)
+  if (shouldTreatAsEmbed(path, embedParam)) {
+    requestHeaders.set(EMBED_HEADER, "1")
+  }
+
   // En aperçu v0 / dev, sans ?tenant= explicite, on se comporte comme le
   // domaine racine : `/` affiche la vitrine SaaS. Un site d'entreprise reste
   // accessible via ?tenant=slug. La PRODUCTION n'est pas concernée (elle passe
@@ -66,6 +76,10 @@ export function middleware(req: NextRequest) {
     !path.startsWith("/api") &&
     !path.startsWith("/admin") &&
     !path.startsWith("/super-admin") &&
+    // Module de réservation embarquable : routes PUBLIQUES servies telles
+    // quelles (jamais réécrites vers la vitrine), qu'il y ait un ?tenant= ou non.
+    !path.startsWith("/embed") &&
+    !path.startsWith("/widget") &&
     // Maquettes Rozan (Phase 2) : route ISOLÉE et temporaire, servie telle
     // quelle sans réécriture vers la vitrine. N'affecte aucun tenant.
     !path.startsWith("/rozan-preview") &&
