@@ -1,0 +1,258 @@
+/**
+ * Feuille de style ISOLÉE du site personnalisé CLEANYZER.
+ *
+ * Toutes les règles sont préfixées par `.cleanyzer` : elles ne peuvent jamais
+ * affecter le site standard, le thème global, ni un autre tenant (Spirit ACS,
+ * Rozan, JustClean…). CSS pur, portable au build, aucune directive Tailwind.
+ *
+ * DIRECTION ARTISTIQUE (cahier Tom §1) :
+ * - Bleu principal EXACT #0A84FF, noir #000000.
+ * - Sections sombres = dégradé #000000 → #0A84FF (élégant, jamais SaaS générique).
+ * - Alternance clair / sombre, grands titres éditoriaux en serif, UI/body sans-serif.
+ * - Accents dorés discrets, logo en filigrane transparent très subtil.
+ */
+
+.cleanyzer {
+  /* Bleu de marque — SOURCE DE VÉRITÉ (Tom) */
+  --clz-blue: #0a84ff;
+  --clz-blue-strong: #0060d0;
+  --clz-blue-soft: rgba(10, 132, 255, 0.12);
+
+  /* Noirs / encres */
+  --clz-black: #000000;
+  --clz-ink: #0a0b0d; /* fond sombre de base */
+  --clz-ink-2: #111318;
+
+  /* Base claire (sections claires) */
+  --clz-bg: #ffffff;
+  --clz-surface: #ffffff;
+  --clz-surface-2: #f5f6f8;
+
+  /* Texte */
+  --clz-fg: #0a0b0d; /* sur clair */
+  --clz-muted: #5c636e; /* secondaire sur clair */
+  --clz-on-dark: #f4f7fb; /* sur sombre */
+  --clz-on-dark-muted: rgba(244, 247, 251, 0.66);
+
+  /* Filets */
+  --clz-line: rgba(10, 11, 13, 0.1);
+  --clz-line-dark: rgba(255, 255, 255, 0.14);
+
+  /* Accent doré discret (cahier : conserver seulement les dorés existants) */
+  --clz-gold: #cBa15a;
+
+  --clz-radius: 18px;
+
+  background-color: var(--clz-bg);
+  color: var(--clz-fg);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Dégradé sombre premium réutilisable : #000 → #0A84FF (cahier §1). */
+.cleanyzer .clz-dark {
+  background:
+    radial-gradient(120% 120% at 85% 0%, rgba(10, 132, 255, 0.28) 0%, rgba(10, 132, 255, 0) 55%),
+    linear-gradient(160deg, #000000 0%, #04070f 42%, #061a3a 78%, #0a3f86 100%);
+  color: var(--clz-on-dark);
+}
+
+/* Variante "renforcée" pour la section Réalisations (cahier : renforcer le dégradé). */
+.cleanyzer .clz-dark-strong {
+  background:
+    radial-gradient(130% 100% at 100% 100%, rgba(10, 132, 255, 0.5) 0%, rgba(10, 132, 255, 0) 60%),
+    linear-gradient(150deg, #000000 0%, #051027 45%, #0a3f86 88%, #0a84ff 100%);
+  color: var(--clz-on-dark);
+}
+
+/* Titres d'affichage : serif éditoriale élégante. */
+.cleanyzer .clz-display {
+  font-family: var(--font-clz-display), Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.03;
+}
+
+.cleanyzer .clz-h1 {
+  font-size: clamp(2.6rem, 7vw, 5rem);
+}
+.cleanyzer .clz-h2 {
+  font-size: clamp(2rem, 4.8vw, 3.25rem);
+}
+.cleanyzer .clz-h3 {
+  font-size: clamp(1.3rem, 2.6vw, 1.75rem);
+}
+
+/* Body / UI : sans-serif lisible. */
+.cleanyzer {
+  font-family: var(--font-clz-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.cleanyzer .clz-eyebrow {
+  font-family: var(--font-clz-sans), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--clz-blue);
+}
+.cleanyzer .clz-dark .clz-eyebrow,
+.cleanyzer .clz-dark-strong .clz-eyebrow {
+  color: #6fb6ff;
+}
+
+/* Accent doré discret pour un mot mis en valeur. */
+.cleanyzer .clz-gold {
+  color: var(--clz-gold);
+}
+
+/* Filet d'accent au-dessus des titres. */
+.cleanyzer .clz-rule {
+  display: block;
+  width: 2.75rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--clz-blue);
+}
+
+/* Boutons */
+.cleanyzer .clz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.85rem 1.6rem;
+  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-align: center;
+  line-height: 1.1;
+}
+.cleanyzer .clz-btn:active {
+  transform: translateY(1px);
+}
+.cleanyzer .clz-btn-primary {
+  background: var(--clz-blue);
+  color: #ffffff;
+}
+.cleanyzer .clz-btn-primary:hover {
+  background: var(--clz-blue-strong);
+}
+.cleanyzer .clz-btn-ghost {
+  background: transparent;
+  color: var(--clz-fg);
+  border-color: var(--clz-line);
+}
+.cleanyzer .clz-dark .clz-btn-ghost,
+.cleanyzer .clz-dark-strong .clz-btn-ghost {
+  color: var(--clz-on-dark);
+  border-color: var(--clz-line-dark);
+}
+.cleanyzer .clz-btn-ghost:hover {
+  border-color: var(--clz-blue);
+  color: var(--clz-blue);
+}
+.cleanyzer .clz-dark .clz-btn-ghost:hover,
+.cleanyzer .clz-dark-strong .clz-btn-ghost:hover {
+  border-color: #6fb6ff;
+  color: #ffffff;
+}
+
+/* Carte générique */
+.cleanyzer .clz-card {
+  background: var(--clz-surface);
+  border: 1px solid var(--clz-line);
+  border-radius: var(--clz-radius);
+}
+
+/* Puce check de marque (pas d'emoji). */
+.cleanyzer .clz-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: var(--clz-blue-soft);
+  color: var(--clz-blue);
+  flex: none;
+}
+
+/* Filigrane logo TRÈS subtil pour certaines sections sombres (cahier §3 / brief). */
+.cleanyzer .clz-watermark {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.05;
+  filter: grayscale(1) brightness(2);
+  z-index: 0;
+}
+
+/* Badge formule (Populaire / Best seller). */
+.cleanyzer .clz-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+}
+.cleanyzer .clz-badge-blue {
+  background: var(--clz-blue);
+  color: #fff;
+}
+.cleanyzer .clz-badge-gold {
+  background: var(--clz-gold);
+  color: #1a1406;
+}
+
+/* Défilement fluide + décalage d'ancre, scopés CLEANYZER. */
+:root:has(.cleanyzer) {
+  scroll-behavior: smooth;
+}
+.cleanyzer section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+/* Skin de formulaire clair premium pour sous-composants partagés réutilisés. */
+.cleanyzer .clz-form-skin {
+  --background: var(--clz-surface);
+  --foreground: var(--clz-fg);
+  --card: var(--clz-surface);
+  --card-foreground: var(--clz-fg);
+  --primary: var(--clz-blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--clz-surface-2);
+  --secondary-foreground: var(--clz-fg);
+  --muted: var(--clz-surface-2);
+  --muted-foreground: var(--clz-muted);
+  --accent: var(--clz-blue-soft);
+  --accent-foreground: var(--clz-blue-strong);
+  --border: var(--clz-line);
+  --input: var(--clz-line);
+  --ring: var(--clz-blue);
+}
+
+/* Comparateur avant/après partagé : accent bleu CLEANYZER. */
+.cleanyzer .clz-compare {
+  --primary: var(--clz-blue);
+  --primary-foreground: #ffffff;
+  --border: var(--clz-line-dark);
+  --background: #0a0b0d;
+  --foreground: #f4f7fb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cleanyzer *,
+  :root:has(.cleanyzer) {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
