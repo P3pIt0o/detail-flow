@@ -15,13 +15,12 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, Star, Volume2, VolumeX } from "lucide-react"
+import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
 import { CLZ_PREVIEW_BASE } from "./tokens"
 
 const POSTER = "/custom-sites/cleanyzer/hero-poster.png"
 const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
-const LOGO = "/custom-sites/cleanyzer/logo.png"
 
 const GOOGLE_RATING = 5
 const GOOGLE_REVIEWS = 78
@@ -92,35 +91,32 @@ export function CleanyzerHero() {
         <div className="absolute inset-0 bg-gradient-to-tr from-black/70 via-transparent to-[rgba(10,132,255,0.28)]" />
       </div>
 
-      {/* Filigrane logo très subtil */}
-      <Image
-        src={LOGO || "/placeholder.svg"}
-        alt=""
-        aria-hidden
-        width={820}
-        height={190}
-        className="clz-watermark -right-16 top-24 w-[min(80%,640px)]"
-      />
+      {/* Le logo n'apparaît QUE dans le header (brief §2) : aucun filigrane,
+          aucun watermark, aucun logo superposé à la vidéo du hero. */}
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-6xl flex-col justify-center px-4 py-24 md:px-6">
         <span className="clz-eyebrow">
           {BRAND.name} — {BRAND.area}
         </span>
         <h1 className="clz-display clz-h1 mt-5 max-w-3xl text-balance text-white">
-          Le détail fait toute <span className="clz-gold">la différence.</span>
+          Le détail fait toute <span className="clz-accent">la différence.</span>
         </h1>
-        <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-[var(--clz-on-dark-muted)]">
-          {BRAND.subtitle} Pour votre véhicule ou votre mobilier, un rendu premium
-          sans quitter votre domicile.
+        <p className="mt-6 max-w-md text-pretty text-lg leading-relaxed text-[var(--clz-on-dark-muted)]">
+          Nettoyage automobile à domicile.
+          <br className="hidden sm:block" /> Intérieur, extérieur &amp; detailing.
         </p>
 
-        <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-9 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
           <Link href={`${CLZ_PREVIEW_BASE}#prestations`} className="clz-btn clz-btn-primary !px-7 !py-4 !text-base">
             Découvrir nos prestations
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href={`${CLZ_PREVIEW_BASE}/demande`} className="clz-btn clz-btn-ghost !px-7 !py-4 !text-base">
+          <Link
+            href={`${CLZ_PREVIEW_BASE}/demande`}
+            className="group inline-flex items-center gap-1.5 text-base font-medium text-white/85 transition hover:text-white"
+          >
             Demander un devis
+            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </Link>
         </div>
 
