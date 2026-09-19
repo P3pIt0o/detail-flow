@@ -230,7 +230,10 @@ export const BRAND = {
   area: "Annecy & alentours",
   tagline: "Le détail fait toute la différence.",
   subtitle: "Nettoyage automobile et textile à domicile.",
-  ownerFirstName: "Tom", // cahier : afficher « Tom » uniquement, pas de nom de famille
+  ownerFirstName: "Tom",
+  // Maquettes V2 + prompt §9 : afficher le nom complet « Tom Fermigier »
+  // (remplace la consigne précédente « Tom seul »).
+  ownerFullName: "Tom Fermigier",
   phone: null as string | null, // absent du cahier → à confirmer
   email: null as string | null, // absent du cahier → à confirmer
   // Preuve sociale Google : 5/5 — 78 avis. Valeurs FOURNIES par le client,
