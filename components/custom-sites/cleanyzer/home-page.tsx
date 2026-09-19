@@ -12,6 +12,7 @@ import {
   PrestationsPreview,
   RealisationsPreview,
   ServiceADomicile,
+  AProposSection,
   ZoneSection,
   AvisSection,
   FaqSection,
@@ -34,6 +35,7 @@ export function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
       <PrestationsPreview />
       <RealisationsPreview />
       <ServiceADomicile />
+      <AProposSection />
       <ZoneSection />
       <AvisSection />
       <FaqSection />

@@ -5,9 +5,10 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck } from "lucide-react"
+import { ArrowRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck, Star, UserRound, BadgeCheck } from "lucide-react"
 import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
+import { CleanyzerZoneMap } from "./zone-map"
 import { BRAND, TRAVEL, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
 import { CLZ_PREVIEW_BASE } from "./tokens"
 
@@ -234,17 +235,61 @@ export function ZoneSection() {
             </li>
           </ul>
           <p className="mt-6 text-sm text-[var(--clz-muted)]">
-            Communes précises couvertes : à confirmer avec Tom (aucune commune inventée).
+            La zone est définie par un rayon autour d'Annecy, pas par une liste de communes.
+            Le montant exact du déplacement est calculé et affiché avant validation.
           </p>
         </div>
         <div className="clz-card relative overflow-hidden">
-          <Image
-            src="/custom-sites/cleanyzer/service-exterieur.png"
-            alt="Intervention CLEANYZER à domicile"
-            width={800}
-            height={800}
-            className="h-full w-full object-cover"
+          <CleanyzerZoneMap />
+          <div className="pointer-events-none absolute bottom-3 left-3 z-[500] inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
+            <MapPin className="h-3.5 w-3.5" />
+            Zone incluse : {TRAVEL.includedKmOneWay} km autour d'Annecy
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* Portrait de Tom : placeholder propre aux bonnes dimensions (photo réelle à
+   venir), section visible dès maintenant pour figer la mise en page (brief §4). */
+export function AProposSection() {
+  return (
+    <section id="apropos" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+      <div className="grid items-center gap-12 md:grid-cols-[minmax(0,320px)_1fr] md:gap-16">
+        <div className="mx-auto w-full max-w-[320px]">
+          {/* Emplacement portrait — ratio 4/5. Remplacer par la vraie photo de
+              Tom sans toucher à la mise en page (mêmes dimensions). */}
+          <div className="clz-portrait relative aspect-[4/5] w-full overflow-hidden">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+              <span className="clz-check h-14 w-14">
+                <UserRound className="h-6 w-6" />
+              </span>
+              <span className="px-6 text-sm text-[var(--clz-muted)]">
+                Photo de {BRAND.ownerFirstName} à venir
+              </span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <SectionHead
+            eyebrow="À propos"
+            title={<>{BRAND.name}, par {BRAND.ownerFirstName}</>}
+            intro="Un service de nettoyage automobile et textile pensé pour le détail, avec un rendu premium directement à votre domicile."
           />
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+            {[
+              { icon: BadgeCheck, text: "Prestations soignées, du lavage Éco au détail Excellence." },
+              { icon: Home, text: "Intervention à domicile, sans déplacer votre véhicule." },
+              { icon: Sparkles, text: "Matériel et produits professionnels." },
+              { icon: ShieldCheck, text: "Prix transparents affichés avant validation." },
+            ].map((p, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="clz-check mt-0.5"><p.icon className="h-3.5 w-3.5" /></span>
+                <span className="text-sm leading-relaxed text-[var(--clz-fg)]">{p.text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>
@@ -252,17 +297,45 @@ export function ZoneSection() {
 }
 
 export function AvisSection() {
+  const rating = BRAND.googleRating
+  const count = BRAND.googleReviewCount
   return (
-    <section className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
-      <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
-      <p className="mx-auto mt-6 max-w-xl text-pretty leading-relaxed text-[var(--clz-muted)]">
-        Les avis Google réels de CLEANYZER (note et nombre) seront affichés ici une fois
-        confirmés. Conformément à la règle du cahier, aucune note ni aucun avis n'est inventé.
-      </p>
-      <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-[var(--clz-line)] px-4 py-2 text-sm text-[var(--clz-muted)]">
-        Preuve sociale à connecter — source de vérité DetailFlow / Google
+    <section className="bg-[var(--clz-surface-2)]">
+      <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
+        <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
+        {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
+        <div className="mx-auto mt-10 inline-flex flex-col items-center gap-4 rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-8 py-7 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
+            <GoogleGlyph className="h-5 w-5" />
+            Avis Google
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">{rating}</span>
+            <span className="text-lg text-[var(--clz-muted)]">/ 5</span>
+          </div>
+          <div className="flex" aria-hidden>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} className="h-5 w-5 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />
+            ))}
+          </div>
+          <p className="text-sm text-[var(--clz-muted)]">
+            Basé sur <strong className="text-[var(--clz-fg)]">{count} avis</strong> Google
+          </p>
+        </div>
       </div>
     </section>
+  )
+}
+
+/* Logo Google multicolore — SVG officiel simple (marque, non décoratif). */
+function GoogleGlyph({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 48 48" aria-hidden focusable="false">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
   )
 }
 

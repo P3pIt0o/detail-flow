@@ -191,6 +191,28 @@
   z-index: 0;
 }
 
+/* Emplacement portrait (À propos / Tom) — dimensions figées, photo à venir. */
+.cleanyzer .clz-portrait {
+  border: 1px solid var(--clz-line);
+  border-radius: var(--clz-radius);
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--clz-blue-soft), transparent 60%),
+    var(--clz-surface-2);
+}
+
+/* Carte de zone (Leaflet) — coins arrondis cohérents avec les cartes. */
+.cleanyzer .clz-zone-map {
+  border-radius: var(--clz-radius);
+  overflow: hidden;
+  background: var(--clz-surface-2);
+}
+.cleanyzer .clz-zone-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: inherit;
+  background: var(--clz-surface-2);
+}
+
 /* Badge formule (Populaire / Best seller). */
 .cleanyzer .clz-badge {
   display: inline-flex;

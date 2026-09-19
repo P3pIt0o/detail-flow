@@ -7,7 +7,7 @@
  * AUTOMOBILE → réservation guidée · TEXTILE → demande personnalisée.
  */
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Fraunces, Inter } from "next/font/google"
@@ -47,20 +47,67 @@ export function CleanyzerShell({
   active?: string
 }) {
   const [open, setOpen] = useState(false)
+  // Header intelligent : masqué au scroll descendant, réaffiché au scroll montant
+  // (cahier §2). Transform uniquement → aucun reflow ni CLS.
+  const [hidden, setHidden] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const lastYRef = useRef(0)
+
+  useEffect(() => {
+    lastYRef.current = window.scrollY
+    let ticking = false
+    const update = () => {
+      const y = window.scrollY
+      const last = lastYRef.current
+      const delta = y - last
+      setScrolled(y > 8)
+      // Ne jamais masquer près du sommet ni quand le menu mobile est ouvert.
+      if (y < 80 || open) {
+        setHidden(false)
+      } else if (delta > 6) {
+        setHidden(true) // descente
+      } else if (delta < -6) {
+        setHidden(false) // montée
+      }
+      lastYRef.current = y
+      ticking = false
+    }
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(update)
+        ticking = true
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [open])
+
   const reserverHref = `${CLZ_PREVIEW_BASE}/reservation`
   const devisHref = `${CLZ_PREVIEW_BASE}/demande`
 
   return (
     <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
-      {/* En-tête */}
-      <header className="sticky top-0 z-50 border-b border-[var(--clz-line)] bg-white/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:h-20 md:px-6">
-          <Link
-            href={CLZ_PREVIEW_BASE}
-            className="clz-display text-xl font-semibold tracking-tight text-[var(--clz-fg)] md:text-2xl"
-            aria-label={`${BRAND.name} — accueil`}
-          >
-            CLEAN<span className="text-[var(--clz-blue)]">Y</span>ZER
+      {/* En-tête premium compact — masquage/réapparition fluide au scroll. */}
+      <header
+        className={`sticky top-0 z-50 will-change-transform transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out ${
+          hidden ? "-translate-y-full" : "translate-y-0"
+        } ${
+          scrolled
+            ? "border-b border-[var(--clz-line)] bg-white/80 shadow-sm backdrop-blur-md"
+            : "border-b border-transparent bg-white/50 backdrop-blur-sm"
+        }`}
+      >
+        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-4 px-4 md:h-16 md:px-6">
+          <Link href={CLZ_PREVIEW_BASE} className="flex items-center" aria-label={`${BRAND.name} — accueil`}>
+            <Image
+              src={LOGO || "/placeholder.svg"}
+              alt={BRAND.name}
+              width={200}
+              height={200}
+              priority
+              className="h-8 w-8 rounded-full md:h-11 md:w-11"
+            />
+            <span className="sr-only">{BRAND.name}</span>
           </Link>
 
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Navigation principale">

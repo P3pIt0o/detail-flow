@@ -1,39 +1,93 @@
 "use client"
 
 /**
- * HERO CLEANYZER (maquette Phase 1).
- * Architecture vidéo prête (cahier §4) : la vidéo finale sera fournie plus tard.
- * Ici, placeholder réaliste = poster optimisé + overlay sombre + contenu. Le
- * balisage <video> conserve autoplay/muted/loop/playsInline/poster + fallback
- * image ; `prefers-reduced-motion` neutralise l'autoplay.
+ * HERO CLEANYZER.
+ * Cahier §4/§6 : vidéo (avec son) en fond de hero, à la place de la photo.
+ * - <video> autoplay/muted/loop/playsInline + poster (fallback image intégré).
+ * - Le son démarre coupé (contrainte navigateur autoplay) avec un bouton
+ *   son on/off explicite et accessible.
+ * - `prefers-reduced-motion` : on neutralise l'autoplay et on affiche le poster.
  *
- * Preuve sociale Google : note et nombre d'avis NON fournis dans le cahier →
- * jamais hardcodés (brief §4). On affiche un état "à confirmer" honnête.
+ * Preuve sociale Google : 5/5 — 78 avis (valeurs fournies par le client,
+ * conformes aux visuels de référence). Ne pas modifier sans instruction.
  */
 
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, Star } from "lucide-react"
+import { ArrowRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
 import { CLZ_PREVIEW_BASE } from "./tokens"
 
 const POSTER = "/custom-sites/cleanyzer/hero-poster.png"
+const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
 const LOGO = "/custom-sites/cleanyzer/logo.png"
 
+const GOOGLE_RATING = 5
+const GOOGLE_REVIEWS = 78
+
 export function CleanyzerHero() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [muted, setMuted] = useState(true)
+  const [reduceMotion, setReduceMotion] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const apply = () => setReduceMotion(mq.matches)
+    apply()
+    mq.addEventListener("change", apply)
+    return () => mq.removeEventListener("change", apply)
+  }, [])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    if (reduceMotion) {
+      v.pause()
+    } else {
+      v.play().catch(() => {})
+    }
+  }, [reduceMotion])
+
+  function toggleSound() {
+    const v = videoRef.current
+    if (!v) return
+    const next = !muted
+    v.muted = next
+    setMuted(next)
+    if (!next) v.play().catch(() => {})
+  }
+
   return (
     <section className="clz-dark relative isolate overflow-hidden">
-      {/* Placeholder vidéo : poster plein cadre. Le <video> final réutilisera ce poster. */}
+      {/* Fond vidéo plein cadre. Le poster sert de fallback pendant le chargement
+          et lorsque le mouvement réduit est demandé. */}
       <div className="absolute inset-0 -z-10">
-        <Image
-          src={POSTER || "/placeholder.svg"}
-          alt="Détaillage automobile CLEANYZER à domicile près d'Annecy"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
-        {/* Overlay sombre suffisant pour la lisibilité (cahier §4). */}
+        {reduceMotion ? (
+          <Image
+            src={POSTER || "/placeholder.svg"}
+            alt="Détaillage automobile CLEANYZER à domicile près d'Annecy"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            className="h-full w-full object-cover"
+            poster={POSTER}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-label="Détaillage automobile CLEANYZER à domicile près d'Annecy"
+          >
+            <source src={VIDEO} type="video/mp4" />
+          </video>
+        )}
+        {/* Overlays de lisibilité (cahier §4). */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/55 to-black/85" />
         <div className="absolute inset-0 bg-gradient-to-tr from-black/70 via-transparent to-[rgba(10,132,255,0.28)]" />
       </div>
@@ -70,7 +124,7 @@ export function CleanyzerHero() {
           </Link>
         </div>
 
-        {/* Preuve sociale : structure prête, valeurs à confirmer (jamais inventées). */}
+        {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
         <div className="mt-12 flex items-center gap-3">
           <div className="flex" aria-hidden>
             {Array.from({ length: 5 }).map((_, i) => (
@@ -78,15 +132,27 @@ export function CleanyzerHero() {
             ))}
           </div>
           <p className="text-sm text-[var(--clz-on-dark-muted)]">
-            Avis Google vérifiés — <span className="text-white/80">note et nombre à confirmer</span>
+            <span className="font-semibold text-white">
+              {GOOGLE_RATING}/5
+            </span>{" "}
+            — {GOOGLE_REVIEWS} avis Google
           </p>
         </div>
       </div>
 
-      {/* Chip placeholder vidéo, discret */}
-      <span className="absolute bottom-4 right-4 z-10 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-[11px] font-medium text-white/70 backdrop-blur">
-        Emplacement vidéo — poster de démonstration
-      </span>
+      {/* Bouton son on/off (la vidéo démarre coupée par contrainte navigateur). */}
+      {!reduceMotion && (
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-pressed={!muted}
+          aria-label={muted ? "Activer le son de la vidéo" : "Couper le son de la vidéo"}
+          className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/45 px-3.5 py-2 text-xs font-medium text-white/85 backdrop-blur transition hover:bg-black/65"
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {muted ? "Son coupé" : "Son activé"}
+        </button>
+      )}
     </section>
   )
 }
