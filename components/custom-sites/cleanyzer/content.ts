@@ -207,6 +207,10 @@ export const TRAVEL = {
   daysLabel: "Lundi au dimanche",
   hoursLabel: "7 h 30 à 20 h 30",
   base: "Annecy et alentours",
+  // Point de référence carte = Annecy (cahier §9). La zone incluse est un RAYON
+  // de 20 km autour d'Annecy, PAS une liste de communes (règle Tom). Ces
+  // coordonnées ne servent qu'à centrer la carte de zone.
+  annecy: { lat: 45.8992, lng: 6.1294 },
 } as const
 
 /**
@@ -229,9 +233,10 @@ export const BRAND = {
   ownerFirstName: "Tom", // cahier : afficher « Tom » uniquement, pas de nom de famille
   phone: null as string | null, // absent du cahier → à confirmer
   email: null as string | null, // absent du cahier → à confirmer
-  // Preuve sociale Google : note + nombre d'avis NON fournis → ne jamais hardcoder (brief §4)
-  googleRating: null as number | null,
-  googleReviewCount: null as number | null,
+  // Preuve sociale Google : 5/5 — 78 avis. Valeurs FOURNIES par le client,
+  // conformes aux visuels de référence. Ne pas modifier sans instruction.
+  googleRating: 5 as number | null,
+  googleReviewCount: 78 as number | null,
 }
 
 export const NAV_LABELS = {
