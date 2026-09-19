@@ -40,11 +40,20 @@ export function CleanyzerShell({
   children,
   navItems,
   active,
+  immersive = false,
 }: {
   children: ReactNode
   navItems: ClzNavItem[]
   /** libellé de la page courante (pour surbrillance éventuelle) */
   active?: string
+  /**
+   * En-tête SUPERPOSÉ à un hero vidéo (accueil uniquement) : transparent en
+   * haut sur la vidéo, puis fond bleu nuit translucide + flou au défilement.
+   * Reprend le comportement de la navbar Spirit ACS (référence technique) sans
+   * la modifier. `false` (défaut) = en-tête clair classique des sous-pages —
+   * aucune régression possible sur les autres pages ni sur Spirit ACS.
+   */
+  immersive?: boolean
 }) {
   const [open, setOpen] = useState(false)
   // Header intelligent : masqué au scroll descendant, réaffiché au scroll montant
@@ -85,19 +94,34 @@ export function CleanyzerShell({
   const reserverHref = `${CLZ_PREVIEW_BASE}/reservation`
   const devisHref = `${CLZ_PREVIEW_BASE}/demande`
 
+  // Surface opaque dès qu'on quitte le sommet OU que le menu mobile est ouvert.
+  const solidSurface = scrolled || open
+  // Apparence de l'en-tête : variante immersive (sur vidéo) vs claire (sous-pages).
+  const headerSurface = immersive
+    ? solidSurface
+      ? "border-b border-[var(--clz-line-dark)] bg-[var(--clz-ink)]/85 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur-md"
+      : "border-b border-transparent bg-transparent"
+    : solidSurface
+      ? "border-b border-[var(--clz-line)] bg-white/80 shadow-sm backdrop-blur-md"
+      : "border-b border-transparent bg-white/50 backdrop-blur-sm"
+
   return (
     <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
       {/* En-tête premium compact — masquage/réapparition fluide au scroll. */}
       <header
-        className={`sticky top-0 z-50 will-change-transform transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out ${
+        className={`${immersive ? "fixed" : "sticky"} inset-x-0 top-0 z-50 will-change-transform transition-[transform,background-color,border-color,box-shadow] duration-300 ease-out ${
           hidden ? "-translate-y-full" : "translate-y-0"
-        } ${
-          scrolled
-            ? "border-b border-[var(--clz-line)] bg-white/80 shadow-sm backdrop-blur-md"
-            : "border-b border-transparent bg-white/50 backdrop-blur-sm"
-        }`}
+        } ${headerSurface}`}
       >
-        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-4 px-4 md:h-16 md:px-6">
+        {/* Voile sombre discret en haut (mode immersif, non défilé) : garantit la
+            lisibilité du logo et du menu sur la vidéo, sans assombrir le hero. */}
+        {immersive && !solidSurface && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent"
+          />
+        )}
+        <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:h-20 md:px-6">
           <Link href={CLZ_PREVIEW_BASE} className="flex items-center" aria-label={`${BRAND.name} — accueil`}>
             <Image
               src={LOGO || "/placeholder.svg"}
@@ -105,7 +129,7 @@ export function CleanyzerShell({
               width={200}
               height={200}
               priority
-              className="h-8 w-8 rounded-full md:h-11 md:w-11"
+              className="h-11 w-11 rounded-full md:h-14 md:w-14"
             />
             <span className="sr-only">{BRAND.name}</span>
           </Link>
@@ -118,8 +142,14 @@ export function CleanyzerShell({
                 <Link
                   key={item.id}
                   href={href}
-                  className={`text-sm font-medium transition-colors hover:text-[var(--clz-blue)] ${
-                    isActive ? "text-[var(--clz-blue)]" : "text-[var(--clz-fg)]"
+                  className={`text-sm font-medium transition-colors ${
+                    immersive
+                      ? isActive
+                        ? "text-white"
+                        : "text-white/80 hover:text-white"
+                      : isActive
+                        ? "text-[var(--clz-blue)]"
+                        : "text-[var(--clz-fg)] hover:text-[var(--clz-blue)]"
                   }`}
                 >
                   {item.label}
@@ -129,7 +159,12 @@ export function CleanyzerShell({
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex">
-            <Link href={devisHref} className="clz-btn clz-btn-ghost !px-4 !py-2 !text-sm">
+            <Link
+              href={devisHref}
+              className={`clz-btn clz-btn-ghost !px-4 !py-2 !text-sm ${
+                immersive ? "!border-white/30 !text-white hover:!border-white hover:!text-white" : ""
+              }`}
+            >
               Demande personnalisée
             </Link>
             <Link href={reserverHref} className="clz-btn clz-btn-primary !px-4 !py-2 !text-sm">
@@ -140,7 +175,11 @@ export function CleanyzerShell({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--clz-line)] text-[var(--clz-fg)] lg:hidden"
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors lg:hidden ${
+              immersive
+                ? "border border-white/25 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
+                : "border border-[var(--clz-line)] text-[var(--clz-fg)]"
+            }`}
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
             aria-expanded={open}
           >
@@ -150,7 +189,11 @@ export function CleanyzerShell({
 
         {/* Menu mobile */}
         {open && (
-          <div className="border-t border-[var(--clz-line)] bg-white lg:hidden">
+          <div
+            className={`relative lg:hidden ${
+              immersive ? "border-t border-white/10 bg-[var(--clz-ink)]" : "border-t border-[var(--clz-line)] bg-white"
+            }`}
+          >
             <nav className="mx-auto flex max-w-6xl flex-col px-4 py-3" aria-label="Navigation mobile">
               {navItems.map((item) => {
                 const href = item.href ?? `${CLZ_PREVIEW_BASE}#${item.id}`
@@ -159,14 +202,20 @@ export function CleanyzerShell({
                     key={item.id}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className="border-b border-[var(--clz-line)] py-3 text-base font-medium text-[var(--clz-fg)] last:border-0"
+                    className={`py-3 text-base font-medium last:border-0 ${
+                      immersive ? "border-b border-white/10 text-white" : "border-b border-[var(--clz-line)] text-[var(--clz-fg)]"
+                    }`}
                   >
                     {item.label}
                   </Link>
                 )
               })}
               <div className="mt-3 flex flex-col gap-2">
-                <Link href={devisHref} onClick={() => setOpen(false)} className="clz-btn clz-btn-ghost">
+                <Link
+                  href={devisHref}
+                  onClick={() => setOpen(false)}
+                  className={`clz-btn clz-btn-ghost ${immersive ? "!border-white/30 !text-white" : ""}`}
+                >
                   Demande personnalisée
                 </Link>
                 <Link href={reserverHref} onClick={() => setOpen(false)} className="clz-btn clz-btn-primary">

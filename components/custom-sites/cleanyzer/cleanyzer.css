@@ -84,6 +84,14 @@
   font-size: clamp(1.3rem, 2.6vw, 1.75rem);
 }
 
+/* Titre du hero : composition imposée sur 3 lignes (maquette). La taille est
+   volontairement calée pour que la plus longue ligne (« la différence. »)
+   tienne toujours dans le viewport mobile, marges latérales comprises. */
+.cleanyzer .clz-hero-title {
+  font-size: clamp(2.25rem, 9vw, 4.75rem);
+  line-height: 1.02;
+}
+
 /* Body / UI : sans-serif lisible. */
 .cleanyzer {
   font-family: var(--font-clz-sans), ui-sans-serif, system-ui, sans-serif;
