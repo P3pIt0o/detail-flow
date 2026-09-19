@@ -5,7 +5,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck, Star, UserRound, BadgeCheck } from "lucide-react"
+import { ArrowRight, ArrowUpRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck, Star, UserRound, BadgeCheck } from "lucide-react"
 import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
 import { CleanyzerZoneMap } from "./zone-map"
@@ -148,8 +148,8 @@ export function RealisationsPreview() {
       <div className="relative mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead
           dark
-          eyebrow="Réalisations"
-          title="Les résultats parlent d'eux-mêmes"
+          eyebrow="Le soin en images"
+          title={<>Une différence <span className="clz-accent">qui se voit.</span></>}
           intro="Glissez le curseur pour comparer l'avant et l'après d'une intervention CLEANYZER."
         />
         <div className="mt-12 grid items-center gap-10 lg:grid-cols-2">
@@ -187,7 +187,11 @@ export function ServiceADomicile() {
   ]
   return (
     <section className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-      <SectionHead eyebrow="Service à domicile" title="Le premium vient à vous" center />
+      <SectionHead
+        eyebrow="Le service à domicile"
+        title={<>Votre nettoyage à domicile, <span className="clz-accent">à Annecy.</span></>}
+        center
+      />
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {points.map((p) => (
           <div key={p.title} className="clz-card p-6">
@@ -210,9 +214,9 @@ export function ZoneSection() {
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 md:grid-cols-2 md:px-6 md:py-28">
         <div>
           <SectionHead
-            eyebrow="Zone d'intervention"
-            title="Annecy et alentours"
-            intro="CLEANYZER intervient autour d'Annecy. Les frais de déplacement sont calculés simplement et affichés avant validation."
+            eyebrow="Notre zone d'intervention"
+            title={<>À Annecy, <span className="clz-accent">et autour de vous.</span></>}
+            intro="Nettoyage automobile et textile à domicile. Vérifiez votre zone d'intervention avant de poursuivre : les frais de déplacement sont calculés simplement et affichés avant validation."
           />
           <ul className="mt-8 space-y-4">
             <li className="flex gap-3">
@@ -251,13 +255,13 @@ export function ZoneSection() {
   )
 }
 
-/* Portrait de Tom : placeholder propre aux bonnes dimensions (photo réelle à
-   venir), section visible dès maintenant pour figer la mise en page (brief §4). */
+/* Section « Derrière CLEANYZER » (brief §9). Portrait réel de Tom à venir :
+   emplacement propre aux bonnes dimensions, aucun portrait IA. */
 export function AProposSection() {
   return (
     <section id="apropos" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-      <div className="grid items-center gap-12 md:grid-cols-[minmax(0,320px)_1fr] md:gap-16">
-        <div className="mx-auto w-full max-w-[320px]">
+      <div className="grid items-center gap-12 md:grid-cols-[minmax(0,340px)_1fr] md:gap-16">
+        <div className="mx-auto w-full max-w-[340px]">
           {/* Emplacement portrait — ratio 4/5. Remplacer par la vraie photo de
               Tom sans toucher à la mise en page (mêmes dimensions). */}
           <div className="clz-portrait relative aspect-[4/5] w-full overflow-hidden">
@@ -266,30 +270,59 @@ export function AProposSection() {
                 <UserRound className="h-6 w-6" />
               </span>
               <span className="px-6 text-sm text-[var(--clz-muted)]">
-                Photo de {BRAND.ownerFirstName} à venir
+                Portrait de {BRAND.ownerFullName} à venir
               </span>
             </div>
           </div>
         </div>
         <div>
           <SectionHead
-            eyebrow="À propos"
-            title={<>{BRAND.name}, par {BRAND.ownerFirstName}</>}
-            intro="Un service de nettoyage automobile et textile pensé pour le détail, avec un rendu premium directement à votre domicile."
+            eyebrow="Derrière CLEANYZER"
+            title={
+              <>
+                {BRAND.ownerFullName}, detailer professionnel{" "}
+                <span className="clz-accent">à Annecy.</span>
+              </>
+            }
+            intro="Un professionnel à votre écoute, pour votre véhicule comme pour vos textiles."
           />
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+
+          <p className="clz-eyebrow mt-10">{BRAND.ownerFullName} — {BRAND.name}</p>
+          <p className="clz-display clz-h3 mt-2 text-[var(--clz-fg)]">
+            Le souci <span className="clz-accent">du détail.</span>
+          </p>
+          <div className="mt-5 space-y-4 text-pretty leading-relaxed text-[var(--clz-muted)]">
+            <p>
+              À Annecy et aux alentours, {BRAND.ownerFullName} vous accompagne dans
+              votre projet de nettoyage automobile ou textile à domicile.
+            </p>
+            <p>
+              Votre véhicule, votre canapé, vos tapis ou vos moquettes : échangez
+              avec {BRAND.ownerFirstName} pour définir la prestation adaptée à
+              votre besoin.
+            </p>
+          </div>
+
+          <ul className="mt-8 grid gap-4 sm:grid-cols-3">
             {[
-              { icon: BadgeCheck, text: "Prestations soignées, du lavage Éco au détail Excellence." },
-              { icon: Home, text: "Intervention à domicile, sans déplacer votre véhicule." },
-              { icon: Sparkles, text: "Matériel et produits professionnels." },
-              { icon: ShieldCheck, text: "Prix transparents affichés avant validation." },
+              { icon: BadgeCheck, text: "Un échange direct" },
+              { icon: Sparkles, text: "Une prestation adaptée" },
+              { icon: ShieldCheck, text: "Le soin des finitions" },
             ].map((p, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="clz-check mt-0.5"><p.icon className="h-3.5 w-3.5" /></span>
-                <span className="text-sm leading-relaxed text-[var(--clz-fg)]">{p.text}</span>
+              <li key={i} className="flex items-center gap-3">
+                <span className="clz-check"><p.icon className="h-3.5 w-3.5" /></span>
+                <span className="text-sm font-medium leading-snug text-[var(--clz-fg)]">{p.text}</span>
               </li>
             ))}
           </ul>
+
+          <Link
+            href={`${CLZ_PREVIEW_BASE}/demande`}
+            className="mt-9 inline-flex items-center gap-1.5 text-base font-medium text-[var(--clz-blue)] transition hover:opacity-80"
+          >
+            Parler de mon projet
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </section>
@@ -355,7 +388,6 @@ export function FaqSection() {
 export function FinalCta() {
   return (
     <section className="clz-dark relative overflow-hidden">
-      <Image src="/custom-sites/cleanyzer/logo.png" alt="" aria-hidden width={800} height={190} className="clz-watermark -left-16 -bottom-10 w-[min(70%,560px)]" />
       <div className="relative mx-auto max-w-4xl px-4 py-24 text-center md:px-6">
         <h2 className="clz-display clz-h2 text-balance text-white">
           Réservez votre nettoyage pro en 2 minutes
