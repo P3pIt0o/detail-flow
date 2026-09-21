@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { ExternalLink } from "lucide-react"
 import { StarRating } from "@/components/ui/star-rating"
-import type { GooglePlaceDetails } from "@/lib/reviews/google-places"
+import { selectFrenchReviewText, type GooglePlaceDetails } from "@/lib/reviews/google-places"
 
 /**
  * API d'apparence du module d'avis — permet aux sites (standard ET 100 %
@@ -102,16 +102,12 @@ export function GoogleReviewsSection({
           <>
             <ul className={`mt-12 grid gap-6 ${COLUMN_CLASSES[columns]}`}>
               {reviews.map((r) => {
-                // Priorité au texte LOCALISÉ (`text.text`, ex. la version
-                // française demandée par le tenant) ; repli sur `originalText`
-                // seulement si aucun texte localisé n'est fourni. On ne réécrit
-                // ni ne traduit rien nous-mêmes : ce sont les données Google.
-                const displayText = r.text ?? r.originalText
-                // « Traduit par Google » UNIQUEMENT quand le texte présenté est
-                // réellement la version localisée (≠ langue d'origine). Si on est
-                // retombé sur le texte d'origine, on n'affiche pas la mention.
-                const wasTranslated =
-                  Boolean(r.text) && Boolean(r.originalText) && r.originalLanguageCode !== r.languageCode
+                // Sélection FRANÇAISE mutualisée : privilégie le texte dont le
+                // languageCode est français (jamais `text ?? originalText` en
+                // aveugle), retombe sur l'original s'il est français, et n'étiquette
+                // « Traduit par Google » que si le texte affiché est réellement une
+                // traduction. Données Google uniquement (aucune traduction maison).
+                const { text: displayText, translatedByGoogle: wasTranslated } = selectFrenchReviewText(r)
                 // Date : on privilégie la description relative fournie par Google
                 // (en français quand le tenant demande languageCode="fr", ex.
                 // « il y a 10 mois ») ; à défaut seulement, on formate publishTime
