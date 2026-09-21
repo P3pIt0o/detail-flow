@@ -243,6 +243,187 @@ export async function provisionCompany(input: ProvisionInput): Promise<Provision
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Provisionnement SELF-SERVICE (inscription publique)                        */
+/* -------------------------------------------------------------------------- */
+
+export type SelfServiceProvisionInput = {
+  /** Utilisateur DÉJÀ créé par Better Auth (email vérifié). */
+  userId: string
+  userName: string
+  userEmail: string
+  /** Nom de l'entreprise saisi par le propriétaire. */
+  companyName: string
+  /** Slug souhaité (sera normalisé + validé). Défaut : dérivé du nom. */
+  slug: string
+}
+
+export type SelfServiceProvisionResult = {
+  companyId: number
+  slug: string
+  companyName: string
+  publicSiteUrl: string
+  adminUrl: string
+  /** Vrai si l'entreprise vient d'être créée ; faux si déjà existante (idempotence). */
+  created: boolean
+}
+
+/** Plan par défaut d'un compte self-service (droits FREE, génération figée). */
+const SELF_SERVICE_DEFAULT_PLAN = "FREE" as const
+const SELF_SERVICE_DEFAULT_GENERATION = "LIFETIME_V1" as const
+
+/**
+ * Renvoie l'entreprise dont l'utilisateur est déjà membre (la plus ancienne),
+ * ou `null`. Sert de garde d'IDEMPOTENCE : un même utilisateur self-service ne
+ * doit jamais provisionner deux entreprises (retry, double-clic, rechargement).
+ */
+async function findExistingCompanyForUser(
+  userId: string,
+): Promise<{ id: number; slug: string; name: string } | null> {
+  const [row] = await db
+    .select({ id: companies.id, slug: companies.slug, name: companies.name })
+    .from(companyMembers)
+    .innerJoin(companies, eq(companies.id, companyMembers.companyId))
+    .where(eq(companyMembers.userId, userId))
+    .orderBy(companies.createdAt)
+    .limit(1)
+  return row ?? null
+}
+
+/** Vrai si l'erreur PostgreSQL correspond à une violation d'unicité (23505). */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505"
+}
+
+/**
+ * Provisionne une entreprise pour un utilisateur qui vient de s'inscrire
+ * lui-même (Better Auth). Contrairement à `provisionCompany` (parcours
+ * super-admin), on NE crée PAS de compte propriétaire ni de mot de passe
+ * temporaire : le compte existe déjà. On se contente de créer l'entreprise,
+ * ses réglages/horaires par défaut, le rattachement OWNER et la licence FREE.
+ *
+ * Propriétés garanties :
+ *  - IDEMPOTENT : si l'utilisateur possède déjà une entreprise, on la renvoie
+ *    sans rien créer (aucun doublon d'entreprise ni de membership).
+ *  - TRANSACTIONNEL : entreprise + réglages + horaires + membership sont écrits
+ *    dans une seule transaction (rollback complet en cas d'erreur).
+ *  - MULTI-TENANT SAFE : unicité du slug contrôlée en amont ET garantie par la
+ *    contrainte DB `companies.slug` (filet anti-course concurrente).
+ */
+export async function provisionCompanyForUser(
+  input: SelfServiceProvisionInput,
+): Promise<SelfServiceProvisionResult> {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const companyName = input.companyName.trim()
+  const ownerEmail = input.userEmail.trim().toLowerCase()
+
+  if (!companyName) {
+    throw new Error("Le nom de l'entreprise est requis.")
+  }
+
+  // 0) IDEMPOTENCE : l'utilisateur a-t-il déjà une entreprise ? Si oui, la
+  //    renvoyer telle quelle (retry / double soumission → aucun doublon).
+  const existing = await findExistingCompanyForUser(input.userId)
+  if (existing) {
+    return {
+      companyId: existing.id,
+      slug: existing.slug,
+      companyName: existing.name,
+      publicSiteUrl: tenantPublicUrl(existing.slug, rootDomain),
+      adminUrl: tenantAdminUrl(existing.slug, rootDomain),
+      created: false,
+    }
+  }
+
+  const slug = normalizeSlug(input.slug || companyName)
+  if (!isValidSlug(slug)) {
+    throw new Error(
+      "Adresse invalide : 3 à 63 caractères (lettres, chiffres et tirets), et non réservée.",
+    )
+  }
+
+  // 1) Unicité applicative du slug (message clair avant la contrainte DB).
+  const [slugTaken] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(eq(companies.slug, slug))
+    .limit(1)
+  if (slugTaken) {
+    throw new Error(`L'adresse « ${slug} » est déjà prise. Choisissez-en une autre.`)
+  }
+
+  const now = new Date()
+
+  // 2) Écriture atomique : entreprise + réglages + horaires + membership OWNER.
+  let companyId: number
+  try {
+    companyId = await db.transaction(async (tx) => {
+      const [company] = await tx
+        .insert(companies)
+        .values({
+          name: companyName,
+          slug,
+          status: "ACTIVE",
+          email: ownerEmail,
+          country: "FR",
+          currency: "EUR",
+          timezone: "Europe/Paris",
+          locale: "fr",
+          // Nouveau compte : la vitrine est en ligne mais la prise de RDV reste
+          // en démonstration tant que le propriétaire n'a pas publié/activé.
+          bookingMode: "DEMO",
+          noindex: true,
+          // Licence par défaut (droits FREE, génération figée à l'attribution).
+          licensePlan: SELF_SERVICE_DEFAULT_PLAN,
+          licenseGeneration: SELF_SERVICE_DEFAULT_GENERATION,
+          licenseAssignedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({ id: companies.id })
+
+      await tx.insert(settingsTable).values({ companyId: company.id, businessName: companyName })
+
+      await tx.insert(businessHours).values(DEFAULT_HOURS.map((h) => ({ companyId: company.id, ...h })))
+
+      await tx
+        .insert(companyMembers)
+        .values({ companyId: company.id, userId: input.userId, role: "OWNER" })
+        .onConflictDoNothing()
+
+      return company.id
+    })
+  } catch (err) {
+    // Course concurrente sur le slug (deux inscriptions simultanées) : la
+    // contrainte DB a tranché. On re-vérifie l'idempotence (au cas où c'est la
+    // MÊME requête rejouée), sinon on renvoie une erreur claire.
+    if (isUniqueViolation(err)) {
+      const retry = await findExistingCompanyForUser(input.userId)
+      if (retry) {
+        return {
+          companyId: retry.id,
+          slug: retry.slug,
+          companyName: retry.name,
+          publicSiteUrl: tenantPublicUrl(retry.slug, rootDomain),
+          adminUrl: tenantAdminUrl(retry.slug, rootDomain),
+          created: false,
+        }
+      }
+      throw new Error(`L'adresse « ${slug} » vient d'être prise. Choisissez-en une autre.`)
+    }
+    throw err
+  }
+
+  return {
+    companyId,
+    slug,
+    companyName,
+    publicSiteUrl: tenantPublicUrl(slug, rootDomain),
+    adminUrl: tenantAdminUrl(slug, rootDomain),
+    created: true,
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Données de démonstration                                                   */
 /* -------------------------------------------------------------------------- */
 
