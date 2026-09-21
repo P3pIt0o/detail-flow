@@ -477,7 +477,7 @@ export const FAMILIES: Family[] = [
     caveat: "Les prestations moto sont ajustées à la moto et au résultat recherché ; le tarif final est confirmé après analyse.",
     options: [
       { id: "cire3", label: "Cire carrosserie (~3 mois)", benefit: "Brillance et protection courte", price: "30 €", priceCents: 3000, kind: "exact" },
-      { id: "cire12", label: "Cire (~1 an)", benefit: "Protection prolongée", price: "45 ���", priceCents: 4500, kind: "exact" },
+      { id: "cire12", label: "Cire (~1 an)", benefit: "Protection prolongée", price: "45 €", priceCents: 4500, kind: "exact" },
       { id: "visiere", label: "Céramique visière de casque (~1 an)", benefit: "Vision facilitée par tous temps", price: "20 €", priceCents: 2000, kind: "exact" },
       { id: "plastique", label: "Rénovation / céramique plastique (~2 ans)", benefit: "Plastiques ravivés et protégés", price: "20 €", priceCents: 2000, kind: "exact" },
     ],
