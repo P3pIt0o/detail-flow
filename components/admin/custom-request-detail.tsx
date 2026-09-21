@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { type ChangeEvent, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AlertCircle, CheckCircle2, CalendarPlus, Send } from "lucide-react"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { withTenant } from "@/lib/tenant-link"
+import { formatDuration } from "@/lib/format"
 
 type RequestVM = {
   id: number
@@ -39,6 +40,34 @@ export function CustomRequestDetail({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // Saisie de la durée en heures/minutes (UX), stockée en minutes (DB inchangée).
+  // La valeur envoyée au serveur reste le champ `proposalDuration` = total minutes.
+  const [durHours, setDurHours] = useState<string>(
+    request.proposalDurationMin != null ? String(Math.floor(request.proposalDurationMin / 60)) : "",
+  )
+  const [durMinutes, setDurMinutes] = useState<string>(
+    request.proposalDurationMin != null ? String(request.proposalDurationMin % 60) : "",
+  )
+
+  const hoursNum = Number.parseInt(durHours, 10)
+  const minutesNum = Number.parseInt(durMinutes, 10)
+  const totalDurationMin =
+    (Number.isFinite(hoursNum) && hoursNum > 0 ? hoursNum : 0) * 60 +
+    (Number.isFinite(minutesNum) && minutesNum > 0 ? minutesNum : 0)
+
+  function onHoursChange(e: ChangeEvent<HTMLInputElement>) {
+    setDurHours(e.target.value.replace(/\D/g, "").slice(0, 2))
+  }
+  function onMinutesChange(e: ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 2)
+    if (digits === "") {
+      setDurMinutes("")
+      return
+    }
+    // Minutes bornées 0–59 (les heures pleines passent par le champ « h »).
+    setDurMinutes(String(Math.min(59, Number.parseInt(digits, 10))))
+  }
 
   const isConverted = request.status === "converted"
   const isAccepted = request.status === "accepted"
@@ -153,14 +182,42 @@ export function CustomRequestDetail({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="proposalDuration">Durée estimée (min)</Label>
-              <Input
-                id="proposalDuration"
+              <Label htmlFor="proposalDurationHours">Durée estimée</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="proposalDurationHours"
+                  inputMode="numeric"
+                  value={durHours}
+                  onChange={onHoursChange}
+                  placeholder="2"
+                  aria-label="Durée estimée — heures"
+                  className="w-16 text-center"
+                />
+                <span className="text-sm text-muted-foreground" aria-hidden="true">
+                  h
+                </span>
+                <Input
+                  id="proposalDurationMinutes"
+                  inputMode="numeric"
+                  value={durMinutes}
+                  onChange={onMinutesChange}
+                  placeholder="30"
+                  aria-label="Durée estimée — minutes"
+                  className="w-16 text-center"
+                />
+                <span className="text-sm text-muted-foreground" aria-hidden="true">
+                  min
+                </span>
+              </div>
+              {/* Valeur réellement envoyée : total en minutes (stockage DB inchangé). */}
+              <input
+                type="hidden"
                 name="proposalDuration"
-                inputMode="numeric"
-                defaultValue={request.proposalDurationMin != null ? String(request.proposalDurationMin) : ""}
-                placeholder="120"
+                value={totalDurationMin > 0 ? String(totalDurationMin) : ""}
               />
+              {totalDurationMin > 0 && (
+                <p className="text-xs text-muted-foreground">Soit {formatDuration(totalDurationMin)}</p>
+              )}
             </div>
           </div>
 
