@@ -257,6 +257,52 @@ export const companyMembers = pgTable(
   }),
 )
 
+/**
+ * Configuration de la PAGE PUBLIQUE paramétrable (LOT 2), une ligne par
+ * entreprise. Normalisée : une colonne requêtable par réglage (pas de JSON
+ * opaque). Complète — sans dupliquer — les champs déjà portés par `companies`
+ * (logoUrl, brand*, hero*, siteContent, socialLinks).
+ *
+ * Résolution applicative (fallback) : cette config → colonnes `companies` →
+ * défauts neutres. Une entreprise sans ligne ici garde son rendu actuel.
+ *
+ * Sites custom (`companies.customSiteKey != null`) : JAMAIS gérés ici (rendu
+ * dédié historique conservé). Migration : scripts/detailflow-v2-lot2-public-page-config.sql
+ */
+export const publicPageConfig = pgTable(
+  "public_page_config",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .unique()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // "classic" | "bold" | "minimal"… (null = variante par défaut de l'app).
+    layoutVariant: text("layoutVariant"),
+    heroImageUrl: text("heroImageUrl"),
+    heroImagePosition: text("heroImagePosition"),
+    heroOverlay: integer("heroOverlay"),
+    accentPrimary: text("accentPrimary"),
+    accentSecondary: text("accentSecondary"),
+    // "light" | "dark" | "auto".
+    theme: text("theme").notNull().default("auto"),
+    showGallery: boolean("showGallery").notNull().default(true),
+    showReviews: boolean("showReviews").notNull().default(true),
+    showAbout: boolean("showAbout").notNull().default(true),
+    interventionZone: text("interventionZone"),
+    depositRuleText: text("depositRuleText"),
+    cancellationPolicy: text("cancellationPolicy"),
+    // Indexation désactivée par défaut (gating SEO strict, cf. Lot 6).
+    seoIndexable: boolean("seoIndexable").notNull().default(false),
+    publishedAt: timestamp("publishedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("public_page_config_companyId_idx").on(t.companyId),
+  }),
+)
+
 /** Prospects du Programme Beta Tester (formulaire de la vitrine racine). */
 export const betaLeads = pgTable("beta_leads", {
   id: serial("id").primaryKey(),
