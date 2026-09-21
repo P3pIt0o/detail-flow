@@ -100,7 +100,7 @@ export type CleaningVehicleKey = "citadine" | "berline" | "sportive" | "suv" | "
 // (ex. citadine « intérieur comme neuf », SUV « intérieur comme neuf »).
 const CLEANING_INTERIOR: Record<CleaningLevel, Record<CleaningVehicleKey, number>> = {
   indispensable: { citadine: 9000, berline: 10000, sportive: 10000, suv: 11000, monospace5: 12000, monospace7: 13000 },
-  "comme-neuf": { citadine: 10000, berline: 12000, sportive: 12000, suv: 13000, monospace5: 15000, monospace7: 16000 },
+  "comme-neuf": { citadine: 11000, berline: 12000, sportive: 12000, suv: 13000, monospace5: 15000, monospace7: 16000 },
 }
 
 const CLEANING_EXTERIOR: Record<CleaningLevel, Record<CleaningVehicleKey, number>> = {
@@ -477,7 +477,7 @@ export const FAMILIES: Family[] = [
     caveat: "Les prestations moto sont ajustées à la moto et au résultat recherché ; le tarif final est confirmé après analyse.",
     options: [
       { id: "cire3", label: "Cire carrosserie (~3 mois)", benefit: "Brillance et protection courte", price: "30 €", priceCents: 3000, kind: "exact" },
-      { id: "cire12", label: "Cire (~1 an)", benefit: "Protection prolongée", price: "45 €", priceCents: 4500, kind: "exact" },
+      { id: "cire12", label: "Cire (~1 an)", benefit: "Protection prolongée", price: "45 ���", priceCents: 4500, kind: "exact" },
       { id: "visiere", label: "Céramique visière de casque (~1 an)", benefit: "Vision facilitée par tous temps", price: "20 €", priceCents: 2000, kind: "exact" },
       { id: "plastique", label: "Rénovation / céramique plastique (~2 ans)", benefit: "Plastiques ravivés et protégés", price: "20 €", priceCents: 2000, kind: "exact" },
     ],
