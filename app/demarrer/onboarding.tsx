@@ -6,12 +6,10 @@ import Link from "next/link"
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarCheck,
   Check,
   Globe,
-  Layout,
   MailCheck,
-  MonitorSmartphone,
-  Sparkles,
 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -23,29 +21,33 @@ import { saveOnboarding, type OnboardingIntent } from "@/lib/onboarding/shared"
 /*  Données du parcours                                                        */
 /* -------------------------------------------------------------------------- */
 
+// Deux parcours, volontairement : « réservation en ligne » (produit standard
+// DetailFlow → booking_only) et « site internet complet » (demande sur mesure
+// → custom_website). On ne propose PLUS « page publique » à l'inscription : une
+// page/URL de réservation unique se partage partout (Instagram, Google, site…).
+// La valeur métier `public_page` reste supportée pour les anciens comptes.
 const INTENTS: {
   id: OnboardingIntent
   icon: React.ComponentType<{ className?: string }>
   title: string
   description: string
+  cta: string
 }[] = [
   {
     id: "booking",
-    icon: MonitorSmartphone,
-    title: "Ajouter la réservation à mon site",
-    description: "J'ai déjà un site et je veux permettre à mes clients de réserver en ligne.",
-  },
-  {
-    id: "page",
-    icon: Layout,
-    title: "Créer ma page professionnelle",
-    description: "Une page simple à partager sur Instagram, Google, WhatsApp ou avec mes clients.",
+    icon: CalendarCheck,
+    title: "Je veux prendre des réservations en ligne",
+    description:
+      "Créez votre page de réservation DetailFlow et partagez-la partout : site internet, Instagram, Google, WhatsApp ou QR code.",
+    cta: "Créer ma réservation",
   },
   {
     id: "website",
     icon: Globe,
-    title: "Créer mon site professionnel",
-    description: "Un site complet pour présenter mon activité et prendre des réservations.",
+    title: "Je veux un site internet complet",
+    description:
+      "Besoin d'un site professionnel avec votre réservation DetailFlow intégrée ? Présentez-nous votre projet.",
+    cta: "Créer mon site",
   },
 ]
 
@@ -229,29 +231,30 @@ export function Onboarding() {
 
         <div className="flex flex-1 flex-col">
           {step === "intent" && (
-            <StepShell title="Que voulez-vous faire avec DetailFlow ?" subtitle="Choisissez ce qui correspond le mieux à votre situation.">
-              <div className="flex flex-col gap-3">
+            <StepShell title="Que souhaitez-vous ?" subtitle="Deux options, choisissez la vôtre.">
+              <div className="flex flex-col gap-4">
                 {INTENTS.map((opt) => {
                   const Icon = opt.icon
-                  const active = intent === opt.id
                   return (
                     <button
                       key={opt.id}
                       type="button"
                       onClick={() => {
                         setIntent(opt.id)
-                        setStep(opt.id === "booking" ? "booking-site" : opt.id === "website" ? "website-domain" : "page-info")
+                        setStep(opt.id === "booking" ? "booking-site" : "website-domain")
                       }}
-                      className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition-all ${
-                        active ? "border-primary bg-primary/[0.06]" : "border-border bg-card hover:border-primary/50"
-                      }`}
+                      className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 text-left transition-all hover:border-primary/60 hover:bg-primary/[0.04]"
                     >
-                      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <Icon className="size-5" />
+                      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Icon className="size-6" />
                       </span>
-                      <span className="flex flex-col gap-1">
-                        <span className="text-base font-semibold text-foreground">{opt.title}</span>
-                        <span className="text-sm leading-relaxed text-muted-foreground">{opt.description}</span>
+                      <span className="flex flex-col gap-1.5">
+                        <span className="text-lg font-semibold text-foreground text-balance">{opt.title}</span>
+                        <span className="text-sm leading-relaxed text-muted-foreground text-pretty">{opt.description}</span>
+                      </span>
+                      <span className="mt-1 inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-primary px-5 text-base font-medium text-primary-foreground transition-colors group-hover:bg-primary/90">
+                        {opt.cta}
+                        <ArrowRight className="size-5" aria-hidden="true" />
                       </span>
                     </button>
                   )
