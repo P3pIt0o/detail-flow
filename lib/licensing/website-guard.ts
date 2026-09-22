@@ -1,6 +1,6 @@
 import "server-only"
 import { notFound } from "next/navigation"
-import { getCurrentTenant } from "@/lib/tenant"
+import { getCurrentTenant, isCurrentTenantPreviewer } from "@/lib/tenant"
 import { hasFeature } from "./server"
 
 /**
@@ -29,5 +29,15 @@ export async function requireWebsiteFeature(): Promise<void> {
   const tenant = await getCurrentTenant()
   if (!tenant) return // domaine racine / vitrine DetailFlow → jamais bloqué
   const allowed = await hasFeature(tenant.id, "website")
-  if (!allowed) notFound()
+  if (allowed) return
+
+  // DÉROGATION D'APERÇU : le propriétaire (membre du tenant) ou un super-admin
+  // peut prévisualiser sa page publique depuis le configurateur même sans la
+  // feature `website` active. Aucun visiteur public (sans session) ni robot ne
+  // passe → la page reste inaccessible publiquement. Corrige la 404 du preview
+  // admin pour les tenants self-service (plan FREE) sans ouvrir la page au
+  // public ni toucher aux licences.
+  if (await isCurrentTenantPreviewer(tenant.id)) return
+
+  notFound()
 }

@@ -2,10 +2,10 @@ import "server-only"
 import { cache } from "react"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
-import { companies, companyMembers } from "@/lib/db/schema"
+import { companies, companyMembers, user } from "@/lib/db/schema"
 
 export type Tenant = typeof companies.$inferSelect
 
@@ -72,6 +72,48 @@ export const getTenantFromMembership = cache(async (): Promise<Tenant | null> =>
 export async function resolveRequestTenant(): Promise<Tenant | null> {
   return (await getCurrentTenant()) ?? (await getTenantFromMembership())
 }
+
+/**
+ * APERÇU AUTHENTIFIÉ : la requête courante appartient-elle à quelqu'un
+ * autorisé à PRÉVISUALISER la page publique de CE tenant ?
+ *
+ * Vrai UNIQUEMENT si une session Better Auth existe ET que l'utilisateur est
+ * soit membre de l'entreprise `tenantId` (table company_members, scoping
+ * strict), soit super-administrateur plateforme. Un visiteur public (aucune
+ * session) ou un membre d'un AUTRE tenant renvoie toujours `false` → aucune
+ * fuite cross-tenant, et les robots d'indexation (sans session) sont exclus.
+ *
+ * Sert de dérogation d'APERÇU aux gardes publiques (feature `website`,
+ * brouillon non publié) : le propriétaire voit sa page dans le configurateur
+ * même si elle n'est pas encore active/publiée, sans jamais la rendre publique.
+ *
+ * Ne lève jamais : conçu pour être appelé dans le chemin de rendu public.
+ * Mémoïsé par requête.
+ */
+export const isCurrentTenantPreviewer = cache(async (tenantId: number): Promise<boolean> => {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    const uid = session?.user?.id
+    if (!uid) return false
+
+    const [membership] = await db
+      .select({ userId: companyMembers.userId })
+      .from(companyMembers)
+      .where(and(eq(companyMembers.userId, uid), eq(companyMembers.companyId, tenantId)))
+      .limit(1)
+    if (membership) return true
+
+    const [row] = await db
+      .select({ superAdmin: user.superAdmin })
+      .from(user)
+      .where(eq(user.id, uid))
+      .limit(1)
+    return row?.superAdmin ?? false
+  } catch {
+    // Toute erreur (session absente, table indisponible) → pas d'aperçu.
+    return false
+  }
+})
 
 /** Comme getCurrentTenant mais renvoie une 404 si aucune entreprise. */
 export async function requireTenant(): Promise<Tenant> {
