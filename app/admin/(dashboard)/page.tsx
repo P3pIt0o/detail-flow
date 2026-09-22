@@ -20,22 +20,30 @@ import { DashboardWeek } from "@/components/admin/dashboard-week"
 import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
 import { OnboardingPanel } from "@/components/admin/onboarding-panel"
 import { SiteLinkCard } from "@/components/admin/site-link-card"
+import { StartFlowCard } from "@/components/admin/start-flow-card"
 import { SpiritDashboardRequests, type SpiritActionItem } from "@/components/admin/spirit-dashboard-requests"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
-import { tenantPublicUrl } from "@/lib/tenant-shared"
+import { tenantPublicUrl, publicPageUrl, publicReservationUrl } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { isPublicPagePublished } from "@/lib/public-page/config"
+import type { OnboardingIntent } from "@/lib/onboarding/shared"
 
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenant?: string }>
+  searchParams: Promise<{ tenant?: string; start?: string }>
 }) {
-  const { tenant } = await searchParams
+  const { tenant, start } = await searchParams
   const href = (path: string) => withTenant(path, tenant ?? null)
+  // Intention issue de l'onboarding self-service (`?start=`) : matérialise les
+  // deux parcours d'accueil. Présente UNIQUEMENT juste après la création d'un
+  // espace ; absente en navigation normale → aucun tenant existant impacté.
+  const startIntent: OnboardingIntent | null =
+    start === "booking" || start === "page" || start === "website" ? start : null
 
   // Contexte résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
   // l'isolation tenant et à l'évaluation des droits via le moteur central.
@@ -109,6 +117,22 @@ export default async function DashboardPage({
   const resolvedSiteUrl = tenantPublicUrl(company.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
   const siteReachable = company.status !== "SUSPENDED" && company.status !== "ARCHIVED"
   const siteUrl = resolvedSiteUrl.startsWith("https://") && siteReachable ? resolvedSiteUrl : null
+
+  // Carte d'accueil des deux parcours (Cas A / Cas B) — additive, affichée
+  // seulement juste après la création (`?start=`) et jamais pour un site
+  // personnalisé (Spirit ACS, etc.). On ne lit l'état de publication que dans
+  // ce cas pour éviter toute requête inutile en navigation normale.
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const startCard =
+    startIntent && !isSpirit ? (
+      <StartFlowCard
+        intent={startIntent}
+        reservationUrl={publicReservationUrl(company.slug, rootDomain)}
+        pageUrl={publicPageUrl(company.slug, rootDomain)}
+        configureHref={href("/admin/page-publique")}
+        isPublished={await isPublicPagePublished(companyId)}
+      />
+    ) : null
 
   // KPI : cartes compactes, période = mois en cours.
   //  - business_stats : CA, dépenses produits, nombre de rendez-vous ;
@@ -349,6 +373,9 @@ export default async function DashboardPage({
   return (
     <div className="mx-auto max-w-5xl">
       {header}
+
+      {/* Accueil des deux parcours (Cas A / Cas B) — additif, éphémère (?start=). */}
+      {startCard}
 
       {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
       <OnboardingPanel data={onboardingData} />

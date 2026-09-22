@@ -9,7 +9,12 @@ import { getPublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
 import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
-import { buildTenantMetadata, resolveTenantSeo, buildTenantLocalBusiness } from "@/lib/seo/tenant-seo.server"
+import {
+  buildTenantMetadata,
+  resolveTenantSeo,
+  buildTenantLocalBusiness,
+  resolvePublicPageRobots,
+} from "@/lib/seo/tenant-seo.server"
 import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
 /**
@@ -67,9 +72,16 @@ export async function generateMetadata(): Promise<Metadata> {
     ? SPIRIT_PAGE_META.home.description
     : (clean(tenant.heroSubtitle) ?? clean(rawContent?.about?.text) ?? genericDesc)
 
+  // Directive d'indexation : une page publique standard n'est indexable que si
+  // elle est PUBLIÉE et que l'indexation a été autorisée dans le configurateur.
+  // Les sites personnalisés et les sites `website` restent indexés comme avant
+  // (résolu dans `resolvePublicPageRobots`). S'applique aussi aux sous-pages du
+  // segment (ex. `/reservation`) par héritage des métadonnées du layout.
+  const robots = await resolvePublicPageRobots()
+
   // Métadonnées centralisées : canonique tenant-aware (conserve ?tenant=),
   // Open Graph + Twitter, image OG et favicon Spirit le cas échéant.
-  return buildTenantMetadata({ path: "/", title, description })
+  return buildTenantMetadata({ path: "/", title, description, robots })
 }
 
 // Données structurées Schema.org (LocalBusiness/AutoWash) pour un SEO local

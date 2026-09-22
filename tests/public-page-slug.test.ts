@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { parsePublicPagePath, publicPagePath, publicPageUrl } from "@/lib/tenant-shared"
+import {
+  parsePublicPagePath,
+  publicPagePath,
+  publicPageUrl,
+  publicReservationPath,
+  publicReservationUrl,
+} from "@/lib/tenant-shared"
 import {
   resolveEffectivePublicPage,
   type CompanyPublicFields,
@@ -51,6 +57,21 @@ describe("parsePublicPagePath", () => {
     expect(publicPagePath("mon-garage")).toBe("/p/mon-garage")
     expect(publicPageUrl("mon-garage")).toBe("/p/mon-garage")
     expect(publicPageUrl("mon-garage", "detailflow.fr")).toBe("https://www.detailflow.fr/p/mon-garage")
+  })
+
+  it("construit le lien public de réservation (Cas A : /p/<slug>/reservation)", () => {
+    expect(publicReservationPath("mon-garage")).toBe("/p/mon-garage/reservation")
+    // Aperçu/local (pas de domaine racine) → chemin relatif.
+    expect(publicReservationUrl("mon-garage")).toBe("/p/mon-garage/reservation")
+    // Production → URL absolue sur le domaine racine (préfixe www.).
+    expect(publicReservationUrl("mon-garage", "detailflow.fr")).toBe(
+      "https://www.detailflow.fr/p/mon-garage/reservation",
+    )
+    // Le sous-chemin est bien re-résolu vers le tenant par le middleware (pur).
+    expect(parsePublicPagePath("/p/mon-garage/reservation")).toEqual({
+      slug: "mon-garage",
+      rest: "/reservation",
+    })
   })
 })
 
