@@ -584,81 +584,12 @@ export const marketingV2 = {
     placeholder: "Page publique d'un professionnel (démo) générée par DetailFlow",
   },
 
-  /* ---------------------------------- PRICING --------------------------------- */
-  pricing: {
-    title: "Choisissez la formule DetailFlow adaptée à votre activité",
-    lead: "Commencez gratuitement, passez à une offre supérieure quand votre activité grandit.",
-    note: "Prix indiqués hors taxes. Vous pouvez changer d'offre à tout moment.",
-    plans: [
-      {
-        id: "starter",
-        name: "Starter",
-        price: "0 €",
-        period: "pour démarrer",
-        description: "L'essentiel pour lancer votre activité en ligne.",
-        features: [
-          "Page professionnelle en ligne",
-          "Réservation en ligne",
-          "Planning centralisé",
-          "Fiches clients & véhicules",
-        ],
-        cta: { label: "Créer mon espace", href: "/demarrer" },
-        highlighted: false,
-        badge: null as string | null,
-      },
-      {
-        id: "pro",
-        name: "Pro",
-        price: "24,90 €",
-        period: "/ mois",
-        description: "Pour gérer sereinement une activité qui tourne.",
-        features: [
-          "Tout Starter",
-          "Devis & factures reliés",
-          "Rappels & demandes d'avis automatiques",
-          "Suivi du chiffre d'affaires",
-        ],
-        cta: { label: "Créer mon espace", href: "/demarrer" },
-        highlighted: true,
-        badge: "Le plus choisi",
-      },
-      {
-        id: "business",
-        name: "Business",
-        price: "39,90 €",
-        period: "/ mois",
-        description: "Pour aller plus loin dans le pilotage de votre entreprise.",
-        features: [
-          "Tout Pro",
-          "Gestion des frais & rentabilité",
-          "Statistiques d'activité avancées",
-          "Options de personnalisation étendues",
-        ],
-        cta: { label: "Créer mon espace", href: "/demarrer" },
-        highlighted: false,
-        badge: null as string | null,
-      },
-    ],
-    lifetime: {
-      badge: "Offre à vie",
-      name: "Lifetime",
-      price: "990 €",
-      period: "paiement unique",
-      description: "Accédez à DetailFlow à vie, sans abonnement mensuel.",
-      features: ["Accès à la plateforme à vie", "Mises à jour incluses", "Aucun abonnement mensuel"],
-      cta: { label: "Créer mon espace", href: "/demarrer" },
-      custom: {
-        title: "Besoin d'une adaptation sur mesure ?",
-        description:
-          "Adaptation à un métier spécifique, fonctionnalités particulières, développements sur mesure ou évolution plus poussée de la plateforme selon les besoins de votre entreprise : ces demandes font l'objet d'une étude dédiée et d'un devis. Elles ne sont pas incluses automatiquement dans le prix Lifetime.",
-        email: "contact@detailflow.fr",
-        cta: {
-          label: "Parler de mon projet",
-          href: "mailto:contact@detailflow.fr?subject=Mon%20projet%20DetailFlow%20sur%20mesure",
-        },
-      },
-    },
-  },
+  /* ----------------------------------------------------------------------------
+   * PRICING — DÉPLACÉ vers la SOURCE UNIQUE `lib/pricing/plans.ts`.
+   * Le marketing ne définit plus ses propres prix/offres : la section tarifs
+   * (<Pricing />) consomme désormais COMMERCIAL_PLANS / LIFETIME_OFFER, reliés
+   * au moteur de licences. Ne PAS réintroduire d'objet `pricing` ici.
+   * -------------------------------------------------------------------------- */
 
   /* ------------------------ PREUVE SOCIALE / TRUSTPILOT ----------------------- */
   socialProof: {

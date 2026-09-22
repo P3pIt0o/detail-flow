@@ -30,6 +30,7 @@ import { isValidSlug, normalizeSlug, tenantPublicUrl, tenantAdminUrl } from "@/l
 import { sendEmail } from "@/lib/email/send"
 import { ownerInvitationEmail } from "@/lib/email/templates"
 import { grantBetaBonus } from "@/lib/sms/credits"
+import { SELF_SERVICE_LICENSE_PLAN } from "@/lib/pricing/plans"
 
 /* -------------------------------------------------------------------------- */
 /*  Provisionnement d'une entreprise (tenant) — cœur du "créer en < 2 min".    */
@@ -275,8 +276,12 @@ export type SelfServiceProvisionResult = {
   created: boolean
 }
 
-/** Plan par défaut d'un compte self-service (droits FREE, génération figée). */
-const SELF_SERVICE_DEFAULT_PLAN = "FREE" as const
+/**
+ * Plan par défaut d'un compte self-service. Importé de la SOURCE UNIQUE
+ * `lib/pricing/plans.ts` : marketing, onboarding et attribution ne peuvent plus
+ * diverger (l'offre « Starter » affichée == le plan réellement attribué).
+ */
+const SELF_SERVICE_DEFAULT_PLAN = SELF_SERVICE_LICENSE_PLAN
 const SELF_SERVICE_DEFAULT_GENERATION = "LIFETIME_V1" as const
 
 /**

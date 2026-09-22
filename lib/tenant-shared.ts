@@ -142,6 +142,27 @@ export function publicPageUrl(slug: string, rootDomain?: string): string {
 }
 
 /**
+ * Chemin public canonique de RÉSERVATION d'une entreprise : `/p/<slug>/reservation`.
+ *
+ * C'est le lien à partager par un professionnel qui a DÉJÀ son propre site
+ * (Cas A) : il fonctionne immédiatement (le tunnel de réservation n'est pas
+ * conditionné à la publication de la page publique standard).
+ */
+export function publicReservationPath(slug: string): string {
+  return `/p/${slug}/reservation`
+}
+
+/**
+ * URL publique ABSOLUE de réservation (`https://www.<root>/p/<slug>/reservation`).
+ * En l'absence de domaine racine (aperçu/local), retombe sur le chemin relatif.
+ */
+export function publicReservationUrl(slug: string, rootDomain?: string): string {
+  const root = normalizeRootHost(rootDomain)
+  const path = publicReservationPath(slug)
+  return root ? `https://${root}${path}` : path
+}
+
+/**
  * Analyse un pathname pour la route publique par chemin `/p/<slug>[/reste]`.
  *
  * PURE (aucun accès réseau/DB) : sert au middleware (edge) et aux tests.
