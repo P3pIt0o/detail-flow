@@ -1,7 +1,7 @@
 "use server"
 
 import { requireCompanyMember } from "@/lib/admin"
-import { sendCustomWebsiteRequest } from "@/lib/email/custom-website"
+import { sendCustomWebsiteRequest, interpretSendResult } from "@/lib/email/custom-website"
 
 /* -------------------------------------------------------------------------- */
 /*  Parcours « site personnalisé » — qualification d'une demande sur mesure    */
@@ -51,9 +51,18 @@ export async function submitCustomWebsiteRequest(
     tenantSlug: tenant.slug,
   })
 
-  // `ok` = email réellement envoyé. `skipped` = infrastructure non configurée
-  // en aperçu (pas de destinataire) : on considère la demande enregistrée pour
-  // ne pas bloquer le professionnel ; l'échec dur (provider) est signalé.
-  if (res.ok || res.skipped) return { ok: true }
-  return { error: "L'envoi de votre demande a échoué. Réessayez ou écrivez-nous directement." }
+  // Point 7 : la confirmation n'est renvoyée QUE si Resend a réellement accepté
+  // l'envoi (`res.ok`). Un `skipped` (aucun destinataire / infra non configurée)
+  // ou une erreur provider donne un échec contrôlé — jamais de fausse
+  // confirmation. On journalise le détail côté serveur (sans secret) ; l'erreur
+  // renvoyée au client reste générique.
+  const outcome = interpretSendResult(res)
+  if (!outcome.ok) {
+    console.log(
+      "[v0] Échec envoi demande site personnalisé:",
+      JSON.stringify({ tenant: tenant.slug, skipped: res.skipped ?? false, error: res.error ?? null }),
+    )
+    return { error: outcome.error }
+  }
+  return { ok: true }
 }
