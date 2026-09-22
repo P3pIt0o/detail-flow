@@ -45,20 +45,23 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             {marketing.brand.name}
           </Link>
           <nav className="flex items-center gap-6 text-sm">
-            <Link href="#features" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
+            <Link href="#fonctionnalites" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
               Fonctionnalités
             </Link>
-            <Link href="#workflow" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
+            <Link href="#parcours" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
               Comment ça marche
             </Link>
-            <Link href="#faq" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
+            <Link href="#tarifs" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
+              Tarifs
+            </Link>
+            <Link href="#faq" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
               FAQ
             </Link>
             <Link
-              href="#beta"
+              href="/admin/signup"
               className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
             >
-              Rejoindre la Beta
+              Créer mon espace
             </Link>
           </nav>
         </div>

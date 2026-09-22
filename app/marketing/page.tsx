@@ -1,6 +1,16 @@
-import { StaticMarketingContent } from "@/components/marketing/static-marketing-content"
 import { marketing } from "@/config/marketing"
 import { siteConfig } from "@/config/site"
+import { HeroV2 } from "@/components/marketing/v2/hero"
+import { PainPoints } from "@/components/marketing/v2/pain-points"
+import { NoShowChain } from "@/components/marketing/v2/no-show-chain"
+import { ClientJourney } from "@/components/marketing/v2/client-journey"
+import { ProCockpit } from "@/components/marketing/v2/pro-cockpit"
+import { AutomationsV2 } from "@/components/marketing/v2/automations"
+import { PublicPageTeaser } from "@/components/marketing/v2/public-page-teaser"
+import { Pricing } from "@/components/marketing/v2/pricing"
+import { SocialProof } from "@/components/marketing/v2/social-proof"
+import { FinalCtaV2 } from "@/components/marketing/v2/final-cta"
+import { FaqSection } from "@/components/marketing/marketing-sections"
 
 /**
  * Landing DetailFlow.fr (domaine racine).
@@ -61,7 +71,20 @@ export default function MarketingPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <StaticMarketingContent />
+      {/* Refonte marketing (Lot 3) — architecture validée Phase 2 :
+          Hero -> Problèmes -> Chaîne no-show -> Parcours client -> Centralisation
+          -> Automatisations -> Page pro -> Pricing -> Preuve sociale -> FAQ -> CTA final. */}
+      <HeroV2 />
+      <PainPoints />
+      <NoShowChain />
+      <ClientJourney />
+      <ProCockpit />
+      <AutomationsV2 />
+      <PublicPageTeaser />
+      <Pricing />
+      <SocialProof />
+      <FaqSection />
+      <FinalCtaV2 />
     </>
   )
 }
