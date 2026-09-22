@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { DEFAULT_TENANT_SLUG, marketingOrigin, resolveHost } from "@/lib/tenant-shared"
+import {
+  DEFAULT_TENANT_SLUG,
+  marketingOrigin,
+  parsePublicPagePath,
+  resolveHost,
+} from "@/lib/tenant-shared"
 
 /**
  * Routage multi-tenant par hostname.
@@ -20,6 +25,30 @@ export function middleware(req: NextRequest) {
   const res = resolveHost(host, rootDomain, queryTenant)
 
   const path = req.nextUrl.pathname
+
+  // ── PAGE PUBLIQUE PAR CHEMIN : /p/<slug>[/reste] (LOT 2) ──────────────────
+  // Alias « joli » d'un site tenant, indépendant du sous-domaine. On résout le
+  // slug depuis le chemin (analyse PURE, aucun accès DB en edge), on le pose
+  // dans `x-tenant-slug` — exactement comme un sous-domaine — puis on réécrit
+  // vers l'arbre `app/(site)` en retirant le préfixe `/p/<slug>`.
+  //
+  // Conséquence : le rendu réutilise TOUT l'existant (hero, prestations, avis,
+  // réservation) ET le dispatch des sites personnalisés (via customSiteKey dans
+  // getCurrentTenant → resolveCustomSite). Spirit ACS, Rozan, Cleanyzer et tout
+  // tenant custom gardent donc automatiquement leur rendu dédié sur /p/<slug>.
+  //
+  // Cohabitation : les sous-domaines et domaines personnalisés ne passent jamais
+  // par ce bloc (leur chemin ne commence pas par /p/) → priorité inchangée. Le
+  // mécanisme `?tenant=` et `[localSlug]` existant n'est pas modifié.
+  const publicPage = parsePublicPagePath(path)
+  if (publicPage) {
+    const ph = new Headers(req.headers)
+    ph.set("x-tenant-kind", "path")
+    ph.set("x-tenant-slug", publicPage.slug)
+    const url = req.nextUrl.clone()
+    url.pathname = publicPage.rest
+    return NextResponse.rewrite(url, { request: { headers: ph } })
+  }
 
   // ── PROTECTION ANTI-FUITE MARKETING ──────────────────────────────────────
   // Le site marketing DetailFlow vit physiquement sous /marketing. Sur le
