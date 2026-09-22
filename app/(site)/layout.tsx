@@ -8,6 +8,7 @@ import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
 import { buildTenantMetadata, resolveTenantSeo, buildTenantLocalBusiness } from "@/lib/seo/tenant-seo.server"
 import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
@@ -95,30 +96,38 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // Coordonnées publiques réelles du tenant (jamais de données statiques).
   const contact = await getPublicContact()
 
+  // DISPATCH DE SHELL : un site personnalisé enregistré avec `ownShell` fournit
+  // sa PROPRE navigation/pied de page. Résolu ici (avant le calcul des couleurs)
+  // pour garantir que le configurateur LOT 2 n'affecte JAMAIS un site custom.
+  const customSite = await resolveCustomSite()
+  const useOwnShell = Boolean(customSite?.ownShell)
+
+  // Config LOT 2 : couleurs d'accent éditables dans le configurateur. Elles ne
+  // s'appliquent qu'au SHELL STANDARD (jamais aux sites personnalisés Spirit
+  // ACS / Rozan / Cleanyzer, exclus ci-dessus). Repli garanti sur les couleurs
+  // de marque de l'entreprise puis sur le thème par défaut : un tenant sans
+  // config obtient exactement le comportement historique.
+  const publicPage = customSite ? null : await getEffectivePublicPageForCurrentTenant()
+  const accentPrimary = publicPage?.accentPrimary ?? tenant?.brandPrimary ?? null
+  const accentSecondary = publicPage?.accentSecondary ?? tenant?.brandSecondary ?? null
+
   // Couleurs de marque du tenant : surcharge des variables de thème UNIQUEMENT
   // si l'entreprise en a défini. Sinon aucune variable n'est injectée → la
   // vitrine racine (detailflow.fr) et les tenants sans couleur gardent le thème
   // par défaut de globals.css. Les hex sont des valeurs CSS valides pour ces vars.
   const brandStyle: React.CSSProperties = {}
-  if (tenant?.brandPrimary) {
-    ;(brandStyle as Record<string, string>)["--primary"] = tenant.brandPrimary
-    ;(brandStyle as Record<string, string>)["--ring"] = tenant.brandPrimary
+  if (accentPrimary) {
+    ;(brandStyle as Record<string, string>)["--primary"] = accentPrimary
+    ;(brandStyle as Record<string, string>)["--ring"] = accentPrimary
   }
-  if (tenant?.brandSecondary) {
-    ;(brandStyle as Record<string, string>)["--secondary"] = tenant.brandSecondary
+  if (accentSecondary) {
+    ;(brandStyle as Record<string, string>)["--secondary"] = accentSecondary
   }
-  const hasBrandColors = Boolean(tenant?.brandPrimary || tenant?.brandSecondary)
+  const hasBrandColors = Boolean(accentPrimary || accentSecondary)
 
   // Contenu personnalisable du pied de page (texte + slogan). Repli sur le
   // comportement par défaut du composant Footer si le tenant n'a rien renseigné.
   const footerContent = resolveSiteContent(tenant?.siteContent).footer
-
-  // DISPATCH DE SHELL : un site personnalisé enregistré avec `ownShell` fournit
-  // sa PROPRE navigation/pied de page. On n'applique alors pas la Navbar/Footer
-  // standard, mais on CONSERVE le tracking et les gardes communes. Clé null ou
-  // inconnue => `null` => shell standard exact ci-dessous (aucune régression).
-  const customSite = await resolveCustomSite()
-  const useOwnShell = Boolean(customSite?.ownShell)
 
   // JSON-LD LocalBusiness/AutoWash construit à partir des données RÉELLES du
   // tenant (adresse postale structurée complète, horaires, réseaux, fiche

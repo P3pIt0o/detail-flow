@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Cpu,
   Package,
+  Globe,
 } from "lucide-react"
 
 const NAV = [
@@ -32,6 +33,7 @@ const NAV = [
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/prestations", label: "Prestations", icon: Sparkles },
   { href: "/admin/produits", label: "Produits", icon: Package },
+  { href: "/admin/page-publique", label: "Page publique", icon: Globe },
   { href: "/admin/parametres", label: "Paramètres", icon: Settings },
 ]
 
