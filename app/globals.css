@@ -122,3 +122,15 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Mode embarqué : le moteur de réservation affiché dans une iframe sur un site
+   externe (`/p/<slug>/reservation?embed=1`). On masque le chrome du site hôte
+   DetailFlow (navbar, footer, bouton WhatsApp, lien d'évitement) pour ne laisser
+   que le tunnel. La classe `df-embed` est posée sur <html> par la page. */
+html.df-embed [data-df-chrome] {
+  display: none !important;
+}
+html.df-embed,
+html.df-embed body {
+  background: transparent;
+}

@@ -22,41 +22,41 @@ import {
   Cpu,
   Package,
   Globe,
+  CalendarCheck,
 } from "lucide-react"
+import { buildAdminNav, type AdminNavIcon } from "@/lib/admin/nav"
+import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 
-const NAV = [
-  { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/admin/calendrier", label: "Calendrier", icon: CalendarDays },
-  { href: "/admin/reservations", label: "Réservations", icon: ClipboardList },
-  { href: "/admin/demandes", label: "Demandes", icon: Inbox },
-  { href: "/admin/factures", label: "Factures", icon: FileText },
-  { href: "/admin/clients", label: "Clients", icon: Users },
-  { href: "/admin/prestations", label: "Prestations", icon: Sparkles },
-  { href: "/admin/produits", label: "Produits", icon: Package },
-  { href: "/admin/page-publique", label: "Page publique", icon: Globe },
-  { href: "/admin/parametres", label: "Paramètres", icon: Settings },
-]
-
-// Entrées masquées POUR SPIRIT ACS UNIQUEMENT (site 100 % personnalisé, parcours
-// demande → devis) : les routes/modules restent intacts et disponibles pour tous
-// les autres tenants — seuls les liens disparaissent de SA navigation.
-const SPIRIT_ACS_HIDDEN_NAV = new Set([
-  "/admin/reservations",
-  "/admin/prestations",
-  "/admin/produits",
-])
+// Mappe la clé d'icône (pure, définie dans lib/admin/nav) vers le composant
+// lucide correspondant. Garde la logique de menu testable sans JSX.
+const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  calendar: CalendarDays,
+  reservations: ClipboardList,
+  demandes: Inbox,
+  factures: FileText,
+  clients: Users,
+  prestations: Sparkles,
+  produits: Package,
+  reservationLink: CalendarCheck,
+  web: Globe,
+  settings: Settings,
+}
 
 export function AdminSidebar({
   adminName,
   isSuperAdmin = false,
   customSiteKey = null,
+  onboardingIntent = null,
 }: {
   adminName: string
   isSuperAdmin?: boolean
   customSiteKey?: string | null
+  onboardingIntent?: OnboardingIntentValue | null
 }) {
-  const navItems =
-    customSiteKey === "spirit-acs" ? NAV.filter((item) => !SPIRIT_ACS_HIDDEN_NAV.has(item.href)) : NAV
+  // Le menu s'adapte DURABLEMENT au parcours choisi (entrée « web » : Ma
+  // réservation / Mon site / Page publique). Modules métier communs inchangés.
+  const navItems = buildAdminNav({ intent: onboardingIntent, customSiteKey })
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -91,23 +91,26 @@ export function AdminSidebar({
       </div>
 
       <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Navigation dashboard">
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={withTenant(href)}
-            onClick={() => setOpen(false)}
-            aria-current={isActive(href) ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              isActive(href)
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden="true" />
-            {label}
-          </Link>
-        ))}
+        {navItems.map(({ href, label, icon }) => {
+          const Icon = NAV_ICONS[icon]
+          return (
+            <Link
+              key={href}
+              href={withTenant(href)}
+              onClick={() => setOpen(false)}
+              aria-current={isActive(href) ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive(href)
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              {label}
+            </Link>
+          )
+        })}
 
         {isSuperAdmin && (
           <>

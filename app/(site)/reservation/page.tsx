@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { PageHeader } from "@/components/layout/page-header"
 import { BookingWizard } from "@/components/booking/booking-wizard"
+import { EmbedFrameSync } from "@/components/booking/embed-frame-sync"
 import {
   getServices,
   getCategories,
@@ -19,7 +20,17 @@ export const metadata: Metadata = {
 // Données de référence en direct de la base : toujours à jour.
 export const dynamic = "force-dynamic"
 
-export default async function ReservationPage() {
+export default async function ReservationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ embed?: string }>
+}) {
+  // Mode embarqué (widget sur site externe) : on masque le chrome du site et
+  // l'en-tête de page pour n'afficher que le moteur, et on synchronise la
+  // hauteur avec le site hôte. Le moteur lui-même est STRICTEMENT le même.
+  const { embed } = await searchParams
+  const isEmbed = embed === "1"
+
   const [services, categories, vehicleTypes, options, prices, settings] = await Promise.all([
     getServices(),
     getCategories(),
@@ -37,12 +48,24 @@ export default async function ReservationPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Réservation"
-        title="Réservez votre rendez-vous"
-        description="Composez votre prestation, choisissez un créneau et confirmez en quelques minutes."
-      />
-      <section className="border-t border-border bg-background py-12 md:py-16">
+      {isEmbed ? (
+        <>
+          {/* Anti-flash : masque le chrome du site AVANT le premier rendu, puis
+              EmbedFrameSync gère la hauteur et le nettoyage. */}
+          <script
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('df-embed')" }}
+          />
+          <EmbedFrameSync />
+        </>
+      ) : (
+        <PageHeader
+          eyebrow="Réservation"
+          title="Réservez votre rendez-vous"
+          description="Composez votre prestation, choisissez un créneau et confirmez en quelques minutes."
+        />
+      )}
+      <section className={isEmbed ? "bg-background py-6" : "border-t border-border bg-background py-12 md:py-16"}>
         <div className="mx-auto max-w-6xl px-4">
           {settings.vacationMode ? (
             <div className="mx-auto max-w-xl rounded-lg border border-border bg-card p-8 text-center">

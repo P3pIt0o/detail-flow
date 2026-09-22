@@ -166,24 +166,34 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           jamais la vitrine racine sans tenant). companyId résolu côté serveur. */}
       {tenant && <SiteTracker />}
       {localBusinessJsonLd && <StructuredData jsonLd={localBusinessJsonLd} />}
+      {/* `data-df-chrome` : chrome du site standard, masqué en mode embarqué
+          (widget de réservation `?embed=1`). `contents` = le wrapper ne crée
+          aucune boîte, la mise en page (sticky/fixed) des enfants est préservée. */}
       <a
         href="#contenu"
+        data-df-chrome
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
       >
         Aller au contenu
       </a>
-      <Navbar brandName={brandName} logoSrc={logoSrc} phone={contact.phone} phoneRaw={contact.phoneRaw} />
+      <div data-df-chrome className="contents">
+        <Navbar brandName={brandName} logoSrc={logoSrc} phone={contact.phone} phoneRaw={contact.phoneRaw} />
+      </div>
       <main id="contenu">{children}</main>
-      <Footer
-        brandName={brandName}
-        logoSrc={logoSrc}
-        tenantSlug={tenant?.slug ?? null}
-        contact={contact}
-        socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
-        footerText={footerContent.text || undefined}
-        footerTagline={footerContent.tagline || undefined}
-      />
-      <WhatsAppButton phone={contact.phoneRaw} />
+      <div data-df-chrome className="contents">
+        <Footer
+          brandName={brandName}
+          logoSrc={logoSrc}
+          tenantSlug={tenant?.slug ?? null}
+          contact={contact}
+          socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
+          footerText={footerContent.text || undefined}
+          footerTagline={footerContent.tagline || undefined}
+        />
+      </div>
+      <div data-df-chrome className="contents">
+        <WhatsAppButton phone={contact.phoneRaw} />
+      </div>
     </div>
   )
 }
