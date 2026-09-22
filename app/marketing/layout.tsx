@@ -4,20 +4,24 @@ import { marketing } from "@/config/marketing"
 
 // `title.absolute` évite le gabarit "%s | DetailFlow" du root layout : la marque
 // n'apparaît donc qu'UNE fois dans le <title> de la home marketing.
-const marketingTitle = "Logiciel de detailing tout-en-un pour les professionnels | DetailFlow"
+const marketingTitle = "DetailFlow — Logiciel de gestion pour detailing automobile"
 const marketingDescription =
-  "Gérez votre activité de detailing avec DetailFlow : site professionnel, réservations, planning, clients et véhicules, devis, factures et rappels automatiques."
+  "Gérez votre activité de detailing avec DetailFlow : réservations, planning, clients, acomptes, facturation, rappels et site internet depuis une seule plateforme."
 
 export const metadata: Metadata = {
   title: { absolute: marketingTitle },
   description: marketingDescription,
   keywords: [
-    "logiciel detailing",
-    "logiciel detailer",
-    "CRM detailing",
-    "gestion entreprise detailing",
-    "réservation detailing",
-    "devis facturation detailing",
+    "logiciel de gestion pour detailing automobile",
+    "logiciel detailing automobile",
+    "logiciel pour detailer",
+    "logiciel réservation detailing",
+    "gestion centre detailing",
+    "planning detailing automobile",
+    "logiciel facturation detailing",
+    "réservation en ligne detailing",
+    "site internet detailing automobile",
+    "logiciel lavage automobile",
   ],
   alternates: { canonical: "/" },
   openGraph: {
@@ -25,7 +29,7 @@ export const metadata: Metadata = {
     url: "/",
     title: marketingTitle,
     description: marketingDescription,
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour le detailing" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour detailing automobile" }],
   },
   twitter: {
     card: "summary_large_image",
@@ -45,11 +49,11 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             {marketing.brand.name}
           </Link>
           <nav className="flex items-center gap-6 text-sm">
-            <Link href="#fonctionnalites" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
+            <Link href="#decouvrir" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
               Fonctionnalités
             </Link>
-            <Link href="#parcours" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
-              Comment ça marche
+            <Link href="#site" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
+              Site internet
             </Link>
             <Link href="#tarifs" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
               Tarifs
@@ -58,7 +62,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               FAQ
             </Link>
             <Link
-              href="/admin/signup"
+              href="/demarrer"
               className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
             >
               Créer mon espace

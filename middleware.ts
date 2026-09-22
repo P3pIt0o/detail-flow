@@ -116,6 +116,9 @@ export function middleware(req: NextRequest) {
     !path.startsWith("/api") &&
     !path.startsWith("/admin") &&
     !path.startsWith("/super-admin") &&
+    // Tunnel d'inscription self-service : route ISOLÉE servie telle quelle
+    // (app/demarrer), sans réécriture vers la vitrine ni contexte tenant.
+    !path.startsWith("/demarrer") &&
     // Maquettes Rozan (Phase 2) : route ISOLÉE et temporaire, servie telle
     // quelle sans réécriture vers la vitrine. N'affecte aucun tenant.
     !path.startsWith("/rozan-preview") &&

@@ -54,6 +54,17 @@ export async function createWorkspace(
   const name = String(formData.get("name") ?? "").trim()
   const slugRaw = String(formData.get("slug") ?? "").trim()
 
+  // Champs facultatifs remontés par l'onboarding /demarrer (écrits dans des
+  // colonnes existantes de `companies`). Toujours optionnels.
+  const city = String(formData.get("city") ?? "").trim()
+  const country = String(formData.get("country") ?? "").trim()
+  const phone = String(formData.get("phone") ?? "").trim()
+  const websiteUrl = String(formData.get("websiteUrl") ?? "").trim()
+  // Intention de l'onboarding : sert UNIQUEMENT à router l'utilisateur après
+  // création (aucune persistance). Valeurs attendues : booking | page | website.
+  const intentRaw = String(formData.get("intent") ?? "").trim()
+  const intent = ["booking", "page", "website"].includes(intentRaw) ? intentRaw : ""
+
   if (!name) return { error: "Le nom de votre entreprise est requis." }
 
   const slug = normalizeSlug(slugRaw || name)
@@ -74,6 +85,10 @@ export async function createWorkspace(
       userEmail: session.user.email,
       companyName: name,
       slug,
+      city: city || undefined,
+      country: country || undefined,
+      phone: phone || undefined,
+      websiteUrl: websiteUrl || undefined,
     })
     createdSlug = res.slug
   } catch (err) {
@@ -84,6 +99,9 @@ export async function createWorkspace(
 
   // Hors du try/catch : `redirect` lève volontairement une exception de contrôle.
   // `?tenant=` garantit le contexte tenant en aperçu (production : résolu aussi
-  // par l'appartenance de l'utilisateur).
-  redirect(`/admin?tenant=${encodeURIComponent(createdSlug)}`)
+  // par l'appartenance de l'utilisateur). `start=` transmet l'intention de
+  // l'onboarding pour orienter la première configuration (booking/page/website).
+  const params = new URLSearchParams({ tenant: createdSlug })
+  if (intent) params.set("start", intent)
+  redirect(`/admin?${params.toString()}`)
 }

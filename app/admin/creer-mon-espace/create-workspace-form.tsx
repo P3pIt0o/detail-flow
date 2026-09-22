@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { normalizeSlug } from "@/lib/tenant-shared"
+import { loadOnboarding, type OnboardingPayload } from "@/lib/onboarding/shared"
 import { checkSlugAvailability, createWorkspace, type SlugCheck } from "./actions"
 
 /**
@@ -25,6 +26,16 @@ export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
   const [check, setCheck] = useState<SlugCheck | null>(null)
   const [checking, startCheck] = useTransition()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Réponses de l'onboarding /demarrer (pré-remplissage + champs cachés).
+  const [onboarding, setOnboarding] = useState<OnboardingPayload | null>(null)
+
+  // Au montage : reprendre les réponses de l'onboarding si elles existent.
+  useEffect(() => {
+    const data = loadOnboarding()
+    if (!data) return
+    setOnboarding(data)
+    if (data.companyName) setName(data.companyName)
+  }, [])
 
   // Slug dérivé du nom tant que l'utilisateur ne l'a pas édité manuellement.
   useEffect(() => {
@@ -129,6 +140,18 @@ export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
               </p>
             )}
           </div>
+
+          {/* Champs transmis depuis l'onboarding /demarrer (colonnes existantes
+              + intention de routage). Absents si l'utilisateur arrive en direct. */}
+          {onboarding && (
+            <>
+              <input type="hidden" name="intent" value={onboarding.intent} />
+              {onboarding.city && <input type="hidden" name="city" value={onboarding.city} />}
+              {onboarding.country && <input type="hidden" name="country" value={onboarding.country} />}
+              {onboarding.phone && <input type="hidden" name="phone" value={onboarding.phone} />}
+              {onboarding.websiteUrl && <input type="hidden" name="websiteUrl" value={onboarding.websiteUrl} />}
+            </>
+          )}
 
           {state?.error && (
             <p className="text-sm text-destructive" role="alert">
