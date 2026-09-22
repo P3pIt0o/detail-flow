@@ -255,6 +255,14 @@ export type SelfServiceProvisionInput = {
   companyName: string
   /** Slug souhaité (sera normalisé + validé). Défaut : dérivé du nom. */
   slug: string
+  /* -------- Champs facultatifs de l'onboarding /demarrer (colonnes existantes) --
+   * Tous optionnels et écrits dans des colonnes DÉJÀ présentes de `companies`.
+   * Aucun impact sur les tenants historiques (valeurs simplement omises). */
+  city?: string
+  country?: string
+  phone?: string
+  /** Site existant (parcours « réservation ») ou domaine visé (parcours « site »). */
+  websiteUrl?: string
 }
 
 export type SelfServiceProvisionResult = {
@@ -320,6 +328,16 @@ export async function provisionCompanyForUser(
     throw new Error("Le nom de l'entreprise est requis.")
   }
 
+  // Champs optionnels de l'onboarding, normalisés (chaîne vide -> null).
+  const clean = (v?: string) => {
+    const t = v?.trim()
+    return t ? t : null
+  }
+  const cityValue = clean(input.city)
+  const countryValue = clean(input.country) ?? "FR"
+  const phoneValue = clean(input.phone)
+  const websiteValue = clean(input.websiteUrl)
+
   // 0) IDEMPOTENCE : l'utilisateur a-t-il déjà une entreprise ? Si oui, la
   //    renvoyer telle quelle (retry / double soumission → aucun doublon).
   const existing = await findExistingCompanyForUser(input.userId)
@@ -364,7 +382,10 @@ export async function provisionCompanyForUser(
           slug,
           status: "ACTIVE",
           email: ownerEmail,
-          country: "FR",
+          city: cityValue,
+          phone: phoneValue,
+          websiteUrl: websiteValue,
+          country: countryValue,
           currency: "EUR",
           timezone: "Europe/Paris",
           locale: "fr",

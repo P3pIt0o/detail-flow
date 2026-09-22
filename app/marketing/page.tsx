@@ -1,26 +1,30 @@
-import { marketing } from "@/config/marketing"
+import { marketing, marketingV3 } from "@/config/marketing"
 import { siteConfig } from "@/config/site"
-import { HeroV2 } from "@/components/marketing/v2/hero"
-import { PainPoints } from "@/components/marketing/v2/pain-points"
-import { NoShowChain } from "@/components/marketing/v2/no-show-chain"
-import { ClientJourney } from "@/components/marketing/v2/client-journey"
-import { ProCockpit } from "@/components/marketing/v2/pro-cockpit"
-import { AutomationsV2 } from "@/components/marketing/v2/automations"
-import { PublicPageTeaser } from "@/components/marketing/v2/public-page-teaser"
+import { HeroV3 } from "@/components/marketing/v3/hero"
+import {
+  ProblemConverge,
+  Overview,
+  FeatureSection,
+  SiteOptions,
+  Adaptation,
+  FinalCtaV3,
+} from "@/components/marketing/v3/sections"
+import { FaqV3 } from "@/components/marketing/v3/faq"
 import { Pricing } from "@/components/marketing/v2/pricing"
 import { SocialProof } from "@/components/marketing/v2/social-proof"
-import { FinalCtaV2 } from "@/components/marketing/v2/final-cta"
-import { FaqSection } from "@/components/marketing/marketing-sections"
 
 /**
- * Landing DetailFlow.fr (domaine racine).
+ * Landing DetailFlow.fr (domaine racine) — refonte « philosophie Karzly ».
  *
- * Server Component : aucune dépendance client au niveau de la page. Rend la
- * version premium statique et légèrement animée (plus de scène 3D immersive
- * `ScrollStage`), ce qui réduit fortement le JavaScript et améliore LCP/INP.
- * Les données structurées (SoftwareApplication, Organization, FAQPage) sont
- * injectées en JSON-LD pour le SEO et les moteurs IA — uniquement des
- * informations réellement présentes sur la page (aucune note ni avis inventé).
+ * Server Component : aucune dépendance client au niveau de la page (seules les
+ * animations `Reveal` le sont), ce qui préserve LCP/INP. Narration continue :
+ * Hero -> Problème -> Centralisation -> Réservation -> Planning -> Clients ->
+ * Paiements -> Automatisations -> Page/Site -> Tableau de bord -> Adaptation
+ * métier -> Pricing -> Preuve sociale -> FAQ -> CTA final.
+ *
+ * Données structurées (Organization, WebSite, SoftwareApplication, FAQPage)
+ * injectées en JSON-LD — uniquement des informations réellement présentes
+ * (aucune note, aucun avis, aucun chiffre inventé).
  */
 
 const url = siteConfig.seo.url
@@ -52,7 +56,7 @@ const jsonLd = {
       operatingSystem: "Web",
       url,
       description:
-        "DetailFlow est un logiciel de gestion conçu pour les professionnels du detailing automobile. Il centralise les réservations, le planning, les clients, les véhicules, les prestations, les devis, les factures et les automatisations.",
+        "DetailFlow est un logiciel de gestion pour les professionnels du detailing automobile : réservations en ligne, planning, clients et véhicules, acomptes, facturation, rappels automatiques et site internet.",
       publisher: { "@id": `${url}/#organization` },
     },
     {
@@ -71,20 +75,18 @@ export default function MarketingPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      {/* Refonte marketing (Lot 3) — architecture validée Phase 2 :
-          Hero -> Problèmes -> Chaîne no-show -> Parcours client -> Centralisation
-          -> Automatisations -> Page pro -> Pricing -> Preuve sociale -> FAQ -> CTA final. */}
-      <HeroV2 />
-      <PainPoints />
-      <NoShowChain />
-      <ClientJourney />
-      <ProCockpit />
-      <AutomationsV2 />
-      <PublicPageTeaser />
+      <HeroV3 />
+      <ProblemConverge />
+      <Overview />
+      {marketingV3.features.map((feature) => (
+        <FeatureSection key={feature.id} feature={feature} />
+      ))}
+      <SiteOptions />
+      <Adaptation />
       <Pricing />
       <SocialProof />
-      <FaqSection />
-      <FinalCtaV2 />
+      <FaqV3 />
+      <FinalCtaV3 />
     </>
   )
 }

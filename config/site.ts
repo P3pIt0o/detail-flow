@@ -71,18 +71,20 @@ export const siteConfig = {
     /** URL de production, sans slash final (utilisée pour sitemap, OG, canonical) */
     url: "https://www.detailflow.fr",
     /** Titre par défaut (balise <title>) */
-    defaultTitle: "Logiciel de detailing tout-en-un pour les professionnels | DetailFlow",
+    defaultTitle: "DetailFlow — Logiciel de gestion pour detailing automobile",
     /** Modèle de titre pour les pages internes ; %s = titre de la page */
     titleTemplate: "%s | DetailFlow",
     description:
-      "Gérez votre activité de detailing avec DetailFlow : site professionnel, réservations, planning, clients et véhicules, devis, factures et rappels automatiques.",
+      "Gérez votre activité de detailing avec DetailFlow : réservations, planning, clients, acomptes, facturation, rappels et site internet depuis une seule plateforme.",
     keywords: [
-      "logiciel detailing",
-      "logiciel detailer",
-      "CRM detailing",
-      "gestion entreprise detailing",
-      "réservation detailing",
-      "devis facturation detailing",
+      "logiciel de gestion pour detailing automobile",
+      "logiciel detailing automobile",
+      "logiciel pour detailer",
+      "logiciel réservation detailing",
+      "gestion centre detailing",
+      "planning detailing automobile",
+      "logiciel facturation detailing",
+      "site internet detailing automobile",
     ],
     /** Langue du site */
     locale: "fr_FR",
