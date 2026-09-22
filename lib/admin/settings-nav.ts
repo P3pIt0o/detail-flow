@@ -139,34 +139,55 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
 }
 
 /**
- * Catégories visibles pour un tenant. Standard (`customSiteKey` nul/autre) :
- * liste complète inchangée. Spirit ACS : sous-onglets masqués retirés, et toute
- * catégorie devenue vide (ex. « Réservations ») disparaît de la grille.
+ * Catégories visibles pour un tenant.
+ *
+ * - Standard (`customSiteKey` nul/autre, intention nulle) : liste complète
+ *   inchangée (aucune régression pour les tenants historiques et public_page).
+ * - Spirit ACS : sous-onglets masqués retirés, et toute catégorie devenue vide
+ *   (ex. « Réservations ») disparaît de la grille.
+ * - `booking_only` : le professionnel a déjà son site ; DetailFlow ne fournit
+ *   que le moteur de réservation. La catégorie « Site public » (contenu du site,
+ *   apparence, galerie, avis, demandes = réglages de VITRINE) est masquée dans
+ *   son intégralité. Aucune donnée n'est supprimée, aucune route n'est retirée :
+ *   seuls les liens/onglets de création de vitrine disparaissent de SON espace.
+ *
+ * `onboardingIntent` doit être l'intention DÉJÀ RÉSOLUE (`resolveDashboardIntent`),
+ * donc null pour tout site 100 % personnalisé → priorité au comportement custom.
  */
 export function getVisibleSettingsCategories(
   customSiteKey: string | null | undefined,
+  onboardingIntent?: string | null,
 ): SettingsCategory[] {
-  if (customSiteKey !== "spirit-acs") return SETTINGS_CATEGORIES
-  return SETTINGS_CATEGORIES.map((c) => ({
-    ...c,
-    subTabs: c.subTabs
-      .filter((t) => !SPIRIT_ACS_HIDDEN_TABS.has(t.value))
-      .map((t) => (SPIRIT_ACS_TAB_LABELS[t.value] ? { ...t, label: SPIRIT_ACS_TAB_LABELS[t.value] } : t)),
-  })).filter((c) => c.subTabs.length > 0)
+  if (customSiteKey === "spirit-acs") {
+    return SETTINGS_CATEGORIES.map((c) => ({
+      ...c,
+      subTabs: c.subTabs
+        .filter((t) => !SPIRIT_ACS_HIDDEN_TABS.has(t.value))
+        .map((t) => (SPIRIT_ACS_TAB_LABELS[t.value] ? { ...t, label: SPIRIT_ACS_TAB_LABELS[t.value] } : t)),
+    })).filter((c) => c.subTabs.length > 0)
+  }
+
+  if (onboardingIntent === "booking_only") {
+    return SETTINGS_CATEGORIES.filter((c) => c.id !== "site")
+  }
+
+  return SETTINGS_CATEGORIES
 }
 
 /**
  * Retourne la catégorie contenant l'onglet donné, ou null si inconnu.
- * Respecte le masquage tenant : un onglet masqué pour Spirit renvoie null, ce
- * qui ramène l'utilisateur à la grille d'accueil des paramètres.
+ * Respecte le masquage tenant : un onglet masqué (Spirit, ou catégorie « Site
+ * public » pour booking_only) renvoie null, ce qui ramène l'utilisateur à la
+ * grille d'accueil des paramètres.
  */
 export function findCategoryByTab(
   tab: string | undefined | null,
   customSiteKey?: string | null,
+  onboardingIntent?: string | null,
 ): SettingsCategory | null {
   if (!tab) return null
   return (
-    getVisibleSettingsCategories(customSiteKey).find((c) =>
+    getVisibleSettingsCategories(customSiteKey, onboardingIntent).find((c) =>
       c.subTabs.some((t) => t.value === tab),
     ) ?? null
   )
