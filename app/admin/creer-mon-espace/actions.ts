@@ -7,6 +7,7 @@ import { companies } from "@/lib/db/schema"
 import { getSession } from "@/lib/admin"
 import { provisionCompanyForUser } from "@/lib/company/provision"
 import { isValidSlug, isReservedSlug, normalizeSlug } from "@/lib/tenant-shared"
+import { toCanonicalIntent } from "@/lib/onboarding/intent"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions du parcours « Créer mon espace » (inscription self-service)        */
@@ -60,10 +61,13 @@ export async function createWorkspace(
   const country = String(formData.get("country") ?? "").trim()
   const phone = String(formData.get("phone") ?? "").trim()
   const websiteUrl = String(formData.get("websiteUrl") ?? "").trim()
-  // Intention de l'onboarding : sert UNIQUEMENT à router l'utilisateur après
-  // création (aucune persistance). Valeurs attendues : booking | page | website.
+  // Intention de l'onboarding (code de transport : booking | page | website).
+  // Elle est désormais PERSISTÉE (valeur canonique) au provisioning, ET transmise
+  // via `?start=` uniquement pour le tout premier rendu. La source de vérité du
+  // dashboard reste `companies.onboardingIntent` (voir lib/onboarding/intent.ts).
   const intentRaw = String(formData.get("intent") ?? "").trim()
   const intent = ["booking", "page", "website"].includes(intentRaw) ? intentRaw : ""
+  const canonicalIntent = toCanonicalIntent(intent || null)
 
   if (!name) return { error: "Le nom de votre entreprise est requis." }
 
@@ -89,6 +93,7 @@ export async function createWorkspace(
       country: country || undefined,
       phone: phone || undefined,
       websiteUrl: websiteUrl || undefined,
+      onboardingIntent: canonicalIntent ?? undefined,
     })
     createdSlug = res.slug
   } catch (err) {

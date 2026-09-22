@@ -2,57 +2,73 @@
 
 import { useCallback, useState } from "react"
 import Link from "next/link"
-import { CalendarCheck, Copy, Check, ExternalLink, Rocket, Sparkles } from "lucide-react"
-import type { OnboardingIntent } from "@/lib/onboarding/shared"
+import { CalendarCheck, Copy, Check, ExternalLink, Rocket, Sparkles, Globe, PencilRuler, ArrowRight } from "lucide-react"
+import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 
 /**
- * Carte d'accueil post-inscription (« Vos deux prochaines étapes »).
+ * Panneau d'accueil CONTEXTUEL du tableau de bord, piloté par le parcours choisi
+ * avant l'inscription (`companies.onboardingIntent`, valeur canonique).
  *
- * ADDITIVE et ÉPHÉMÈRE : rendue uniquement sur le tableau de bord juste après
- * la création d'un espace self-service (paramètre `?start=`), pour un tenant
- * STANDARD (jamais un site personnalisé). Aucun tenant existant n'est affecté :
- * en navigation normale, `?start=` est absent et la carte ne s'affiche pas.
+ * Contrairement à l'ancienne version, il est PERSISTANT (plus lié à `?start=`) :
+ * il retrouve toujours le bon parcours après reconnexion, sur n'importe quel
+ * appareil, tant que la colonne est renseignée. Il n'est JAMAIS rendu pour un
+ * tenant historique (`onboardingIntent` NULL) ni pour un site 100 % personnalisé
+ * (Spirit ACS, Rozan, Cleanyzer, JustClean…) — cette décision est prise côté
+ * serveur (voir lib/onboarding/intent.ts) ; ici on se contente d'afficher le
+ * parcours reçu, et on n'invente aucune URL (toutes résolues côté serveur).
  *
- * Elle matérialise les deux parcours décidés :
- *  - Cas A (« booking ») : le pro a déjà un site → on met en avant le LIEN DE
- *    RÉSERVATION `/p/<slug>/reservation`, qui fonctionne immédiatement.
- *  - Cas B (« page » / « website ») : on met en avant la PAGE PUBLIQUE
- *    `/p/<slug>`, à personnaliser puis publier depuis le configurateur.
- *
- * Ce composant n'invente aucune URL : il n'affiche/copie que celles résolues
- * côté serveur et passées en props.
+ * Trois parcours, MUTUELLEMENT EXCLUSIFS — jamais de blocs contradictoires :
+ *  - booking_only   : le pro a déjà un site → moteur de réservation en avant.
+ *  - public_page    : le pro n'a pas de site → page publique DetailFlow en avant.
+ *  - custom_website : site sur mesure → état de la demande (pas de /p/<slug>).
  */
 export function StartFlowCard({
   intent,
   reservationUrl,
   pageUrl,
   configureHref,
+  bookingSettingsHref,
+  customRequestHref,
   isPublished,
 }: {
-  intent: OnboardingIntent
+  intent: OnboardingIntentValue
   /** Lien public de réservation (absolu en prod, relatif en aperçu). */
   reservationUrl: string
   /** Lien public de la page (absolu en prod, relatif en aperçu). */
   pageUrl: string
   /** Lien tenant-safe vers le configurateur de page publique. */
   configureHref: string
+  /** Lien tenant-safe vers les réglages de réservation. */
+  bookingSettingsHref: string
+  /** Lien tenant-safe vers le formulaire de demande de site personnalisé. */
+  customRequestHref: string
   /** La page publique standard est-elle déjà publiée ? */
   isPublished: boolean
 }) {
-  const bookingFirst = intent === "booking"
+  if (intent === "custom_website") {
+    return <CustomWebsitePanel href={customRequestHref} />
+  }
+
+  const bookingFirst = intent === "booking_only"
 
   return (
     <section className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
       <div className="flex items-center gap-2">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Sparkles className="size-4" aria-hidden="true" />
+          {bookingFirst ? (
+            <CalendarCheck className="size-4" aria-hidden="true" />
+          ) : (
+            <Globe className="size-4" aria-hidden="true" />
+          )}
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">Bienvenue ! Votre espace est prêt</h2>
-          <p className="text-xs text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
+            {bookingFirst ? "Votre moteur de réservation" : "Votre page professionnelle"}
+          </h2>
+          <p className="text-xs text-muted-foreground text-pretty">
             {bookingFirst
-              ? "Ajoutez la réservation en ligne à votre site existant."
-              : "Partagez votre page professionnelle avec vos clients."}
+              ? "Utilisez DetailFlow pour prendre vos rendez-vous en ligne, avec votre site actuel."
+              : "Créez, personnalisez et publiez votre page DetailFlow, puis partagez-la avec vos clients."}
           </p>
         </div>
       </div>
@@ -63,23 +79,24 @@ export function StartFlowCard({
             <LinkRow
               icon={<CalendarCheck className="size-4" aria-hidden="true" />}
               label="Votre lien de réservation"
-              hint="Collez ce lien sur votre site, votre fiche Google ou vos réseaux : vos clients réservent en ligne immédiatement."
+              hint="Ajoutez ce lien au bouton « Réserver » de votre site ou à votre bio Instagram : vos clients réservent en ligne immédiatement."
               url={reservationUrl}
             />
             <ConfigureLink
-              href={configureHref}
-              label="Créer aussi une page publique (optionnel)"
+              href={bookingSettingsHref}
+              label="Configurer mes réservations"
+              icon={<CalendarCheck className="size-4" aria-hidden="true" />}
             />
           </>
         ) : (
           <>
             <LinkRow
-              icon={<CalendarCheck className="size-4" aria-hidden="true" />}
+              icon={<Globe className="size-4" aria-hidden="true" />}
               label="Votre page publique"
               hint={
                 isPublished
-                  ? "Votre page est en ligne. Partagez ce lien avec vos clients."
-                  : "Personnalisez puis publiez votre page pour la rendre accessible à ce lien."
+                  ? "Votre page est en ligne. Partagez ce lien ; son bouton « Réserver » mène directement à votre prise de rendez-vous."
+                  : "Personnalisez puis publiez votre page pour la rendre accessible. Son bouton « Réserver » mènera à votre prise de rendez-vous."
               }
               url={pageUrl}
               muted={!isPublished}
@@ -87,10 +104,57 @@ export function StartFlowCard({
             <ConfigureLink
               href={configureHref}
               label={isPublished ? "Personnaliser ma page" : "Personnaliser et publier ma page"}
+              icon={<Rocket className="size-4" aria-hidden="true" />}
               primary={!isPublished}
             />
           </>
         )}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Parcours « site personnalisé » : on n'expose JAMAIS /p/<slug> comme étant le
+ * site commandé. On affiche l'état de la demande et on renvoie vers le
+ * formulaire de qualification (dont l'envoi se fait par email).
+ */
+function CustomWebsitePanel({ href }: { href: string }) {
+  return (
+    <section className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
+      <div className="flex items-center gap-2">
+        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <PencilRuler className="size-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-foreground">Votre site personnalisé</h2>
+          <p className="text-xs text-muted-foreground text-pretty">
+            Un site sur mesure nécessite une prise en charge dédiée par notre équipe. Décrivez votre projet : nous
+            l&apos;étudions et revenons vers vous.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Sparkles className="size-4 text-primary" aria-hidden="true" />
+            Demande de site sur mesure
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground text-pretty">
+            En attendant, votre espace DetailFlow (réservations, clients, facturation) est déjà pleinement utilisable.
+          </p>
+          <div className="mt-3">
+            <Link
+              href={href}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <PencilRuler className="size-4" aria-hidden="true" />
+              Décrire mon projet
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -170,10 +234,12 @@ function LinkRow({
 function ConfigureLink({
   href,
   label,
+  icon,
   primary,
 }: {
   href: string
   label: string
+  icon: React.ReactNode
   primary?: boolean
 }) {
   return (
@@ -185,7 +251,7 @@ function ConfigureLink({
           : "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
       }
     >
-      <Rocket className="size-4" aria-hidden="true" />
+      {icon}
       {label}
     </Link>
   )

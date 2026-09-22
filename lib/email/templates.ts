@@ -145,6 +145,71 @@ function manageBlock(b: BookingEmailData): string {
     </p>`
 }
 
+/* ---------------------- Demande de site personnalisé --------------------- */
+
+/**
+ * Email INTERNE (vers l'équipe DetailFlow) qualifiant une demande de site sur
+ * mesure émise depuis l'espace d'un professionnel. Aucun /p/<slug> n'est
+ * présenté comme « le site » : c'est une prise de contact à étudier.
+ */
+export function customWebsiteRequestEmail(opts: {
+  companyName: string
+  city?: string | null
+  currentSite?: string | null
+  instagram?: string | null
+  needs: string
+  features?: string | null
+  contactName: string
+  contactEmail: string
+  contactPhone?: string | null
+  tenantSlug: string
+}) {
+  const multiline = (s: string) => esc(s).replace(/\r?\n/g, "<br>")
+  const rows: [string, string | null | undefined][] = [
+    ["Entreprise", opts.companyName],
+    ["Ville", opts.city],
+    ["Site actuel", opts.currentSite],
+    ["Instagram", opts.instagram],
+    ["Espace DetailFlow", opts.tenantSlug],
+    ["Contact", opts.contactName],
+    ["Email", opts.contactEmail],
+    ["Téléphone", opts.contactPhone],
+  ]
+  const infoRows = rows
+    .filter(([, v]) => Boolean(v && String(v).trim()))
+    .map(
+      ([label, v]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:${MUTED};white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+         <td style="padding:6px 0;color:${INK};">${esc(String(v))}</td></tr>`,
+    )
+    .join("")
+
+  const featuresBlock = opts.features?.trim()
+    ? `<div style="font-size:13px;color:${MUTED};margin:16px 0 4px;">Fonctionnalités souhaitées</div>
+       <div style="font-size:15px;color:${INK};line-height:1.6;">${multiline(opts.features)}</div>`
+    : ""
+
+  const body = `
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${INK};">
+    Une nouvelle demande de site personnalisé vient d'être transmise.
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;padding:6px;">
+    ${infoRows}
+  </table>
+  <div style="font-size:13px;color:${MUTED};margin:16px 0 4px;">Besoins</div>
+  <div style="font-size:15px;color:${INK};line-height:1.6;">${multiline(opts.needs)}</div>
+  ${featuresBlock}`
+
+  return {
+    subject: `Demande de site personnalisé — ${opts.companyName}`,
+    html: layout({
+      businessName: "DetailFlow",
+      heading: "Nouvelle demande de site personnalisé",
+      bodyHtml: body,
+    }),
+  }
+}
+
 /* -------------------------- Confirmation client -------------------------- */
 
 export function clientConfirmationEmail(b: BookingEmailData) {

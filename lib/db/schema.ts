@@ -137,6 +137,12 @@ export const companies = pgTable("companies", {
   // inconnue ne casse jamais la prod : repli automatique sur le site standard.
   // Jamais attribuée automatiquement : réservée à une action super-admin.
   customSiteKey: text("customSiteKey"),
+  // Parcours d'onboarding choisi AVANT l'inscription (self-service). Valeurs
+  // canoniques : "booking_only" | "public_page" | "custom_website" (contrainte
+  // CHECK côté DB). NULL = tenant historique / inscription directe → dashboard
+  // standard inchangé. Persisté au provisioning ; source de vérité du parcours
+  // affiché après reconnexion (voir lib/onboarding/intent.ts).
+  onboardingIntent: text("onboardingIntent"),
   /* -------------------------- Paiements en ligne --------------------------- */
   // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
   // Null = aucun provider connecté. Seul Stripe est implémenté en V1.
@@ -340,7 +346,7 @@ export const clients = pgTable(
      * client choisit explicitement individual ou business. Quand une règle
      * réglementaire dépend du B2B/B2C, NULL produira REVIEW_REQUIRED (LOT 2B),
      * jamais une hypothèse silencieuse. Aucun backfill vers "individual".
-     * Le pays DU CLIENT (et non du vendeur) détermine le schéma d'identifiant. */
+     * Le pays DU CLIENT (et non du vendeur) détermine le sch��ma d'identifiant. */
     customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
     country: text("country"), // ISO 3166-1 alpha-2 (FR, BE, CH, ...)
     legalRegistrationNumber: text("legalRegistrationNumber"),
