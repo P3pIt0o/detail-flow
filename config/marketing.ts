@@ -422,3 +422,257 @@ export const marketing = {
     },
   ],
 } as const
+
+/**
+ * ============================================================================
+ *  CONTENU VITRINE v2 — REFONTE MARKETING (Lot 3)
+ * ============================================================================
+ *  Namespace dédié pour la nouvelle composition storytelling. Séparé de
+ *  `marketing` (ci-dessus) pour NE RIEN casser des composants existants qui
+ *  s'y réfèrent encore (StaticMarketingContent, beta-form, marketing-sections).
+ *
+ *  RÈGLES STRICTES (identiques) :
+ *  - Aucune fausse UI, aucun faux avis, aucun faux chiffre.
+ *  - CTA principal orienté self-service : « Créer mon espace » -> /admin/signup.
+ *  - Les prix ci-dessous sont les valeurs commerciales validées en Phase 2.
+ *    Ils seront reliés à la source unique `lib/pricing/plans.ts` au Lot 4.
+ * ============================================================================
+ */
+export const marketingV2 = {
+  /* ----------------------------------- HERO ----------------------------------- */
+  hero: {
+    badge: "Logiciel de gestion pour les professionnels du detailing",
+    title: "Vous detaillez. DetailFlow gère tout le reste.",
+    subtitle:
+      "Réservations, planning, clients, véhicules, devis, factures et relances automatiques réunis dans un seul outil pensé pour le detailing automobile.",
+    primaryCta: { label: "Créer mon espace", href: "/admin/signup" },
+    secondaryCta: { label: "Voir comment ça marche", href: "#parcours" },
+    highlights: ["Réservation en ligne 24/7", "Planning temps réel", "Devis & factures reliés", "Rappels automatiques"],
+    reassurance:
+      "Sans carte bancaire pour commencer • Votre page en ligne en quelques minutes • Vos données exportables à tout moment",
+    image: {
+      src: "/marketing/dashboard-preview.png",
+      alt: "Tableau de bord DetailFlow : réservations, planning et chiffre d'affaires d'un professionnel du detailing",
+    },
+    notifications: ["Nouvelle réservation", "Devis accepté", "Facture créée", "Rappel envoyé", "Nouvel avis client"],
+  },
+
+  /* --------------------------------- PROBLÈMES -------------------------------- */
+  painPoints: {
+    title: "Le detailing, vous savez faire. La gestion vous mange vos journées.",
+    lead: "Une demande sur Instagram, une autre par SMS, un rendez-vous noté sur un carnet, un devis dans un tableur, une facture ailleurs, des relances de tête. Plus l'activité grandit, plus le risque d'oubli augmente.",
+    items: [
+      {
+        title: "Des demandes partout",
+        description: "Instagram, WhatsApp, appels, formulaires : impossible de tout suivre au même endroit.",
+      },
+      {
+        title: "Un agenda fragile",
+        description: "Un rendez-vous mal noté, un créneau doublé, et c'est toute la journée qui déraille.",
+      },
+      {
+        title: "De la double saisie",
+        description: "Les mêmes informations recopiées du message au devis, puis du devis à la facture.",
+      },
+      {
+        title: "Des rendez-vous manqués",
+        description: "Sans confirmation ni rappel, certains clients oublient tout simplement de venir.",
+      },
+    ],
+  },
+
+  /* --------------------------- CHAÎNE AVANT / NO-SHOW -------------------------- */
+  noShow: {
+    title: "Moins de rendez-vous manqués, sans y penser",
+    lead: "DetailFlow enchaîne automatiquement les étapes qui sécurisent un rendez-vous : acompte à la réservation, confirmation immédiate et rappel avant le jour J.",
+    steps: [
+      { label: "Réservation en ligne", description: "Le client choisit sa prestation, son véhicule et son créneau." },
+      { label: "Acompte demandé", description: "Un acompte peut être encaissé à la réservation via le paiement en ligne." },
+      { label: "Confirmation immédiate", description: "Le client reçoit une confirmation dès la réservation validée." },
+      { label: "Rappel avant le rendez-vous", description: "Un rappel automatique est envoyé avant le jour J." },
+      { label: "Client présent", description: "Le créneau est sécurisé, votre planning reste fiable." },
+    ],
+    acomptePlaceholder: "Encaissement d'acompte côté client (paiement en ligne connecté)",
+    footnote: "L'encaissement d'acompte s'appuie sur le paiement en ligne connecté à votre compte professionnel.",
+  },
+
+  /* ------------------------------ PARCOURS CLIENT ----------------------------- */
+  journey: {
+    title: "Le parcours de votre client, de la réservation à l'avis",
+    lead: "Chaque étape alimente la suivante, sans jamais ressaisir les mêmes informations.",
+    steps: [
+      {
+        n: "01",
+        title: "Il réserve en ligne",
+        description: "Depuis votre page, à toute heure, il choisit sa prestation, son véhicule et son créneau.",
+        image: { src: "/marketing/product/booking.png", alt: "Page de réservation en ligne DetailFlow" },
+        placeholder: null as string | null,
+      },
+      {
+        n: "02",
+        title: "Le rendez-vous arrive dans votre planning",
+        description: "Le créneau se place automatiquement et la fiche client est créée sans ressaisie.",
+        image: { src: "/marketing/product/calendar.png", alt: "Planning des rendez-vous dans DetailFlow" },
+        placeholder: null as string | null,
+      },
+      {
+        n: "03",
+        title: "Sa fiche se remplit toute seule",
+        description: "Client, véhicule et historique des prestations réunis au même endroit.",
+        image: null as { src: string; alt: string } | null,
+        placeholder: "Fiche client DetailFlow (coordonnées, véhicules, historique des prestations)",
+      },
+      {
+        n: "04",
+        title: "Vous éditez devis puis facture",
+        description: "Le devis devient facture en conservant les mêmes informations : moins de saisie, moins d'erreurs.",
+        image: { src: "/marketing/product/quote.png", alt: "Création de devis dans DetailFlow" },
+        placeholder: null as string | null,
+      },
+      {
+        n: "05",
+        title: "Le suivi part automatiquement",
+        description: "Confirmation, rappel avant le rendez-vous et demande d'avis peuvent s'envoyer sans intervention.",
+        image: { src: "/marketing/product/invoice.png", alt: "Facture générée par DetailFlow" },
+        placeholder: null as string | null,
+      },
+    ],
+  },
+
+  /* ----------------------- CENTRALISATION PROFESSIONNELLE --------------------- */
+  cockpit: {
+    title: "Votre activité entière, dans un seul cockpit",
+    lead: "Réservations, planning, clients, véhicules, devis, factures et chiffre d'affaires réunis dans une interface unique, pensée pour le detailing.",
+    points: [
+      "Tableau de bord clair de votre activité",
+      "Planning temps réel consultable partout",
+      "Fiches clients et véhicules centralisées",
+      "Devis, factures et suivi du chiffre d'affaires",
+    ],
+    image: {
+      src: "/marketing/dashboard-preview.png",
+      alt: "Tableau de bord DetailFlow d'un professionnel du detailing",
+    },
+    statsPlaceholder: "Vue chiffre d'affaires et statistiques d'activité",
+    mobilePlaceholder: "Réservation et planning sur mobile",
+  },
+
+  /* ------------------------------ AUTOMATISATIONS ----------------------------- */
+  automations: {
+    title: "DetailFlow travaille même quand vous ne travaillez pas",
+    lead: "Moins de tâches répétitives, moins d'oublis, une meilleure expérience client.",
+    scenarios: [
+      { trigger: "Nouvelle réservation", action: "Confirmation envoyée au client" },
+      { trigger: "Rendez-vous le lendemain", action: "Rappel automatique envoyé" },
+      { trigger: "Prestation terminée", action: "Demande d'avis envoyée" },
+    ],
+    notificationPlaceholder: "Exemple de notification / rappel reçu par le client",
+  },
+
+  /* ---------------------- PAGE PROFESSIONNELLE EN MINUTES --------------------- */
+  publicPage: {
+    badge: "Votre présence en ligne",
+    title: "Votre page professionnelle en ligne en quelques minutes",
+    lead: "Dès la création de votre espace, DetailFlow génère une page professionnelle à votre nom : votre logo, vos couleurs, vos prestations et un bouton de réservation relié directement à votre planning.",
+    points: [
+      "Une adresse dédiée, prête à partager",
+      "Vos prestations et vos tarifs mis en avant",
+      "La réservation en ligne intégrée",
+      "Personnalisable à votre image",
+    ],
+    cta: { label: "Créer mon espace", href: "/admin/signup" },
+    placeholder: "Page publique d'un professionnel (démo) générée par DetailFlow",
+  },
+
+  /* ---------------------------------- PRICING --------------------------------- */
+  pricing: {
+    title: "Un tarif clair, sans surprise",
+    lead: "Commencez gratuitement, passez à une offre supérieure quand votre activité grandit.",
+    note: "Prix indiqués hors taxes. Vous pouvez changer d'offre à tout moment.",
+    plans: [
+      {
+        id: "starter",
+        name: "Starter",
+        price: "0 €",
+        period: "pour démarrer",
+        description: "L'essentiel pour lancer votre activité en ligne.",
+        features: [
+          "Page professionnelle en ligne",
+          "Réservation en ligne",
+          "Planning centralisé",
+          "Fiches clients & véhicules",
+        ],
+        cta: { label: "Créer mon espace", href: "/admin/signup" },
+        highlighted: false,
+        badge: null as string | null,
+      },
+      {
+        id: "pro",
+        name: "Pro",
+        price: "24,90 €",
+        period: "/ mois",
+        description: "Pour gérer sereinement une activité qui tourne.",
+        features: [
+          "Tout Starter",
+          "Devis & factures reliés",
+          "Rappels & demandes d'avis automatiques",
+          "Suivi du chiffre d'affaires",
+        ],
+        cta: { label: "Créer mon espace", href: "/admin/signup" },
+        highlighted: true,
+        badge: "Le plus choisi",
+      },
+      {
+        id: "business",
+        name: "Business",
+        price: "39,90 €",
+        period: "/ mois",
+        description: "Pour aller plus loin dans le pilotage de votre entreprise.",
+        features: [
+          "Tout Pro",
+          "Gestion des frais & rentabilité",
+          "Statistiques d'activité avancées",
+          "Options de personnalisation étendues",
+        ],
+        cta: { label: "Créer mon espace", href: "/admin/signup" },
+        highlighted: false,
+        badge: null as string | null,
+      },
+    ],
+    lifetime: {
+      badge: "Offre à vie",
+      name: "Lifetime",
+      price: "990 €",
+      period: "paiement unique",
+      description: "Accédez à DetailFlow à vie, sans abonnement mensuel.",
+      features: ["Accès à la plateforme à vie", "Mises à jour incluses", "Aucun abonnement mensuel"],
+      cta: { label: "Créer mon espace", href: "/admin/signup" },
+      custom: {
+        title: "Besoin d'une adaptation sur mesure ?",
+        description:
+          "Adaptation à un métier spécifique, fonctionnalités particulières, développements sur mesure ou évolution plus poussée de la plateforme selon les besoins de votre entreprise : ces demandes font l'objet d'une étude dédiée et d'un devis. Elles ne sont pas incluses automatiquement dans le prix Lifetime.",
+        email: "contact@detailflow.fr",
+        cta: {
+          label: "Écrire à contact@detailflow.fr",
+          href: "mailto:contact@detailflow.fr?subject=Demande%20d%27adaptation%20sur%20mesure%20DetailFlow",
+        },
+      },
+    },
+  },
+
+  /* ------------------------ PREUVE SOCIALE / TRUSTPILOT ----------------------- */
+  socialProof: {
+    title: "Ils utilisent déjà DetailFlow sur le terrain",
+    lead: "Des professionnels du detailing font confiance à DetailFlow au quotidien.",
+    trustpilotTitle: "Nos avis vérifiés",
+  },
+
+  /* --------------------------------- CTA FINAL -------------------------------- */
+  finalCta: {
+    title: "Prêt à gérer votre activité au même endroit ?",
+    subtitle: "Créez votre espace DetailFlow et mettez votre page professionnelle en ligne dès aujourd'hui.",
+    primaryCta: { label: "Créer mon espace", href: "/admin/signup" },
+    secondaryCta: { label: "Voir les tarifs", href: "#tarifs" },
+    reassurance: "Sans carte bancaire pour commencer • Vos données exportables à tout moment",
+  },
+} as const
