@@ -28,7 +28,7 @@ import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { isPublicPagePublished } from "@/lib/public-page/config"
-import type { OnboardingIntent } from "@/lib/onboarding/shared"
+import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 
 export const dynamic = "force-dynamic"
 
@@ -39,11 +39,6 @@ export default async function DashboardPage({
 }) {
   const { tenant, start } = await searchParams
   const href = (path: string) => withTenant(path, tenant ?? null)
-  // Intention issue de l'onboarding self-service (`?start=`) : matérialise les
-  // deux parcours d'accueil. Présente UNIQUEMENT juste après la création d'un
-  // espace ; absente en navigation normale → aucun tenant existant impacté.
-  const startIntent: OnboardingIntent | null =
-    start === "booking" || start === "page" || start === "website" ? start : null
 
   // Contexte résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
   // l'isolation tenant et à l'évaluation des droits via le moteur central.
@@ -118,21 +113,32 @@ export default async function DashboardPage({
   const siteReachable = company.status !== "SUSPENDED" && company.status !== "ARCHIVED"
   const siteUrl = resolvedSiteUrl.startsWith("https://") && siteReachable ? resolvedSiteUrl : null
 
-  // Carte d'accueil des deux parcours (Cas A / Cas B) — additive, affichée
-  // seulement juste après la création (`?start=`) et jamais pour un site
-  // personnalisé (Spirit ACS, etc.). On ne lit l'état de publication que dans
-  // ce cas pour éviter toute requête inutile en navigation normale.
+  // Parcours d'onboarding à afficher — décidé CÔTÉ SERVEUR à partir de la valeur
+  // PERSISTÉE `companies.onboardingIntent` (source de vérité, stable après
+  // reconnexion), avec `?start=` en simple repli pour le tout premier rendu.
+  // `null` pour un tenant historique (colonne NULL) ET pour tout site 100 %
+  // personnalisé (customSiteKey non nul) → comportement historique strict.
+  const contextualIntent = resolveDashboardIntent({
+    persisted: company.onboardingIntent,
+    customSiteKey: company.customSiteKey,
+    transport: start ?? null,
+  })
+
+  // Panneau contextuel du parcours — mutuellement exclusif (jamais de blocs
+  // contradictoires). On ne lit l'état de publication que si un parcours est
+  // actif, pour éviter toute requête inutile en navigation historique.
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
-  const startCard =
-    startIntent && !isSpirit ? (
-      <StartFlowCard
-        intent={startIntent}
-        reservationUrl={publicReservationUrl(company.slug, rootDomain)}
-        pageUrl={publicPageUrl(company.slug, rootDomain)}
-        configureHref={href("/admin/page-publique")}
-        isPublished={await isPublicPagePublished(companyId)}
-      />
-    ) : null
+  const startCard = contextualIntent ? (
+    <StartFlowCard
+      intent={contextualIntent}
+      reservationUrl={publicReservationUrl(company.slug, rootDomain)}
+      pageUrl={publicPageUrl(company.slug, rootDomain)}
+      configureHref={href("/admin/page-publique")}
+      bookingSettingsHref={href("/admin/parametres")}
+      customRequestHref={href("/admin/site-personnalise")}
+      isPublished={contextualIntent === "public_page" ? await isPublicPagePublished(companyId) : false}
+    />
+  ) : null
 
   // KPI : cartes compactes, période = mois en cours.
   //  - business_stats : CA, dépenses produits, nombre de rendez-vous ;
@@ -374,16 +380,24 @@ export default async function DashboardPage({
     <div className="mx-auto max-w-5xl">
       {header}
 
-      {/* Accueil des deux parcours (Cas A / Cas B) — additif, éphémère (?start=). */}
+      {/* Panneau contextuel du parcours choisi (booking_only / public_page /
+          custom_website). Persistant : il réapparaît à chaque reconnexion tant
+          que l'intention est renseignée. Null pour les tenants historiques. */}
       {startCard}
 
       {/* Onboarding « Vos premiers pas » — accompagnement progressif, non bloquant. */}
       <OnboardingPanel data={onboardingData} />
 
-      {/* Lien du site public — carte compacte (copier / ouvrir / partager). */}
-      <div className="mb-6">
-        <SiteLinkCard url={siteUrl} />
-      </div>
+      {/* Lien du site public — carte « Mon site internet ». Historiquement
+          affichée pour tous ; désormais MASQUÉE dès qu'un parcours contextuel
+          est actif, pour ne pas juxtaposer des blocs contradictoires (« Votre
+          page publique » + « Mon site internet »). Comportement inchangé quand
+          aucune intention n'est définie (tenants historiques, sites custom). */}
+      {contextualIntent === null ? (
+        <div className="mb-6">
+          <SiteLinkCard url={siteUrl} />
+        </div>
+      ) : null}
 
       {/* 1. KPI principaux — zone PREMIUM (business_stats / profitability_analysis).
           Verrouillée proprement si aucune des deux features n'est incluse, sans

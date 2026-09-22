@@ -31,6 +31,7 @@ import { sendEmail } from "@/lib/email/send"
 import { ownerInvitationEmail } from "@/lib/email/templates"
 import { grantBetaBonus } from "@/lib/sms/credits"
 import { SELF_SERVICE_LICENSE_PLAN } from "@/lib/pricing/plans"
+import { isCanonicalIntent } from "@/lib/onboarding/intent"
 
 /* -------------------------------------------------------------------------- */
 /*  Provisionnement d'une entreprise (tenant) — cœur du "créer en < 2 min".    */
@@ -264,6 +265,12 @@ export type SelfServiceProvisionInput = {
   phone?: string
   /** Site existant (parcours « réservation ») ou domaine visé (parcours « site »). */
   websiteUrl?: string
+  /**
+   * Parcours d'onboarding choisi avant l'inscription, en valeur CANONIQUE
+   * ("booking_only" | "public_page" | "custom_website"). Optionnel : toute
+   * valeur non canonique est ignorée (colonne laissée NULL → dashboard standard).
+   */
+  onboardingIntent?: string
 }
 
 export type SelfServiceProvisionResult = {
@@ -342,6 +349,9 @@ export async function provisionCompanyForUser(
   const countryValue = clean(input.country) ?? "FR"
   const phoneValue = clean(input.phone)
   const websiteValue = clean(input.websiteUrl)
+  // Parcours d'onboarding : persisté seulement s'il est canonique. Toute autre
+  // valeur (ou absence) laisse la colonne NULL → dashboard standard inchangé.
+  const intentValue = isCanonicalIntent(input.onboardingIntent) ? input.onboardingIntent : null
 
   // 0) IDEMPOTENCE : l'utilisateur a-t-il déjà une entreprise ? Si oui, la
   //    renvoyer telle quelle (retry / double soumission → aucun doublon).
@@ -398,6 +408,8 @@ export async function provisionCompanyForUser(
           // en démonstration tant que le propriétaire n'a pas publié/activé.
           bookingMode: "DEMO",
           noindex: true,
+          // Parcours choisi avant l'inscription (source de vérité du dashboard).
+          onboardingIntent: intentValue,
           // Licence par défaut (droits FREE, génération figée à l'attribution).
           licensePlan: SELF_SERVICE_DEFAULT_PLAN,
           licenseGeneration: SELF_SERVICE_DEFAULT_GENERATION,
