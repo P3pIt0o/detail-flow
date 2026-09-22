@@ -21,11 +21,14 @@ import { saveOnboarding, type OnboardingIntent } from "@/lib/onboarding/shared"
 /*  Données du parcours                                                        */
 /* -------------------------------------------------------------------------- */
 
-// Deux parcours, volontairement : « réservation en ligne » (produit standard
-// DetailFlow → booking_only) et « site internet complet » (demande sur mesure
-// → custom_website). On ne propose PLUS « page publique » à l'inscription : une
-// page/URL de réservation unique se partage partout (Instagram, Google, site…).
-// La valeur métier `public_page` reste supportée pour les anciens comptes.
+// Deux MODES D'UTILISATION de DetailFlow, au même prix — pas deux offres. Le
+// choix détermine durablement l'expérience (menu admin, réglages web) mais le
+// socle métier reste commun. Un SEUL moteur de réservation dans les deux cas :
+//  - « J'ai déjà un site » → booking_only : moteur exposé via lien + widget.
+//  - « Je n'ai pas de site » → public_page : site vitrine DetailFlow avec la
+//    réservation intégrée.
+// La valeur `custom_website` (demande de site sur mesure) reste supportée mais
+// n'est pas un mode self-service proposé ici.
 const INTENTS: {
   id: OnboardingIntent
   icon: React.ComponentType<{ className?: string }>
@@ -36,17 +39,16 @@ const INTENTS: {
   {
     id: "booking",
     icon: CalendarCheck,
-    title: "Je veux prendre des réservations en ligne",
+    title: "J'ai déjà un site internet",
     description:
-      "Créez votre page de réservation DetailFlow et partagez-la partout : site internet, Instagram, Google, WhatsApp ou QR code.",
-    cta: "Créer ma réservation",
+      "Ajoutez le moteur de réservation DetailFlow à votre site existant ou partagez simplement votre lien de réservation.",
+    cta: "Installer ma réservation",
   },
   {
-    id: "website",
+    id: "page",
     icon: Globe,
-    title: "Je veux un site internet complet",
-    description:
-      "Besoin d'un site professionnel avec votre réservation DetailFlow intégrée ? Présentez-nous votre projet.",
+    title: "Je n'ai pas encore de site internet",
+    description: "Créez votre site vitrine DetailFlow avec votre moteur de réservation directement intégré.",
     cta: "Créer mon site",
   },
 ]
@@ -241,7 +243,7 @@ export function Onboarding() {
                       type="button"
                       onClick={() => {
                         setIntent(opt.id)
-                        setStep(opt.id === "booking" ? "booking-site" : "website-domain")
+                        setStep(opt.id === "booking" ? "booking-site" : "page-info")
                       }}
                       className="group flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 text-left transition-all hover:border-primary/60 hover:bg-primary/[0.04]"
                     >
@@ -295,11 +297,11 @@ export function Onboarding() {
 
           {step === "page-info" && (
             <StepShell
-              title="Votre page professionnelle DetailFlow"
-              subtitle="Une page à votre nom pour présenter vos prestations et recevoir des réservations, sans avoir à créer un site complet."
+              title="Votre site vitrine DetailFlow"
+              subtitle="Un vrai mini-site à votre nom pour présenter votre activité, avec votre moteur de réservation intégré."
             >
               <ul className="flex flex-col gap-3">
-                {["À partager sur Instagram, Google, WhatsApp ou par SMS", "Vos prestations et vos tarifs mis en avant", "La réservation en ligne intégrée", "Un QR code prêt à imprimer"].map(
+                {["Présentation, prestations, galerie et avis clients", "Vos couleurs, votre logo, vos photos", "La réservation en ligne intégrée au site", "Publication et référencement (SEO) inclus"].map(
                   (item) => (
                     <li key={item} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm text-foreground">
                       <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
@@ -601,8 +603,8 @@ function Field({
 function recapItems({ intent, activities }: { intent: OnboardingIntent | ""; activities: string[] }): string[] {
   const items: string[] = []
   if (activities[0]) items.push(activities.length > 1 ? `${activities[0]} (+${activities.length - 1})` : activities[0])
-  if (intent === "booking") items.push("Réservation en ligne pour votre site")
-  if (intent === "page") items.push("Page professionnelle à partager")
+  if (intent === "booking") items.push("Moteur de réservation à intégrer à votre site")
+  if (intent === "page") items.push("Site vitrine DetailFlow avec réservation intégrée")
   if (intent === "website") items.push("Site professionnel")
   items.push("Réservation en ligne", "Planning", "Clients & véhicules", "Facturation")
   return items

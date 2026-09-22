@@ -6,14 +6,15 @@ import { toCanonicalIntent } from "@/lib/onboarding/intent"
 import { publicReservationUrl, publicReservationPath } from "@/lib/tenant-shared"
 
 /**
- * Onboarding simplifié — DEUX choix seulement sur /demarrer :
- *  1. « Je veux prendre des réservations en ligne »  → booking_only
- *  2. « Je veux un site internet complet »           → custom_website
+ * Onboarding self-service — DEUX choix seulement sur /demarrer, calqués sur la
+ * situation réelle du professionnel (pas deux offres, un même prix) :
+ *  1. « J'ai déjà un site internet »        → booking_only (module à intégrer)
+ *  2. « Je n'ai pas encore de site internet » → public_page (site vitrine)
  *
- * On ne propose PLUS « page publique » à l'inscription, mais la valeur métier
- * `public_page` reste supportée pour les anciens comptes (aucune régression,
- * aucune migration). Ces tests verrouillent le nouveau parcours et la garantie
- * fondamentale : UNE seule URL de réservation, utilisable de plusieurs façons.
+ * La valeur métier `custom_website` (site sur mesure) reste supportée pour les
+ * anciens comptes mais n'est PAS proposée ici (aucune régression, aucune
+ * migration). Ces tests verrouillent le parcours et la garantie fondamentale :
+ * UNE seule URL de réservation, utilisable de plusieurs façons.
  */
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
@@ -21,23 +22,25 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 describe("/demarrer — deux choix uniquement", () => {
   const onboarding = read("app/demarrer/onboarding.tsx")
 
-  it("le tableau INTENTS n'expose que booking et website (plus de page)", () => {
+  it("le tableau INTENTS n'expose que booking et page (plus de website self-service)", () => {
     const ids = [...onboarding.matchAll(/id:\s*"(booking|page|website)"/g)].map((m) => m[1])
-    expect(new Set(ids)).toEqual(new Set(["booking", "website"]))
-    expect(ids).not.toContain("page")
+    expect(new Set(ids)).toEqual(new Set(["booking", "page"]))
+    expect(ids).not.toContain("website")
   })
 
   it("chaque choix porte son intitulé et son CTA attendus", () => {
-    expect(onboarding).toContain("Je veux prendre des réservations en ligne")
-    expect(onboarding).toContain("Créer ma réservation")
-    expect(onboarding).toContain("Je veux un site internet complet")
+    // A — le pro a déjà un site : on installe le module de réservation.
+    expect(onboarding).toContain("J'ai déjà un site internet")
+    expect(onboarding).toContain("Installer ma réservation")
+    // B — le pro n'a pas de site : on crée un site vitrine DetailFlow.
+    expect(onboarding).toContain("Je n'ai pas encore de site internet")
     expect(onboarding).toContain("Créer mon site")
   })
 
-  it("le choix « réservation » se mappe sur booking_only et « site » sur custom_website", () => {
-    // Le transport du formulaire ("booking"/"website") est traduit en valeur métier.
+  it("le choix « déjà un site » se mappe sur booking_only et « pas de site » sur public_page", () => {
+    // Le transport du formulaire ("booking"/"page") est traduit en valeur métier.
     expect(toCanonicalIntent("booking")).toBe("booking_only")
-    expect(toCanonicalIntent("website")).toBe("custom_website")
+    expect(toCanonicalIntent("page")).toBe("public_page")
   })
 })
 
