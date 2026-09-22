@@ -1,6 +1,7 @@
 import "server-only"
 import { notFound } from "next/navigation"
 import { getCurrentTenant, isCurrentTenantPreviewer } from "@/lib/tenant"
+import { isPublicPagePublished } from "@/lib/public-page/config"
 import { hasFeature } from "./server"
 
 /**
@@ -28,16 +29,23 @@ import { hasFeature } from "./server"
 export async function requireWebsiteFeature(): Promise<void> {
   const tenant = await getCurrentTenant()
   if (!tenant) return // domaine racine / vitrine DetailFlow → jamais bloqué
-  const allowed = await hasFeature(tenant.id, "website")
-  if (allowed) return
 
-  // DÉROGATION D'APERÇU : le propriétaire (membre du tenant) ou un super-admin
-  // peut prévisualiser sa page publique depuis le configurateur même sans la
-  // feature `website` active. Aucun visiteur public (sans session) ni robot ne
-  // passe → la page reste inaccessible publiquement. Corrige la 404 du preview
-  // admin pour les tenants self-service (plan FREE) sans ouvrir la page au
-  // public ni toucher aux licences.
+  // 1) Sites avec la feature `website` (offres payantes, LIFETIME, et sites
+  //    personnalisés Spirit ACS / Rozan / Cleanyzer qui portent cette feature) :
+  //    comportement historique EXACT, sans aucune garde de publication.
+  //    → Non-régression garantie pour tous les tenants existants.
+  if (await hasFeature(tenant.id, "website")) return
+
+  // 2) DÉROGATION D'APERÇU : le propriétaire (membre du tenant) ou un
+  //    super-admin peut prévisualiser sa page — brouillon inclus — depuis le
+  //    configurateur. Aucun visiteur public (sans session) ni robot ne passe ici.
   if (await isCurrentTenantPreviewer(tenant.id)) return
+
+  // 3) Tenants self-service (plan FREE) : la page publique n'est accessible au
+  //    PUBLIC qu'une fois PUBLIÉE (publishedAt posé via le configurateur). Un
+  //    brouillon jamais publié → 404 public (mais visible en aperçu via 2).
+  //    → Rend le Cas B fonctionnel sans dépendre de la licence `website`.
+  if (await isPublicPagePublished(tenant.id)) return
 
   notFound()
 }

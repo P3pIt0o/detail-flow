@@ -51,18 +51,33 @@ function toRow(r: ConfigSelect): PublicPageConfigRow {
  * Ligne de config brute d'une entreprise, ou `null` (aucune config OU table
  * absente). Ne lève jamais pour une table manquante.
  */
-export async function getPublicPageConfigRow(companyId: number): Promise<ConfigSelect | null> {
-  try {
-    const [row] = await db
-      .select()
-      .from(publicPageConfig)
-      .where(eq(publicPageConfig.companyId, companyId))
-      .limit(1)
-    return row ?? null
-  } catch (err) {
-    if (isUndefinedTable(err)) return null
-    throw err
-  }
+export const getPublicPageConfigRow = cache(
+  async (companyId: number): Promise<ConfigSelect | null> => {
+    try {
+      const [row] = await db
+        .select()
+        .from(publicPageConfig)
+        .where(eq(publicPageConfig.companyId, companyId))
+        .limit(1)
+      return row ?? null
+    } catch (err) {
+      if (isUndefinedTable(err)) return null
+      throw err
+    }
+  },
+)
+
+/**
+ * La page publique de cette entreprise est-elle PUBLIÉE (au sens public) ?
+ *
+ * Vrai uniquement si une ligne de config existe ET porte une `publishedAt`.
+ * Sert de garde de visibilité PUBLIQUE pour les tenants self-service : un
+ * brouillon (jamais publié) reste inaccessible au public. Tolérante à l'absence
+ * de table (→ `false`). Mémoïsée par requête (via getPublicPageConfigRow).
+ */
+export async function isPublicPagePublished(companyId: number): Promise<boolean> {
+  const row = await getPublicPageConfigRow(companyId)
+  return Boolean(row?.publishedAt)
 }
 
 /**
