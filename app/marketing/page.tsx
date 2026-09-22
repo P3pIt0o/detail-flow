@@ -12,6 +12,8 @@ import {
 import { FaqV3 } from "@/components/marketing/v3/faq"
 import { Pricing } from "@/components/marketing/v2/pricing"
 import { SocialProof } from "@/components/marketing/v2/social-proof"
+import { MARKETING_MAINTENANCE_ENABLED } from "@/lib/marketing/maintenance"
+import { MaintenanceScreen } from "@/components/marketing/maintenance-screen"
 
 /**
  * Landing DetailFlow.fr (domaine racine) — refonte « philosophie Karzly ».
@@ -72,6 +74,13 @@ const jsonLd = {
 }
 
 export default function MarketingPage() {
+  // MODE MAINTENANCE (vitrine marketing uniquement) : on court-circuite la
+  // landing sans la supprimer. Tout le contenu ci-dessous reste en place et
+  // sera réaffiché dès que le drapeau repasse à `false`.
+  if (MARKETING_MAINTENANCE_ENABLED) {
+    return <MaintenanceScreen />
+  }
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />

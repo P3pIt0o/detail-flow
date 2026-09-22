@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { marketing } from "@/config/marketing"
+import { MARKETING_MAINTENANCE_ENABLED } from "@/lib/marketing/maintenance"
 
 // `title.absolute` évite le gabarit "%s | DetailFlow" du root layout : la marque
 // n'apparaît donc qu'UNE fois dans le <title> de la home marketing.
@@ -40,6 +41,13 @@ export const metadata: Metadata = {
 }
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+  // MODE MAINTENANCE : on retire l'en-tête/pied de page marketing (dont la
+  // navigation par ancres qui n'existent plus sur l'écran de maintenance).
+  // L'écran de maintenance fournit sa propre mise en page complète.
+  if (MARKETING_MAINTENANCE_ENABLED) {
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* En-tête léger, sticky, translucide */}
