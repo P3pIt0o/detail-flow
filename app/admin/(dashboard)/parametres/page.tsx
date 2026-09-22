@@ -46,6 +46,7 @@ import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
 import { findCategoryByTab, getVisibleSettingsCategories } from "@/lib/admin/settings-nav"
+import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { withTenant } from "@/lib/tenant-link"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
@@ -74,12 +75,19 @@ export default async function ParametresPage({
   // serveur, jamais depuis le client.
   const canEditSpiritTexts = isSpiritSite && (isSuperAdmin || role === "OWNER" || role === "ADMIN")
   const spiritTextsResult = canEditSpiritTexts ? await getSpiritSiteTexts() : null
+  // Parcours d'onboarding RÉSOLU côté serveur (customSiteKey non nul => null,
+  // priorité au comportement custom). booking_only => la catégorie « Site
+  // public » (réglages de vitrine) est masquée : le pro a déjà son site.
+  const dashboardIntent = resolveDashboardIntent({
+    persisted: tenant.onboardingIntent,
+    customSiteKey: tenant.customSiteKey,
+  })
   // Catégories visibles pour CE tenant (filtrage centralisé, isolé par
-  // customSiteKey). Standard => liste complète inchangée.
-  const visibleCategories = getVisibleSettingsCategories(tenant.customSiteKey)
+  // customSiteKey + intention). Standard/legacy/public_page => liste complète.
+  const visibleCategories = getVisibleSettingsCategories(tenant.customSiteKey, dashboardIntent)
   // Catégorie active déduite de l'onglet historique, en respectant le masquage
-  // tenant : un ?tab= inconnu OU masqué pour Spirit renvoie null => grille d'accueil.
-  const activeCategory = findCategoryByTab(tab, tenant.customSiteKey)
+  // tenant : un ?tab= inconnu OU masqué (Spirit / booking_only) renvoie null => grille.
+  const activeCategory = findCategoryByTab(tab, tenant.customSiteKey, dashboardIntent)
   const activeTab = activeCategory && tab ? tab : undefined
   const CategoryIcon = activeCategory?.icon
   const visibleSubTabs = activeCategory?.subTabs ?? []

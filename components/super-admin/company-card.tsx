@@ -6,8 +6,9 @@ import { resetOwnerPasswordAction } from "@/app/super-admin/actions"
 import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-recap"
 import { CompanyRowActions } from "@/components/super-admin/company-row-actions"
 import { LicensePanel } from "@/components/super-admin/license-panel"
-import { tenantAdminUrl, tenantPublicUrl } from "@/lib/tenant-shared"
-import { customSiteLabel, listRegisteredCustomSites } from "@/lib/custom-sites/meta"
+import { tenantAdminUrl } from "@/lib/tenant-shared"
+import { listRegisteredCustomSites } from "@/lib/custom-sites/meta"
+import { resolveTenantPublicPresentation } from "@/lib/super-admin/public-presentation"
 
 export type CompanyCardData = {
   id: number
@@ -23,6 +24,8 @@ export type CompanyCardData = {
   licensePlan: string | null
   licenseGeneration: string | null
   customSiteKey: string | null
+  /** Parcours persisté (source de vérité du produit) ou null (legacy). */
+  onboardingIntent: string | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -58,10 +61,21 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
 
   const expired = company.status === "BETA" && company.betaEndsAt != null && new Date(company.betaEndsAt).getTime() < Date.now()
 
+  // Présentation publique CONTEXTUELLE (source de vérité : onboardingIntent).
+  // booking_only → lien de réservation `/p/<slug>/reservation` (pas de vitrine),
+  // public_page → site vitrine, custom/legacy → affichage historique.
+  const presentation = resolveTenantPublicPresentation({
+    slug: company.slug,
+    onboardingIntent: company.onboardingIntent,
+    customSiteKey: company.customSiteKey,
+    rootDomain: rootDomain ?? undefined,
+  })
+
   const info: AccessInfo = {
     companyName: company.name,
     slug: company.slug,
-    publicUrl: tenantPublicUrl(company.slug, rootDomain ?? undefined),
+    publicUrl: presentation.publicUrl,
+    publicLabel: presentation.linkLabel,
     adminUrl: tenantAdminUrl(company.slug, rootDomain ?? undefined),
     ownerEmail: company.ownerEmail ?? "—",
     tempPassword,
@@ -134,12 +148,12 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
           <p className="font-medium text-foreground">{company.bookingCount}</p>
         </div>
         <div>
-          {/* Site public : "Site standard" par défaut ; nom du site personnalisé
-              s'il est enregistré. Lecture seule (attribution via action serveur). */}
+          {/* Produit public CONTEXTUEL selon `onboardingIntent` (source de
+              vérité) : « Réservation / Widget » pour booking_only, « Site
+              vitrine » pour public_page, nom du site personnalisé si custom,
+              « Site standard » pour les tenants historiques (null). */}
           <p className="text-xs text-muted-foreground">Site public</p>
-          <p className="font-medium text-foreground">
-            {customSiteLabel(company.customSiteKey) ?? "Site standard"}
-          </p>
+          <p className="font-medium text-foreground">{presentation.siteLabel}</p>
         </div>
       </div>
 

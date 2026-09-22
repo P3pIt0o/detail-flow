@@ -1,8 +1,11 @@
 import type { Metadata } from "next"
-import { Globe, Info } from "lucide-react"
+import Link from "next/link"
+import { CalendarCheck, Globe, Info } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { getPublicPageConfigRow } from "@/lib/public-page/config"
 import { publicPagePath } from "@/lib/tenant-shared"
+import { withTenant } from "@/lib/tenant-link"
+import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { ConfigEditor } from "@/components/public-page/config-editor"
 
 export const metadata: Metadata = { title: "Page publique" }
@@ -19,9 +22,51 @@ export const metadata: Metadata = { title: "Page publique" }
  * personnalisés (customSiteKey) ne sont PAS éditables ici : ils conservent leur
  * rendu dédié historique et voient un message explicite.
  */
-export default async function PagePubliquePage() {
+export default async function PagePubliquePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string }>
+}) {
   const ctx = await requireCompanyMember()
   const { tenant } = ctx
+  const { tenant: tenantParam } = await searchParams
+
+  // Garde booking_only : le professionnel a déjà son site ; DetailFlow ne
+  // fournit que le moteur de réservation. La route reste servie (aucune donnée
+  // ni capacité supprimée), mais l'ÉDITEUR de vitrine n'est jamais proposé — on
+  // renvoie vers « Ma réservation ». Résolu côté serveur (customSiteKey => null,
+  // priorité custom) : aucun tenant public_page/legacy/custom n'est affecté.
+  const dashboardIntent = resolveDashboardIntent({
+    persisted: tenant.onboardingIntent,
+    customSiteKey: tenant.customSiteKey,
+  })
+  if (dashboardIntent === "booking_only") {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <header className="mb-6 flex items-center gap-3">
+          <CalendarCheck className="size-6 text-primary" aria-hidden="true" />
+          <h1 className="text-2xl font-bold text-foreground">Ma réservation</h1>
+        </header>
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5">
+          <Info className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div className="text-sm text-muted-foreground text-pretty">
+            <p className="mb-1 font-medium text-foreground">Vous avez déjà votre site</p>
+            <p className="mb-3">
+              DetailFlow ne crée pas de site vitrine pour votre compte : vous partagez votre lien
+              de réservation ou intégrez le module directement dans votre site existant.
+            </p>
+            <Link
+              href={withTenant("/admin/ma-reservation", tenantParam ?? null)}
+              className="inline-flex items-center gap-1.5 font-medium text-primary underline underline-offset-2"
+            >
+              <CalendarCheck className="size-4" aria-hidden="true" />
+              Aller à « Ma réservation »
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Garde sites personnalisés : Spirit ACS, Rozan, Cleanyzer et tout futur site
   // à rendu dédié ne sont jamais migrés vers ce configurateur.
