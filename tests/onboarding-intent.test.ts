@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
 /**
  * Routage des parcours d'onboarding — SOURCE DE VÉRITÉ pure
@@ -115,5 +117,57 @@ describe("resolveDashboardIntent — sites personnalisés protégés (aucune ré
 
   it("customSiteKey vide/espaces est traité comme absent (non custom)", () => {
     expect(resolveDashboardIntent({ persisted: "public_page", customSiteKey: "   " })).toBe("public_page")
+  })
+})
+
+/**
+ * Cohérence schéma Drizzle ⇄ migration SQL. La migration régularise
+ * l'historique du dépôt (la colonne existe déjà en production). On vérifie
+ * qu'elle est STRICTEMENT ADDITIVE et IDEMPOTENTE, et qu'elle décrit exactement
+ * la même colonne + les mêmes valeurs autorisées que le schéma applicatif.
+ */
+describe("migration onboarding-intent — additive & idempotente", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+  const migration = read("scripts/onboarding-intent-migration.sql")
+  const schema = read("lib/db/schema.ts")
+  // SQL exécutable seul (hors lignes de commentaire "--"), pour ne pas
+  // confondre les mots-clés cités dans l'en-tête pédagogique avec du code.
+  const executable = migration
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("--"))
+    .join("\n")
+
+  it("ajoute la colonne uniquement si absente (idempotent, nullable, sans défaut)", () => {
+    expect(migration).toMatch(/ADD COLUMN IF NOT EXISTS "onboardingIntent" text/)
+    // Aucune valeur par défaut ni contrainte NOT NULL sur la colonne.
+    expect(migration).not.toMatch(/onboardingIntent"?\s+text[^;]*DEFAULT/i)
+    expect(migration).not.toMatch(/onboardingIntent"?\s+text[^;]*NOT NULL/i)
+  })
+
+  it("ajoute la contrainte CHECK uniquement si elle n'existe pas (garde pg_constraint)", () => {
+    expect(migration).toMatch(/pg_constraint WHERE conname = 'companies_onboarding_intent_check'/)
+    expect(migration).toMatch(/ADD CONSTRAINT "companies_onboarding_intent_check"/)
+    expect(migration).toMatch(
+      /CHECK \("onboardingIntent" IN \('booking_only', 'public_page', 'custom_website'\)\)/,
+    )
+  })
+
+  it("n'exécute aucune opération destructive ou de backfill", () => {
+    for (const forbidden of [/\bDROP\b/i, /\bUPDATE\b/i, /\bDELETE\b/i, /\bNOT NULL\b/i, /\bDEFAULT\b/i, /CREATE TYPE/i]) {
+      expect(executable).not.toMatch(forbidden)
+    }
+  })
+
+  it("ne touche qu'à la table companies", () => {
+    const tables = [...executable.matchAll(/ALTER TABLE "([^"]+)"/g)].map((m) => m[1])
+    expect(new Set(tables)).toEqual(new Set(["companies"]))
+  })
+
+  it("les valeurs autorisées correspondent exactement à ONBOARDING_INTENTS", () => {
+    for (const v of ONBOARDING_INTENTS) expect(migration).toContain(`'${v}'`)
+  })
+
+  it("le schéma Drizzle déclare bien la colonne onboardingIntent en text", () => {
+    expect(schema).toMatch(/onboardingIntent:\s*text\("onboardingIntent"\)/)
   })
 })
