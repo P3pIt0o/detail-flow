@@ -35,6 +35,7 @@ type Props = {
   date: string | null
   startTime: string | null
   address: string
+  atWorkshop?: boolean
   travelFeeCents: number
   durationMin: number
   subtotalCents: number
@@ -145,6 +146,7 @@ export function StepContact(props: Props) {
     date,
     startTime,
     address,
+    atWorkshop,
     travelFeeCents,
     durationMin,
     subtotalCents,
@@ -256,10 +258,12 @@ export function StepContact(props: Props) {
           </div>
           <div className="pt-2">
             <Row label="Prestations" value={formatPriceCompact(subtotalCents)} />
-            <Row
-              label="Déplacement"
-              value={travelFeeCents === 0 ? "Offert" : formatPriceCompact(travelFeeCents)}
-            />
+            {!atWorkshop && (
+              <Row
+                label="Déplacement"
+                value={travelFeeCents === 0 ? "Offert" : formatPriceCompact(travelFeeCents)}
+              />
+            )}
             {promo.applied && (
               <Row
                 label={`Code ${promo.applied.code}`}

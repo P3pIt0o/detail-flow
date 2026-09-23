@@ -12,15 +12,14 @@ import {
   Globe,
   PencilRuler,
   ArrowRight,
-  Share2,
   Settings,
-  Camera,
-  MapPin,
-  MessageCircle,
-  QrCode,
-  HelpCircle,
 } from "lucide-react"
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
+import { cn } from "@/lib/utils"
+import { ReadinessBanner, StepHeading, type ReadinessItem } from "@/components/admin/booking-hub/setup-overview"
+import { LinkActions, LinkDisplay } from "@/components/admin/booking-hub/link-actions"
+import { AddToSite } from "@/components/admin/booking-hub/add-to-site"
+import { btnOutline, btnPrimary } from "@/components/admin/booking-hub/styles"
 
 /**
  * Panneau d'accueil CONTEXTUEL du tableau de bord, piloté par le parcours choisi
@@ -47,6 +46,9 @@ export function StartFlowCard({
   bookingSettingsHref,
   customRequestHref,
   isPublished,
+  bookingSetup,
+  scriptSnippet,
+  iframeSnippet,
 }: {
   intent: OnboardingIntentValue
   /** Lien public de réservation (absolu en prod, relatif en aperçu). */
@@ -55,8 +57,13 @@ export function StartFlowCard({
   pageUrl: string
   /** Lien tenant-safe vers le configurateur de page publique. */
   configureHref: string
-  /** Lien tenant-safe vers les réglages de réservation. */
+  /** Lien tenant-safe vers l'assistant « Ma réservation en ligne ». */
   bookingSettingsHref: string
+  /** État de configuration (booking_only uniquement), calculé côté serveur. */
+  bookingSetup?: BookingSetupSnapshot
+  /** Codes d'intégration (booking_only), slug injecté côté serveur. */
+  scriptSnippet?: string
+  iframeSnippet?: string
   /** Lien tenant-safe vers le formulaire de demande de site personnalisé. */
   customRequestHref: string
   /** La page publique standard est-elle déjà publiée ? */
@@ -70,8 +77,16 @@ export function StartFlowCard({
   // réservation, présentée simplement, à utiliser de deux façons. Aucun jargon
   // « page publique » / « site internet » : le pro obtient un lien, il choisit
   // seulement OÙ le mettre.
-  if (intent === "booking_only") {
-    return <BookingPanel reservationUrl={reservationUrl} bookingSettingsHref={bookingSettingsHref} />
+  if (intent === "booking_only" && bookingSetup) {
+    return (
+      <BookingPanel
+        reservationUrl={reservationUrl}
+        hubHref={bookingSettingsHref}
+        setup={bookingSetup}
+        scriptSnippet={scriptSnippet ?? ""}
+        iframeSnippet={iframeSnippet ?? ""}
+      />
+    )
   }
 
   // Parcours historique « page publique » (public_page) — comportement inchangé
@@ -113,205 +128,86 @@ export function StartFlowCard({
   )
 }
 
+export type BookingSetupSnapshot = { ready: boolean; missing: ReadinessItem[] }
+
 /**
- * Parcours « réservation en ligne » (booking_only).
- *
- * UNE seule URL de réservation (`reservationUrl`) — jamais deux produits. Deux
- * blocs UX (pas techniques) : la partager (Instagram, Google, WhatsApp, QR) OU
- * l'ajouter au bouton « Réserver » d'un site existant. Les deux copient
- * EXACTEMENT la même URL.
+ * Parcours « réservation en ligne » (booking_only) : Configurer → Tester →
+ * Partager. Le lien public n'apparaît qu'UNE fois ; l'intégration au site est
+ * une action secondaire, sans code affiché tant qu'on ne l'a pas demandé.
  */
 function BookingPanel({
   reservationUrl,
-  bookingSettingsHref,
+  hubHref,
+  setup,
+  scriptSnippet,
+  iframeSnippet,
 }: {
   reservationUrl: string
-  bookingSettingsHref: string
+  hubHref: string
+  setup: BookingSetupSnapshot
+  scriptSnippet: string
+  iframeSnippet: string
 }) {
   return (
-    <section className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
-      <div className="flex items-center gap-2">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <CalendarCheck className="size-4" aria-hidden="true" />
+    <section
+      aria-labelledby="booking-panel-title"
+      className="mb-6 flex flex-col gap-5 rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <CalendarCheck className="size-5" aria-hidden="true" />
         </div>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">Ma réservation en ligne</h2>
-          <p className="text-xs text-muted-foreground text-pretty">
-            Votre lien DetailFlow est prêt à être partagé avec vos clients.
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2 id="booking-panel-title" className="text-lg font-semibold text-foreground text-balance">
+            Ma réservation en ligne
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
+            Configurez votre réservation puis partagez-la avec vos clients.
           </p>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3">
-        <ShareBlock url={reservationUrl} />
-        <AddToSiteBlock url={reservationUrl} />
-        <ConfigureLink
-          href={bookingSettingsHref}
-          label="Configurer ma réservation"
-          icon={<Settings className="size-4" aria-hidden="true" />}
-        />
+      <ReadinessBanner missing={setup.missing} />
+
+      <ol className="flex flex-col gap-6">
+        <li className="flex flex-col gap-3">
+          <StepHeading
+            as="h3"
+            n={1}
+            label="CONFIGURER"
+            text="Choisissez vos prestations, horaires et lieux d'intervention."
+            done={setup.ready}
+          />
+          <Link href={hubHref} className={cn(setup.ready ? btnOutline : btnPrimary, "sm:ml-11 sm:self-start")}>
+            <Settings className="size-5" aria-hidden="true" />
+            Configurer ma réservation
+          </Link>
+        </li>
+        <li className="flex flex-col gap-3">
+          <StepHeading as="h3" n={2} label="TESTER" text="Voyez exactement ce que verront vos clients." />
+          <a
+            href={reservationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(btnOutline, "sm:ml-11 sm:self-start")}
+          >
+            <ExternalLink className="size-5" aria-hidden="true" />
+            Voir ma page de réservation
+          </a>
+        </li>
+        <li className="flex flex-col gap-3">
+          <StepHeading as="h3" n={3} label="PARTAGER" text="Votre réservation est prête ? Partagez votre lien." />
+          <div className="flex flex-col gap-3 sm:ml-11">
+            <LinkDisplay url={reservationUrl} />
+            <LinkActions url={reservationUrl} primaryCopy={setup.ready} />
+          </div>
+        </li>
+      </ol>
+
+      <div className="border-t border-border pt-4">
+        <AddToSite compact url={reservationUrl} scriptSnippet={scriptSnippet} iframeSnippet={iframeSnippet} />
       </div>
     </section>
-  )
-}
-
-/** Bloc A — Partager mon lien (mêmes canaux, même URL). */
-function ShareBlock({ url }: { url: string }) {
-  const channels = [
-    { label: "Instagram", icon: <Camera className="size-4" aria-hidden="true" /> },
-    { label: "Google", icon: <MapPin className="size-4" aria-hidden="true" /> },
-    { label: "WhatsApp", icon: <MessageCircle className="size-4" aria-hidden="true" /> },
-    { label: "QR code", icon: <QrCode className="size-4" aria-hidden="true" /> },
-  ]
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <Share2 className="size-4 text-primary" aria-hidden="true" />
-        Partager mon lien
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground text-pretty">
-        Ajoutez votre réservation dans votre bio Instagram, sur Google, WhatsApp ou envoyez-la directement à vos clients.
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {channels.map((c) => (
-          <span
-            key={c.label}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground"
-          >
-            <span className="text-primary">{c.icon}</span>
-            {c.label}
-          </span>
-        ))}
-      </div>
-      <UrlPreview url={url} />
-      <div className="mt-2 flex flex-wrap gap-2">
-        <CopyButton url={url} label="Copier mon lien" />
-        <ShareButton url={url} />
-      </div>
-    </div>
-  )
-}
-
-/** Bloc B — Ajouter à mon site internet (même URL, aide courte dépliable). */
-function AddToSiteBlock({ url }: { url: string }) {
-  const [showHelp, setShowHelp] = useState(false)
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <Globe className="size-4 text-primary" aria-hidden="true" />
-        Ajouter à mon site internet
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground text-pretty">
-        Vous avez déjà un site ? Ajoutez simplement votre lien DetailFlow à votre bouton « Réserver ».
-      </p>
-      <UrlPreview url={url} />
-      <div className="mt-2 flex flex-wrap gap-2">
-        <CopyButton url={url} label="Copier le lien" />
-        <button
-          type="button"
-          onClick={() => setShowHelp((v) => !v)}
-          aria-expanded={showHelp}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <HelpCircle className="size-4" aria-hidden="true" />
-          Voir comment l&apos;ajouter
-        </button>
-      </div>
-      {showHelp && (
-        <div className="mt-3 rounded-md border border-border bg-muted/40 p-3">
-          <p className="text-xs text-foreground text-pretty">
-            Sur votre site internet, modifiez votre bouton « Réserver » et utilisez votre lien DetailFlow comme
-            destination.
-          </p>
-          <ol className="mt-2 flex list-decimal flex-col gap-1 pl-4 text-xs text-muted-foreground">
-            <li>Copiez votre lien DetailFlow</li>
-            <li>Ouvrez l&apos;éditeur de votre site</li>
-            <li>Sélectionnez votre bouton « Réserver »</li>
-            <li>Collez le lien</li>
-            <li>Publiez votre site</li>
-          </ol>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** Aperçu (non éditable) de l'URL, tronqué proprement. */
-function UrlPreview({ url }: { url: string }) {
-  const display = url.replace(/^https:\/\//, "")
-  return (
-    <p
-      className="mt-2 truncate rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground"
-      title={url}
-    >
-      {display}
-    </p>
-  )
-}
-
-/** Bouton « Copier » réutilisable (même comportement partout). */
-function CopyButton({ url, label }: { url: string; label: string }) {
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const doCopy = useCallback(async () => {
-    setError(null)
-    try {
-      if (!navigator?.clipboard?.writeText) throw new Error("clipboard indisponible")
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setError("Copie impossible. Sélectionnez et copiez le lien manuellement.")
-    }
-  }, [url])
-  return (
-    <>
-      <button
-        type="button"
-        onClick={doCopy}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
-        {copied ? "Lien copié" : label}
-      </button>
-      {error && (
-        <p role="alert" className="w-full text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </>
-  )
-}
-
-/** Bouton « Partager » — Web Share API si dispo, sinon repli sur copie. */
-function ShareButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false)
-  const onShare = useCallback(async () => {
-    const data = { title: "Réserver en ligne", text: "Réservez en ligne :", url }
-    try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share(data)
-        return
-      }
-      // Repli propre : copie du lien quand le partage natif est indisponible.
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url)
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 2000)
-      }
-    } catch {
-      /* partage annulé par l'utilisateur : rien à signaler. */
-    }
-  }, [url])
-  return (
-    <button
-      type="button"
-      onClick={onShare}
-      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-    >
-      {copied ? <Check className="size-4" aria-hidden="true" /> : <Share2 className="size-4" aria-hidden="true" />}
-      {copied ? "Lien copié" : "Partager"}
-    </button>
   )
 }
 

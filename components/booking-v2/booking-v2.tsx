@@ -7,6 +7,7 @@ import { withTenant } from "@/lib/tenant-link"
 import { useBookingDraft } from "@/components/booking/use-booking-draft"
 import type { OptionRow, PriceMap, ServiceRow, VehicleRow } from "@/components/booking/shared"
 import type { TravelResult } from "@/lib/booking/types"
+import type { LocationType, PublicLocation } from "@/lib/booking/location-shared"
 import { createBookingAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 import {
   bookingEstimate,
@@ -38,6 +39,7 @@ export type BookingV2Props = {
   freeDistanceKm: number
   paymentPlan: PaymentPlan
   maxVehicles: number
+  location: PublicLocation
   embed?: boolean
 }
 
@@ -51,7 +53,10 @@ const STEP_COPY = [
 ]
 
 export function BookingV2(props: BookingV2Props) {
-  const { services, vehicleTypes, options, priceMap, paymentPlan, embed } = props
+  const { services, vehicleTypes, options, priceMap, paymentPlan, location, embed } = props
+  // Un seul lieu proposé : il est imposé, aucune question posée au client.
+  const forcedLocation: LocationType | null =
+    location.workshop && !location.mobile ? "workshop" : location.mobile && !location.workshop ? "client" : null
   const router = useRouter()
   const searchParams = useSearchParams()
   const tenant = searchParams.get("tenant")
@@ -70,6 +75,7 @@ export function BookingV2(props: BookingV2Props) {
   const [vehicles, setVehicles] = useState<V2Vehicle[]>(() => [newV2Vehicle(vehicleTypes)])
   const [date, setDate] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<string | null>(null)
+  const [locationType, setLocationType] = useState<LocationType | null>(forcedLocation)
   const [address, setAddress] = useState("")
   const [travel, setTravel] = useState<TravelResult | null>(null)
   const [contact, setContact] = useState<ContactV2>({ firstName: "", lastName: "", email: "", phone: "", notes: "" })
@@ -131,7 +137,9 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   const estimate = bookingEstimate(vehicles, serviceId, services, options, priceMap)
-  const travelFeeCents = travel?.ok ? travel.feeCents : 0
+  const atWorkshop = locationType === "workshop"
+  const travelFeeCents = !atWorkshop && travel?.ok ? travel.feeCents : 0
+  const locationReady = atWorkshop || (locationType === "client" && Boolean(travel?.ok))
   const discountCents = appliedPromo?.discountCents ?? 0
   const totalCents = Math.max(0, estimate.priceCents + travelFeeCents - discountCents)
 
@@ -141,13 +149,17 @@ export function BookingV2(props: BookingV2Props) {
   const stepValid = [
     serviceId != null,
     vehicles.length > 0 && vehicles.every(isV2VehicleComplete),
-    Boolean(date && startTime && travel?.ok),
+    Boolean(date && startTime && locationReady),
     contactValid,
   ]
   const stepHint = [
     null,
     "Renseignez le type, la marque et le modèle.",
-    !travel?.ok ? "Vérifiez votre adresse d'intervention." : "Choisissez un créneau.",
+    locationType === null
+      ? "Choisissez où réaliser la prestation."
+      : !locationReady
+        ? "Vérifiez votre adresse d'intervention."
+        : "Choisissez un créneau.",
     "Complétez vos coordonnées.",
   ]
 
@@ -222,7 +234,8 @@ export function BookingV2(props: BookingV2Props) {
           email: contact.email.trim(),
           phone: contact.phone.trim(),
         },
-        address,
+        address: atWorkshop ? "" : address,
+        locationType: locationType ?? undefined,
         notes: contact.notes,
         promoCode: appliedPromo?.code,
       })
@@ -302,7 +315,7 @@ export function BookingV2(props: BookingV2Props) {
         <StepHeader
           step={step}
           badge={`ÉTAPE ${step + 1} SUR ${BOOKING_V2_STEP_COUNT}`}
-          title={STEP_COPY[step].title}
+          title={step === 2 && forcedLocation === "workshop" ? "Date et créneau" : STEP_COPY[step].title}
           subtitle={STEP_COPY[step].subtitle}
           onBack={step > 0 ? () => goTo(step - 1) : undefined}
         />
@@ -340,6 +353,9 @@ export function BookingV2(props: BookingV2Props) {
               setDate(d)
               setStartTime(t)
             }}
+            location={location}
+            locationType={locationType}
+            onLocationType={setLocationType}
             address={address}
             onAddress={setAddress}
             travel={travel}
@@ -361,7 +377,8 @@ export function BookingV2(props: BookingV2Props) {
             priceMap={priceMap}
             date={date}
             startTime={startTime}
-            address={travel?.ok ? travel.address : address}
+            address={atWorkshop ? `À l'atelier — ${location.workshopAddress ?? ""}` : travel?.ok ? travel.address : address}
+            atWorkshop={atWorkshop}
             travelFeeCents={travelFeeCents}
             durationMin={estimate.durationMin}
             subtotalCents={estimate.priceCents}

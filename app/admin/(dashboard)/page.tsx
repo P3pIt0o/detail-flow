@@ -29,6 +29,8 @@ import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { isPublicPagePublished } from "@/lib/public-page/config"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
+import { getBookingSetupStatus } from "@/lib/booking/setup-status"
+import { buildEmbedScriptSnippet, buildEmbedIframeSnippet } from "@/lib/embed/snippet"
 
 export const dynamic = "force-dynamic"
 
@@ -128,15 +130,27 @@ export default async function DashboardPage({
   // contradictoires). On ne lit l'état de publication que si un parcours est
   // actif, pour éviter toute requête inutile en navigation historique.
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const bookingSetup =
+    contextualIntent === "booking_only" ? await getBookingSetupStatus(companyId) : null
   const startCard = contextualIntent ? (
     <StartFlowCard
       intent={contextualIntent}
       reservationUrl={publicReservationUrl(company.slug, rootDomain)}
       pageUrl={publicPageUrl(company.slug, rootDomain)}
       configureHref={href("/admin/page-publique")}
-      bookingSettingsHref={href("/admin/parametres")}
+      bookingSettingsHref={href("/admin/ma-reservation")}
       customRequestHref={href("/admin/site-personnalise")}
       isPublished={contextualIntent === "public_page" ? await isPublicPagePublished(companyId) : false}
+      bookingSetup={
+        bookingSetup
+          ? {
+              ready: bookingSetup.ready,
+              missing: bookingSetup.missing.map((m) => ({ id: m.id, todo: m.todo, href: href(m.href) })),
+            }
+          : undefined
+      }
+      scriptSnippet={bookingSetup ? buildEmbedScriptSnippet(company.slug, rootDomain) : undefined}
+      iframeSnippet={bookingSetup ? buildEmbedIframeSnippet(company.slug, rootDomain) : undefined}
     />
   ) : null
 

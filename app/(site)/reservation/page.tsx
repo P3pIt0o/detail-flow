@@ -16,6 +16,8 @@ import { resolveRequestTenant } from "@/lib/tenant"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
+import { getLocationConfig } from "@/lib/booking/location"
+import { DEFAULT_LOCATION_CONFIG, toPublicLocation } from "@/lib/booking/location-shared"
 
 /** Mêmes conditions que `createBookingAction` pour décider d'un paiement en ligne. */
 async function resolveTenantPaymentPlan(settings: { depositType: string; depositValue: number }): Promise<PaymentPlan> {
@@ -71,6 +73,9 @@ export default async function ReservationPage({
   // Booking V2 = tunnel STANDARD (site + widget). Les sites personnalisés
   // (customSiteKey enregistré, dont Spirit ACS) conservent le tunnel historique.
   if (!customSite && !settings.vacationMode) {
+    // Même configuration de lieu pour le site standard ET le widget (?embed=1).
+    const tenant = await resolveRequestTenant()
+    const location = toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG)
     return (
       <>
         {isEmbed && (
@@ -94,6 +99,7 @@ export default async function ReservationPage({
             freeDistanceKm={Number.parseFloat(settings.freeDistanceKm)}
             paymentPlan={await resolveTenantPaymentPlan(settings)}
             maxVehicles={settings.maxVehiclesPerDay}
+            location={location}
             embed={isEmbed}
           />
         </section>

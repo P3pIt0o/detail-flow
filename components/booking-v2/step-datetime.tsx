@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import useSWR from "swr"
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react"
+import { AlertCircle, Car, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, Store } from "lucide-react"
+import type { LocationType, PublicLocation } from "@/lib/booking/location-shared"
 import { cn } from "@/lib/utils"
 import { formatKm } from "@/lib/format"
 import { dateWindow, formatPriceCompact, formatSlotLabel, groupSlots } from "@/lib/booking/v2"
@@ -33,12 +34,48 @@ function stripDot(s: string): string {
   return s.replace(/\.$/, "")
 }
 
+function LocationOption({
+  selected,
+  onSelect,
+  icon,
+  title,
+  text,
+}: {
+  selected: boolean
+  onSelect: () => void
+  icon: React.ReactNode
+  title: string
+  text: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex min-h-28 flex-col items-start gap-2 rounded-2xl border p-3.5 text-left transition-colors",
+        selected ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/50",
+      )}
+    >
+      <span className={cn("flex size-9 items-center justify-center rounded-lg", selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+        {icon}
+      </span>
+      <span className="text-[15px] font-semibold leading-tight text-foreground">{title}</span>
+      <span className="text-[13px] leading-snug text-muted-foreground">{text}</span>
+    </button>
+  )
+}
+
 type Props = {
   date: string | null
   startTime: string | null
   durationMin: number
   vehicleCount: number
   onSelectSlot: (date: string, time: string) => void
+  location: PublicLocation
+  locationType: LocationType | null
+  onLocationType: (type: LocationType) => void
   address: string
   onAddress: (address: string) => void
   travel: TravelResult | null
@@ -53,6 +90,9 @@ export function StepDateTime({
   durationMin,
   vehicleCount,
   onSelectSlot,
+  location,
+  locationType,
+  onLocationType,
   address,
   onAddress,
   travel,
@@ -129,10 +169,52 @@ export function StepDateTime({
     )
   }
 
+  const offersChoice = location.mobile && location.workshop
+
   return (
     <div>
+      {/* Choix du lieu : uniquement si le professionnel propose les deux. */}
+      {offersChoice && (
+        <>
+          <SectionLabel className="mt-0">OÙ SOUHAITEZ-VOUS RÉALISER LA PRESTATION ?</SectionLabel>
+          <div role="radiogroup" aria-label="Lieu de la prestation" className="grid grid-cols-2 gap-2">
+            <LocationOption
+              selected={locationType === "client"}
+              onSelect={() => onLocationType("client")}
+              icon={<Car className="size-5" aria-hidden="true" />}
+              title="Chez vous"
+              text="Le professionnel vient à votre adresse."
+            />
+            <LocationOption
+              selected={locationType === "workshop"}
+              onSelect={() => onLocationType("workshop")}
+              icon={<Store className="size-5" aria-hidden="true" />}
+              title="À l'atelier"
+              text="Vous vous rendez directement à l'atelier."
+            />
+          </div>
+        </>
+      )}
+
+      {locationType === "workshop" && location.workshopAddress && (
+        <>
+          <SectionLabel className={offersChoice ? undefined : "mt-0"}>ADRESSE DE L&apos;ATELIER</SectionLabel>
+          <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
+            <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-[15px] font-semibold leading-snug text-foreground">{location.workshopAddress}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">Aucun frais de déplacement.</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {locationType === "client" && (
+        <>
       {/* Lieu : le moteur facture le déplacement depuis l'adresse d'intervention (obligatoire). */}
-      <SectionLabel className="mt-0">LIEU D&apos;INTERVENTION</SectionLabel>
+      <SectionLabel className={offersChoice ? undefined : "mt-0"}>
+        {offersChoice ? "VOTRE ADRESSE" : "LIEU D'INTERVENTION"}
+      </SectionLabel>
       <div className="rounded-2xl border border-border bg-card p-4">
         <label htmlFor="bv2-address" className={bv2LabelClass}>
           Adresse complète
@@ -200,6 +282,8 @@ export function StepDateTime({
           )}
         </div>
       </div>
+        </>
+      )}
 
       <div className="mt-5 flex items-center justify-between">
         <SectionLabel className="my-0">DATE</SectionLabel>

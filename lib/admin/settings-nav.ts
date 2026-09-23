@@ -50,7 +50,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { value: "hours", label: "Horaires" },
       { value: "timeoff", label: "Congés" },
       { value: "planning", label: "Planning & acompte" },
-      { value: "travel", label: "Déplacement" },
+      { value: "travel", label: "Lieu" },
     ],
   },
   {

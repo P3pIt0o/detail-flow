@@ -24,7 +24,9 @@ import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
 import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
-import type { BookingSelection } from "@/lib/booking/types"
+import type { BookingSelection, TravelResult } from "@/lib/booking/types"
+import { getLocationConfig, setBookingLocationType, getBookingLocationType } from "@/lib/booking/location"
+import { toPublicLocation, resolveLocationType, type LocationType } from "@/lib/booking/location-shared"
 import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
@@ -112,6 +114,7 @@ export type BookingSummary = {
   endTime: string
   totalDurationMin: number
   address: string
+  locationType: LocationType | null
   totalCents: number
   depositCents: number
   items: { serviceName: string; vehicleTypeName: string; vehicle: string; options: string[] }[]
@@ -137,6 +140,7 @@ export async function getBookingSummaryAction(reference: string): Promise<Bookin
     endTime: booking.endTime,
     totalDurationMin: booking.totalDurationMin,
     address: booking.address,
+    locationType: await getBookingLocationType(booking.id),
     totalCents: booking.totalCents,
     depositCents: booking.depositCents,
     items: items.map((it) => ({
@@ -170,6 +174,8 @@ export type CreateBookingInput = {
   notes?: string
   /** Code promo saisi par le client (revalidé côté serveur, jamais de confiance). */
   promoCode?: string
+  /** Lieu choisi par le client (revalidé contre la config du tenant). */
+  locationType?: LocationType
 }
 
 export type CreateBookingResult =
@@ -210,7 +216,6 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   if (!customer?.name?.trim()) return { ok: false, error: "Nom requis.", code: "invalid" }
   if (!emailRe.test(customer?.email ?? "")) return { ok: false, error: "Email invalide.", code: "invalid" }
   if (!customer?.phone?.trim()) return { ok: false, error: "Téléphone requis.", code: "invalid" }
-  if (!address?.trim() || address.trim().length < 5) return { ok: false, error: "Adresse invalide.", code: "invalid" }
 
   // Entreprise (tenant) courante : toutes les lectures/écritures y sont rattachées.
   const tenant = await resolveRequestTenant()
@@ -254,12 +259,31 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     }
   }
 
-  // 2. Recalcul du déplacement (autorité serveur).
-  const travel = await computeTravel(address, settings)
-  if (!travel.ok) {
-    if (travel.error === "out_of_range")
-      return { ok: false, error: "Adresse hors de la zone d'intervention.", code: "out_of_range" }
-    return { ok: false, error: "Adresse introuvable ou itinéraire impossible.", code: "invalid" }
+  // 2. Lieu d'intervention (autorité serveur) : atelier imposé, déplacement
+  //    imposé, ou choix client revalidé contre la configuration du tenant.
+  const location = toPublicLocation(await getLocationConfig(companyId))
+  const locationType = resolveLocationType(location, input.locationType)
+
+  let travel: TravelResult
+  if (locationType === "workshop" && location.workshopAddress) {
+    // À l'atelier : aucune adresse client, aucun frais de déplacement.
+    travel = {
+      ok: true,
+      address: location.workshopAddress,
+      lat: null,
+      lng: null,
+      distanceKm: 0,
+      billedDistanceKm: 0,
+      feeCents: 0,
+    }
+  } else {
+    if (!address?.trim() || address.trim().length < 5) return { ok: false, error: "Adresse invalide.", code: "invalid" }
+    travel = await computeTravel(address, settings)
+    if (!travel.ok) {
+      if (travel.error === "out_of_range")
+        return { ok: false, error: "Adresse hors de la zone d'intervention.", code: "out_of_range" }
+      return { ok: false, error: "Adresse introuvable ou itinéraire impossible.", code: "invalid" }
+    }
   }
 
   // 3. Recalcul du devis (autorité serveur).
@@ -431,6 +455,10 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
       }
       return { ok: false, error: "Ce créneau vient d'être réservé. Merci d'en choisir un autre.", code: "slot_taken" }
     }
+
+    // Lieu retenu (avant les emails, qui l'affichent). Défensif : sans migration,
+    // l'adresse enregistrée suffit.
+    await setBookingLocationType(result.id, locationType === "workshop" && location.workshopAddress ? "workshop" : "client")
 
     // Analytics (V1) : réservation terminée. companyId résolu côté serveur.
     // Non bloquant : un échec de compteur n'invalide jamais la réservation.
