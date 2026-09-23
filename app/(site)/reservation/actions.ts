@@ -13,7 +13,12 @@
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { sendBookingCreatedEmails } from "@/lib/email/notifications"
-import { getSettings, getActiveBookingsForDate, countVehiclesForDate } from "@/lib/booking/queries"
+import {
+  getSettings,
+  getActiveBookingsForDate,
+  countVehiclesForDate,
+  getBookingByReference,
+} from "@/lib/booking/queries"
 import { buildQuote, computeDeposit } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
@@ -93,6 +98,54 @@ export async function getAvailabilityAction(dateStr: string, durationMin: number
 export async function getAvailabilityRangeAction(dates: string[], durationMin: number, vehicleCount: number) {
   const safe = (Array.isArray(dates) ? dates : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 14)
   return Promise.all(safe.map((d) => getAvailability(d, durationMin, vehicleCount)))
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Récapitulatif d'une réservation créée (écran de succès Booking V2)        */
+/* -------------------------------------------------------------------------- */
+
+export type BookingSummary = {
+  reference: string
+  status: string
+  date: string
+  startTime: string
+  endTime: string
+  totalDurationMin: number
+  address: string
+  totalCents: number
+  depositCents: number
+  items: { serviceName: string; vehicleTypeName: string; vehicle: string; options: string[] }[]
+}
+
+/**
+ * Relit la réservation RÉELLEMENT créée, bornée au tenant de la requête. Même
+ * exposition que la page de confirmation publique (accès par référence), sans
+ * aucune donnée personnelle du client.
+ */
+export async function getBookingSummaryAction(reference: string): Promise<BookingSummary | null> {
+  if (typeof reference !== "string" || !/^[A-Z0-9-]{4,40}$/.test(reference)) return null
+  const tenant = await resolveRequestTenant()
+  if (!tenant) return null
+  const data = await getBookingByReference(reference, tenant.id)
+  if (!data) return null
+  const { booking, items } = data
+  return {
+    reference: booking.reference,
+    status: booking.status,
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalDurationMin: booking.totalDurationMin,
+    address: booking.address,
+    totalCents: booking.totalCents,
+    depositCents: booking.depositCents,
+    items: items.map((it) => ({
+      serviceName: it.serviceName,
+      vehicleTypeName: it.vehicleTypeName,
+      vehicle: [it.vehicleBrand, it.vehicleModel].filter(Boolean).join(" "),
+      options: it.options.map((o) => o.optionName),
+    })),
+  }
 }
 
 /* -------------------------------------------------------------------------- */

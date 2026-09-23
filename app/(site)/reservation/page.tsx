@@ -10,6 +10,27 @@ import {
   getServicePrices,
   getSettings,
 } from "@/lib/booking/queries"
+import { BookingV2 } from "@/components/booking-v2/booking-v2"
+import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { resolveRequestTenant } from "@/lib/tenant"
+import { getCompanyPaymentConfig } from "@/lib/payments/queries"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
+
+/** Mêmes conditions que `createBookingAction` pour décider d'un paiement en ligne. */
+async function resolveTenantPaymentPlan(settings: { depositType: string; depositValue: number }): Promise<PaymentPlan> {
+  const tenant = await resolveRequestTenant()
+  const [config, canPay] = tenant
+    ? await Promise.all([getCompanyPaymentConfig(tenant.id), canUseFeature(tenant.id, "online_payments")])
+    : [null, false]
+  const mode = config?.paymentMode ?? "none"
+  return resolvePaymentPlan({
+    paymentsReady: canPay && Boolean(config?.paymentsEnabled) && Boolean(config?.canCollect) && mode !== "none",
+    mode,
+    depositType: settings.depositType,
+    depositValue: settings.depositValue,
+  })
+}
 
 export const metadata: Metadata = {
   title: "Réservation en ligne",
@@ -31,19 +52,53 @@ export default async function ReservationPage({
   const { embed } = await searchParams
   const isEmbed = embed === "1"
 
-  const [services, categories, vehicleTypes, options, prices, settings] = await Promise.all([
+  const [services, categories, vehicleTypes, options, prices, settings, customSite] = await Promise.all([
     getServices(),
     getCategories(),
     getVehicleTypes(),
     getOptions(),
     getServicePrices(),
     getSettings(),
+    resolveCustomSite(),
   ])
 
   // Table de correspondance tarifaire pour l'aperçu client (recalcul serveur à la validation).
   const priceMap: Record<string, { priceCents: number; durationMin: number }> = {}
   for (const p of prices) {
     priceMap[`${p.serviceId}-${p.vehicleTypeId}`] = { priceCents: p.priceCents, durationMin: p.durationMin }
+  }
+
+  // Booking V2 = tunnel STANDARD (site + widget). Les sites personnalisés
+  // (customSiteKey enregistré, dont Spirit ACS) conservent le tunnel historique.
+  if (!customSite && !settings.vacationMode) {
+    return (
+      <>
+        {isEmbed && (
+          <>
+            <script
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('df-embed')" }}
+            />
+            <EmbedFrameSync />
+          </>
+        )}
+        <section className={isEmbed ? "bg-background py-6" : "bg-background pb-6 pt-8 md:pt-12"}>
+          <BookingV2
+            services={services}
+            vehicleTypes={vehicleTypes}
+            options={options}
+            priceMap={priceMap}
+            depositType={settings.depositType}
+            depositValue={settings.depositValue}
+            roundTrip={settings.roundTrip}
+            freeDistanceKm={Number.parseFloat(settings.freeDistanceKm)}
+            paymentPlan={await resolveTenantPaymentPlan(settings)}
+            maxVehicles={settings.maxVehiclesPerDay}
+            embed={isEmbed}
+          />
+        </section>
+      </>
+    )
   }
 
   return (
