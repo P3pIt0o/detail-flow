@@ -85,6 +85,16 @@ export async function getAvailabilityAction(dateStr: string, durationMin: number
   return getAvailability(dateStr, durationMin, vehicleCount)
 }
 
+/**
+ * Disponibilités de plusieurs dates (Booking V2 : cartes de dates). Réutilise
+ * STRICTEMENT le même moteur `getAvailability`, jour par jour. Borné à 14 dates
+ * par appel pour éviter tout abus.
+ */
+export async function getAvailabilityRangeAction(dates: string[], durationMin: number, vehicleCount: number) {
+  const safe = (Array.isArray(dates) ? dates : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 14)
+  return Promise.all(safe.map((d) => getAvailability(d, durationMin, vehicleCount)))
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Calcul du déplacement seul (retour d'adresse)                             */
 /* -------------------------------------------------------------------------- */

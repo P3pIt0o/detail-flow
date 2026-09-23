@@ -26,7 +26,7 @@ type Props = {
   freeDistanceKm: number
 }
 
-const TRAVEL_ERRORS: Record<string, string> = {
+export const TRAVEL_ERRORS: Record<string, string> = {
   address_not_found:
     "Adresse introuvable. Vérifiez l’orthographe. Pour une adresse en zone frontalière ou à l’étranger, indiquez également le code postal et le pays (France, Suisse, Belgique…).",
   out_of_range: "Cette adresse est en dehors de notre zone d’intervention.",
