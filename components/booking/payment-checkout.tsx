@@ -13,9 +13,12 @@ import { startBookingCheckout } from "@/app/(site)/reservation/paiement/checkout
  */
 export function PaymentCheckout({
   bookingId,
+  accessToken,
   chosenType,
 }: {
   bookingId: number
+  /** Jeton d'accès secret de la réservation (revérifié côté serveur). */
+  accessToken: string
   /** Choix client transmis en mode "choice" (sinon le mode tenant décide). */
   chosenType?: "deposit" | "full_payment"
 }) {
@@ -28,7 +31,7 @@ export function PaymentCheckout({
     let cancelled = false
     const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     ;(async () => {
-      const res = await startBookingCheckout(bookingId, chosenType)
+      const res = await startBookingCheckout(bookingId, accessToken, chosenType)
       if (cancelled) return
       if (!res.ok) {
         setError(res.error)
@@ -52,7 +55,7 @@ export function PaymentCheckout({
     return () => {
       cancelled = true
     }
-  }, [bookingId, chosenType])
+  }, [bookingId, accessToken, chosenType])
 
   const fetchClientSecret = useCallback(async () => clientSecret ?? "", [clientSecret])
 

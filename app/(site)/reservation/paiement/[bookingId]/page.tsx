@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { CreditCard } from "lucide-react"
 import { resolveRequestTenant } from "@/lib/tenant"
-import { getBookingByReference } from "@/lib/booking/queries"
+import { getBookingByIdForPublicAccess } from "@/lib/booking/access"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { formatPrice, formatDateLong } from "@/lib/format"
 import { PaymentCheckout } from "@/components/booking/payment-checkout"
@@ -21,19 +21,21 @@ export default async function PaiementPage({
   searchParams,
 }: {
   params: Promise<{ bookingId: string }>
-  searchParams: Promise<{ ref?: string }>
+  searchParams: Promise<{ ref?: string; token?: string }>
 }) {
   const { bookingId } = await params
-  const { ref } = await searchParams
+  const { ref, token } = await searchParams
   const id = Number.parseInt(bookingId, 10)
-  if (!Number.isInteger(id) || id <= 0 || !ref) notFound()
+  if (!Number.isInteger(id) || id <= 0 || !token) notFound()
 
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
 
-  // Résumé de la réservation (borné au tenant). Montant relu côté serveur.
-  const data = await getBookingByReference(ref, tenant.id)
-  if (!data || data.booking.id !== id) notFound()
+  // id + jeton secret + tenant (montant relu côté serveur). La référence, si
+  // présente, doit concorder. 404 identique pour tout échec.
+  const data = await getBookingByIdForPublicAccess({ bookingId: id, token, companyId: tenant.id })
+  if (!data || (ref && data.booking.reference !== ref)) notFound()
+  const accessToken = token
 
   const cfg = await getCompanyPaymentConfig(tenant.id)
   // Si les paiements ne sont pas disponibles, on ne bloque pas le client :
@@ -143,6 +145,7 @@ export default async function PaiementPage({
           {isChoice ? (
             <PaymentModeChoice
               bookingId={id}
+              accessToken={accessToken}
               depositLabel={formatPrice(depositCents)}
               totalLabel={formatPrice(booking.totalCents)}
               remainingLabel={formatPrice(remainingCents)}
@@ -164,7 +167,7 @@ export default async function PaiementPage({
               </p>
             </div>
           ) : (
-            <PaymentCheckout bookingId={id} />
+            <PaymentCheckout bookingId={id} accessToken={accessToken} />
           )}
         </div>
       </div>

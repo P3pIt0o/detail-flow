@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { CheckCircle2, Calendar, MapPin, Clock, Info } from "lucide-react"
-import { getBookingByReference } from "@/lib/booking/queries"
+import { getBookingByReferenceForPublicAccess } from "@/lib/booking/access"
 import { getFullSettings } from "@/lib/invoice/queries"
 import { parseDepositMethods } from "@/lib/booking/types"
 import { formatPrice, formatDateLong, formatDuration } from "@/lib/format"
@@ -20,16 +20,18 @@ export const dynamic = "force-dynamic"
 export default async function ConfirmationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ref?: string }>
+  searchParams: Promise<{ ref?: string; token?: string }>
 }) {
-  const { ref } = await searchParams
-  if (!ref) notFound()
+  const { ref, token } = await searchParams
+  const tenant = await resolveRequestTenant()
+  if (!tenant) notFound()
 
-  const data = await getBookingByReference(ref)
+  // Référence + jeton secret + tenant. Réponse 404 identique dans tous les cas
+  // d'échec : aucune indication sur l'existence de la réservation.
+  const data = await getBookingByReferenceForPublicAccess({ reference: ref, token, companyId: tenant.id })
   if (!data) notFound()
 
   const contact = await getPublicContact()
-  const tenant = await resolveRequestTenant()
   const { booking, items } = data
   const awaitingDeposit = booking.status === "pending_deposit" && booking.depositCents > 0
 
@@ -154,7 +156,7 @@ export default async function ConfirmationPage({
                 Vous pouvez annuler votre rendez-vous ou choisir un autre créneau à tout moment.
               </p>
               <Link
-                href={withTenant(`/reservation/gerer/${booking.manageToken}`, tenant?.slug)}
+                href={withTenant(`/reservation/gerer/${booking.manageToken}`, tenant.slug)}
                 className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Gérer mon rendez-vous

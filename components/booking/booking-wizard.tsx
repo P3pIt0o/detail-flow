@@ -235,7 +235,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
           // la référence + le chemin de reprise). Ainsi, si le client abandonne
           // Stripe ou revient en arrière, il retrouve « Reprendre le paiement »
           // de CETTE réservation, sans jamais en recréer une (zéro doublon).
-          const payPath = `${res.payUrl}?ref=${encodeURIComponent(res.reference)}`
+          const payPath = res.payUrl
           markPendingPayment(
             { step, vehicles, date, startTime, contact, promoInput },
             { reference: res.reference, payPath },
@@ -245,7 +245,7 @@ const [vehicles, setVehicles] = useState<VehicleSelection[]>([
           // Aucun paiement en ligne : la confirmation est immédiate → le
           // brouillon n'a plus lieu d'être.
           clear()
-          router.push(withTenant(`/reservation/confirmation?ref=${encodeURIComponent(res.reference)}`, tenant))
+          router.push(withTenant(res.confirmationUrl, tenant))
         }
       } else {
         setError(res.error)

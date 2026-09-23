@@ -8,12 +8,14 @@ import { buildBookingIcs, formatPriceCompact, formatSlotLabel } from "@/lib/book
 import { withTenant } from "@/lib/tenant-link"
 import { getBookingSummaryAction } from "@/app/(site)/reservation/actions"
 
-type Props = { reference: string; tenant: string | null }
+type Props = { reference: string; accessToken: string; confirmationUrl: string; tenant: string | null }
 
-export function SuccessScreen({ reference, tenant }: Props) {
-  const { data: summary, isLoading } = useSWR(["bv2-summary", reference], () => getBookingSummaryAction(reference), {
-    revalidateOnFocus: false,
-  })
+export function SuccessScreen({ reference, accessToken, confirmationUrl, tenant }: Props) {
+  const { data: summary, isLoading } = useSWR(
+    ["bv2-summary", reference, accessToken],
+    () => getBookingSummaryAction(reference, accessToken),
+    { revalidateOnFocus: false },
+  )
 
   if (isLoading) {
     return (
@@ -24,7 +26,7 @@ export function SuccessScreen({ reference, tenant }: Props) {
     )
   }
 
-  const detailHref = withTenant(`/reservation/confirmation?ref=${encodeURIComponent(reference)}`, tenant)
+  const detailHref = withTenant(confirmationUrl, tenant)
   const confirmed = summary?.status === "confirmed"
   const awaitingDeposit = summary?.status === "pending_deposit" && summary.depositCents > 0
   const services = summary ? Array.from(new Set(summary.items.map((i) => i.serviceName))).join(", ") : ""

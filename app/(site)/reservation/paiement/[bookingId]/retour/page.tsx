@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { CheckCircle2, Clock } from "lucide-react"
 import { resolveRequestTenant } from "@/lib/tenant"
 import { getBookingPaymentReturnInfo } from "@/lib/payments/queries"
+import { hasPublicBookingAccess } from "@/lib/booking/access"
 import { withTenant } from "@/lib/tenant-link"
 import { formatPrice, formatDateLong } from "@/lib/format"
 
@@ -21,21 +22,24 @@ export const dynamic = "force-dynamic"
  */
 export default async function PaiementRetourPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ bookingId: string }>
+  searchParams: Promise<{ token?: string }>
 }) {
   const { bookingId } = await params
+  const { token } = await searchParams
   const id = Number.parseInt(bookingId, 10)
-  if (!Number.isInteger(id) || id <= 0) notFound()
 
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
 
-  // Bornée au tenant : une réservation d'un autre tenant renvoie null → 404.
-  const info = await getBookingPaymentReturnInfo(id, tenant.id)
-  if (!info) notFound()
+  // id + jeton secret + tenant. Sans accès valide : message neutre IDENTIQUE
+  // pour tout id (aucun montant/date/référence, aucun oracle d'existence).
+  const authorized = await hasPublicBookingAccess({ bookingId: id, token, companyId: tenant.id })
+  const info = authorized ? await getBookingPaymentReturnInfo(id, tenant.id) : null
 
-  const paid = info.paid
+  const paid = info?.paid === true
 
   return (
     <section className="min-h-[70vh] bg-background py-16">
@@ -60,7 +64,7 @@ export default async function PaiementRetourPage({
             : "Votre paiement est en cours de traitement. Vous recevrez un email de confirmation dès qu'il sera validé — inutile de payer à nouveau."}
         </p>
 
-        {paid ? (
+        {paid && info ? (
           <dl className="mx-auto mt-8 max-w-sm space-y-2 rounded-xl border border-border bg-card p-6 text-left text-sm">
             <div className="flex justify-between gap-3">
               <dt className="text-muted-foreground">Montant réglé</dt>

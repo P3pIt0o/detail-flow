@@ -13,12 +13,13 @@
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { sendBookingCreatedEmails } from "@/lib/email/notifications"
+import { getSettings, getActiveBookingsForDate, countVehiclesForDate } from "@/lib/booking/queries"
 import {
-  getSettings,
-  getActiveBookingsForDate,
-  countVehiclesForDate,
-  getBookingByReference,
-} from "@/lib/booking/queries"
+  generateBookingAccessToken,
+  getBookingByReferenceForPublicAccess,
+  publicConfirmationPath,
+  publicPaymentPath,
+} from "@/lib/booking/access"
 import { buildQuote, computeDeposit } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
@@ -34,7 +35,6 @@ import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
-import { randomBytes } from "crypto"
 
 /* -------------------------------------------------------------------------- */
 /*  Devis en direct (appelé quand le client modifie ses choix)               */
@@ -121,15 +121,14 @@ export type BookingSummary = {
 }
 
 /**
- * Relit la réservation RÉELLEMENT créée, bornée au tenant de la requête. Même
- * exposition que la page de confirmation publique (accès par référence), sans
- * aucune donnée personnelle du client.
+ * Relit la réservation RÉELLEMENT créée. Exige référence + jeton d'accès secret
+ * + tenant de la requête (lib/booking/access.ts). Toute combinaison invalide
+ * renvoie `null`, sans distinguer « inexistante » de « non autorisée ».
  */
-export async function getBookingSummaryAction(reference: string): Promise<BookingSummary | null> {
-  if (typeof reference !== "string" || !/^[A-Z0-9-]{4,40}$/.test(reference)) return null
+export async function getBookingSummaryAction(reference: string, token: string): Promise<BookingSummary | null> {
   const tenant = await resolveRequestTenant()
   if (!tenant) return null
-  const data = await getBookingByReference(reference, tenant.id)
+  const data = await getBookingByReferenceForPublicAccess({ reference, token, companyId: tenant.id })
   if (!data) return null
   const { booking, items } = data
   return {
@@ -179,7 +178,16 @@ export type CreateBookingInput = {
 }
 
 export type CreateBookingResult =
-  | { ok: true; reference: string; payUrl?: string }
+  | {
+      ok: true
+      reference: string
+      /** Secret d'accès public, remis UNIQUEMENT au client qui vient de réserver. */
+      accessToken: string
+      /** Lien de consultation (référence + jeton), relatif, sans tenant. */
+      confirmationUrl: string
+      /** Lien de paiement (id + référence + jeton), relatif, sans tenant. */
+      payUrl?: string
+    }
   | { ok: false; error: string; code?: "slot_taken" | "invalid" | "out_of_range" | "closed" }
 
 /** Génère une référence lisible du type "DF-20260115-4821". */
@@ -187,15 +195,6 @@ function generateReference(dateStr: string): string {
   const compact = dateStr.replace(/-/g, "")
   const rand = Math.floor(1000 + Math.random() * 9000)
   return `DF-${compact}-${rand}`
-}
-
-/**
- * Jeton public de gestion du RDV : 24 octets aléatoires (192 bits) encodés en
- * base64url (URL-safe). Impossible à deviner ; ne contient aucune donnée
- * tenant/client. Permet au client non authentifié d'annuler son rendez-vous.
- */
-function generateManageToken(): string {
-  return randomBytes(24).toString("base64url")
 }
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -375,7 +374,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         .values({
           companyId,
           reference,
-          manageToken: generateManageToken(),
+          manageToken: generateBookingAccessToken(),
           customerName: customer.name.trim(),
           customerEmail: customer.email.trim().toLowerCase(),
           customerPhone: customer.phone.trim(),
@@ -407,7 +406,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           status,
           notes: notes?.trim() || null,
         })
-        .returning({ id: bookings.id, reference: bookings.reference })
+        .returning({ id: bookings.id, reference: bookings.reference, accessToken: bookings.manageToken })
 
       // Index des détails véhicule saisis par le client (par uid de ligne).
       const detailsByUid = new Map(
@@ -446,7 +445,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         }
       }
 
-      return { id: inserted.id, reference: inserted.reference }
+      return { id: inserted.id, reference: inserted.reference, accessToken: inserted.accessToken ?? "" }
     })
 
     if ("conflict" in result) {
@@ -490,11 +489,17 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
       await sendBookingCreatedEmails(result.id)
     }
 
-    if (paymentsReady) {
-      return { ok: true, reference: result.reference, payUrl: `/reservation/paiement/${result.id}` }
+    const access = {
+      reference: result.reference,
+      accessToken: result.accessToken,
+      confirmationUrl: publicConfirmationPath(result.reference, result.accessToken),
     }
 
-    return { ok: true, reference: result.reference }
+    if (paymentsReady) {
+      return { ok: true, ...access, payUrl: publicPaymentPath(result.id, result.reference, result.accessToken) }
+    }
+
+    return { ok: true, ...access }
   } catch (e) {
     console.log("[v0] createBooking error:", e instanceof Error ? e.message : e)
     return { ok: false, error: "Une erreur est survenue. Merci de réessayer.", code: "invalid" }

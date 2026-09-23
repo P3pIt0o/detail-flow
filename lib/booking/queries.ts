@@ -308,28 +308,19 @@ export async function getBookingByManageToken(token: string, companyId?: number)
   }
 }
 
-/** Réservation complète (avec lignes + options) par sa référence, scopée entreprise. */
-export async function getBookingByReference(reference: string, companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
-  const rows = await db
-    .select()
-    .from(bookings)
-    .where(and(eq(bookings.reference, reference), eq(bookings.companyId, cid)))
-    .limit(1)
-  if (!rows.length) return null
-  const booking = rows[0]
-
-  const items = await db.select().from(bookingItems).where(eq(bookingItems.bookingId, booking.id))
+/**
+ * Lignes (+ options) d'une réservation DÉJÀ autorisée par l'appelant.
+ * Il n'existe volontairement AUCUNE lecture publique par référence seule :
+ * l'accès public passe par lib/booking/access.ts (référence/id + jeton + tenant).
+ */
+export async function getBookingItemsWithOptions(bookingId: number) {
+  const items = await db.select().from(bookingItems).where(eq(bookingItems.bookingId, bookingId))
   const itemIds = items.map((i) => i.id)
   const itemOptions = itemIds.length
     ? await db.select().from(bookingItemOptions).where(inArray(bookingItemOptions.bookingItemId, itemIds))
     : []
-
-  return {
-    booking,
-    items: items.map((it) => ({
-      ...it,
-      options: itemOptions.filter((o) => o.bookingItemId === it.id),
-    })),
-  }
+  return items.map((it) => ({
+    ...it,
+    options: itemOptions.filter((o) => o.bookingItemId === it.id),
+  }))
 }

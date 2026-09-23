@@ -5,14 +5,16 @@
  *  ACTIONS SERVEUR — CHECKOUT CLIENT (paiement d'une réservation)
  * ============================================================================
  *  Le tenant est TOUJOURS résolu depuis la requête (jamais fourni par le
- *  client). Le montant est recalculé/relu en base côté serveur. Le client ne
- *  transmet que le bookingId, qui est borné au tenant courant.
+ *  client). Le montant est recalculé/relu en base côté serveur. Le client
+ *  transmet le bookingId ET le jeton d'accès secret de la réservation : l'id
+ *  seul (incrémental, devinable) n'autorise jamais rien.
  * ============================================================================
  */
 
 import { headers } from "next/headers"
 import { resolveRequestTenant } from "@/lib/tenant"
-import { createBookingCheckout, bookingHasPaidPayment } from "@/lib/payments/queries"
+import { createBookingCheckout } from "@/lib/payments/queries"
+import { hasPublicBookingAccess } from "@/lib/booking/access"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { withTenant } from "@/lib/tenant-link"
@@ -36,11 +38,16 @@ export type StartCheckoutResult =
  */
 export async function startBookingCheckout(
   bookingId: number,
+  accessToken: string,
   chosenType?: "deposit" | "full_payment",
 ): Promise<StartCheckoutResult> {
   const tenant = await resolveRequestTenant()
   if (!tenant) return { ok: false, error: "Tenant introuvable." }
-  if (!Number.isInteger(bookingId) || bookingId <= 0) return { ok: false, error: "Réservation invalide." }
+  // id + jeton secret + tenant AVANT toute autre opération (ni statut de
+  // paiement, ni session Stripe). Erreur identique pour tout échec.
+  if (!(await hasPublicBookingAccess({ bookingId, token: accessToken, companyId: tenant.id }))) {
+    return { ok: false, error: "Réservation introuvable." }
+  }
   // Choix client borné aux deux valeurs connues (le mode tenant fait autorité
   // côté serveur ; ce choix n'a d'effet qu'en mode "choice").
   const safeChosen = chosenType === "deposit" || chosenType === "full_payment" ? chosenType : undefined
@@ -63,19 +70,17 @@ export async function startBookingCheckout(
   // un companyId/slug fourni par le navigateur). Sur un vrai sous-domaine, le
   // paramètre est simplement redondant et sans effet. Le placeholder
   // {CHECKOUT_SESSION_ID} reste intact (withTenant n'encode que la valeur tenant).
+  // Le jeton d'accès (déjà validé ci-dessus) est reconduit pour que la page de
+  // retour puisse afficher le récapitulatif sans jamais se fier à l'id seul.
   const returnUrl = await absoluteUrl(
-    withTenant(`/reservation/paiement/${bookingId}/retour?session_id={CHECKOUT_SESSION_ID}`, tenant.slug),
+    withTenant(
+      `/reservation/paiement/${bookingId}/retour?session_id={CHECKOUT_SESSION_ID}&token=${encodeURIComponent(accessToken)}`,
+      tenant.slug,
+    ),
   )
   const res = await createBookingCheckout({ bookingId, companyId: tenant.id, returnUrl, chosenType: safeChosen })
   if (!res.ok) return { ok: false, error: res.error }
   if ("alreadyPaid" in res) return { ok: true, alreadyPaid: true }
 
   return { ok: true, clientSecret: res.clientSecret, connectedAccountId: cfg.stripeAccountId }
-}
-
-/** Statut de paiement d'une réservation (borné au tenant). */
-export async function isBookingPaid(bookingId: number): Promise<boolean> {
-  const tenant = await resolveRequestTenant()
-  if (!tenant) return false
-  return bookingHasPaidPayment(bookingId, tenant.id)
 }

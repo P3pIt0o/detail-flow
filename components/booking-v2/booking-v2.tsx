@@ -85,7 +85,9 @@ export function BookingV2(props: BookingV2Props) {
   const [promoLoading, setPromoLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successRef, setSuccessRef] = useState<string | null>(null)
+  const [success, setSuccess] = useState<{ reference: string; accessToken: string; confirmationUrl: string } | null>(
+    null,
+  )
 
   // Brouillon : même mécanisme (clé tenant, session/24 h sur consentement) que le tunnel historique.
   const { restored, hydrated, remember, setRemember, save, markPendingPayment, clear } = useBookingDraft(tenant)
@@ -107,10 +109,10 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   useEffect(() => {
-    if (!hydrated || !restoreResolved || successRef || restored?.pendingPayment) return
+    if (!hydrated || !restoreResolved || success || restored?.pendingPayment) return
     save(draftState())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, restoreResolved, successRef, restored, save, step, serviceId, vehicles, date, startTime, contact, address, promoInput])
+  }, [hydrated, restoreResolved, success, restored, save, step, serviceId, vehicles, date, startTime, contact, address, promoInput])
 
   function applyRestore() {
     if (!restored) return
@@ -252,13 +254,13 @@ export function BookingV2(props: BookingV2Props) {
       }
       if (res.payUrl) {
         // La réservation existe : on garde un brouillon « paiement en attente » (reprise sans doublon).
-        const payPath = `${res.payUrl}?ref=${encodeURIComponent(res.reference)}`
+        const payPath = res.payUrl
         markPendingPayment(draftState(), { reference: res.reference, payPath })
         router.push(withTenant(payPath, tenant))
         return
       }
       clear()
-      setSuccessRef(res.reference)
+      setSuccess({ reference: res.reference, accessToken: res.accessToken, confirmationUrl: res.confirmationUrl })
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     } catch {
       setError("Une erreur est survenue. Merci de réessayer.")
@@ -267,10 +269,15 @@ export function BookingV2(props: BookingV2Props) {
     }
   }
 
-  if (successRef) {
+  if (success) {
     return (
       <div ref={rootRef} className="mx-auto w-full max-w-lg scroll-mt-24 px-4 pb-12">
-        <SuccessScreen reference={successRef} tenant={tenant} />
+        <SuccessScreen
+          reference={success.reference}
+          accessToken={success.accessToken}
+          confirmationUrl={success.confirmationUrl}
+          tenant={tenant}
+        />
       </div>
     )
   }

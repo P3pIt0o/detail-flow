@@ -25,6 +25,7 @@ type Option = {
 
 export function PaymentModeChoice({
   bookingId,
+  accessToken,
   depositLabel,
   totalLabel,
   remainingLabel,
@@ -33,6 +34,7 @@ export function PaymentModeChoice({
   belowMinLabel,
 }: {
   bookingId: number
+  accessToken: string
   depositLabel: string
   totalLabel: string
   remainingLabel: string
@@ -89,7 +91,7 @@ export function PaymentModeChoice({
         >
           Modifier mon choix
         </button>
-        <PaymentCheckout bookingId={bookingId} chosenType={confirmed} />
+        <PaymentCheckout bookingId={bookingId} accessToken={accessToken} chosenType={confirmed} />
       </div>
     )
   }
