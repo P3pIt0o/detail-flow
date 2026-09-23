@@ -24,6 +24,8 @@ export type BookingEmailData = {
   endTime: string
   totalDurationMin: number
   address: string
+  /** Prestation réalisée à l'atelier du professionnel (pas chez le client). */
+  atWorkshop?: boolean
   items: { serviceName: string; vehicleTypeName: string; priceCents: number }[]
   servicesCents: number
   optionsCents: number
@@ -113,7 +115,7 @@ function bookingSummary(b: BookingEmailData): string {
       <span style="color:${MUTED};">${esc(b.startTime)} – ${esc(b.endTime)} (${esc(formatDuration(b.totalDurationMin))})</span>
     </div>
 
-    <div style="font-size:13px;color:${MUTED};">Adresse</div>
+    <div style="font-size:13px;color:${MUTED};">${b.atWorkshop ? "Lieu : à l&#39;atelier" : "Adresse"}</div>
     <div style="font-size:15px;color:${INK};">${esc(b.address)}</div>
   </div>
 
@@ -121,7 +123,7 @@ function bookingSummary(b: BookingEmailData): string {
     ${rows}
     <tr><td colspan="2" style="padding:8px 0;"><div style="border-top:1px solid ${BORDER};"></div></td></tr>
     ${b.optionsCents > 0 ? line("Options", formatPrice(b.optionsCents)) : ""}
-    ${line("Déplacement", b.travelFeeCents > 0 ? formatPrice(b.travelFeeCents) : "Offert")}
+    ${b.atWorkshop ? "" : line("Déplacement", b.travelFeeCents > 0 ? formatPrice(b.travelFeeCents) : "Offert")}
     ${line("Total", formatPrice(b.totalCents), true)}
     ${b.depositCents > 0 ? line("Acompte demandé", formatPrice(b.depositCents)) : ""}
   </table>`

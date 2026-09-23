@@ -21,6 +21,9 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -80,6 +83,13 @@
   --destructive: oklch(0.62 0.23 25);
   --destructive-foreground: oklch(0.99 0.005 260);
 
+  /* Étapes validées / confirmation (Booking V2) */
+  --success: oklch(0.8 0.14 163);
+  --success-foreground: oklch(0.26 0.05 165);
+
+  /* Éléments restant à configurer (admin) */
+  --warning: oklch(0.82 0.15 75);
+
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
   --ring: oklch(0.62 0.2 255);
@@ -133,4 +143,11 @@ html.df-embed [data-df-chrome] {
 html.df-embed,
 html.df-embed body {
   background: transparent;
+}
+
+/* Booking V2 : tant que la barre de total est affichée en bas d'écran, le bouton
+   WhatsApp flottant (site standard) est remonté au-dessus pour ne jamais masquer
+   le bouton « Continuer ». La classe est posée/retirée par la barre elle-même. */
+html.df-bv2-bar [data-df-whatsapp] a {
+  bottom: calc(6.5rem + env(safe-area-inset-bottom)) !important;
 }

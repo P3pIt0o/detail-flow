@@ -19,7 +19,9 @@ import { listReviews } from "./review-actions"
 import { getReviewsSourceConfig } from "@/lib/reviews/config"
 import { getGooglePlaceDetails } from "@/lib/reviews/google-places"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
-import { TravelSettings } from "@/components/admin/settings/travel-settings"
+import { LocationSettings } from "@/components/admin/settings/location-settings"
+import { getLocationConfig, locationColumnsExist } from "@/lib/booking/location"
+import { DEFAULT_LOCATION_CONFIG } from "@/lib/booking/location-shared"
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
 import { HoursSettings } from "@/components/admin/settings/hours-settings"
 import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
@@ -121,6 +123,11 @@ export default async function ParametresPage({
     listPromoCodes(),
     getServices(tenant.id),
   ])
+
+  const [locationConfig, locationAvailable] =
+    activeCategory?.id === "reservations"
+      ? await Promise.all([getLocationConfig(tenant.id), locationColumnsExist()])
+      : [null, false]
 
   // Liste allégée des prestations du tenant pour le ciblage des codes promo.
   const promoServiceOptions = servicesList.map((s) => ({ id: s.id, name: s.name }))
@@ -271,13 +278,17 @@ export default async function ParametresPage({
                   />
                 </TabsContent>
                 <TabsContent value="travel" className="mt-6">
-                  <TravelSettings
-                    businessAddress={settings.businessAddress ?? ""}
-                    freeDistanceKm={Number.parseFloat(settings.freeDistanceKm)}
-                    pricePerKmCents={settings.pricePerKmCents}
-                    maxDistanceKm={Number.parseFloat(settings.maxDistanceKm)}
-                    roundTrip={settings.roundTrip}
-                    hasCoords={Boolean(settings.businessLat && settings.businessLng)}
+                  <LocationSettings
+                    initial={locationConfig ?? DEFAULT_LOCATION_CONFIG}
+                    available={locationAvailable}
+                    travel={{
+                      businessAddress: settings.businessAddress ?? "",
+                      freeDistanceKm: Number.parseFloat(settings.freeDistanceKm),
+                      pricePerKmCents: settings.pricePerKmCents,
+                      maxDistanceKm: Number.parseFloat(settings.maxDistanceKm),
+                      roundTrip: settings.roundTrip,
+                      hasCoords: Boolean(settings.businessLat && settings.businessLng),
+                    }}
                   />
                 </TabsContent>
               </>

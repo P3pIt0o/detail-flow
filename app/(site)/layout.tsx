@@ -191,7 +191,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           footerTagline={footerContent.tagline || undefined}
         />
       </div>
-      <div data-df-chrome className="contents">
+      <div data-df-chrome data-df-whatsapp className="contents">
         <WhatsAppButton phone={contact.phoneRaw} />
       </div>
     </div>

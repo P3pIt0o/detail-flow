@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { Check } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +18,7 @@ type Props = {
   hasCoords: boolean
 }
 
+/** Zone et frais de déplacement — moteur existant, présentation simplifiée. */
 export function TravelSettings(props: Props) {
   const [address, setAddress] = useState(props.businessAddress)
   const [freeKm, setFreeKm] = useState(props.freeDistanceKm.toString())
@@ -36,92 +38,106 @@ export function TravelSettings(props: Props) {
         maxDistanceKm: Number.parseFloat(maxKm) || 0,
         roundTrip,
       })
-      setMsg(
-        res.ok
-          ? { type: "ok", text: "Paramètres enregistrés." }
-          : { type: "err", text: res.error ?? "Erreur" },
-      )
+      setMsg(res.ok ? { type: "ok", text: "Zone enregistrée." } : { type: "err", text: res.error ?? "Erreur" })
     })
   }
 
   return (
-    <Card className="p-6 space-y-5">
+    <Card className="flex flex-col gap-5 p-4 sm:p-6">
       <div>
-        <h2 className="text-lg font-semibold">Coordonnées &amp; frais de déplacement</h2>
+        <h3 className="text-base font-semibold text-foreground">Votre zone de déplacement</h3>
         <p className="text-sm text-muted-foreground text-pretty">
-          L&apos;adresse de départ sert à calculer la distance jusqu&apos;au client. Elle est
-          géocodée automatiquement à l&apos;enregistrement.
+          Les frais sont calculés automatiquement selon la distance jusqu&apos;au client.
         </p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="businessAddress">Adresse de départ (atelier / domicile)</Label>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="businessAddress">Adresse de départ</Label>
         <Input
           id="businessAddress"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="12 rue de l'Atelier, 75011 Paris"
+          autoComplete="street-address"
+          className="h-12 text-base"
         />
         {props.hasCoords && (
-          <p className="text-xs text-muted-foreground">Coordonnées enregistrées ✓</p>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Check className="size-3.5 text-primary" aria-hidden="true" />
+            Adresse reconnue
+          </p>
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="freeKm">Distance offerte (km)</Label>
-          <Input
-            id="freeKm"
-            type="number"
-            step="0.1"
-            value={freeKm}
-            onChange={(e) => setFreeKm(e.target.value)}
-          />
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="maxKm">Jusqu&apos;où vous déplacez-vous ?</Label>
+        <UnitInput id="maxKm" unit="km" step="1" value={maxKm} onChange={setMaxKm} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="freeKm">Kilomètres offerts</Label>
+          <UnitInput id="freeKm" unit="km" step="0.1" value={freeKm} onChange={setFreeKm} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="pricePerKm">Prix / km (€)</Label>
-          <Input
-            id="pricePerKm"
-            type="number"
-            step="0.01"
-            value={pricePerKm}
-            onChange={(e) => setPricePerKm(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="maxKm">Distance max. (km)</Label>
-          <Input
-            id="maxKm"
-            type="number"
-            step="1"
-            value={maxKm}
-            onChange={(e) => setMaxKm(e.target.value)}
-          />
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="pricePerKm">Prix par km au-delà</Label>
+          <UnitInput id="pricePerKm" unit="€" step="0.01" value={pricePerKm} onChange={setPricePerKm} />
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div>
-          <Label htmlFor="roundTrip" className="cursor-pointer">
-            Facturer l&apos;aller-retour
-          </Label>
-          <p className="text-xs text-muted-foreground">
-            Double la distance facturée (déplacement A/R).
-          </p>
-        </div>
+      <label
+        htmlFor="roundTrip"
+        className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border p-4"
+      >
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-foreground">Compter l&apos;aller et le retour</span>
+          <span className="text-xs text-muted-foreground">La distance facturée est doublée.</span>
+        </span>
         <Switch id="roundTrip" checked={roundTrip} onCheckedChange={setRoundTrip} />
-      </div>
+      </label>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={pending}>
-          {pending ? "Enregistrement…" : "Enregistrer"}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={save} disabled={pending} className="h-12 px-6 text-base">
+          {pending ? "Enregistrement…" : "Enregistrer ma zone"}
         </Button>
         {msg && (
-          <span className={msg.type === "ok" ? "text-sm text-primary" : "text-sm text-destructive"}>
+          <span role={msg.type === "ok" ? "status" : "alert"} className={msg.type === "ok" ? "text-sm text-primary" : "text-sm text-destructive"}>
             {msg.text}
           </span>
         )}
       </div>
     </Card>
+  )
+}
+
+function UnitInput({
+  id,
+  unit,
+  step,
+  value,
+  onChange,
+}: {
+  id: string
+  unit: string
+  step: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type="number"
+        inputMode="decimal"
+        min="0"
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-12 pr-12 text-base"
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-muted-foreground">
+        {unit}
+      </span>
+    </div>
   )
 }

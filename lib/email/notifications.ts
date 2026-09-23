@@ -22,6 +22,7 @@ import {
 } from "./templates"
 import { claimPaymentEmail, markPaymentEmail, type PaymentEmailRecipient } from "@/lib/payments/queries"
 import { claimRefundEmail, markRefundEmail } from "@/lib/payments/refunds"
+import { getBookingLocationType } from "@/lib/booking/location"
 
 /** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
 function isValidEmail(value: string | null | undefined): value is string {
@@ -106,6 +107,7 @@ async function loadBookingEmailData(
     endTime: booking.endTime,
     totalDurationMin: booking.totalDurationMin,
     address: booking.address,
+    atWorkshop: (await getBookingLocationType(booking.id)) === "workshop",
     items: items.map((it) => ({
       serviceName: it.serviceName,
       vehicleTypeName: it.vehicleTypeName,
