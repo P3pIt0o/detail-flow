@@ -1,94 +1,75 @@
-"use client"
-
-import Script from "next/script"
 import { Star } from "lucide-react"
 
 /**
  * Preuve Trustpilot pour la landing V4.
  *
- * Réutilise le widget OFFICIEL Trustpilot (aucune note, aucun nombre d'avis, ni
- * TrustScore codés en dur). Le widget n'affiche QUE ce que le script officiel
- * Trustpilot renvoie, donc la note et le nombre d'avis évoluent d'eux-mêmes.
+ * Choix volontaire : on N'UTILISE PAS le widget officiel Trustpilot ici car ses
+ * templates affichent systématiquement le nombre d'avis, ce que nous ne
+ * souhaitons pas montrer. On affiche donc une preuve compacte maîtrisée :
+ * uniquement la NOTE (4,2/5) + l'identité Trustpilot, sans aucun compteur d'avis.
  *
- * Activation via identifiants publics :
- *   - NEXT_PUBLIC_TRUSTPILOT_BUSINESS_UNIT_ID
- *   - NEXT_PUBLIC_TRUSTPILOT_TEMPLATE_ID          (widget complet — social proof)
- *   - NEXT_PUBLIC_TRUSTPILOT_TEMPLATE_ID_MICRO    (widget compact — hero, optionnel)
- *   - NEXT_PUBLIC_TRUSTPILOT_DOMAIN               (optionnel, défaut detailflow.fr)
- *
- * Tant que l'intégration n'est pas configurée : jamais de fausse note. On
- * affiche seulement un lien discret vers la vraie page Trustpilot DetailFlow.
+ * La note est centralisée ci-dessous (TRUSTPILOT). Pour la mettre à jour,
+ * modifier UNIQUEMENT `ratingValue` ici — aucune autre occurrence dans le code.
  */
-const BUSINESS_UNIT_ID = process.env.NEXT_PUBLIC_TRUSTPILOT_BUSINESS_UNIT_ID
-const TEMPLATE_ID = process.env.NEXT_PUBLIC_TRUSTPILOT_TEMPLATE_ID
-const MICRO_TEMPLATE_ID = process.env.NEXT_PUBLIC_TRUSTPILOT_TEMPLATE_ID_MICRO
-const DOMAIN = process.env.NEXT_PUBLIC_TRUSTPILOT_DOMAIN ?? "detailflow.fr"
+export const TRUSTPILOT = {
+  /** Note sur 5, source de vérité unique. */
+  ratingValue: 4.2,
+  /** Libellé affiché (format français). */
+  ratingLabel: "4,2/5",
+  domain: "detailflow.fr",
+  reviewUrl: "https://fr.trustpilot.com/review/detailflow.fr",
+} as const
 
-const REVIEW_URL = `https://fr.trustpilot.com/review/${DOMAIN}`
 const TRUSTPILOT_GREEN = "#00b67a"
 
-/** Script officiel chargé une seule fois, en lazy (aucun impact LCP). */
-function TrustpilotScript() {
+/** Étoiles fidèles à la note : remplissage proportionnel (4,2/5 = 84 %), jamais 5/5. */
+function RatingStars({ size }: { size: number }) {
+  const pct = (TRUSTPILOT.ratingValue / 5) * 100
+  const stars = Array.from({ length: 5 })
   return (
-    <Script
-      id="trustpilot-widget-bootstrap"
-      src="//widget.trustpilot.com/bootstrap/v5/tp.widget.bootstrap.min.js"
-      strategy="lazyOnload"
-    />
-  )
-}
-
-/** Lien de repli — aucune note dynamique fictive, uniquement un accès aux avis. */
-function TrustpilotFallbackLink({ compact }: { compact: boolean }) {
-  return (
-    <a
-      href={REVIEW_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={
-        compact
-          ? "inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          : "inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground shadow-sm transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      }
-    >
-      <Star
-        className={compact ? "size-3.5" : "size-4"}
-        style={{ fill: TRUSTPILOT_GREEN, color: TRUSTPILOT_GREEN }}
-        aria-hidden="true"
-      />
-      <span>Voir nos avis sur Trustpilot</span>
-    </a>
+    <span className="relative inline-flex" aria-hidden="true">
+      <span className="flex text-muted-foreground/30">
+        {stars.map((_, i) => (
+          <Star key={i} style={{ width: size, height: size }} strokeWidth={0} fill="currentColor" />
+        ))}
+      </span>
+      <span className="absolute inset-0 flex overflow-hidden" style={{ width: `${pct}%` }}>
+        {stars.map((_, i) => (
+          <Star
+            key={i}
+            style={{ width: size, height: size, color: TRUSTPILOT_GREEN }}
+            strokeWidth={0}
+            fill="currentColor"
+          />
+        ))}
+      </span>
+    </span>
   )
 }
 
 /**
- * @param variant "compact" (hero) ou "full" (section preuve sociale)
+ * Ligne de réassurance Trustpilot compacte, cliquable vers la vraie page
+ * Trustpilot DetailFlow. Aucun nombre d'avis n'est jamais affiché.
  */
-export function TrustpilotProof({ variant = "compact" }: { variant?: "compact" | "full" }) {
-  const compact = variant === "compact"
-  const templateId = compact ? MICRO_TEMPLATE_ID ?? TEMPLATE_ID : TEMPLATE_ID
-  const configured = Boolean(BUSINESS_UNIT_ID && templateId)
-
-  if (!configured) {
-    return <TrustpilotFallbackLink compact={compact} />
-  }
-
+export function TrustpilotProof({ className }: { className?: string }) {
   return (
-    <>
-      <TrustpilotScript />
-      <div
-        className="trustpilot-widget"
-        data-locale="fr-FR"
-        data-template-id={templateId}
-        data-businessunit-id={BUSINESS_UNIT_ID}
-        data-style-height={compact ? "24px" : "52px"}
-        data-style-width="100%"
-        data-theme="light"
-      >
-        <a href={REVIEW_URL} target="_blank" rel="noopener noreferrer">
-          Trustpilot
-        </a>
-      </div>
-    </>
+    <a
+      href={TRUSTPILOT.reviewUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Noté ${TRUSTPILOT.ratingValue} sur 5 sur Trustpilot (nouvel onglet)`}
+      className={`group inline-flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${className ?? ""}`}
+    >
+      <Star
+        className="size-4 shrink-0"
+        style={{ fill: TRUSTPILOT_GREEN, color: TRUSTPILOT_GREEN }}
+        aria-hidden="true"
+      />
+      <span className="font-semibold text-foreground">Trustpilot</span>
+      <RatingStars size={15} />
+      <span className="whitespace-nowrap">
+        Noté <span className="font-semibold text-foreground">{TRUSTPILOT.ratingLabel}</span>
+      </span>
+    </a>
   )
 }

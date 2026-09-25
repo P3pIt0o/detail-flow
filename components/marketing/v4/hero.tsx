@@ -97,7 +97,7 @@ export function Hero() {
           Offre Starter gratuite, sans engagement.
         </p>
         <div className="df-rise mt-6 [animation-delay:320ms]">
-          <TrustpilotProof variant="compact" />
+          <TrustpilotProof />
         </div>
       </Container>
 

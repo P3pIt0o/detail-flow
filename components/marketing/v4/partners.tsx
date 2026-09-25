@@ -1,7 +1,6 @@
 import Image from "next/image"
 import { marketing } from "@/config/marketing"
 import { Container } from "./primitives"
-import { TrustpilotProof } from "./trustpilot"
 
 /**
  * Preuve sociale : uniquement les entreprises ayant CONSENTI (`consent: true`
@@ -35,9 +34,6 @@ export function Partners() {
         ) : (
           <p className="text-muted-foreground">{fallbackNote}</p>
         )}
-        <div className="mt-2 flex w-full max-w-md justify-center">
-          <TrustpilotProof variant="full" />
-        </div>
       </Container>
     </section>
   )
