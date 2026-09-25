@@ -32,7 +32,7 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
   it("les features promises par une offre sont réellement accordées par son plan", () => {
     for (const plan of ALL_COMMERCIAL_PLANS) {
       if (plan.licensePlan === null) {
-        // Pas de plan réel (Entreprise) : aucune feature ne peut être promise.
+        // Pas de plan réel : aucune feature ne peut être promise.
         expect(plan.includedFeatures, `${plan.id} ne doit rien promettre sans plan`).toEqual([])
         continue
       }
@@ -45,10 +45,15 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
     }
   })
 
-  it("Entreprise n'a pas de plan technique (gestion d'équipe non modélisée)", () => {
+  it("Entreprise pointe vers le plan technique ENTERPRISE et reste coming_soon", () => {
     const entreprise = COMMERCIAL_PLANS.find((p) => p.id === "entreprise")
-    expect(entreprise?.licensePlan).toBeNull()
+    expect(entreprise?.licensePlan).toBe("ENTERPRISE")
+    expect(isLicensePlan(entreprise?.licensePlan)).toBe(true)
     expect(entreprise?.availability).toBe("coming_soon")
+    // Aucune feature d'équipe n'existe encore : rien n'est promis (invariant).
+    expect(entreprise?.includedFeatures).toEqual([])
+    // CTA désactivé : jamais de lien vers /demarrer.
+    expect(entreprise?.cta.href).toBeNull()
   })
 })
 

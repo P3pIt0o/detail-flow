@@ -9,7 +9,7 @@
 
 /* ------------------------------- Plans ----------------------------------- */
 
-export const LICENSE_PLANS = ["FREE", "ESSENTIAL", "PRO", "BUSINESS", "FOUNDER"] as const
+export const LICENSE_PLANS = ["FREE", "ESSENTIAL", "PRO", "BUSINESS", "ENTERPRISE", "FOUNDER"] as const
 export type LicensePlan = (typeof LICENSE_PLANS)[number]
 
 /* ---------------------------- Générations -------------------------------- */
