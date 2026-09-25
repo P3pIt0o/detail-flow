@@ -25,6 +25,16 @@
 // ← Passer à `false` pour rétablir la vitrine marketing.
 const FLAG = true
 
-/** Vrai si la vitrine marketing doit afficher l'écran de maintenance. */
+/**
+ * Vrai si la vitrine marketing doit afficher l'écran de maintenance.
+ *
+ * En développement (aperçu v0 / local), la maintenance est ignorée afin de
+ * pouvoir relire la nouvelle landing. Les déploiements (preview + production)
+ * restent gouvernés par `FLAG` / `MARKETING_MAINTENANCE`.
+ */
 export const MARKETING_MAINTENANCE_ENABLED: boolean =
-  process.env.MARKETING_MAINTENANCE === "false" ? false : FLAG
+  process.env.NODE_ENV === "development"
+    ? false
+    : process.env.MARKETING_MAINTENANCE === "false"
+      ? false
+      : FLAG

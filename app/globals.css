@@ -24,6 +24,8 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -143,6 +145,111 @@ html.df-embed [data-df-chrome] {
 html.df-embed,
 html.df-embed body {
   background: transparent;
+}
+
+/* ==========================================================================
+ *  LANDING MARKETING DETAILFLOW — thème clair SCOPÉ
+ * --------------------------------------------------------------------------
+ *  `.df-mkt` n'est posé QUE par `app/marketing/layout.tsx`. Aucun tenant,
+ *  aucun admin ne porte cette classe : les tokens ci-dessous ne s'appliquent
+ *  donc jamais hors de la vitrine. Même teinte de marque (bleu 255).
+ *  `.df-product` (à l'intérieur de la landing) ré-applique la palette sombre
+ *  RÉELLE de l'admin pour que les mockups ressemblent au vrai produit.
+ * ========================================================================== */
+.df-mkt {
+  color-scheme: light;
+  --background: oklch(0.99 0.003 255);
+  --foreground: oklch(0.2 0.02 262);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 262);
+  --primary: oklch(0.56 0.21 258);
+  --primary-foreground: oklch(0.99 0.005 260);
+  --secondary: oklch(0.965 0.006 255);
+  --secondary-foreground: oklch(0.2 0.02 262);
+  --muted: oklch(0.965 0.006 255);
+  --muted-foreground: oklch(0.5 0.02 262);
+  --accent: oklch(0.56 0.21 258);
+  --accent-foreground: oklch(0.99 0.005 260);
+  --border: oklch(0.2 0.02 262 / 9%);
+  --input: oklch(0.2 0.02 262 / 14%);
+  --ring: oklch(0.56 0.21 258);
+  --ink: oklch(0.17 0.02 262);
+  --ink-foreground: oklch(0.97 0.005 260);
+}
+
+.df-mkt .df-product,
+.df-mkt .df-ink {
+  color-scheme: dark;
+  --background: oklch(0.16 0.015 260);
+  --foreground: oklch(0.97 0.005 260);
+  --card: oklch(0.2 0.018 260);
+  --card-foreground: oklch(0.97 0.005 260);
+  --popover: oklch(0.19 0.018 260);
+  --popover-foreground: oklch(0.97 0.005 260);
+  --primary: oklch(0.62 0.2 255);
+  --primary-foreground: oklch(0.99 0.005 260);
+  --secondary: oklch(0.27 0.02 260);
+  --muted: oklch(0.25 0.018 260);
+  --muted-foreground: oklch(0.72 0.02 260);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.62 0.2 255);
+}
+
+/* Section sombre ponctuelle (storytelling) : même palette que le produit. */
+.df-mkt .df-ink {
+  --background: var(--ink);
+  --muted-foreground: oklch(0.74 0.02 260);
+}
+
+@keyframes df-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+@keyframes df-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes df-pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.df-float {
+  animation: df-float 7s ease-in-out infinite;
+}
+.df-float-delayed {
+  animation: df-float 8s ease-in-out 1.5s infinite;
+}
+.df-rise {
+  animation: df-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.df-pulse-dot {
+  animation: df-pulse-dot 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .df-float,
+  .df-float-delayed,
+  .df-pulse-dot {
+    animation: none;
+  }
 }
 
 /* Booking V2 : tant que la barre de total est affichée en bas d'écran, le bouton
