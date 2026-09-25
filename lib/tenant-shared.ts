@@ -180,7 +180,13 @@ export function parsePublicPagePath(pathname: string): { slug: string; rest: str
   const segments = after.split("/").filter(Boolean)
   if (segments.length === 0) return null
   const [slug, ...rest] = segments
-  if (!isValidSlug(slug)) return null
+  // Exception de ROUTING pour le tenant historique DetailFlow : son slug est
+  // volontairement présent dans RESERVED_SLUGS (interdit à la création d'un
+  // nouveau tenant), mais l'entreprise existe déjà et doit rester accessible
+  // via `/p/detailflow`. On l'accepte donc explicitement ici, sans jamais
+  // relâcher la validation pour les autres slugs réservés.
+  const isLegacyDefaultTenant = slug === DEFAULT_TENANT_SLUG
+  if (!isLegacyDefaultTenant && !isValidSlug(slug)) return null
   return { slug, rest: rest.length ? `/${rest.join("/")}` : "/" }
 }
 
