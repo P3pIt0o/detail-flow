@@ -1,8 +1,10 @@
 import type React from "react"
 import { requireCompanyMember } from "@/lib/admin"
-import { AdminSidebar } from "@/components/admin/admin-sidebar"
-import { PwaInstallHint } from "@/components/admin/pwa-install-hint"
+import { AdminShell } from "@/components/admin/admin-shell"
+import { buildAdminNavGroups, buildMobilePrimaryNav } from "@/lib/admin/nav"
+import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
+import { siteConfig } from "@/config/site"
 
 export const metadata = {
   title: "Espace pro",
@@ -25,18 +27,32 @@ export default async function DashboardLayout({ children }: { children: React.Re
     customSiteKey: ctx.tenant.customSiteKey,
   })
 
+  // Navigation GROUPÉE + barre mobile — mêmes routes, mêmes règles d'éligibilité
+  // (Spirit ACS, parcours web) : seule la présentation change.
+  const navOpts = { intent: onboardingIntent, customSiteKey: ctx.tenant.customSiteKey ?? null }
+  const groups = buildAdminNavGroups(navOpts)
+  const primaryMobile = buildMobilePrimaryNav(navOpts)
+
+  // Meilleur lien PUBLIC réel (jamais d'URL technique) résolu côté serveur.
+  const publicLink = resolvePublicLink({
+    slug: ctx.tenant.slug,
+    intent: onboardingIntent,
+    customSiteKey: ctx.tenant.customSiteKey ?? null,
+    status: ctx.tenant.status,
+    rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
+  })
+
   return (
-    <div className="flex min-h-svh flex-col bg-background lg:flex-row">
-      <AdminSidebar
-        adminName={ctx.user.name || ctx.user.email}
-        isSuperAdmin={ctx.isSuperAdmin}
-        customSiteKey={ctx.tenant.customSiteKey ?? null}
-        onboardingIntent={onboardingIntent}
-      />
-      <main className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
-        <PwaInstallHint />
-        {children}
-      </main>
-    </div>
+    <AdminShell
+      brandName={siteConfig.brand.name}
+      companyName={ctx.tenant.name || siteConfig.brand.name}
+      adminName={ctx.user.name || ctx.user.email}
+      isSuperAdmin={ctx.isSuperAdmin}
+      groups={groups}
+      primaryMobile={primaryMobile}
+      publicUrl={publicLink?.url ?? null}
+    >
+      {children}
+    </AdminShell>
   )
 }

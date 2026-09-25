@@ -90,3 +90,112 @@ export function buildAdminNav(opts: {
   }
   return nav
 }
+
+/* ------------------------------------------------------------------------- */
+/*  Présentation groupée (refonte UX du shell admin).                         */
+/*                                                                            */
+/*  Les fonctions ci-dessous ne changent NI les routes, NI la logique         */
+/*  d'éligibilité (Spirit ACS, parcours web) : elles réutilisent              */
+/*  `buildAdminNav` et se contentent de REGROUPER et de RENOMMER les libellés */
+/*  affichés pour un vocabulaire plus proche du métier. Les libellés de       */
+/*  l'entrée « web » (`webNavItem`) restent inchangés.                        */
+/* ------------------------------------------------------------------------- */
+
+/** Groupe visuel de la navigation (titre discret + entrées). */
+export type AdminNavGroup = { id: string; label: string; items: AdminNavItem[] }
+
+/**
+ * Libellés d'AFFICHAGE plus naturels, indexés par route. Ne renomme jamais la
+ * route ni l'entrée « web ». Toute route absente conserve son libellé d'origine.
+ */
+const ADMIN_NAV_DISPLAY_LABEL: Readonly<Record<string, string>> = {
+  "/admin": "Accueil",
+  "/admin/calendrier": "Planning",
+  "/admin/reservations": "Rendez-vous",
+  "/admin/factures": "Devis & factures",
+}
+
+/** Rattachement route → groupe métier. L'entrée « web » est traitée à part. */
+const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
+  "/admin": "quotidien",
+  "/admin/calendrier": "quotidien",
+  "/admin/reservations": "quotidien",
+  "/admin/demandes": "quotidien",
+  "/admin/clients": "quotidien",
+  "/admin/prestations": "gestion",
+  "/admin/produits": "gestion",
+  "/admin/factures": "gestion",
+  "/admin/parametres": "reglages",
+}
+
+const ADMIN_NAV_GROUP_LABELS: Readonly<Record<string, string>> = {
+  quotidien: "Quotidien",
+  gestion: "Gestion",
+  enligne: "En ligne",
+  reglages: "Réglages",
+}
+
+const ADMIN_NAV_GROUP_ORDER = ["quotidien", "gestion", "enligne", "reglages"] as const
+
+/** Applique le libellé d'affichage naturel si défini pour cette route. */
+function withDisplayLabel(item: AdminNavItem): AdminNavItem {
+  const label = ADMIN_NAV_DISPLAY_LABEL[item.href]
+  return label ? { ...item, label } : item
+}
+
+/** Routes de l'entrée « web » (mutuellement exclusives selon le parcours). */
+const WEB_HREFS = new Set<string>(["/admin/ma-reservation", "/admin/page-publique"])
+
+/**
+ * Construit la navigation GROUPÉE du shell admin. Réutilise strictement
+ * `buildAdminNav` (même filtrage Spirit ACS, même entrée web) puis répartit les
+ * entrées en groupes lisibles. Les groupes vides sont omis.
+ */
+export function buildAdminNavGroups(opts: {
+  intent: OnboardingIntentValue | null
+  customSiteKey: string | null
+}): AdminNavGroup[] {
+  const flat = buildAdminNav(opts).map(withDisplayLabel)
+  const buckets = new Map<string, AdminNavItem[]>()
+  for (const item of flat) {
+    const groupId = WEB_HREFS.has(item.href) ? "enligne" : (ADMIN_NAV_GROUP_OF[item.href] ?? "gestion")
+    const list = buckets.get(groupId) ?? []
+    list.push(item)
+    buckets.set(groupId, list)
+  }
+  const groups: AdminNavGroup[] = []
+  for (const id of ADMIN_NAV_GROUP_ORDER) {
+    const items = buckets.get(id)
+    if (items && items.length > 0) groups.push({ id, label: ADMIN_NAV_GROUP_LABELS[id], items })
+  }
+  return groups
+}
+
+/** Ordre de priorité des entrées de la barre mobile (routes réellement présentes). */
+const MOBILE_PRIMARY_ORDER = [
+  "/admin",
+  "/admin/calendrier",
+  "/admin/reservations",
+  "/admin/demandes",
+  "/admin/clients",
+] as const
+
+/**
+ * Entrées PRINCIPALES de la barre de navigation mobile (max 4), sélectionnées
+ * parmi celles réellement disponibles pour ce tenant/parcours. Le 5ᵉ emplacement
+ * de la barre est réservé au bouton « Plus » (géré par le shell).
+ */
+export function buildMobilePrimaryNav(opts: {
+  intent: OnboardingIntentValue | null
+  customSiteKey: string | null
+}): AdminNavItem[] {
+  const flat = buildAdminNav(opts).map(withDisplayLabel)
+  const byHref = new Map(flat.map((i) => [i.href, i] as const))
+  const primary: AdminNavItem[] = []
+  for (const href of MOBILE_PRIMARY_ORDER) {
+    const item = byHref.get(href)
+    if (item) primary.push(item)
+    if (primary.length === 4) break
+  }
+  return primary
+}
