@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowRight, CalendarPlus, CreditCard } from "lucide-react"
 import { AppWindow, Container, EventToast, PhoneFrame } from "./primitives"
 import { DashboardMock } from "./dashboard-mock"
+import { TrustpilotProof } from "./trustpilot"
 
 const SLOTS = ["09:00", "09:30", "14:00", "14:30", "15:00", "15:30"]
 
@@ -95,6 +96,9 @@ export function Hero() {
         <p className="df-rise mt-4 text-xs text-muted-foreground [animation-delay:280ms]">
           Offre Starter gratuite, sans engagement.
         </p>
+        <div className="df-rise mt-6 [animation-delay:320ms]">
+          <TrustpilotProof variant="compact" />
+        </div>
       </Container>
 
       <Container className="relative mt-16 max-w-7xl pb-8 sm:mt-20">
