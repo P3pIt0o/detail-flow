@@ -9,6 +9,21 @@
  *  les DROITS TECHNIQUES réels (moteur de licences). Le marketing ne définit
  *  plus ses propres prix indépendamment du moteur — il consomme ce fichier.
  *
+ *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
+ *    Starter    0 €          -> plan technique FREE      (self-service actif)
+ *    Pro        19,90 €/mois -> plan technique PRO        (coming_soon)
+ *    Ultime     34,90 €/mois -> plan technique BUSINESS   (coming_soon)
+ *    Entreprise 49,90 €/mois -> AUCUN plan technique      (coming_soon)
+ *
+ *  L'offre « Entreprise » (gestion multi-employés, agendas par collaborateur,
+ *  permissions, RDV simultanés) N'A PAS de correspondance dans le moteur de
+ *  licences actuel (`lib/licensing/registry.ts`) : `licensePlan: null`. Elle
+ *  reste donc `coming_soon`, ne promet aucune feature gated, et ne mène jamais
+ *  à /demarrer. Le besoin technique est signalé dans le compte-rendu.
+ *
+ *  LE « SUR MESURE » N'EST PAS UNE OFFRE SAAS : c'est une prestation distincte
+ *  (développement d'une plateforme dédiée). Voir `CUSTOM_PLATFORM_OFFER`.
+ *
  *  DISTINCTION IMPORTANTE (deux notions à ne pas confondre) :
  *  - `PLAN_META.purchasable` (registre licences) = un plan qu'un SUPER-ADMIN
  *    peut attribuer manuellement. Notion interne d'outillage.
@@ -20,6 +35,10 @@
  *  SEUL le plan gratuit (FREE) est `self_serve`. Les autres sont `coming_soon`
  *  et NE DOIVENT PAS pointer vers /demarrer (sinon un clic crée silencieusement
  *  un compte FREE en laissant croire que l'offre payante a été sélectionnée).
+ *
+ *  MOIS OFFERT : les offres payantes affichent « 1er mois offert » comme
+ *  PROMESSE de lancement. Aucun Checkout ni `trial_period_days` n'est câblé —
+ *  la présentation est prête, le backend reste à livrer (cf. compte-rendu).
  * ============================================================================
  */
 
@@ -44,17 +63,21 @@ export type PlanAvailability =
   | "coming_soon"
 
 export type CommercialPlan = {
-  id: "starter" | "pro" | "business" | "lifetime"
+  id: "starter" | "pro" | "ultime" | "entreprise"
   /** Nom public affiché. */
   name: string
+  /** Ligne de positionnement courte (« Commencez simplement. »). */
+  tagline: string
   /**
    * Plan technique du moteur de licences correspondant, ou `null` quand aucun
-   * plan réel n'existe encore (cas Lifetime : concept conservé, plan à créer).
+   * plan réel n'existe encore (cas Entreprise : gestion d'équipe non modélisée).
    */
   licensePlan: LicensePlan | null
   price: string
   period: string
   description: string
+  /** Promesse « 1er mois offert » affichée sur les offres payantes. */
+  trial?: string | null
   /**
    * Puces d'affichage marketing. Peuvent inclure des capacités NON gated
    * (page publique, réservation, planning) réellement offertes à tous.
@@ -63,7 +86,7 @@ export type CommercialPlan = {
   /**
    * Features GATED explicitement promises par l'offre. INVARIANT (vérifié par
    * les tests) : chacune DOIT être `true` dans `PLAN_MATRIX[licensePlan]`.
-   * Vide pour FREE (aucune feature premium) et pour Lifetime (pas de plan réel).
+   * Vide pour FREE (aucune feature premium) et pour Entreprise (pas de plan).
    */
   includedFeatures: FeatureKey[]
   availability: PlanAvailability
@@ -78,75 +101,123 @@ export type CommercialPlan = {
 
 /** Textes d'en-tête de la section tarifs (déplacés ici depuis le marketing). */
 export const PRICING_COPY = {
-  title: "Choisissez la formule DetailFlow adaptée à votre activité",
-  lead: "Commencez gratuitement dès aujourd'hui. Les offres supérieures arrivent bientôt.",
-  note: "Prix indiqués hors taxes. Les offres payantes seront activées prochainement.",
+  eyebrow: "Tarifs",
+  title: "Une formule pour chaque étape de votre activité",
+  lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
+  trialHeadline: "Votre premier mois est offert.",
+  trialSub: "Découvrez toutes les fonctionnalités de votre formule pendant 30 jours sur les offres payantes.",
+  note: "Prix indiqués hors taxes. Les offres payantes sont en cours de finalisation et seront activées prochainement.",
   comingSoonLabel: "Bientôt disponible",
+  compareLabel: "Comparer les fonctionnalités",
 } as const
 
 /**
- * Offres présentées sur la grille principale (3 colonnes).
+ * Offres présentées sur la grille principale (4 colonnes).
  *
- * ÉTAT ACTUEL : seule « Starter » (FREE) est `self_serve`. « Pro » et
- * « Business » sont `coming_soon` tant que le Checkout + l'attribution payante
- * ne sont pas livrés — elles restent visibles pour communiquer la trajectoire,
- * sans CTA trompeur vers /demarrer.
+ * ÉTAT ACTUEL : seule « Starter » (FREE) est `self_serve`. « Pro », « Ultime »
+ * et « Entreprise » sont `coming_soon` tant que le Checkout + l'attribution
+ * payante ne sont pas livrés — elles restent visibles pour communiquer la
+ * trajectoire, sans CTA trompeur vers /demarrer.
  */
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
     id: "starter",
     name: "Starter",
+    tagline: "Commencez simplement.",
     licensePlan: "FREE",
     price: "0 €",
-    period: "pour démarrer",
+    period: "sans engagement",
     description: "L'essentiel pour lancer votre activité en ligne, gratuitement.",
+    trial: null,
     highlights: [
       "Page professionnelle en ligne",
       "Lien de réservation à partager",
       "Planning centralisé",
       "Fiches clients & véhicules",
+      "Prestations & tableau de bord simple",
     ],
     // FREE n'accorde aucune feature premium gated : page publique et réservation
     // sont des capacités non gated, listées en `highlights` ci-dessus.
     includedFeatures: [],
     availability: "self_serve",
-    cta: { label: "Créer mon espace", href: "/demarrer" },
+    cta: { label: "Créer mon espace gratuitement", href: "/demarrer" },
     highlighted: false,
     badge: null,
   },
   {
     id: "pro",
     name: "Pro",
+    tagline: "Automatisez votre activité.",
     licensePlan: "PRO",
-    price: "24,90 €",
+    price: "19,90 €",
     period: "/ mois",
-    description: "Pour gérer sereinement une activité qui tourne.",
+    description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
+    trial: "1er mois offert",
     highlights: [
       "Tout Starter",
-      "Devis & factures reliés",
+      "Réservation avancée (véhicules, options, suppléments)",
+      "Acompte & paiements en ligne",
       "Rappels & demandes d'avis automatiques",
-      "Suivi du chiffre d'affaires",
+      "Statistiques de base",
     ],
-    includedFeatures: ["email_reminders", "review_requests", "business_stats"],
+    // Toutes garanties true dans PLAN_MATRIX.PRO.
+    includedFeatures: ["online_booking", "online_payments", "email_reminders", "review_requests", "business_stats"],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },
     highlighted: true,
-    badge: "Le plus choisi",
+    badge: "Recommandé pour les indépendants",
   },
   {
-    id: "business",
-    name: "Business",
+    id: "ultime",
+    name: "Ultime",
+    tagline: "Développez votre activité.",
     licensePlan: "BUSINESS",
-    price: "39,90 €",
+    price: "34,90 €",
     period: "/ mois",
-    description: "Pour aller plus loin dans le pilotage de votre entreprise.",
+    description: "Pour développer, automatiser et fidéliser à grande échelle.",
+    trial: "1er mois offert",
     highlights: [
       "Tout Pro",
-      "Gestion des frais & rentabilité",
-      "Statistiques d'activité avancées",
-      "Reporting & marketing avancés",
+      "Devis, factures & avoirs",
+      "Statistiques avancées & analyse du CA",
+      "Automatisations, SMS & relances",
+      "Leads / CRM & marketing avancé",
     ],
-    includedFeatures: ["expense_management", "profitability_analysis", "advanced_reporting", "marketing"],
+    // Toutes garanties true dans PLAN_MATRIX.BUSINESS (allFeatures sauf early_access).
+    includedFeatures: [
+      "expense_management",
+      "profitability_analysis",
+      "advanced_reporting",
+      "marketing",
+      "automations",
+      "sms",
+    ],
+    availability: "coming_soon",
+    cta: { label: PRICING_COPY.comingSoonLabel, href: null },
+    highlighted: false,
+    badge: null,
+  },
+  {
+    id: "entreprise",
+    name: "Entreprise",
+    tagline: "Pilotez votre centre.",
+    // AUCUN plan technique : la gestion multi-employés (comptes employés,
+    // agendas individuels, permissions, RDV simultanés) n'est pas modélisée
+    // dans le moteur de licences. Voir compte-rendu -> incohérences.
+    licensePlan: null,
+    price: "49,90 €",
+    period: "/ mois",
+    description: "Pour les centres avec plusieurs collaborateurs.",
+    trial: "1er mois offert",
+    highlights: [
+      "Tout Ultime",
+      "Comptes & agendas par collaborateur",
+      "Disponibilités, horaires & congés individuels",
+      "Attribution des rendez-vous & RDV simultanés",
+      "Permissions & statistiques par employé",
+    ],
+    // licensePlan null -> aucune feature ne peut être promise (invariant testé).
+    includedFeatures: [],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },
     highlighted: false,
@@ -154,44 +225,64 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
 ]
 
-/**
- * Offre Lifetime — CONCEPT conservé mais PAS encore achetable.
- *
- * `licensePlan: null` : aucun plan technique « à vie » n'existe dans le moteur
- * (les générations existent, pas le plan). Donc `coming_soon` obligatoire et
- * aucune feature promise tant que le plan n'est pas défini + l'attribution
- * idempotente câblée. La demande sur mesure reste un simple contact (légitime).
- */
-export const LIFETIME_OFFER: CommercialPlan & {
-  custom: { title: string; description: string; email: string; cta: { label: string; href: string } }
-} = {
-  id: "lifetime",
-  name: "Lifetime",
-  licensePlan: null,
-  price: "990 €",
-  period: "paiement unique",
-  description: "Accédez à DetailFlow à vie, sans abonnement mensuel.",
-  highlights: ["Accès à la plateforme à vie", "Mises à jour incluses", "Aucun abonnement mensuel"],
-  includedFeatures: [],
-  availability: "coming_soon",
-  cta: { label: PRICING_COPY.comingSoonLabel, href: null },
-  badge: "Offre à vie",
-  custom: {
-    title: "Besoin d'une adaptation sur mesure ?",
-    description:
-      "Adaptation à un métier spécifique, fonctionnalités particulières, développements sur mesure ou évolution plus poussée de la plateforme selon les besoins de votre entreprise : ces demandes font l'objet d'une étude dédiée et d'un devis. Elles ne sont pas incluses automatiquement dans le prix Lifetime.",
-    email: "contact@detailflow.fr",
-    cta: {
-      label: "Parler de mon projet",
-      href: "mailto:contact@detailflow.fr?subject=Mon%20projet%20DetailFlow%20sur%20mesure",
-    },
-  },
-}
-
-/** Toutes les offres, y compris Lifetime (utilitaire pour les invariants/tests). */
-export const ALL_COMMERCIAL_PLANS: readonly CommercialPlan[] = [...COMMERCIAL_PLANS, LIFETIME_OFFER]
+/** Toutes les offres SaaS (utilitaire pour les invariants/tests). */
+export const ALL_COMMERCIAL_PLANS: readonly CommercialPlan[] = [...COMMERCIAL_PLANS]
 
 /** Offres réellement obtenables en self-service aujourd'hui. */
 export function getSelfServePlans(): CommercialPlan[] {
   return ALL_COMMERCIAL_PLANS.filter((p) => p.availability === "self_serve")
 }
+
+/* ------------------------------------------------------------------------- */
+/*  PARCOURS DE CROISSANCE — « DetailFlow grandit avec vous »                */
+/* ------------------------------------------------------------------------- */
+
+export type JourneyStep = {
+  planId: CommercialPlan["id"]
+  name: string
+  verb: string
+  audience: string
+}
+
+/** Montée en gamme lisible sans passer par le tableau tarifaire. */
+export const PLAN_JOURNEY: readonly JourneyStep[] = [
+  { planId: "starter", name: "Starter", verb: "Commencez.", audience: "Je veux juste démarrer." },
+  { planId: "pro", name: "Pro", verb: "Automatisez.", audience: "Je suis indépendant." },
+  { planId: "ultime", name: "Ultime", verb: "Développez.", audience: "Je veux développer mon activité." },
+  { planId: "entreprise", name: "Entreprise", verb: "Travaillez en équipe.", audience: "J'ai plusieurs collaborateurs." },
+]
+
+/* ------------------------------------------------------------------------- */
+/*  PRESTATION SUR MESURE — N'EST PAS UNE FORMULE SAAS                        */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Développement d'une plateforme dédiée. Prestation distincte des abonnements
+ * DetailFlow : prix « à partir de », contact commercial (aucun self-service,
+ * aucun plan de licence). La note `ownershipNote` encadre honnêtement l'argument
+ * de propriété (composants tiers, infra et licences restent sous leurs CGU).
+ */
+export const CUSTOM_PLATFORM_OFFER = {
+  eyebrow: "Sur mesure",
+  title: "Et si on développait votre propre plateforme ?",
+  description:
+    "Vous avez un fonctionnement particulier ou besoin d'un outil totalement adapté à votre entreprise ? Nous concevons votre plateforme, à votre image et autour de vos processus.",
+  price: "À partir de 1 990 €",
+  priceNote: "Prestation ponctuelle, distincte des abonnements DetailFlow.",
+  argument: "Vous ne vous adaptez plus au logiciel. Le logiciel s'adapte à vous.",
+  bullets: [
+    "Design sur mesure",
+    "Fonctionnalités adaptées à votre activité",
+    "Votre marque et votre domaine",
+    "Dépôt de code dédié",
+    "Code source livré selon le périmètre du projet",
+    "Accompagnement au lancement",
+  ],
+  ownership: "La plateforme vous appartient.*",
+  ownershipNote:
+    "*Selon le périmètre contractuel du projet. Les infrastructures, services externes et licences tierces restent soumis à leurs propres conditions.",
+  cta: {
+    label: "Parler de mon projet",
+    href: "mailto:contact@detailflow.fr?subject=Mon%20projet%20DetailFlow%20sur%20mesure",
+  },
+} as const
