@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  DEFAULT_TENANT_SLUG,
+  isValidSlug,
   parsePublicPagePath,
   publicPagePath,
   publicPageUrl,
@@ -51,6 +53,34 @@ describe("parsePublicPagePath", () => {
     expect(parsePublicPagePath("/p/espace invalide")).toBeNull()
     // Slug réservé (ex. "admin") rejeté par isValidSlug.
     expect(parsePublicPagePath("/p/admin")).toBeNull()
+  })
+
+  it("accepte le tenant historique DetailFlow malgré sa réservation", () => {
+    // Exception de ROUTING : `detailflow` reste réservé (interdit à la création)
+    // mais l'entreprise historique existe déjà et doit rester joignable.
+    expect(parsePublicPagePath("/p/detailflow")).toEqual({ slug: "detailflow", rest: "/" })
+    expect(parsePublicPagePath("/p/detailflow/reservation")).toEqual({
+      slug: "detailflow",
+      rest: "/reservation",
+    })
+    // Cohérence avec la constante partagée (pas de valeur codée en dur).
+    expect(parsePublicPagePath(`/p/${DEFAULT_TENANT_SLUG}`)).toEqual({
+      slug: DEFAULT_TENANT_SLUG,
+      rest: "/",
+    })
+  })
+
+  it("garde les AUTRES slugs réservés refusés (exception limitée au tenant historique)", () => {
+    expect(parsePublicPagePath("/p/admin")).toBeNull()
+    expect(parsePublicPagePath("/p/api")).toBeNull()
+    expect(parsePublicPagePath("/p/super-admin")).toBeNull()
+    expect(parsePublicPagePath("/p/www")).toBeNull()
+  })
+
+  it("laisse `detailflow` INTERDIT à la création d'un nouveau tenant", () => {
+    // La validation de slug ne change pas : `detailflow` reste réservé.
+    expect(isValidSlug("detailflow")).toBe(false)
+    expect(isValidSlug(DEFAULT_TENANT_SLUG)).toBe(false)
   })
 
   it("construit les chemins/URL publics attendus", () => {
