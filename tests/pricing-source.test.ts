@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest"
 import {
   ALL_COMMERCIAL_PLANS,
   COMMERCIAL_PLANS,
-  LIFETIME_OFFER,
+  CUSTOM_PLATFORM_OFFER,
+  PLAN_JOURNEY,
   SELF_SERVICE_LICENSE_PLAN,
   getSelfServePlans,
 } from "@/lib/pricing/plans"
@@ -16,6 +17,10 @@ import { isLicensePlan } from "@/lib/licensing/types"
  * silencieusement sur un compte FREE.
  */
 describe("source unique des offres — cohérence avec le moteur de licences", () => {
+  it("expose exactement les 4 niveaux SaaS publics (plus de Lifetime)", () => {
+    expect(COMMERCIAL_PLANS.map((p) => p.id)).toEqual(["starter", "pro", "ultime", "entreprise"])
+  })
+
   it("chaque offre pointant vers un plan référence un LicensePlan réel", () => {
     for (const plan of ALL_COMMERCIAL_PLANS) {
       if (plan.licensePlan !== null) {
@@ -27,7 +32,7 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
   it("les features promises par une offre sont réellement accordées par son plan", () => {
     for (const plan of ALL_COMMERCIAL_PLANS) {
       if (plan.licensePlan === null) {
-        // Pas de plan réel (Lifetime) : aucune feature ne peut être promise.
+        // Pas de plan réel (Entreprise) : aucune feature ne peut être promise.
         expect(plan.includedFeatures, `${plan.id} ne doit rien promettre sans plan`).toEqual([])
         continue
       }
@@ -38,6 +43,12 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
         ).toBe(true)
       }
     }
+  })
+
+  it("Entreprise n'a pas de plan technique (gestion d'équipe non modélisée)", () => {
+    const entreprise = COMMERCIAL_PLANS.find((p) => p.id === "entreprise")
+    expect(entreprise?.licensePlan).toBeNull()
+    expect(entreprise?.availability).toBe("coming_soon")
   })
 })
 
@@ -61,11 +72,11 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     }
   })
 
-  it("Pro, Business et Lifetime sont coming_soon tant que le paiement n'est pas livré", () => {
+  it("Pro, Ultime et Entreprise sont coming_soon tant que le paiement n'est pas livré", () => {
     const byId = Object.fromEntries(ALL_COMMERCIAL_PLANS.map((p) => [p.id, p]))
     expect(byId.pro.availability).toBe("coming_soon")
-    expect(byId.business.availability).toBe("coming_soon")
-    expect(byId.lifetime.availability).toBe("coming_soon")
+    expect(byId.ultime.availability).toBe("coming_soon")
+    expect(byId.entreprise.availability).toBe("coming_soon")
   })
 })
 
@@ -80,14 +91,22 @@ describe("séparation page publique standard vs feature `website`", () => {
 })
 
 describe("cohérence avec le registre interne (super-admin)", () => {
-  it("Business n'est pas commercialisable publiquement (aligné sur PLAN_META)", () => {
+  it("Ultime s'appuie sur BUSINESS, non commercialisable en self-service (aligné sur PLAN_META)", () => {
     // PLAN_META.purchasable = sellabilité manuelle super-admin ; la source
-    // commerciale reste au moins aussi prudente pour Business.
+    // commerciale reste au moins aussi prudente pour l'offre Ultime (BUSINESS).
     expect(PLAN_META.BUSINESS.purchasable).toBe(false)
-    expect(COMMERCIAL_PLANS.find((p) => p.id === "business")?.availability).toBe("coming_soon")
+    expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("coming_soon")
+  })
+})
+
+describe("mise en gamme & prestation sur mesure", () => {
+  it("le parcours de croissance couvre les 4 offres dans l'ordre", () => {
+    expect(PLAN_JOURNEY.map((s) => s.planId)).toEqual(["starter", "pro", "ultime", "entreprise"])
   })
 
-  it("Lifetime n'est rattaché à aucun plan technique existant", () => {
-    expect(LIFETIME_OFFER.licensePlan).toBeNull()
+  it("le sur mesure est une prestation contact-only, pas une formule SaaS", () => {
+    expect(CUSTOM_PLATFORM_OFFER.cta.href.startsWith("mailto:")).toBe(true)
+    // Ne doit pas être confondu avec un plan de la grille.
+    expect(COMMERCIAL_PLANS.some((p) => (p.id as string) === "custom")).toBe(false)
   })
 })
