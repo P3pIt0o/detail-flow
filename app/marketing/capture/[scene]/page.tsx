@@ -30,7 +30,9 @@ export default async function CapturePage({
   if (!SCENES.includes(scene as Scene)) notFound()
 
   return (
-    <div className="fixed inset-0 z-[999] overflow-auto bg-background">
+    // `df-product` : ré-applique la palette sombre réelle du produit sous le
+    // thème clair `.df-mkt` de la vitrine.
+    <div className="df-product fixed inset-0 z-[999] overflow-auto bg-background text-foreground">
       {/* Masque le panneau de navigation dev pour des captures propres. */}
       <style>{`button[aria-label="Ouvrir le panneau de navigation dev"]{display:none!important}`}</style>
       <div data-capture-root className="mx-auto w-full max-w-5xl px-8 py-10">
