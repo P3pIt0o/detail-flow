@@ -4,13 +4,16 @@ import { db } from "@/lib/db"
 import {
   bookings,
   bookingItems,
+  companies,
   invoices,
   invoiceItems,
   productPurchases,
   payments,
+  settings,
   tenantAnalyticsDaily,
 } from "@/lib/db/schema"
 import { requireCompanyId } from "@/lib/tenant"
+import { resolveDraftCurrency } from "@/lib/billing/country-profiles"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 import {
   netRevenueSumExpr,
@@ -28,6 +31,11 @@ import {
   computeChange,
   type Change,
 } from "./periods"
+import {
+  type CurrencyContext,
+  resolveCurrencyContext,
+  normalizeCurrencyCode,
+} from "./currency"
 import {
   type AppointmentCounts,
   type ClientStats,
@@ -58,6 +66,61 @@ import { type AnalyseAccess } from "./access"
 const REAL_APPOINTMENT_STATUSES = ["confirmed", "completed"] as const
 
 /* ------------------------- Requêtes unitaires ---------------------------- */
+
+/**
+ * Contexte comptable du tenant : fuseau horaire (pour la DATE MÉTIER) et devise
+ * comptable résolue. La devise n'est retenue QUE si le profil de facturation
+ * est confirmé (`settings.billingProfileConfirmedAt`), via `resolveDraftCurrency`
+ * — jamais déduite d'un profil non validé. Fuseau par défaut : Europe/Paris.
+ */
+async function queryTenantContext(cid: number): Promise<{ timeZone: string; accountingCurrency: string | null }> {
+  const [companyRow, settingsRow] = await Promise.all([
+    db.select({ tz: companies.timezone }).from(companies).where(eq(companies.id, cid)).limit(1),
+    db
+      .select({ defaultCurrency: settings.defaultCurrency, confirmedAt: settings.billingProfileConfirmedAt })
+      .from(settings)
+      .where(eq(settings.companyId, cid))
+      .limit(1),
+  ])
+  const timeZone = (companyRow[0]?.tz ?? "").trim() || "Europe/Paris"
+  const accountingCurrency = resolveDraftCurrency(
+    Boolean(settingsRow[0]?.confirmedAt),
+    settingsRow[0]?.defaultCurrency,
+  )
+  return { timeZone, accountingCurrency }
+}
+
+/**
+ * Devises RÉELLEMENT présentes sur les documents comptés dans le CA de la
+ * période (mêmes filtres que le CA). Sert à décider si les totaux financiers
+ * sont regroupables — DetailFlow ne convertit jamais de devise (pas de FX).
+ */
+async function queryCurrencyPresence(
+  cid: number,
+  range: DateRange,
+): Promise<{ explicitCodes: string[]; hasLegacy: boolean }> {
+  const rows = await db
+    .select({ code: invoices.currencyCode, n: count() })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.companyId, cid),
+        revenueDocumentFilter(cid),
+        sql`${revenuePeriodDateExpr} >= ${range.start}`,
+        sql`${revenuePeriodDateExpr} <= ${range.end}`,
+        excludeCancelledOrDeletedBooking(cid),
+      ),
+    )
+    .groupBy(invoices.currencyCode)
+  const explicit = new Set<string>()
+  let hasLegacy = false
+  for (const r of rows) {
+    const code = normalizeCurrencyCode(r.code)
+    if (code) explicit.add(code)
+    else hasLegacy = true
+  }
+  return { explicitCodes: [...explicit], hasLegacy }
+}
 
 /** CA facturé net (factures payées − avoirs) sur la période. */
 async function queryInvoicedRevenueCents(cid: number, range: DateRange): Promise<number> {
@@ -148,7 +211,10 @@ async function queryAppointmentCounts(cid: number, range: DateRange): Promise<Ap
 
 /**
  * Historique client (jusqu'à `end` inclus) pour la classification nouveaux /
- * récurrents. Exclut annulés + démo. Colonnes minimales, une seule requête.
+ * récurrents. Ne charge QUE les VRAIS rendez-vous (`confirmed`/`completed`) :
+ * un `pending_deposit` (caution en attente) n'est pas encore une activité
+ * client et ne doit jamais créer un « nouveau client ». Exclut aussi la démo.
+ * Colonnes minimales, une seule requête.
  */
 async function queryClientHistory(cid: number, end: string) {
   return db
@@ -163,7 +229,7 @@ async function queryClientHistory(cid: number, end: string) {
       and(
         eq(bookings.companyId, cid),
         lte(bookings.date, end),
-        sql`${bookings.status} <> 'cancelled'`,
+        inArray(bookings.status, [...REAL_APPOINTMENT_STATUSES]),
         eq(bookings.isDemoData, false),
       ),
     )
@@ -341,6 +407,12 @@ export type AnalyseData = {
   current: DateRange
   previous: DateRange
   granularity: Granularity
+  /**
+   * Contexte devise résolu côté serveur. `displayCurrency` sert au formatage
+   * (`formatMoney`), `monetaryComparable` indique si les totaux financiers sont
+   * regroupables (une seule devise). Quand `false`, l'UI n'agrège AUCUN montant.
+   */
+  currency: CurrencyContext
   essentials: AnalyseEssentials | null
   profitability: AnalyseProfitability | null
   advanced: AnalyseAdvanced | null
@@ -361,7 +433,15 @@ export async function loadAnalyseData(
   now: Date = new Date(),
 ): Promise<AnalyseData> {
   const cid = companyId
-  const { current, previous, granularity } = resolvePeriodRange(period, now)
+
+  // Contexte tenant d'abord : le fuseau détermine la DATE MÉTIER (donc les
+  // bornes de période), la devise comptable sert au repli des documents legacy.
+  const { timeZone, accountingCurrency } = await queryTenantContext(cid)
+  const { current, previous, granularity } = resolvePeriodRange(period, now, timeZone)
+
+  // Devises réellement présentes sur la période courante → regroupables ?
+  const presence = await queryCurrencyPresence(cid, current)
+  const currency = resolveCurrencyContext({ accountingCurrency, presence })
 
   const needEssentials = access.showEssentials
   const needProfit = access.showProfitability
@@ -464,6 +544,10 @@ export async function loadAnalyseData(
     const totalServiceRevenue = advancedRaw.serviceRevenue.reduce((s, x) => s + x.value, 0)
     const topRevenue = advancedRaw.serviceRevenue[0] ?? null
     const insights = buildBusinessInsights({
+      // Devise résolue + regroupabilité : aucun insight financier n'est émis en
+      // multi-devises (pas de conversion FX), et aucun € codé en dur.
+      currencyCode: currency.displayCurrency,
+      monetaryComparable: !currency.mixed,
       revenue: { currentCents: essentials.invoicedRevenueCents, previousCents: advancedRaw.prevRevenue },
       averageBasket: {
         currentCents: essentials.averageBasketCents,
@@ -498,7 +582,7 @@ export async function loadAnalyseData(
     }
   }
 
-  return { period, current, previous, granularity, essentials, profitability, advanced }
+  return { period, current, previous, granularity, currency, essentials, profitability, advanced }
 }
 
 /** Variante « contexte » : résout le companyId côté serveur si non fourni. */

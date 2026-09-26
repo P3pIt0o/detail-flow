@@ -1,20 +1,22 @@
-import { formatPrice } from "@/lib/format"
+import { formatMoney } from "@/lib/format"
 import type { ServiceShare } from "@/lib/analytics/metrics"
 
 /**
  * Barres horizontales de répartition (prestations par volume ou par CA).
  * `kind` détermine le formatage de la valeur, JAMAIS mélangé :
  *  - "count" → nombre de rendez-vous ;
- *  - "money" → montant en centimes (CA facturé).
+ *  - "money" → montant en centimes (CA facturé), formaté dans `currencyCode`.
  * On limite l'affichage aux `limit` premières entrées (le reste est agrégé).
  */
 export function ShareBars({
   rows,
   kind,
+  currencyCode = null,
   limit = 6,
 }: {
   rows: ServiceShare[]
   kind: "count" | "money"
+  currencyCode?: string | null
   limit?: number
 }) {
   if (rows.length === 0) {
@@ -26,7 +28,7 @@ export function ShareBars({
   const restValue = rest.reduce((s, r) => s + r.value, 0)
   const restShare = rest.reduce((s, r) => s + r.share, 0)
 
-  const fmt = (v: number) => (kind === "money" ? formatPrice(v) : `${v} RDV`)
+  const fmt = (v: number) => (kind === "money" ? formatMoney(v, currencyCode) : `${v} RDV`)
   const maxShare = Math.max(1, ...shown.map((r) => r.share))
 
   return (
