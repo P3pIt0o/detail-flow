@@ -161,7 +161,7 @@ function CustomSiteCta() {
         <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 lg:items-stretch">
           <p className="flex items-baseline gap-2">
             <span className="text-sm text-muted-foreground">À partir de</span>
-            <span className="text-3xl font-semibold tracking-tight text-foreground">1 990 €</span>
+            <span className="text-3xl font-semibold tracking-tight text-foreground">790 €</span>
           </p>
           <Link
             href="/diagnostic"
