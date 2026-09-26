@@ -177,9 +177,56 @@ export const companies = pgTable("companies", {
   // Traçabilité de l'attribution de la licence (super-admin uniquement).
   licenseAssignedAt: timestamp("licenseAssignedAt"),
   licenseAssignedByUserId: text("licenseAssignedByUserId"),
+  /* --------------------- Abonnement DetailFlow (Stripe Billing) ------------- */
+  // COMMENT le tenant paie DetailFlow. DISTINCT de licensePlan (À QUOI il a
+  // droit) : ne jamais dériver l'un depuis l'autre. Valeurs : free |
+  // subscription | lifetime (voir lib/billing/types.ts). Valeur historique
+  // sûre `free` : un tenant existant n'a jamais payé via Stripe Billing et ne
+  // perd aucun droit (ceux-ci restent portés par licensePlan / le resolver).
+  // Ce socle NE branche AUCUN paiement : il prépare uniquement le stockage.
+  billingMode: text("billingMode").notNull().default("free"),
+  // Client Stripe Billing du tenant (`cus_...`). DISTINCT de stripeAccountId
+  // (Stripe Connect, paiements des clients du detailer). Null tant qu'aucun
+  // abonnement DetailFlow n'a été initié. Unique lorsqu'il existe.
+  stripeCustomerId: text("stripeCustomerId"),
+  // Abonnement récurrent Stripe (`sub_...`). Null en mode free/lifetime :
+  // Lifetime = paiement unique, jamais d'abonnement récurrent. Unique si présent.
+  stripeSubscriptionId: text("stripeSubscriptionId"),
+  // Miroir du statut Stripe Subscription (voir SUBSCRIPTION_STATUSES). Null =
+  // aucun abonnement. Aucune donnée n'est supprimée sur past_due/unpaid/canceled.
+  subscriptionStatus: text("subscriptionStatus"),
+  // Price Stripe (`price_...`) de la formule facturée. Null hors abonnement.
+  subscriptionPriceId: text("subscriptionPriceId"),
+  // Fin de la période de facturation en cours (renouvellement / expiration
+  // d'accès en cas d'annulation). Null hors abonnement.
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  // Première souscription (y compris trial). Distinct de l'ancienneté fidélité.
+  subscriptionStartedAt: timestamp("subscriptionStartedAt"),
+  // Source de l'ANCIENNETÉ FIDÉLITÉ : démarre à la 1re facture d'abonnement
+  // RÉELLEMENT PAYÉE (jamais pendant le trial gratuit). Conservée lors d'un
+  // upgrade/downgrade sans interruption ; remise à zéro à une nouvelle
+  // souscription après annulation effective. Remises calculées dans un lot futur.
+  continuousSubscriptionStartedAt: timestamp("continuousSubscriptionStartedAt"),
+  // Annulation programmée en fin de période : l'abonnement reste actif jusqu'à
+  // currentPeriodEnd, donc l'ancienneté n'est PAS cassée tant qu'il est actif.
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").notNull().default(false),
+  // Horodatage de l'annulation effective (résiliation constatée).
+  subscriptionCanceledAt: timestamp("subscriptionCanceledAt"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-})
+}, (t) => ({
+  // Identifiants Stripe uniques UNIQUEMENT lorsqu'ils existent : index uniques
+  // partiels (WHERE ... IS NOT NULL) afin de ne jamais empêcher plusieurs
+  // lignes NULL (tenants sans abonnement).
+  uniqStripeCustomer: uniqueIndex("companies_stripeCustomerId_key")
+    .on(t.stripeCustomerId)
+    .where(sql`${t.stripeCustomerId} IS NOT NULL`),
+  uniqStripeSubscription: uniqueIndex("companies_stripeSubscriptionId_key")
+    .on(t.stripeSubscriptionId)
+    .where(sql`${t.stripeSubscriptionId} IS NOT NULL`),
+  bySubscriptionStatus: index("companies_subscriptionStatus_idx").on(t.subscriptionStatus),
+  byBillingMode: index("companies_billingMode_idx").on(t.billingMode),
+}))
 
 /**
  * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
@@ -345,7 +392,7 @@ export const clients = pgTable(
      * NULL = UNKNOWN / LEGACY / NON CONFIRMÉ (JAMAIS déduit B2C). Un nouveau
      * client choisit explicitement individual ou business. Quand une règle
      * réglementaire dépend du B2B/B2C, NULL produira REVIEW_REQUIRED (LOT 2B),
-     * jamais une hypothèse silencieuse. Aucun backfill vers "individual".
+     * jamais une hypoth��se silencieuse. Aucun backfill vers "individual".
      * Le pays DU CLIENT (et non du vendeur) détermine le sch��ma d'identifiant. */
     customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
     country: text("country"), // ISO 3166-1 alpha-2 (FR, BE, CH, ...)
@@ -1119,7 +1166,7 @@ export const customRequests = pgTable(
     proposalMessage: text("proposalMessage"),
     proposalSentAt: timestamp("proposalSentAt"),
     respondedAt: timestamp("respondedAt"),
-    // Réservation créée après conversion (anti-doublon).
+    // Réservation cr��ée après conversion (anti-doublon).
     bookingId: integer("bookingId"),
     // Clé d'idempotence de la soumission publique (uuid opaque généré côté
     // navigateur). Empêche un double clic / rechargement / nouvelle tentative de
