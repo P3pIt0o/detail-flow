@@ -92,8 +92,8 @@ export type DemoUpcoming = {
 }
 
 export const DEMO_UPCOMING: DemoUpcoming[] = [
-  { time: "09:00", client: "Karim H.", vehicle: "Peugeot 3008", service: "Lavage extérieur premium", status: "completed", place: "Atelier" },
-  { time: "11:00", client: "Julie P.", vehicle: "Renault Clio", service: "Nettoyage intérieur complet", status: "confirmed", place: "Déplacement" },
-  { time: "14:30", client: "Thomas M.", vehicle: "Audi A3", service: "Nettoyage intérieur complet", status: "confirmed", place: "Atelier" },
-  { time: "17:30", client: "Léa M.", vehicle: "VW Tiguan", service: "Polissage 1 étape", status: "pending_deposit", place: "Atelier" },
+  { time: "09:00", client: "Karim Haddad", vehicle: "Peugeot 3008", service: "Lavage extérieur premium", status: "completed", place: "Atelier" },
+  { time: "11:00", client: "Julie Petit", vehicle: "Renault Clio", service: "Nettoyage intérieur complet", status: "confirmed", place: "Déplacement" },
+  { time: "14:30", client: "Thomas Martin", vehicle: "Audi A3", service: "Nettoyage intérieur complet", status: "confirmed", place: "Atelier" },
+  { time: "17:30", client: "Léa Moreau", vehicle: "Volkswagen Tiguan", service: "Polissage 1 étape", status: "pending_deposit", place: "Atelier" },
 ]
