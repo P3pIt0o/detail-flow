@@ -76,6 +76,13 @@ export type CommercialPlan = {
   licensePlan: LicensePlan | null
   price: string
   period: string
+  /**
+   * Prix mensuel en centimes d'euro — DONNÉE NUMÉRIQUE SOURCE DE VÉRITÉ.
+   * La couche Stripe Billing (`lib/billing/config.ts`) consomme cette valeur au
+   * lieu de la redéfinir : `price` (ex. « 19,90 € ») reste l'affichage, jamais
+   * la donnée exploitée par le back. FREE = 0.
+   */
+  monthlyPriceCents: number
   description: string
   /** Promesse « 1er mois offert » affichée sur les offres payantes. */
   trial?: string | null
@@ -128,6 +135,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     licensePlan: "FREE",
     price: "0 €",
     period: "sans engagement",
+    monthlyPriceCents: 0,
     description: "L'essentiel pour lancer votre activité en ligne, gratuitement.",
     trial: null,
     highlights: [
@@ -152,6 +160,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     licensePlan: "PRO",
     price: "19,90 €",
     period: "/ mois",
+    monthlyPriceCents: 1990,
     description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
     trial: "1er mois offert",
     highlights: [
@@ -175,6 +184,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     licensePlan: "BUSINESS",
     price: "34,90 €",
     period: "/ mois",
+    monthlyPriceCents: 3490,
     description: "Pour développer, automatiser et fidéliser à grande échelle.",
     trial: "1er mois offert",
     highlights: [
@@ -213,6 +223,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     licensePlan: "ENTERPRISE",
     price: "59,90 €",
     period: "/ mois",
+    monthlyPriceCents: 5990,
     description: "Pour les centres avec plusieurs collaborateurs.",
     trial: "1er mois offert",
     highlights: [
@@ -237,6 +248,15 @@ export const ALL_COMMERCIAL_PLANS: readonly CommercialPlan[] = [...COMMERCIAL_PL
 /** Offres réellement obtenables en self-service aujourd'hui. */
 export function getSelfServePlans(): CommercialPlan[] {
   return ALL_COMMERCIAL_PLANS.filter((p) => p.availability === "self_serve")
+}
+
+/**
+ * Offre commerciale correspondant à un plan technique de licence, ou `null`.
+ * Permet à la couche Stripe Billing de consommer le nom public et le prix
+ * mensuel (centimes) sans les redéfinir — source unique de vérité.
+ */
+export function getCommercialPlanByLicensePlan(plan: LicensePlan): CommercialPlan | null {
+  return ALL_COMMERCIAL_PLANS.find((p) => p.licensePlan === plan) ?? null
 }
 
 /* ------------------------------------------------------------------------- */
@@ -335,7 +355,7 @@ export const LIFETIME_OFFER = {
     ],
     legal: [
       "Lifetime correspond à une licence d'utilisation de DetailFlow. Elle ne transfère pas la propriété du code source, de l'infrastructure ou de DetailFlow.",
-      "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être proposés séparément.",
+      "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être propos��s séparément.",
     ],
     contactCta: "Je suis intéressé par Lifetime",
     contactEmail: "contact@detailflow.fr",

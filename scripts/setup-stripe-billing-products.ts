@@ -68,13 +68,7 @@
 
 import Stripe from "stripe"
 import { BILLING_PLANS, PAID_BILLING_PLANS, type BillingLicensePlan } from "@/lib/billing/config"
-
-type StripeMode = "TEST" | "LIVE"
-
-function detectMode(secretKey: string): StripeMode {
-  // Les clés live commencent par sk_live_ / rk_live_ ; tout le reste = test.
-  return /_live_/.test(secretKey) ? "LIVE" : "TEST"
-}
+import { assertPriceMatchesConfig, detectStripeMode, selectProductForPlan } from "@/lib/billing/stripe-setup"
 
 function log(message: string): void {
   // Préfixe maison (jamais [v0]) ; aucune donnée sensible.
@@ -82,10 +76,12 @@ function log(message: string): void {
 }
 
 async function findProductForPlan(stripe: Stripe, plan: BillingLicensePlan): Promise<Stripe.Product | null> {
-  // Recherche par métadonnées via l'API Search (index Stripe).
+  // Recherche par métadonnées via l'API Search (index Stripe). On récupère
+  // plusieurs résultats pour DÉTECTER d'éventuels doublons plutôt que de
+  // prendre arbitrairement le premier (cf. selectProductForPlan, fail-closed).
   const query = `active:'true' AND metadata['app']:'detailflow' AND metadata['billing_type']:'subscription' AND metadata['license_plan']:'${plan}'`
-  const result = await stripe.products.search({ query, limit: 1 })
-  return result.data[0] ?? null
+  const result = await stripe.products.search({ query, limit: 10 })
+  return selectProductForPlan(result.data, plan)
 }
 
 async function findPriceByLookupKey(stripe: Stripe, lookupKey: string): Promise<Stripe.Price | null> {
@@ -115,7 +111,10 @@ async function ensurePrice(stripe: Stripe, plan: BillingLicensePlan, productId: 
   }
   const existing = await findPriceByLookupKey(stripe, config.lookupKey)
   if (existing) {
-    log(`Price déjà présent pour ${plan} (${config.lookupKey}) : ${existing.id}`)
+    // Fail-closed : un Price portant le bon lookup_key mais dont la config
+    // (montant, devise, interval, product, metadata) diffère STOPPE le script.
+    assertPriceMatchesConfig(existing, plan, productId)
+    log(`Price déjà présent et conforme pour ${plan} (${config.lookupKey}) : ${existing.id}`)
     return existing
   }
   const created = await stripe.prices.create({
@@ -139,7 +138,9 @@ async function main(): Promise<void> {
     return
   }
 
-  const mode = detectMode(secretKey)
+  // Détection FAIL-CLOSED : une clé non reconnue (pk_…, format inconnu) STOPPE
+  // immédiatement avant tout appel Stripe (jamais TEST par défaut).
+  const mode = detectStripeMode(secretKey)
   log(`STRIPE MODE: ${mode}`)
 
   const confirmLive = process.argv.includes("--confirm-live")
