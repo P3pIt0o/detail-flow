@@ -13,7 +13,7 @@
  *    Essentiel   0 €          -> plan technique FREE       (self-service actif)
  *    Indépendant 19,90 €/mois -> plan technique PRO         (coming_soon)
  *    Performance 34,90 €/mois -> plan technique BUSINESS    (coming_soon)
- *    Équipe      49,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
+  *    Équipe      59,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
  *  L'offre « Équipe » (gestion multi-employés, agendas par collaborateur,
  *  permissions, RDV simultanés) pointe vers le plan technique ENTERPRISE. Ce
@@ -211,7 +211,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     // reste `coming_soon` : aucune feature d'équipe n'est promise (invariant
     // testé -> `includedFeatures` vide tant que ces modules n'existent pas).
     licensePlan: "ENTERPRISE",
-    price: "49,90 €",
+    price: "59,90 €",
     period: "/ mois",
     description: "Pour les centres avec plusieurs collaborateurs.",
     trial: "1er mois offert",
