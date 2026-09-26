@@ -41,6 +41,8 @@ import { publicPageUrl, publicReservationUrl } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { countDueFollowUps } from "@/lib/leads/server"
+import { zonedStartOfDayUtc, addDaysYmd } from "@/lib/leads/model"
 import { isPublicPagePublished } from "@/lib/public-page/config"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { getBookingSetupStatus } from "@/lib/booking/setup-status"
@@ -100,10 +102,22 @@ export default async function DashboardPage({
   //  - business_stats : KPI métier agrégés + analytics de visites ;
   //  - profitability_analysis : bénéfice/résultat estimé (indépendant de stats) ;
   //  - les blocs OPÉRATIONNELS (semaine, prochains RDV, alertes) ne sont jamais gatés.
-  const [canStats, canProfit] = await Promise.all([
+  const [canStats, canProfit, canLeads] = await Promise.all([
     canUseFeature(companyId, "business_stats"),
     canUseFeature(companyId, "profitability_analysis"),
+    canUseFeature(companyId, "leads_crm"),
   ])
+
+  // Relances CRM dues (encart « À traiter ») — UNIQUEMENT si `leads_crm` est
+  // actif ET qu'il existe réellement des relances dues. Aucune requête ni faux
+  // chiffre pour les entreprises sans la fonctionnalité. Borne « aujourd'hui »
+  // calculée dans le fuseau métier du tenant (jamais UTC arbitraire).
+  const leadsDueCount = canLeads
+    ? await countDueFollowUps(
+        companyId,
+        zonedStartOfDayUtc(addDaysYmd(new Date().toLocaleDateString("en-CA", { timeZone: company.timezone ?? "Europe/Paris" }), 1), company.timezone ?? "Europe/Paris"),
+      )
+    : 0
 
   // Les données premium ne sont chargées/calculées QUE si un droit les expose.
   // `getDashboardStats` est nécessaire pour les KPI métier (business_stats) OU
@@ -229,6 +243,12 @@ export default async function DashboardPage({
     alerts.push({
       label: `${pendingRequests} demande${pendingRequests > 1 ? "s" : ""} personnalisée${pendingRequests > 1 ? "s" : ""} à traiter`,
       href: href("/admin/demandes"),
+    })
+  }
+  if (leadsDueCount > 0) {
+    alerts.push({
+      label: `${leadsDueCount} prospect${leadsDueCount > 1 ? "s" : ""} à relancer`,
+      href: href("/admin/leads?due=1"),
     })
   }
 

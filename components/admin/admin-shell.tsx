@@ -29,6 +29,7 @@ import {
   MoreHorizontal,
   ExternalLink,
   BarChart3,
+  UserPlus,
 } from "lucide-react"
 
 // Clé d'icône (pure, définie dans lib/admin/nav) → composant lucide.
@@ -37,6 +38,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   calendar: CalendarDays,
   reservations: ClipboardList,
   demandes: Inbox,
+  leads: UserPlus,
   factures: FileText,
   clients: Users,
   prestations: Sparkles,

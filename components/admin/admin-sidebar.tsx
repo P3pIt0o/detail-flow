@@ -24,6 +24,7 @@ import {
   Globe,
   CalendarCheck,
   BarChart3,
+  UserPlus,
 } from "lucide-react"
 import { buildAdminNav, type AdminNavIcon } from "@/lib/admin/nav"
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
@@ -35,6 +36,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   calendar: CalendarDays,
   reservations: ClipboardList,
   demandes: Inbox,
+  leads: UserPlus,
   factures: FileText,
   clients: Users,
   prestations: Sparkles,

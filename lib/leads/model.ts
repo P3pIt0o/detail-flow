@@ -199,3 +199,23 @@ export function addDaysYmd(ymd: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
+
+/**
+ * Instant UTC correspondant au DÉBUT du jour local `ymd` (`YYYY-MM-DD`) dans le
+ * fuseau `timeZone` du tenant. PURE (Intl uniquement). Sert à stocker/comparer
+ * une relance dans le bon fuseau : « aujourd'hui » = jour local de l'entreprise,
+ * jamais UTC. Repli sûr sur minuit UTC si le fuseau est invalide.
+ */
+export function zonedStartOfDayUtc(ymd: string, timeZone: string): Date {
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number)
+  const utcGuess = Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0)
+  try {
+    const asUtc = new Date(utcGuess)
+    const local = new Date(asUtc.toLocaleString("en-US", { timeZone }))
+    const utc = new Date(asUtc.toLocaleString("en-US", { timeZone: "UTC" }))
+    const offset = local.getTime() - utc.getTime()
+    return new Date(utcGuess - offset)
+  } catch {
+    return new Date(utcGuess)
+  }
+}
