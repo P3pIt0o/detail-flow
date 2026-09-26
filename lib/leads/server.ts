@@ -27,6 +27,7 @@ import {
   advanceLeadStatus,
   nextStatusFromBooking,
   nextStatusFromCustomRequest,
+  toValidDate,
   type LeadActivityType,
   type LeadSource,
   type LeadStatus,
@@ -868,20 +869,30 @@ export async function listLeads(filter: LeadListFilter): Promise<LeadListResult>
 
   const total = totalRows[0]?.n ?? 0
   return {
-    items: rows.map((r) => ({
-      id: r.id,
-      contactName: r.contactName,
-      status: r.status as LeadStatus,
-      source: r.source as LeadSource,
-      email: r.email,
-      phone: r.phone,
-      vehicleBrand: r.vehicleBrand,
-      vehicleModel: r.vehicleModel,
-      serviceInterest: r.serviceInterest,
-      nextFollowUpAt: r.nextFollowUpAt,
-      lastActivityAt: r.lastActivityAt,
-      createdAt: r.createdAt.getTime(),
-    })),
+    items: rows.map((r) => {
+      // `lastActivityAt` provient d'une expression SQL calculée (`GREATEST`) et
+      // `createdAt` du driver : les deux peuvent arriver en Date, string PG ou
+      // number selon le chemin. On garantit la conversion au runtime, jamais via
+      // le seul type générique `sql<Date>`.
+      const created = toValidDate(r.createdAt)
+      const lastActivity = toValidDate(r.lastActivityAt)
+      return {
+        id: r.id,
+        contactName: r.contactName,
+        status: r.status as LeadStatus,
+        source: r.source as LeadSource,
+        email: r.email,
+        phone: r.phone,
+        vehicleBrand: r.vehicleBrand,
+        vehicleModel: r.vehicleModel,
+        serviceInterest: r.serviceInterest,
+        nextFollowUpAt: r.nextFollowUpAt,
+        // Repli métier sûr : dernière activité → sinon création réelle → sinon epoch.
+        // On n'invente jamais `new Date()` (activité récente factice).
+        lastActivityAt: lastActivity ?? created ?? new Date(0),
+        createdAt: created?.getTime() ?? 0,
+      }
+    }),
     total,
     page,
     pageSize,

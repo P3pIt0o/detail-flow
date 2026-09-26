@@ -8,6 +8,7 @@ import {
   followUpBucket,
   isLeadSource,
   isLeadStatus,
+  toValidDate,
   zonedStartOfDayUtc,
   type LeadSource,
   type LeadStatus,
@@ -35,8 +36,13 @@ function vehicleLabel(brand: string | null, model: string | null): string | null
 }
 
 /** Libellé relatif court et sûr pour la dernière activité (fuseau non critique ici). */
-function relativeLabel(from: Date, now: Date): string {
-  const diffMs = now.getTime() - from.getTime()
+function relativeLabel(from: Date | string | number | null, now: Date): string {
+  const date = toValidDate(from)
+  // Repli d'affichage sur une date invalide : on ne fait jamais tomber la page,
+  // mais on ne masque pas une erreur DB structurelle (les valeurs remontent d'un
+  // chemin déjà normalisé en amont dans `listLeads`).
+  if (!date) return "Activité récente"
+  const diffMs = now.getTime() - date.getTime()
   const day = 86_400_000
   const days = Math.floor(diffMs / day)
   if (days <= 0) return "Aujourd'hui"
