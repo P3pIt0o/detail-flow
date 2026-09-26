@@ -29,6 +29,9 @@ importers:
       '@vercel/blob':
         specifier: ^2.6.1
         version: 2.6.1
+      '@vercel/firewall':
+        specifier: ^1.2.5
+        version: 1.2.5
       better-auth:
         specifier: ^1.6.23
         version: 1.6.23(478d4e0bafd6f899559f78ca85e21ad9)
@@ -1411,6 +1414,10 @@ packages:
   '@vercel/cli-exec@1.0.0':
     resolution: {integrity: sha512-kQF8LGie/Hbdq9/psJxLE7owRTcqMQMhgybU04gCeR7cbQAr5t8OrjefDNColJv1QSSucFt4pLwRiARVmlOnug==}
     engines: {node: '>= 18'}
+
+  '@vercel/firewall@1.2.5':
+    resolution: {integrity: sha512-rylXD6sfUgJMtYGuILXZZPy1af2aLQbRIAQf5nr2vI84PdGNaPEu19VvMG05KOXZ2qwfwf99OsM8brO9VzN8Gg==}
+    engines: {node: '>= 20'}
 
   '@vercel/oidc@3.8.0':
     resolution: {integrity: sha512-r00laGW6Pv778RoR6M2NxX91ycSj+PBwVo+fOb9Bif+F0IyUKt25zrvBzfEzQpeAzbqOgPZyQibEWDdDFApd+A==}
@@ -4841,6 +4848,8 @@ snapshots:
   '@vercel/cli-exec@1.0.0':
     dependencies:
       execa: 5.1.1
+
+  '@vercel/firewall@1.2.5': {}
 
   '@vercel/oidc@3.8.0':
     dependencies:

@@ -86,6 +86,13 @@ export function ConfidentialiteContent() {
           récapitulatif par email à {legalConfig.email} ; il ne crée pas de fiche CRM et ne stocke pas ces réponses dans
           une base de données dédiée.
         </p>
+        <p>
+          Pour acheminer ce message, les coordonnées et le contenu strictement nécessaires sont transmis à notre
+          prestataire d&apos;envoi d&apos;emails (Resend), qui les traite techniquement pour la seule remise du message.
+          Ce prestataire agit sur nos instructions ; il n&apos;utilise pas ces informations à ses propres fins.{" "}
+          {legalConfig.brandName} conserve ces demandes selon les durées indiquées à la section «&nbsp;Durées de
+          conservation&nbsp;».
+        </p>
 
         <h2>6. Finalités et fondements</h2>
         <ul>
@@ -125,12 +132,17 @@ export function ConfidentialiteContent() {
 
         <h2>8. Hébergement et transferts</h2>
         <p>
-          L&apos;hébergement principal est assuré par {legalConfig.host.name} en Suisse, pays reconnu comme offrant un
-          niveau de protection adéquat par une décision d&apos;adéquation de la Commission européenne. Certains
-          prestataires ci-dessus peuvent toutefois traiter des données en dehors de l&apos;Union européenne / l&apos;EEE.
-          Lorsqu&apos;un transfert vers un pays tiers a lieu, il est encadré par des garanties appropriées prévues par le
-          RGPD (clauses contractuelles types, décisions d&apos;adéquation ou mécanismes équivalents), selon les modalités
-          propres à chaque prestataire.
+          L&apos;application est hébergée, exécutée et diffusée par {legalConfig.appHost.name} (déploiement, fonctions
+          serveur et réseau de diffusion), qui peut traiter des données aux États-Unis et sur son réseau international.
+          Le nom de domaine et la messagerie électronique sont fournis par {legalConfig.host.name} en Suisse, pays
+          reconnu comme offrant un niveau de protection adéquat par une décision d&apos;adéquation de la Commission
+          européenne.
+        </p>
+        <p>
+          D&apos;autres prestataires listés ci-dessus peuvent également traiter des données en dehors de l&apos;Union
+          européenne / l&apos;EEE. Lorsqu&apos;un transfert vers un pays tiers a lieu, il est encadré par des garanties
+          appropriées prévues par le RGPD (clauses contractuelles types, décisions d&apos;adéquation ou mécanismes
+          équivalents), selon les modalités propres à chaque prestataire.
         </p>
 
         <h2>9. Durées de conservation</h2>
@@ -138,14 +150,35 @@ export function ConfidentialiteContent() {
           Les données sont conservées le temps nécessaire aux finalités décrites, puis supprimées ou anonymisées :
         </p>
         <ul>
-          <li>données de compte et contenus : pendant la durée d&apos;utilisation du service, puis suppression dans un délai raisonnable après la fermeture du compte ;</li>
-          <li>données de facturation : pendant la durée imposée par les obligations légales comptables et fiscales applicables ;</li>
-          <li>journaux techniques et de sécurité : durée courte, adaptée à la finalité de sécurité ;</li>
-          <li>demandes de contact et de devis : le temps nécessaire au traitement de la demande et à un suivi raisonnable.</li>
+          <li>
+            prospects issus du questionnaire de diagnostic « site sur mesure » : jusqu&apos;à 3 ans à compter de leur
+            collecte ou du dernier contact émanant du prospect, puis suppression ;
+          </li>
+          <li>
+            comptes professionnels et contenus associés : pendant toute la durée d&apos;utilisation du service, puis
+            suppression ou anonymisation dans un délai raisonnable après la fermeture du compte ;
+          </li>
+          <li>
+            données contractuelles (abonnements, licences) : pendant la durée de la relation contractuelle, puis
+            conservation en archivage intermédiaire selon les délais de prescription applicables ;
+          </li>
+          <li>
+            données de facturation et pièces comptables : 10 ans, conformément aux obligations comptables et fiscales
+            françaises ;
+          </li>
+          <li>
+            réservations et données de rendez-vous : pendant la durée d&apos;utilisation du service par le professionnel
+            concerné, dans le cadre de son propre usage ;
+          </li>
+          <li>
+            demandes de support et de contact : le temps nécessaire au traitement de la demande, puis un suivi
+            raisonnable ;
+          </li>
+          <li>journaux techniques et de sécurité : durée courte (généralement jusqu&apos;à 12 mois), adaptée à la finalité de sécurité.</li>
         </ul>
         <p>
-          Certaines durées précises restent à finaliser et seront ajustées selon les obligations légales applicables et
-          la configuration du produit.
+          Lorsqu&apos;un professionnel utilisateur détermine lui-même les finalités et les durées applicables aux données
+          de ses propres clients, ces durées relèvent de sa responsabilité en tant que responsable de traitement.
         </p>
 
         <h2>10. Vos droits</h2>
