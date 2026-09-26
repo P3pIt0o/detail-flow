@@ -292,3 +292,50 @@ export const CUSTOM_PLATFORM_OFFER = {
     href: "mailto:contact@detailflow.fr?subject=Mon%20projet%20DetailFlow%20sur%20mesure",
   },
 } as const
+
+/* ------------------------------------------------------------------------- */
+/*  OFFRE LIFETIME — ALTERNATIVE « PAIEMENT UNIQUE » (MARKETING ONLY)         */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Offre spéciale « licence à vie ». N'EST PAS une 5ᵉ formule mensuelle : c'est
+ * une alternative pour ceux qui préfèrent payer une seule fois. Présentée comme
+ * un encart secondaire, jamais dans la grille `COMMERCIAL_PLANS`.
+ *
+ * ÉTAT ACTUEL : aucun Checkout, aucun Stripe, aucun compteur dynamique. Le CTA
+ * ouvre un simple modal d'information marketing. Le vrai compteur des 50
+ * licences et l'achat seront livrés dans un lot ultérieur (S2.5). On affiche
+ * donc UNIQUEMENT « limitée à 50 licences maximum » — jamais « X restantes ».
+ */
+export const LIFETIME_OFFER = {
+  eyebrow: "Offre Lifetime",
+  title: "Vous préférez payer une seule fois ?",
+  intro: "Profitez de DetailFlow avec une licence à vie, sans abonnement mensuel.",
+  priceOnce: "1 290 € HT",
+  priceOnceLabel: "en une fois",
+  priceSplit: "2 × 690 € HT",
+  scarcity: "Offre limitée à 50 licences maximum.",
+  cta: "Découvrir Lifetime",
+  modal: {
+    title: "DetailFlow Lifetime",
+    subtitle: "Une licence à vie, sans abonnement mensuel.",
+    priceBullets: ["1 290 € HT en une fois", "ou 2 × 690 € HT", "Offre limitée à 50 licences maximum"],
+    features: [
+      "Licence d'utilisation de DetailFlow à vie",
+      "Fonctionnalités proches de la formule Performance",
+      "Pas d'abonnement mensuel",
+      "0 % de commission DetailFlow prévue sur les paiements en ligne",
+      "20 SMS de bienvenue offerts",
+    ],
+    notes: [
+      "Les frais Stripe éventuels sur les paiements clients restent distincts et à votre charge.",
+      "SMS supplémentaires payants au-delà des 20 SMS offerts.",
+      "Domaine et services tiers éventuels non inclus.",
+      "Les futures fonctionnalités Équipe / multi-collaborateurs ne sont pas incluses automatiquement.",
+    ],
+    legal: [
+      "Lifetime correspond à une licence d'utilisation de DetailFlow. Elle ne transfère pas la propriété du code source, de l'infrastructure ou de DetailFlow.",
+      "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être proposés séparément.",
+    ],
+  },
+} as const
