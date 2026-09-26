@@ -197,6 +197,32 @@ export const FOLLOW_UP_PRESETS = [
 ] as const
 export type FollowUpPresetKey = (typeof FOLLOW_UP_PRESETS)[number]["key"]
 
+/**
+ * Convertit une valeur d'origine incertaine (driver PG, expression SQL calculée)
+ * en `Date` valide, ou `null`. PURE. Accepte `Date`, ISO/PostgreSQL string
+ * (« 2026-09-21 11:26:18.725763 ») et timestamp numérique. Ne fait jamais
+ * confiance au type générique `sql<Date>` : la conversion runtime est ici garantie.
+ */
+export function toValidDate(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  if (typeof value === "string") {
+    const raw = value.trim()
+    if (raw === "") return null
+    // Normalise « YYYY-MM-DD HH:MM:SS[.ffffff] » (format PostgreSQL sans « T »/TZ)
+    // en ISO UTC pour un parsing déterministe et indépendant du fuseau local.
+    const pg = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/.exec(raw)
+    const d = pg ? new Date(`${pg[1]}T${pg[2]}Z`) : new Date(raw)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  if (typeof value === "number") {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  return null
+}
+
 /** Ajoute `days` jours à une date `YYYY-MM-DD` (calcul civil pur, UTC neutre). */
 export function addDaysYmd(ymd: string, days: number): string {
   const d = new Date(`${ymd.slice(0, 10)}T00:00:00Z`)
