@@ -62,20 +62,19 @@ export function Hero() {
       <Container className="flex flex-col items-center text-center">
         <p className="df-rise inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
           <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
-          Logiciel de gestion pour le detailing automobile
+          Logiciel tout-en-un pour detailers
         </p>
 
         <h1
           id="hero-title"
           className="df-rise mt-5 max-w-4xl text-balance text-[2.35rem] font-semibold leading-[1.04] tracking-[-0.035em] text-foreground [animation-delay:80ms] sm:mt-7 sm:text-6xl sm:leading-[1.02] lg:text-7xl"
         >
-          Tout votre detailing.
-          <span className="block text-muted-foreground/70">Une seule plateforme.</span>
+          Gérez votre activité.
+          <span className="block text-muted-foreground/70">Développez votre detailing.</span>
         </h1>
 
         <p className="df-rise mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground [animation-delay:160ms] sm:mt-6 sm:text-lg">
-          Site internet, réservations, planning, clients, paiements et facturation réunis dans un seul outil conçu
-          pour les professionnels du detailing.
+          Réservations, clients, paiements, facturation et croissance réunis dans une seule plateforme.
         </p>
 
         <div className="df-rise mt-6 flex w-full flex-col items-center justify-center gap-2.5 [animation-delay:240ms] sm:mt-9 sm:w-auto sm:flex-row sm:gap-3">
@@ -94,11 +93,18 @@ export function Hero() {
           </Link>
         </div>
         <p className="df-rise mt-3 text-xs text-muted-foreground [animation-delay:280ms] sm:mt-4">
-          Offre Starter gratuite, sans engagement.
+          Sans carte bancaire · Offre gratuite · Sans engagement
         </p>
         <div className="df-rise mt-4 [animation-delay:320ms] sm:mt-6">
           <TrustpilotProof />
         </div>
+        <p className="df-rise mt-3 max-w-md text-pretty text-xs text-muted-foreground [animation-delay:360ms] sm:mt-4 sm:text-sm">
+          <span className="font-semibold text-foreground">+10 entreprises</span> utilisent déjà DetailFlow pour gérer et
+          développer leur activité.
+        </p>
+        <p className="df-rise mt-2 max-w-md text-pretty text-xs text-muted-foreground/80 [animation-delay:400ms]">
+          Pensé avec des professionnels du detailing, pour les professionnels du detailing.
+        </p>
       </Container>
 
       <Container className="relative mt-16 max-w-7xl pb-8 sm:mt-20">
