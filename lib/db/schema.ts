@@ -1181,6 +1181,113 @@ export const quoteRequestAttachments = pgTable(
 )
 
 /* -------------------------------------------------------------------------- */
+/*  CRM PROSPECTS (leads) — table métier tenant, ajout ADDITIF.               */
+/*                                                                            */
+/*  Isolation stricte par companyId (jamais cross-tenant). L'architecture est */
+/*  prête pour recevoir plus tard des sources externes (Meta/Instagram Lead   */
+/*  Ads, formulaires, imports, campagnes) SANS refonte : d'où les colonnes    */
+/*  d'attribution (sourceExternalId, campaignExternalId, adExternalId…) et le  */
+/*  `sourceMetadata` réservé à de PETITES métadonnées d'attribution (jamais de */
+/*  token, secret, payload brut complet ni donnée bancaire).                  */
+/*                                                                            */
+/*  Idempotence : UNIQUE(companyId, source, sourceExternalId) quand            */
+/*  sourceExternalId est présent — une même donnée externe (ou une même       */
+/*  custom_request) ne crée jamais deux prospects.                            */
+/* -------------------------------------------------------------------------- */
+export const leads = pgTable(
+  "leads",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Statut CRM (voir lib/leads/model.ts) : NEW | CONTACTED | APPOINTMENT_BOOKED | CLIENT | LOST.
+    status: text("status").notNull().default("NEW"),
+    // Source (voir lib/leads/model.ts) : MANUAL | CUSTOM_REQUEST | META | IMPORT.
+    source: text("source").notNull().default("MANUAL"),
+    // Identité prospect.
+    contactName: text("contactName").notNull(),
+    email: text("email"),
+    // Email/téléphone NORMALISÉS calculés côté serveur (rapprochement fiable).
+    emailNormalized: text("emailNormalized"),
+    phone: text("phone"),
+    phoneNormalized: text("phoneNormalized"),
+    // Véhicule (facultatif).
+    vehicleType: text("vehicleType"),
+    vehicleBrand: text("vehicleBrand"),
+    vehicleModel: text("vehicleModel"),
+    vehiclePlate: text("vehiclePlate"),
+    // Besoin / prestation recherchée (texte libre court).
+    serviceInterest: text("serviceInterest"),
+    // Résumé interne (jamais envoyé au prospect).
+    internalSummary: text("internalSummary"),
+    // Motif de perte (facultatif) — voir LEAD_LOST_REASONS.
+    lostReason: text("lostReason"),
+    // Relance planifiée (fuseau tenant appliqué en amont).
+    nextFollowUpAt: timestamp("nextFollowUpAt"),
+    // Jalons temporels du cycle de vie.
+    contactedAt: timestamp("contactedAt"),
+    appointmentBookedAt: timestamp("appointmentBookedAt"),
+    convertedAt: timestamp("convertedAt"),
+    lostAt: timestamp("lostAt"),
+    // Réservation réelle liée (jamais un 2e moteur de réservation).
+    linkedBookingId: integer("linkedBookingId"),
+    // Attribution source externe (préparation Meta / formulaires / imports).
+    sourceExternalId: text("sourceExternalId"),
+    sourceChannel: text("sourceChannel"),
+    campaignExternalId: text("campaignExternalId"),
+    campaignName: text("campaignName"),
+    formExternalId: text("formExternalId"),
+    adExternalId: text("adExternalId"),
+    // Petites métadonnées d'attribution UNIQUEMENT (pas une poubelle).
+    sourceMetadata: jsonb("sourceMetadata"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("leads_companyId_idx").on(t.companyId),
+    byCompanyStatus: index("leads_company_status_idx").on(t.companyId, t.status),
+    byCompanyCreated: index("leads_company_createdAt_idx").on(t.companyId, t.createdAt),
+    byCompanyFollowUp: index("leads_company_followUp_idx").on(t.companyId, t.nextFollowUpAt),
+    byCompanyEmail: index("leads_company_email_idx").on(t.companyId, t.emailNormalized),
+    byCompanyPhone: index("leads_company_phone_idx").on(t.companyId, t.phoneNormalized),
+    // Idempotence des sources externes (Meta Lead ID, ID custom_request…).
+    bySourceExternal: uniqueIndex("leads_company_source_external_key")
+      .on(t.companyId, t.source, t.sourceExternalId)
+      .where(sql`${t.sourceExternalId} IS NOT NULL`),
+  }),
+)
+
+/**
+ * Historique / activité d'un prospect. Suppression EN CASCADE avec le prospect
+ * (et avec l'entreprise). `metadata` (jsonb) reste réservé à de petites données
+ * structurées (ancien/nouveau statut, motif de perte…). `createdByUserId` est un
+ * identifiant technique (jamais d'email en clair).
+ */
+export const leadActivities = pgTable(
+  "lead_activities",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    leadId: integer("leadId")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    // Type d'activité (voir LEAD_ACTIVITY_TYPES).
+    type: text("type").notNull(),
+    message: text("message"),
+    metadata: jsonb("metadata"),
+    createdByUserId: text("createdByUserId"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byLead: index("lead_activities_leadId_idx").on(t.leadId),
+    byCompany: index("lead_activities_companyId_idx").on(t.companyId),
+  }),
+)
+
+/* -------------------------------------------------------------------------- */
 /*  Analytics de visites (sites publics tenant) — V1 agrégats journaliers      */
 /*  Ajout ADDITIF : ne modifie aucune table existante. Isolation par           */
 /*  companyId, aucune donnée personnelle stockée (pas d'IP, pas d'email).      */

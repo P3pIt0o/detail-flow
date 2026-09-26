@@ -72,6 +72,8 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   },
   advanced_reporting: { key: "advanced_reporting", label: "Reporting avancé", generation: "LIFETIME_V1" },
   marketing: { key: "marketing", label: "Marketing & fidélisation", generation: "LIFETIME_V1" },
+  // LOT 2 — CRM prospects (leads).
+  leads_crm: { key: "leads_crm", label: "CRM prospects", generation: "LIFETIME_V1" },
   early_access: { key: "early_access", label: "Accès anticipé", generation: "LIFETIME_V1" },
 }
 
@@ -166,6 +168,8 @@ export const BUSINESS_FEATURES: readonly FeatureKey[] = [
   "profitability_analysis",
   "advanced_reporting",
   "marketing",
+  // LOT 2 — CRM prospects : fonctionnalité de l'offre « Ultime » (BUSINESS).
+  "leads_crm",
 ]
 
 /**

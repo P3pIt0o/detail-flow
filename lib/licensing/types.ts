@@ -34,6 +34,8 @@ export const FEATURE_KEYS = [
   "profitability_analysis",
   "advanced_reporting",
   "marketing",
+  // LOT 2 — CRM prospects (leads). Accordé à BUSINESS/ENTERPRISE/FOUNDER.
+  "leads_crm",
   "early_access",
 ] as const
 export type FeatureKey = (typeof FEATURE_KEYS)[number]
