@@ -37,10 +37,10 @@ export function SiteNav() {
   }, [open])
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pt-3">
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-50 px-3 pt-2 sm:pt-3">
       <div
         className={cn(
-          "pointer-events-auto mx-auto flex h-14 max-w-6xl items-center justify-between rounded-full border px-3 pl-4 transition-[background-color,border-color,box-shadow] duration-300",
+          "pointer-events-auto mx-auto flex h-12 max-w-6xl items-center justify-between rounded-full border px-3 pl-4 transition-[background-color,border-color,box-shadow] duration-300 sm:h-14",
           scrolled || open
             ? "border-border bg-background/80 shadow-[0_8px_30px_-12px_oklch(0.2_0.03_262/0.18)] backdrop-blur-xl"
             : "border-transparent bg-transparent",
