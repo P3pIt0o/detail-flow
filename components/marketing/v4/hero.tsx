@@ -53,7 +53,7 @@ function PhoneBookingPreview() {
 
 export function Hero() {
   return (
-    <section aria-labelledby="hero-title" className="relative overflow-hidden pt-28 sm:pt-36">
+    <section aria-labelledby="hero-title" className="relative overflow-hidden pt-20 sm:pt-36">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(to_right,oklch(0.2_0.02_262/0.05)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0.2_0.02_262/0.05)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(ellipse_70%_55%_at_50%_30%,black,transparent)]"
@@ -67,18 +67,18 @@ export function Hero() {
 
         <h1
           id="hero-title"
-          className="df-rise mt-7 max-w-4xl text-balance text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.035em] text-foreground [animation-delay:80ms] sm:text-6xl lg:text-7xl"
+          className="df-rise mt-5 max-w-4xl text-balance text-[2.35rem] font-semibold leading-[1.04] tracking-[-0.035em] text-foreground [animation-delay:80ms] sm:mt-7 sm:text-6xl sm:leading-[1.02] lg:text-7xl"
         >
           Tout votre detailing.
           <span className="block text-muted-foreground/70">Une seule plateforme.</span>
         </h1>
 
-        <p className="df-rise mt-6 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground [animation-delay:160ms] sm:text-lg">
+        <p className="df-rise mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground [animation-delay:160ms] sm:mt-6 sm:text-lg">
           Site internet, réservations, planning, clients, paiements et facturation réunis dans un seul outil conçu
           pour les professionnels du detailing.
         </p>
 
-        <div className="df-rise mt-9 flex w-full flex-col items-center justify-center gap-3 [animation-delay:240ms] sm:w-auto sm:flex-row">
+        <div className="df-rise mt-6 flex w-full flex-col items-center justify-center gap-2.5 [animation-delay:240ms] sm:mt-9 sm:w-auto sm:flex-row sm:gap-3">
           <Link
             href="/demarrer"
             className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
@@ -93,10 +93,10 @@ export function Hero() {
             Voir la plateforme
           </Link>
         </div>
-        <p className="df-rise mt-4 text-xs text-muted-foreground [animation-delay:280ms]">
+        <p className="df-rise mt-3 text-xs text-muted-foreground [animation-delay:280ms] sm:mt-4">
           Offre Starter gratuite, sans engagement.
         </p>
-        <div className="df-rise mt-6 [animation-delay:320ms]">
+        <div className="df-rise mt-4 [animation-delay:320ms] sm:mt-6">
           <TrustpilotProof />
         </div>
       </Container>
