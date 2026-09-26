@@ -1,6 +1,14 @@
 import { formatPrice, formatMoney, formatDateLong, formatDuration } from "@/lib/format"
 import { parseDepositMethods } from "@/lib/booking/types"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
+import {
+  BOOKING_LABELS,
+  DOMAIN_LABELS,
+  FEATURE_LABELS,
+  GOAL_LABELS,
+  IDENTITY_LABELS,
+  type DiagnosticData,
+} from "@/lib/diagnostic/schema"
 
 /**
  * Gabarits HTML des emails transactionnels.
@@ -207,6 +215,75 @@ export function customWebsiteRequestEmail(opts: {
     html: layout({
       businessName: "DetailFlow",
       heading: "Nouvelle demande de site personnalisé",
+      bodyHtml: body,
+    }),
+  }
+}
+
+/* ------------------ Demande de site sur mesure (diagnostic) -------------- */
+
+/**
+ * Email INTERNE (vers l'équipe DetailFlow) qualifiant une demande de site sur
+ * mesure émise depuis le questionnaire public « diagnostic gratuit ».
+ * Structuré par blocs pour être immédiatement exploitable commercialement.
+ */
+export function customSiteDiagnosticEmail(data: DiagnosticData) {
+  const section = (heading: string, innerHtml: string) => `
+    <div style="margin:18px 0 4px;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${BRAND};">${esc(heading)}</div>
+    <div style="font-size:15px;line-height:1.6;color:${INK};">${innerHtml}</div>`
+
+  const kv = (rows: [string, string | null | undefined][]) =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+      ${rows
+        .filter(([, v]) => Boolean(v && String(v).trim()))
+        .map(
+          ([label, v]) =>
+            `<tr><td style="padding:5px 12px 5px 0;color:${MUTED};white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+             <td style="padding:5px 0;color:${INK};">${esc(String(v))}</td></tr>`,
+        )
+        .join("")}
+    </table>`
+
+  const list = (items: string[]) =>
+    items.length
+      ? `<ul style="margin:4px 0 0;padding-left:18px;color:${INK};">${items
+          .map((i) => `<li style="margin:2px 0;">${esc(i)}</li>`)
+          .join("")}</ul>`
+      : `<span style="color:${MUTED};">Non renseigné</span>`
+
+  const siteLine = data.hasSite === "oui" ? data.siteUrl || "Oui, déjà en ligne" : "Aucun site"
+  const domainLine =
+    data.hasDomain === "oui" && data.domain ? `${DOMAIN_LABELS.oui} (${data.domain})` : DOMAIN_LABELS[data.hasDomain]
+  const bookingLine = data.bookingTool
+    ? `${BOOKING_LABELS[data.booking]} — ${data.bookingTool}`
+    : BOOKING_LABELS[data.booking]
+
+  const body = `
+    <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:${INK};">
+      Nouvelle demande de <strong>site sur mesure</strong> via le diagnostic gratuit.
+    </p>
+    ${section(
+      "Contact",
+      kv([
+        ["Entreprise", data.companyName],
+        ["Prénom", data.firstName],
+        ["Email", data.email],
+        ["Téléphone", data.phone],
+      ]),
+    )}
+    ${section("Site actuel", esc(siteLine))}
+    ${section("Domaine", esc(domainLine))}
+    ${section("Rendez-vous", esc(bookingLine))}
+    ${section("Objectifs", list(data.goals.map((g) => GOAL_LABELS[g] ?? g)))}
+    ${section("Fonctionnalités souhaitées", list(data.features.map((f) => FEATURE_LABELS[f] ?? f)))}
+    ${section("Identité visuelle", esc(IDENTITY_LABELS[data.identity]))}
+    ${data.comment.trim() ? section("Commentaire", esc(data.comment).replace(/\r?\n/g, "<br>")) : ""}`
+
+  return {
+    subject: `Nouvelle demande site sur mesure — ${data.companyName}`,
+    html: layout({
+      businessName: "DetailFlow",
+      heading: "Nouvelle demande de site sur mesure",
       bodyHtml: body,
     }),
   }

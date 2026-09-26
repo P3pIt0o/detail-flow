@@ -118,6 +118,67 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
   )
 }
 
+/**
+ * Encart « site internet sur mesure » — proche des cards tarifaires, il ouvre
+ * le questionnaire de diagnostic gratuit (/diagnostic). Distinct du bloc
+ * `CustomPlatform` (plateforme logicielle dédiée) : ici c'est un SITE vitrine
+ * pensé pour la visibilité locale, en écho au cas client Spirit ACS.
+ */
+function CustomSiteCta() {
+  const bullets = [
+    "Site sur mesure",
+    "Réservation intégrée",
+    "SEO / référencement local",
+    "Demandes de devis",
+    "Paiements & acomptes",
+    "Domaine personnalisé",
+  ]
+  return (
+    <div className="mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-primary/[0.04] p-7 sm:p-10">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-center lg:gap-10">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+            Site internet
+          </span>
+          <h3 className="mt-4 text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Vous voulez votre propre site sur mesure ?
+          </h3>
+          <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Nous concevons un site pensé pour votre activité, votre image et votre visibilité locale — comme celui de
+            Spirit ACS.
+          </p>
+
+          <ul className="mt-6 grid gap-2.5 sm:grid-cols-2">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2.5 text-sm text-foreground">
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                {b}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 lg:items-stretch">
+          <p className="flex items-baseline gap-2">
+            <span className="text-sm text-muted-foreground">À partir de</span>
+            <span className="text-3xl font-semibold tracking-tight text-foreground">790 €</span>
+          </p>
+          <Link
+            href="/diagnostic"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Obtenir mon diagnostic gratuit
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            2 min · Devis personnalisé sous 24 h · Première version sous 7 jours.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** « DetailFlow grandit avec vous » — montée en gamme sans lire le tableau. */
 function GrowthJourney() {
   return (
@@ -329,6 +390,8 @@ export function Pricing() {
             </StaggerItem>
           ))}
         </StaggerGroup>
+
+        <CustomSiteCta />
 
         <GrowthJourney />
 

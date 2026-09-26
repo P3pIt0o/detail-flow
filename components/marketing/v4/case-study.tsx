@@ -1,5 +1,6 @@
 import Image from "next/image"
-import { ArrowUpRight, MapPin, FileText, Search, Globe } from "lucide-react"
+import Link from "next/link"
+import { ArrowUpRight, ArrowRight, MapPin, FileText, Search, Globe } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { Container, SectionIntro } from "./primitives"
 
@@ -97,15 +98,24 @@ export function CaseStudy() {
               ))}
             </ul>
 
-            <a
-              href={SPIRIT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Voir le projet
-              <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
-            </a>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <a
+                href={SPIRIT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Voir le projet
+                <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
+              </a>
+              <Link
+                href="/diagnostic"
+                className="group inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card px-6 text-sm font-semibold text-foreground transition hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Obtenir mon diagnostic gratuit
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </div>
       </Container>
