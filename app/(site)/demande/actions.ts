@@ -12,6 +12,8 @@ import { sendCustomRequestNewLead } from "@/lib/email/custom-requests"
 import { MAX_PHOTOS } from "@/lib/quote-photos/config"
 import { blobPrefix, createGrant, verifyGrant } from "@/lib/quote-photos/grant"
 import { associateAttachment } from "@/lib/quote-photos/server"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { safeSyncLeadFromCustomRequest } from "@/lib/leads/server"
 
 export type DemandeFormState = {
   status: "idle" | "success" | "error"

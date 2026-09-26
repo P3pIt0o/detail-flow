@@ -192,6 +192,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "marketing",
       "automations",
       "sms",
+      // LOT 2 — la promesse « Leads / CRM » est désormais adossée à la FeatureKey réelle.
+      "leads_crm",
     ],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },

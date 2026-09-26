@@ -25,6 +25,7 @@ export type AdminNavIcon =
   | "calendar"
   | "reservations"
   | "demandes"
+  | "leads"
   | "factures"
   | "clients"
   | "prestations"
@@ -78,6 +79,7 @@ export function buildAdminNav(opts: {
     { href: "/admin/calendrier", label: "Calendrier", icon: "calendar" },
     { href: "/admin/reservations", label: "Réservations", icon: "reservations" },
     { href: "/admin/demandes", label: "Demandes", icon: "demandes" },
+    { href: "/admin/leads", label: "Prospects", icon: "leads" },
     { href: "/admin/factures", label: "Factures", icon: "factures" },
     { href: "/admin/clients", label: "Clients", icon: "clients" },
     { href: "/admin/prestations", label: "Prestations", icon: "prestations" },
@@ -123,6 +125,7 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/calendrier": "quotidien",
   "/admin/reservations": "quotidien",
   "/admin/demandes": "quotidien",
+  "/admin/leads": "quotidien",
   "/admin/clients": "quotidien",
   "/admin/prestations": "gestion",
   "/admin/produits": "gestion",
