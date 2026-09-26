@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight, Check, ChevronDown, Clock, Gift, Minus } from "lucide-react"
+import { ArrowRight, Check, ChevronDown, Clock, Gift, Heart, MessageSquare, Minus, Receipt } from "lucide-react"
 import {
   COMMERCIAL_PLANS,
   CUSTOM_PLATFORM_OFFER,
@@ -7,10 +7,20 @@ import {
   PRICING_COPY,
   type CommercialPlan,
 } from "@/lib/pricing/plans"
+import {
+  FEE_CAP_EXPLANATION,
+  LOYALTY_COPY,
+  SMS_OVERAGE_NOTE,
+  STRIPE_FEES_NOTE,
+  feeCapLabel,
+  getCommercialTierForPlan,
+  smsAllowanceLabel,
+} from "@/lib/pricing/commercial-rules"
 import { StaggerGroup, StaggerItem } from "@/components/ui/reveal"
 import { cn } from "@/lib/utils"
 import { Container, DetailFlowMark, SectionIntro } from "./primitives"
 import { COMPARE_CATEGORIES, COMPARE_COLUMNS } from "./pricing-data"
+import { LifetimeOffer } from "./lifetime-offer"
 
 /**
  * Tarifs alimentés par la SOURCE UNIQUE `lib/pricing/plans.ts`.
@@ -54,6 +64,8 @@ function PlanCta({ plan, emphasis }: { plan: CommercialPlan; emphasis: boolean }
 function PlanCard({ plan }: { plan: CommercialPlan }) {
   const available = plan.availability === "self_serve"
   const featured = plan.highlighted
+  const tier = getCommercialTierForPlan(plan.licensePlan)
+  const smsLine = tier ? smsAllowanceLabel(tier.sms) : null
   return (
     <div
       className={cn(
@@ -110,6 +122,25 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
           </li>
         ))}
       </ul>
+
+      {tier ? (
+        <dl className="mt-5 flex flex-col gap-2 border-t border-border pt-5">
+          <div className="flex items-start gap-2.5">
+            <Receipt className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <div>
+              <dt className="sr-only">Frais DetailFlow</dt>
+              <dd className="text-[13px] font-medium leading-snug text-foreground">{feeCapLabel(tier.fee)}</dd>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <div>
+              <dt className="sr-only">SMS</dt>
+              <dd className="text-[13px] leading-snug text-muted-foreground">{smsLine ?? "Module SMS non inclus"}</dd>
+            </div>
+          </div>
+        </dl>
+      ) : null}
 
       <div className="mt-auto">
         <PlanCta plan={plan} emphasis={available || !!featured} />
@@ -177,21 +208,34 @@ function FeatureCompare() {
                   className="grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.5rem,1fr))] items-center gap-x-1 border-t border-border/60 py-2.5 text-sm sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"
                 >
                   <span className="pr-2 text-pretty text-[13px] leading-snug text-foreground">{row.label}</span>
-                  {COMPARE_COLUMNS.map((c) => (
-                    <span key={c.id} className="flex items-center justify-center">
-                      {row.values[c.id] ? (
-                        <>
-                          <Check className="size-4 text-primary" aria-hidden="true" />
-                          <span className="sr-only">Inclus dans {c.name}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Minus className="size-4 text-muted-foreground/40" aria-hidden="true" />
-                          <span className="sr-only">Non inclus dans {c.name}</span>
-                        </>
-                      )}
-                    </span>
-                  ))}
+                  {COMPARE_COLUMNS.map((c) => {
+                    const value = row.values[c.id]
+                    if (value === "upcoming") {
+                      return (
+                        <span key={c.id} className="flex items-center justify-center">
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-wide text-muted-foreground sm:text-[10px]">
+                            À venir
+                          </span>
+                          <span className="sr-only">À venir dans {c.name}</span>
+                        </span>
+                      )
+                    }
+                    return (
+                      <span key={c.id} className="flex items-center justify-center">
+                        {value ? (
+                          <>
+                            <Check className="size-4 text-primary" aria-hidden="true" />
+                            <span className="sr-only">Inclus dans {c.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Minus className="size-4 text-muted-foreground/40" aria-hidden="true" />
+                            <span className="sr-only">Non inclus dans {c.name}</span>
+                          </>
+                        )}
+                      </span>
+                    )
+                  })}
                 </div>
               ))}
             </div>
@@ -297,6 +341,29 @@ function CustomPlatform() {
   )
 }
 
+/** Bloc fidélité premium : l'avantage d'abord, la règle de reset ensuite. */
+function LoyaltyBlock() {
+  return (
+    <div className="mt-6 overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8">
+      <div className="flex items-start gap-4">
+        <span
+          className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+          aria-hidden="true"
+        >
+          <Heart className="size-6" />
+        </span>
+        <div>
+          <h3 className="text-pretty text-lg font-semibold text-foreground">{LOYALTY_COPY.title}</h3>
+          <p className="mt-1.5 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+            {LOYALTY_COPY.body}
+          </p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{LOYALTY_COPY.resetNote}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Pricing() {
   return (
     <section
@@ -329,6 +396,15 @@ export function Pricing() {
             </StaggerItem>
           ))}
         </StaggerGroup>
+
+        {/* Transparence sur les frais DetailFlow plafonnés (jamais cachés) */}
+        <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+          {FEE_CAP_EXPLANATION} {STRIPE_FEES_NOTE} {SMS_OVERAGE_NOTE}
+        </p>
+
+        <LoyaltyBlock />
+
+        <LifetimeOffer />
 
         <GrowthJourney />
 

@@ -9,13 +9,14 @@
  *  les DROITS TECHNIQUES réels (moteur de licences). Le marketing ne définit
  *  plus ses propres prix indépendamment du moteur — il consomme ce fichier.
  *
- *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
- *    Starter    0 €          -> plan technique FREE       (self-service actif)
- *    Pro        19,90 €/mois -> plan technique PRO         (coming_soon)
- *    Ultime     34,90 €/mois -> plan technique BUSINESS    (coming_soon)
- *    Entreprise 49,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
+ *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) — noms/prix issus de
+ *  `lib/pricing/commercial-rules.ts` (source unique, aucune valeur dupliquée) :
+ *    Essentiel    0 €          -> plan technique FREE       (self-service actif)
+ *    Indépendant  19,90 €/mois -> plan technique PRO         (coming_soon)
+ *    Croissance   34,90 €/mois -> plan technique BUSINESS    (coming_soon)
+ *    Centre       59,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
- *  L'offre « Entreprise » (gestion multi-employés, agendas par collaborateur,
+ *  L'offre « Centre » (gestion multi-employés, agendas par collaborateur,
  *  permissions, RDV simultanés) pointe vers le plan technique ENTERPRISE. Ce
  *  plan hérite aujourd'hui des droits de BUSINESS ; les fonctionnalités
  *  d'équipe seront ajoutées à ENTERPRISE quand leurs modules seront livrés.
@@ -44,6 +45,7 @@
  */
 
 import type { FeatureKey, LicensePlan } from "@/lib/licensing/types"
+import { COMMERCIAL_TIERS, formatEuroCents } from "@/lib/pricing/commercial-rules"
 
 /**
  * Plan technique attribué à TOUT compte créé en self-service aujourd'hui.
@@ -123,19 +125,20 @@ export const PRICING_COPY = {
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
     id: "starter",
-    name: "Starter",
-    tagline: "Commencez simplement.",
+    name: COMMERCIAL_TIERS.FREE.publicName,
+    tagline: "Pour démarrer simplement.",
     licensePlan: "FREE",
-    price: "0 €",
-    period: "sans engagement",
-    description: "L'essentiel pour lancer votre activité en ligne, gratuitement.",
+    price: formatEuroCents(COMMERCIAL_TIERS.FREE.monthlyPriceCents),
+    period: "/ mois",
+    description:
+      "L'essentiel pour organiser votre activité et commencer à recevoir des réservations.",
     trial: null,
     highlights: [
       "Page professionnelle en ligne",
-      "Lien de réservation à partager",
+      "Réservations illimitées",
       "Planning centralisé",
-      "Fiches clients & véhicules",
-      "Prestations & tableau de bord simple",
+      "Fiches clients & véhicules (jusqu'à 10)",
+      "Confirmations email & tableau de bord",
     ],
     // FREE n'accorde aucune feature premium gated : page publique et réservation
     // sont des capacités non gated, listées en `highlights` ci-dessus.
@@ -147,15 +150,16 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "pro",
-    name: "Pro",
-    tagline: "Automatisez votre activité.",
+    name: COMMERCIAL_TIERS.PRO.publicName,
+    tagline: "Pour gérer et automatiser votre activité.",
     licensePlan: "PRO",
-    price: "19,90 €",
+    price: formatEuroCents(COMMERCIAL_TIERS.PRO.monthlyPriceCents),
     period: "/ mois",
-    description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
+    description:
+      "Une formule complète pour les professionnels qui travaillent seuls et veulent gagner du temps.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Starter",
+      "Tout Essentiel, sans limite de clients",
       "Réservation avancée (véhicules, options, suppléments)",
       "Acompte & paiements en ligne",
       "Rappels & demandes d'avis automatiques",
@@ -170,15 +174,16 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "ultime",
-    name: "Ultime",
-    tagline: "Développez votre activité.",
+    name: COMMERCIAL_TIERS.BUSINESS.publicName,
+    tagline: "Pour développer votre chiffre d'affaires.",
     licensePlan: "BUSINESS",
-    price: "34,90 €",
+    price: formatEuroCents(COMMERCIAL_TIERS.BUSINESS.monthlyPriceCents),
     period: "/ mois",
-    description: "Pour développer, automatiser et fidéliser à grande échelle.",
+    description:
+      "CRM, analyse avancée, SMS et automatisations pour transformer davantage de prospects en clients.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Pro",
+      "Tout Indépendant",
       "Devis, factures & avoirs",
       "Statistiques avancées & analyse du CA",
       "Automatisations, SMS & relances",
@@ -202,8 +207,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "entreprise",
-    name: "Entreprise",
-    tagline: "Pilotez votre centre.",
+    name: COMMERCIAL_TIERS.ENTERPRISE.publicName,
+    tagline: "Pour piloter votre équipe.",
     // Plan technique ENTERPRISE (moteur de licences). Il hérite aujourd'hui des
     // droits de BUSINESS ; les fonctionnalités d'équipe (comptes employés,
     // agendas individuels, permissions, RDV simultanés) seront ajoutées à
@@ -211,12 +216,13 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     // reste `coming_soon` : aucune feature d'équipe n'est promise (invariant
     // testé -> `includedFeatures` vide tant que ces modules n'existent pas).
     licensePlan: "ENTERPRISE",
-    price: "49,90 €",
+    price: formatEuroCents(COMMERCIAL_TIERS.ENTERPRISE.monthlyPriceCents),
     period: "/ mois",
-    description: "Pour les centres avec plusieurs collaborateurs.",
+    description:
+      "Pensé pour les centres avec plusieurs collaborateurs, plusieurs agendas et des rendez-vous simultanés.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Ultime",
+      "Tout Croissance",
       "Comptes & agendas par collaborateur",
       "Disponibilités, horaires & congés individuels",
       "Attribution des rendez-vous & RDV simultanés",
@@ -252,10 +258,30 @@ export type JourneyStep = {
 
 /** Montée en gamme lisible sans passer par le tableau tarifaire. */
 export const PLAN_JOURNEY: readonly JourneyStep[] = [
-  { planId: "starter", name: "Starter", verb: "Commencez.", audience: "Je veux juste démarrer." },
-  { planId: "pro", name: "Pro", verb: "Automatisez.", audience: "Je suis indépendant." },
-  { planId: "ultime", name: "Ultime", verb: "Développez.", audience: "Je veux développer mon activité." },
-  { planId: "entreprise", name: "Entreprise", verb: "Travaillez en équipe.", audience: "J'ai plusieurs collaborateurs." },
+  {
+    planId: "starter",
+    name: COMMERCIAL_TIERS.FREE.publicName,
+    verb: "Démarrer et organiser.",
+    audience: "Je veux juste démarrer.",
+  },
+  {
+    planId: "pro",
+    name: COMMERCIAL_TIERS.PRO.publicName,
+    verb: "Gérer et automatiser.",
+    audience: "Je suis indépendant.",
+  },
+  {
+    planId: "ultime",
+    name: COMMERCIAL_TIERS.BUSINESS.publicName,
+    verb: "Développer et fidéliser.",
+    audience: "Je veux développer mon activité.",
+  },
+  {
+    planId: "entreprise",
+    name: COMMERCIAL_TIERS.ENTERPRISE.publicName,
+    verb: "Travailler en équipe.",
+    audience: "J'ai plusieurs collaborateurs.",
+  },
 ]
 
 /* ------------------------------------------------------------------------- */

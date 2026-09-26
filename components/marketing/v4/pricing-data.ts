@@ -2,26 +2,37 @@
  * Données d'affichage du comparateur de fonctionnalités (marketing only).
  *
  * Ce fichier décrit le PÉRIMÈTRE COMMERCIAL de chaque niveau (ce que la formule
- * inclura). Les offres payantes étant `coming_soon` dans `lib/pricing/plans.ts`,
- * ce tableau communique la trajectoire produit ; la note de bas de section et
- * les CTA « Bientôt disponible » évitent toute promesse d'activation immédiate.
+ * inclut / inclura). Les noms publics proviennent de la source unique
+ * `lib/pricing/commercial-rules.ts` (Essentiel, Indépendant, Croissance, Centre)
+ * pour ne jamais diverger du reste du marketing.
  *
- * `true`  = inclus dans la formule ·  `false` = non inclus
- * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Starter, Pro, Ultime, Entreprise.
+ * Valeur d'une cellule :
+ *   true       = inclus dans la formule
+ *   false      = non inclus
+ *   "upcoming" = fonctionnalité À VENIR (jamais présentée comme disponible)
+ *
+ * Les colonnes suivent l'ordre : Essentiel, Indépendant, Croissance, Centre.
+ * Les identifiants de colonne (`starter`, `pro`, `ultime`, `entreprise`) restent
+ * stables et internes ; seuls les libellés affichés changent.
  */
+
+import { PUBLIC_PLAN_NAME } from "@/lib/pricing/commercial-rules"
 
 export type PlanColumn = "starter" | "pro" | "ultime" | "entreprise"
 
+/** Cellule : incluse, non incluse, ou à venir (module non encore développé). */
+export type CompareValue = boolean | "upcoming"
+
 export const COMPARE_COLUMNS: { id: PlanColumn; name: string }[] = [
-  { id: "starter", name: "Starter" },
-  { id: "pro", name: "Pro" },
-  { id: "ultime", name: "Ultime" },
-  { id: "entreprise", name: "Entreprise" },
+  { id: "starter", name: PUBLIC_PLAN_NAME.FREE },
+  { id: "pro", name: PUBLIC_PLAN_NAME.PRO },
+  { id: "ultime", name: PUBLIC_PLAN_NAME.BUSINESS },
+  { id: "entreprise", name: PUBLIC_PLAN_NAME.ENTERPRISE },
 ]
 
 export type CompareRow = {
   label: string
-  values: Record<PlanColumn, boolean>
+  values: Record<PlanColumn, CompareValue>
 }
 
 export type CompareCategory = {
@@ -29,10 +40,16 @@ export type CompareCategory = {
   rows: CompareRow[]
 }
 
-const all = { starter: true, pro: true, ultime: true, entreprise: true }
-const proUp = { starter: false, pro: true, ultime: true, entreprise: true }
-const ultimeUp = { starter: false, pro: false, ultime: true, entreprise: true }
-const entrepriseOnly = { starter: false, pro: false, ultime: false, entreprise: true }
+const all: Record<PlanColumn, CompareValue> = { starter: true, pro: true, ultime: true, entreprise: true }
+const proUp: Record<PlanColumn, CompareValue> = { starter: false, pro: true, ultime: true, entreprise: true }
+const ultimeUp: Record<PlanColumn, CompareValue> = { starter: false, pro: false, ultime: true, entreprise: true }
+/** Réservé au Centre, mais module d'équipe NON encore développé : « À venir ». */
+const centreUpcoming: Record<PlanColumn, CompareValue> = {
+  starter: false,
+  pro: false,
+  ultime: false,
+  entreprise: "upcoming",
+}
 
 export const COMPARE_CATEGORIES: CompareCategory[] = [
   {
@@ -80,7 +97,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       { label: "Statistiques de base", values: proUp },
       { label: "Chiffre d'affaires & panier moyen", values: ultimeUp },
       { label: "Analyse avancée & répartition du CA", values: ultimeUp },
-      { label: "Statistiques par employé", values: entrepriseOnly },
+      { label: "Statistiques par employé", values: centreUpcoming },
     ],
   },
   {
@@ -103,10 +120,10 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
   {
     name: "Équipe",
     rows: [
-      { label: "Comptes employés", values: entrepriseOnly },
-      { label: "Agenda par collaborateur", values: entrepriseOnly },
-      { label: "Rendez-vous simultanés", values: entrepriseOnly },
-      { label: "Permissions & rôles", values: entrepriseOnly },
+      { label: "Comptes employés", values: centreUpcoming },
+      { label: "Agenda par collaborateur", values: centreUpcoming },
+      { label: "Rendez-vous simultanés", values: centreUpcoming },
+      { label: "Permissions & rôles", values: centreUpcoming },
     ],
   },
 ]
