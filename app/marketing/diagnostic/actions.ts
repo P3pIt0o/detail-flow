@@ -10,6 +10,7 @@ import {
 import {
   checkDiagnosticRateLimit,
   DIAGNOSTIC_RATE_LIMITED_MESSAGE,
+  DIAGNOSTIC_UNAVAILABLE_MESSAGE,
   type RateLimitDecision,
 } from "@/lib/diagnostic/rate-limit"
 
@@ -61,9 +62,17 @@ export async function runSubmitDiagnostic(
   }
 
   // 2) Rate limiting distribué (avant toute validation ou envoi).
+  //    - quota/blocked  → limite réellement atteinte : message "trop de demandes".
+  //    - config/unavailable → protection indisponible (fail-closed) : message
+  //      générique, on NE laisse PAS partir l'email sans protection.
   const decision = await deps.checkRateLimit(await deps.getHeaders())
   if (decision.limited) {
-    return { ok: false, error: DIAGNOSTIC_RATE_LIMITED_MESSAGE, rateLimited: true }
+    const overLimit = decision.reason === "quota" || decision.reason === "blocked"
+    return {
+      ok: false,
+      error: overLimit ? DIAGNOSTIC_RATE_LIMITED_MESSAGE : DIAGNOSTIC_UNAVAILABLE_MESSAGE,
+      rateLimited: overLimit,
+    }
   }
 
   // 3) Validation serveur stricte (aucune confiance au navigateur).

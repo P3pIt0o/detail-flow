@@ -54,3 +54,39 @@ CREATE INDEX IF NOT EXISTS "companies_subscriptionStatus_idx"
 
 CREATE INDEX IF NOT EXISTS "companies_billingMode_idx"
   ON "companies" ("billingMode");
+
+/* -------- 6. CHECK constraints (défense au niveau DB) --------------------- */
+-- Le TypeScript valide déjà les valeurs, mais la DB doit refuser toute écriture
+-- SQL directe ou webhook futur qui poserait une valeur hors énumération.
+-- Postgres ne supporte pas `ADD CONSTRAINT IF NOT EXISTS` : on encapsule dans un
+-- bloc DO qui vérifie pg_constraint => IDEMPOTENT (ré-exécutable sans erreur).
+
+-- billingMode ∈ { free, subscription, lifetime } (NOT NULL garanti par la colonne).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'companies_billingMode_check'
+  ) THEN
+    ALTER TABLE "companies"
+      ADD CONSTRAINT "companies_billingMode_check"
+      CHECK ("billingMode" IN ('free', 'subscription', 'lifetime'));
+  END IF;
+END $$;
+
+-- subscriptionStatus : NULL autorisé, sinon l'un des statuts Stripe connus.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'companies_subscriptionStatus_check'
+  ) THEN
+    ALTER TABLE "companies"
+      ADD CONSTRAINT "companies_subscriptionStatus_check"
+      CHECK (
+        "subscriptionStatus" IS NULL
+        OR "subscriptionStatus" IN (
+          'trialing', 'active', 'past_due', 'unpaid',
+          'canceled', 'incomplete', 'incomplete_expired', 'paused'
+        )
+      );
+  END IF;
+END $$;

@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from "vitest"
 import { runSubmitDiagnostic, type DiagnosticDeps } from "@/app/marketing/diagnostic/actions"
 import { DIAGNOSTIC_ERROR_MESSAGE } from "@/lib/email/diagnostic"
 import type { SendResult } from "@/lib/email/send"
-import { DIAGNOSTIC_RATE_LIMITED_MESSAGE, type RateLimitDecision } from "@/lib/diagnostic/rate-limit"
+import {
+  DIAGNOSTIC_RATE_LIMITED_MESSAGE,
+  DIAGNOSTIC_UNAVAILABLE_MESSAGE,
+  type RateLimitDecision,
+} from "@/lib/diagnostic/rate-limit"
 
 /**
  * Tests d'orchestration anti-abus de la Server Action diagnostic.
@@ -84,6 +88,39 @@ describe("diagnostic anti-abuse orchestration", () => {
     const res = await runSubmitDiagnostic({ ...validPayload }, deps)
     expect(res.ok).toBe(false)
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it("service de rate limit INDISPONIBLE (fail-closed) → pas d'email, message générique neutre", async () => {
+    const { deps, send } = makeDeps({
+      checkRateLimit: vi.fn(async (): Promise<RateLimitDecision> => ({ limited: true, reason: "unavailable" })),
+    })
+    const res = await runSubmitDiagnostic({ ...validPayload }, deps)
+    expect(res.ok).toBe(false)
+    expect(send).not.toHaveBeenCalled()
+    if (!res.ok) {
+      // Message spécifique "indisponible" (distinct de "trop de demandes"),
+      // sans détail technique, sans chiffre, sans mention d'IP.
+      expect(res.error).toBe(DIAGNOSTIC_UNAVAILABLE_MESSAGE)
+      expect(res.error).not.toMatch(/\d/)
+      expect(res.error.toLowerCase()).not.toContain("ip")
+      // Ce n'est PAS un dépassement de quota : le flag rateLimited reste absent/faux.
+      expect(res.rateLimited).toBeFalsy()
+    }
+  })
+
+  it("le rate limiter redevient disponible → soumission normale de nouveau possible", async () => {
+    // 1re tentative pendant l'indisponibilité : refusée, aucun email.
+    const unavailable = vi.fn(async (): Promise<RateLimitDecision> => ({ limited: true, reason: "unavailable" }))
+    const { deps, send } = makeDeps({ checkRateLimit: unavailable })
+    const first = await runSubmitDiagnostic({ ...validPayload }, deps)
+    expect(first.ok).toBe(false)
+    expect(send).not.toHaveBeenCalled()
+
+    // Le service revient : la même orchestration laisse passer et envoie l'email.
+    unavailable.mockResolvedValueOnce({ limited: false })
+    const second = await runSubmitDiagnostic({ ...validPayload }, deps)
+    expect(second).toEqual({ ok: true })
+    expect(send).toHaveBeenCalledTimes(1)
   })
 
   it("le rate limit est vérifié AVANT l'envoi et reçoit les headers", async () => {
