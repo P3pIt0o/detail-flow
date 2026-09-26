@@ -44,6 +44,15 @@ export type InsightInput = {
    * Défaut `true` (rétrocompat mono-devise).
    */
   monetaryComparable?: boolean
+  /**
+   * Les périodes courante et précédente sont-elles comparables (devise unique
+   * ET identique de part et d'autre) ? Si `false`, on N'ÉMET AUCUN insight
+   * d'ÉVOLUTION (CA, panier) : comparer une période EUR à une période CHF n'a
+   * aucun sens sans conversion FX. Les insights « intra-période » (part de CA
+   * d'une prestation, annulations, trafic) restent produits selon
+   * `monetaryComparable`. Défaut `true`.
+   */
+  periodsComparable?: boolean
 }
 
 /* Seuils minimaux (évitent les conclusions sur trop peu de données). */
@@ -73,10 +82,13 @@ export function buildBusinessInsights(input: InsightInput): AnalyseInsight[] {
   // Montants regroupables ? (une seule devise sur la période). Si non, on
   // n'émet AUCUN insight financier — additionner EUR + CHF serait faux.
   const monetaryComparable = input.monetaryComparable ?? true
+  // Périodes comparables ? (même devise de part et d'autre). Conditionne les
+  // insights d'ÉVOLUTION (CA, panier) : pas de % entre deux devises différentes.
+  const periodsComparable = input.periodsComparable ?? true
 
-  // 1) Évolution du CA facturé (±10 % minimum).
+  // 1) Évolution du CA facturé (±10 % minimum). Comparaison inter-période.
   const revChange = pctChange(input.revenue.currentCents, input.revenue.previousCents)
-  if (monetaryComparable && revChange !== null && Math.abs(revChange) >= MIN_REVENUE_CHANGE_PCT) {
+  if (monetaryComparable && periodsComparable && revChange !== null && Math.abs(revChange) >= MIN_REVENUE_CHANGE_PCT) {
     const up = revChange > 0
     out.push({
       type: up ? "positive" : "attention",
@@ -88,9 +100,15 @@ export function buildBusinessInsights(input: InsightInput): AnalyseInsight[] {
     })
   }
 
-  // 2) Panier moyen (min. 4 factures + variation ≥ 5 %).
+  // 2) Panier moyen (min. 4 factures + variation ≥ 5 %). Comparaison inter-période.
   const { currentCents, previousCents, invoiceCount } = input.averageBasket
-  if (monetaryComparable && currentCents !== null && previousCents !== null && invoiceCount >= MIN_BASKET_INVOICES) {
+  if (
+    monetaryComparable &&
+    periodsComparable &&
+    currentCents !== null &&
+    previousCents !== null &&
+    invoiceCount >= MIN_BASKET_INVOICES
+  ) {
     const basketChange = pctChange(currentCents, previousCents)
     if (basketChange !== null && Math.abs(basketChange) >= MIN_BASKET_CHANGE_PCT) {
       const up = basketChange > 0

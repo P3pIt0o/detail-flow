@@ -87,3 +87,97 @@ export function resolveCurrencyContext(input: {
 
   return { accountingCurrency, mixed, displayCurrency, presentCurrencies }
 }
+
+/**
+ * DÉCISIONS FINANCIÈRES CENTRALISÉES (fonction PURE).
+ *
+ * Plutôt que d'éparpiller des booléens dans la couche serveur et l'UI, on
+ * regroupe ICI toutes les décisions de regroupabilité multi-devises. DetailFlow
+ * ne convertit JAMAIS de change : chaque total n'est calculé que s'il porte sur
+ * une devise unique et cohérente.
+ *
+ *  - `currentComparable`       : factures de la période courante en devise unique
+ *    → CA, panier, séries, CA/prestation regroupables.
+ *  - `previousComparable`      : factures de la période précédente en devise unique.
+ *  - `periodsComparable`       : courante ET précédente regroupables ET DANS LA
+ *    MÊME devise (ou précédente vide) → évolutions CA/panier autorisées. Une
+ *    période courante EUR comparée à une précédente CHF ne produit JAMAIS de %.
+ *  - `paymentsComparable`      : paiements de la période en devise unique → total
+ *    encaissé (brut/remboursé/net) regroupable. Devise des PAIEMENTS résolue
+ *    INDÉPENDAMMENT de celle des factures (elles peuvent différer).
+ *  - `profitabilityComparable` : CA regroupable ET dans la devise comptable du
+ *    tenant. Les achats produits (`productPurchases`) ne portent pas de devise :
+ *    ils sont implicitement dans la devise comptable. On ne soustrait donc des
+ *    coûts « comptables » d'un CA que si ce CA est dans la même devise.
+ */
+export type FinancialContext = {
+  accountingCurrency: string | null
+  currentComparable: boolean
+  /** Devise d'affichage des totaux facturés (si `currentComparable`). */
+  invoiceCurrency: string | null
+  /** Devises facturées présentes sur la période courante (message UI). */
+  invoiceCurrencies: string[]
+  previousComparable: boolean
+  periodsComparable: boolean
+  paymentsComparable: boolean
+  /** Devise d'affichage des encaissements (si `paymentsComparable`). */
+  paymentsCurrency: string | null
+  /** Devises de paiement présentes sur la période (message UI). */
+  paymentCurrencies: string[]
+  profitabilityComparable: boolean
+}
+
+/**
+ * Résout le contexte financier d'une période à partir des devises présentes sur
+ * les factures (courante/précédente) et les paiements. PURE et déterministe :
+ * l'appelant serveur fournit des présences déjà scopées par tenant. `previous`
+ * ou `payments` peuvent être `null` quand le bloc correspondant n'est pas chargé.
+ */
+export function resolveFinancialContext(input: {
+  accountingCurrency: string | null | undefined
+  current: CurrencyPresence
+  previous?: CurrencyPresence | null
+  payments?: CurrencyPresence | null
+}): FinancialContext {
+  const accounting = normalizeCurrencyCode(input.accountingCurrency) || null
+  // Devise comptable EFFECTIVE pour les coûts implicites (repli EUR legacy).
+  const effectiveAccounting = accounting ?? "EUR"
+
+  const cur = resolveCurrencyContext({ accountingCurrency: accounting, presence: input.current })
+  const prev = input.previous ? resolveCurrencyContext({ accountingCurrency: accounting, presence: input.previous }) : null
+  const pay = input.payments ? resolveCurrencyContext({ accountingCurrency: accounting, presence: input.payments }) : null
+
+  const currentComparable = !cur.mixed
+  const previousComparable = prev ? !prev.mixed : false
+
+  // Une période précédente VIDE (aucun document) est neutre en devise : la
+  // comparaison reste licite (croissance depuis zéro). Sinon, il faut la MÊME
+  // devise d'affichage que la période courante.
+  const previousEmpty = prev ? prev.presentCurrencies.length === 0 : false
+  const periodsComparable =
+    currentComparable &&
+    prev !== null &&
+    previousComparable &&
+    (previousEmpty || cur.displayCurrency === prev.displayCurrency)
+
+  const invoiceCurrency = cur.displayCurrency
+  // Devise du CA pour la rentabilité : à défaut de document, on retombe sur la
+  // devise comptable effective (préserve le comportement legacy EUR).
+  const invoiceForProfit = invoiceCurrency ?? effectiveAccounting
+  const profitabilityComparable = currentComparable && invoiceForProfit === effectiveAccounting
+
+  const paymentsComparable = pay ? !pay.mixed : false
+
+  return {
+    accountingCurrency: accounting,
+    currentComparable,
+    invoiceCurrency,
+    invoiceCurrencies: cur.presentCurrencies,
+    previousComparable,
+    periodsComparable,
+    paymentsComparable,
+    paymentsCurrency: pay?.displayCurrency ?? null,
+    paymentCurrencies: pay?.presentCurrencies ?? [],
+    profitabilityComparable,
+  }
+}

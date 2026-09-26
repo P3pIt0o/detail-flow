@@ -33,7 +33,9 @@ import {
 } from "./periods"
 import {
   type CurrencyContext,
+  type FinancialContext,
   resolveCurrencyContext,
+  resolveFinancialContext,
   normalizeCurrencyCode,
 } from "./currency"
 import {
@@ -120,6 +122,39 @@ async function queryCurrencyPresence(
     else hasLegacy = true
   }
   return { explicitCodes: [...explicit], hasLegacy }
+}
+
+/**
+ * Devises RÉELLEMENT présentes dans les PAIEMENTS comptés sur la période (mêmes
+ * statuts et même fenêtre `paidAt`/`refundedAt` que `queryCollected`). La devise
+ * des paiements est résolue INDÉPENDAMMENT de celle des factures : un tenant
+ * peut facturer en EUR et encaisser en CHF. `payments.currency` est NOT NULL
+ * (défaut "EUR") → jamais de legacy ici.
+ */
+async function queryPaymentsCurrencyPresence(
+  cid: number,
+  range: DateRange,
+): Promise<{ explicitCodes: string[]; hasLegacy: boolean }> {
+  const rows = await db
+    .select({ code: payments.currency, n: count() })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.companyId, cid),
+        inArray(payments.status, [...COLLECTED_STATUSES]),
+        or(
+          sql`${payments.paidAt}::date >= ${range.start} and ${payments.paidAt}::date <= ${range.end}`,
+          sql`${payments.refundedAt}::date >= ${range.start} and ${payments.refundedAt}::date <= ${range.end}`,
+        ),
+      ),
+    )
+    .groupBy(payments.currency)
+  const explicit = new Set<string>()
+  for (const r of rows) {
+    const code = normalizeCurrencyCode(r.code)
+    if (code) explicit.add(code)
+  }
+  return { explicitCodes: [...explicit], hasLegacy: false }
 }
 
 /** CA facturé net (factures payées − avoirs) sur la période. */
@@ -367,7 +402,12 @@ async function querySiteStats(cid: number, range: DateRange) {
 /* --------------------------- Structure exposée --------------------------- */
 
 export type AnalyseEssentials = {
-  invoicedRevenueCents: number
+  /**
+   * CA facturé net. `null` quand la période courante mêle plusieurs devises
+   * (non regroupable, aucune conversion FX) — on ne calcule alors PAS le total.
+   */
+  invoicedRevenueCents: number | null
+  /** Vide si la période courante n'est pas regroupable (multi-devises). */
   revenueSeries: { bucket: string; totalCents: number }[]
   granularity: Granularity
   appointments: AppointmentCounts
@@ -375,22 +415,37 @@ export type AnalyseEssentials = {
   averageBasketCents: number | null
   paidInvoiceCount: number
   clients: ClientStats
-  collected: { grossCents: number; refundedCents: number; netCents: number }
+  /**
+   * Encaissements. `null` quand les paiements de la période mêlent plusieurs
+   * devises (total non regroupable). Devise d'affichage : `financial.paymentsCurrency`.
+   */
+  collected: { grossCents: number; refundedCents: number; netCents: number } | null
   site: { uniqueVisitors: number; pageViews: number }
 }
 
 export type AnalyseProfitability = {
-  invoicedRevenueCents: number
-  productCostsCents: number
-  resultCents: number
+  /**
+   * La rentabilité est-elle calculable ? (CA regroupable ET dans la devise
+   * comptable, car les coûts produits sont implicitement comptables). Si
+   * `false`, les montants sont `null` et l'UI affiche un message explicite.
+   */
+  comparable: boolean
+  invoicedRevenueCents: number | null
+  productCostsCents: number | null
+  resultCents: number | null
+  /** Devise d'affichage des montants de rentabilité. */
+  currencyCode: string | null
 }
 
 export type AnalyseAdvanced = {
-  revenueChange: Change
+  /** `null` quand les périodes ne sont pas comparables (devises différentes). */
+  revenueChange: Change | null
   appointmentsChange: Change
-  basketChange: Change
+  /** `null` quand les périodes ne sont pas comparables (devises différentes). */
+  basketChange: Change | null
   newClientsChange: Change
   serviceVolume: ServiceShare[]
+  /** Vide si la période courante n'est pas regroupable (multi-devises). */
   serviceRevenue: ServiceShare[]
   site: {
     uniqueVisitors: number
@@ -408,11 +463,17 @@ export type AnalyseData = {
   previous: DateRange
   granularity: Granularity
   /**
-   * Contexte devise résolu côté serveur. `displayCurrency` sert au formatage
-   * (`formatMoney`), `monetaryComparable` indique si les totaux financiers sont
-   * regroupables (une seule devise). Quand `false`, l'UI n'agrège AUCUN montant.
+   * Contexte devise des FACTURES de la période courante (compat/affichage). Le
+   * détail des décisions multi-devises vit dans `financial`.
    */
   currency: CurrencyContext
+  /**
+   * Décisions financières multi-devises CENTRALISÉES (regroupabilité courante,
+   * inter-période, paiements, rentabilité). L'UI et la couche serveur s'y
+   * réfèrent au lieu d'éparpiller des booléens. DetailFlow ne convertit jamais
+   * de change : rien n'est agrégé hors d'une devise unique et cohérente.
+   */
+  financial: FinancialContext
   essentials: AnalyseEssentials | null
   profitability: AnalyseProfitability | null
   advanced: AnalyseAdvanced | null
@@ -439,87 +500,116 @@ export async function loadAnalyseData(
   const { timeZone, accountingCurrency } = await queryTenantContext(cid)
   const { current, previous, granularity } = resolvePeriodRange(period, now, timeZone)
 
-  // Devises réellement présentes sur la période courante → regroupables ?
-  const presence = await queryCurrencyPresence(cid, current)
-  const currency = resolveCurrencyContext({ accountingCurrency, presence })
-
   const needEssentials = access.showEssentials
   const needProfit = access.showProfitability
   const needAdvanced = access.showAdvanced
 
-  // Bloc essentiels (courant).
+  // ÉTAPE 1 — Résoudre les devises AVANT toute agrégation financière : on ne
+  // calcule JAMAIS un total qui serait de toute façon invalide (§ « ne pas
+  // agréger puis masquer »). Présences peu coûteuses (comptages groupés).
+  //  - factures courantes (CA, panier, séries, CA/prestation) ;
+  //  - factures précédentes (évolutions) — uniquement si l'offre avancée ;
+  //  - paiements courants (encaissements) — uniquement si essentiels.
+  const [currentInvPresence, previousInvPresence, paymentsPresence] = await Promise.all([
+    queryCurrencyPresence(cid, current),
+    needAdvanced ? queryCurrencyPresence(cid, previous) : Promise.resolve(null),
+    needEssentials ? queryPaymentsCurrencyPresence(cid, current) : Promise.resolve(null),
+  ])
+  const currency = resolveCurrencyContext({ accountingCurrency, presence: currentInvPresence })
+  const financial = resolveFinancialContext({
+    accountingCurrency,
+    current: currentInvPresence,
+    previous: previousInvPresence,
+    payments: paymentsPresence,
+  })
+
+  // ÉTAPE 2 — Agrégations, GATÉES par le contexte devise résolu ci-dessus.
+
+  // Bloc essentiels (courant). Non financier toujours ; financier facturé
+  // seulement si regroupable ; encaissements seulement si paiements regroupables.
   const essentialsPromise: Promise<AnalyseEssentials | null> = needEssentials
     ? (async () => {
-        const [invoicedRevenueCents, revenueSeries, paidAgg, appts, clientRows, collected, site] =
-          await Promise.all([
-            queryInvoicedRevenueCents(cid, current),
-            queryRevenueSeries(cid, current, granularity),
-            queryPaidInvoiceAggregate(cid, current),
-            queryAppointmentCounts(cid, current),
-            queryClientHistory(cid, current.end),
-            queryCollected(cid, current),
-            querySiteStats(cid, current),
-          ])
-        const clients = classifyClients(clientRows, current)
+        const [appts, clientRows, site, revBundle, collected] = await Promise.all([
+          queryAppointmentCounts(cid, current),
+          queryClientHistory(cid, current.end),
+          querySiteStats(cid, current),
+          financial.currentComparable
+            ? Promise.all([
+                queryInvoicedRevenueCents(cid, current),
+                queryRevenueSeries(cid, current, granularity),
+                queryPaidInvoiceAggregate(cid, current),
+              ])
+            : Promise.resolve(null),
+          financial.paymentsComparable ? queryCollected(cid, current) : Promise.resolve(null),
+        ])
+        const paidAgg = revBundle ? revBundle[2] : { totalCents: 0, count: 0 }
         return {
-          invoicedRevenueCents,
-          revenueSeries,
+          invoicedRevenueCents: revBundle ? revBundle[0] : null,
+          revenueSeries: revBundle ? revBundle[1] : [],
           granularity,
           appointments: appts,
           appointmentsTotal: appointmentsTotal(appts),
-          averageBasketCents: averageBasketCents({
-            paidInvoiceTotalCents: paidAgg.totalCents,
-            paidInvoiceCount: paidAgg.count,
-          }),
+          averageBasketCents: revBundle
+            ? averageBasketCents({ paidInvoiceTotalCents: paidAgg.totalCents, paidInvoiceCount: paidAgg.count })
+            : null,
           paidInvoiceCount: paidAgg.count,
-          clients,
-          collected: { grossCents: collected.grossCents, refundedCents: collected.refundedCents, netCents: collected.netCents },
+          clients: classifyClients(clientRows, current),
+          collected: collected
+            ? { grossCents: collected.grossCents, refundedCents: collected.refundedCents, netCents: collected.netCents }
+            : null,
           site: { uniqueVisitors: site.uniqueVisitors, pageViews: site.pageViews },
         }
       })()
     : Promise.resolve(null)
 
-  // Bloc rentabilité (courant). CA recalculé indépendamment (peut être affiché
-  // sans les essentiels via un override profitability seul).
+  // Bloc rentabilité (courant). Calculé UNIQUEMENT si le CA est regroupable ET
+  // dans la devise comptable (les coûts produits sont implicitement comptables).
+  // Sinon : objet présent mais non comparable → l'UI affiche un message.
   const profitPromise: Promise<AnalyseProfitability | null> = needProfit
     ? (async () => {
+        const currencyCode = financial.invoiceCurrency ?? financial.accountingCurrency
+        if (!financial.profitabilityComparable) {
+          return { comparable: false, invoicedRevenueCents: null, productCostsCents: null, resultCents: null, currencyCode }
+        }
         const [invoicedRevenueCents, productCostsCents] = await Promise.all([
           queryInvoicedRevenueCents(cid, current),
           queryProductCostsCents(cid, current),
         ])
         return {
+          comparable: true,
           invoicedRevenueCents,
           productCostsCents,
           resultCents: estimatedResultCents(invoicedRevenueCents, productCostsCents),
+          currencyCode,
         }
       })()
     : Promise.resolve(null)
 
   // Bloc avancé : comparaisons vs période précédente + prestations + conversion.
+  // Le CA/panier précédents ne sont lus QUE si les périodes sont comparables
+  // (même devise) ; le CA par prestation QUE si la période courante est regroupable.
   const advancedPromise: Promise<{
-    prevRevenue: number
+    prevBundle: [number, { totalCents: number; count: number }] | null
     prevAppts: AppointmentCounts
-    prevPaid: { totalCents: number; count: number }
     prevClients: ClientStats
     serviceVolume: ServiceShare[]
     serviceRevenue: ServiceShare[]
     siteFull: Awaited<ReturnType<typeof querySiteStats>>
   } | null> = needAdvanced
     ? (async () => {
-        const [prevRevenue, prevAppts, prevPaid, prevClientRows, serviceVolume, serviceRevenue, siteFull] =
-          await Promise.all([
-            queryInvoicedRevenueCents(cid, previous),
-            queryAppointmentCounts(cid, previous),
-            queryPaidInvoiceAggregate(cid, previous),
-            queryClientHistory(cid, previous.end),
-            queryServiceVolume(cid, current),
-            queryServiceRevenue(cid, current),
-            querySiteStats(cid, current),
-          ])
+        const [prevBundle, prevAppts, prevClientRows, serviceVolume, serviceRevenue, siteFull] = await Promise.all([
+          financial.periodsComparable
+            ? Promise.all([queryInvoicedRevenueCents(cid, previous), queryPaidInvoiceAggregate(cid, previous)])
+            : Promise.resolve(null),
+          queryAppointmentCounts(cid, previous),
+          queryClientHistory(cid, previous.end),
+          queryServiceVolume(cid, current),
+          financial.currentComparable ? queryServiceRevenue(cid, current) : Promise.resolve([] as ServiceShare[]),
+          querySiteStats(cid, current),
+        ])
         return {
-          prevRevenue,
+          prevBundle,
           prevAppts,
-          prevPaid,
           prevClients: classifyClients(prevClientRows, previous),
           serviceVolume,
           serviceRevenue,
@@ -536,19 +626,33 @@ export async function loadAnalyseData(
 
   let advanced: AnalyseAdvanced | null = null
   if (advancedRaw && essentials) {
-    const prevBasket = averageBasketCents({
-      paidInvoiceTotalCents: advancedRaw.prevPaid.totalCents,
-      paidInvoiceCount: advancedRaw.prevPaid.count,
-    })
+    const prevRevenue = advancedRaw.prevBundle ? advancedRaw.prevBundle[0] : null
+    const prevPaid = advancedRaw.prevBundle ? advancedRaw.prevBundle[1] : null
+    const prevBasket = prevPaid
+      ? averageBasketCents({ paidInvoiceTotalCents: prevPaid.totalCents, paidInvoiceCount: prevPaid.count })
+      : null
     const topVolume = advancedRaw.serviceVolume[0] ?? null
     const totalServiceRevenue = advancedRaw.serviceRevenue.reduce((s, x) => s + x.value, 0)
     const topRevenue = advancedRaw.serviceRevenue[0] ?? null
+
+    // Évolutions financières : UNIQUEMENT si les périodes sont comparables
+    // (même devise). Jamais de % entre EUR et CHF (aucune conversion FX).
+    const revenueChange =
+      financial.periodsComparable && essentials.invoicedRevenueCents !== null && prevRevenue !== null
+        ? computeChange(essentials.invoicedRevenueCents, prevRevenue)
+        : null
+    const basketChange =
+      financial.periodsComparable && essentials.averageBasketCents !== null && prevBasket !== null
+        ? computeChange(essentials.averageBasketCents, prevBasket)
+        : null
+
     const insights = buildBusinessInsights({
       // Devise résolue + regroupabilité : aucun insight financier n'est émis en
-      // multi-devises (pas de conversion FX), et aucun € codé en dur.
-      currencyCode: currency.displayCurrency,
-      monetaryComparable: !currency.mixed,
-      revenue: { currentCents: essentials.invoicedRevenueCents, previousCents: advancedRaw.prevRevenue },
+      // multi-devises, aucune évolution entre devises différentes, aucun € codé en dur.
+      currencyCode: financial.invoiceCurrency,
+      monetaryComparable: financial.currentComparable,
+      periodsComparable: financial.periodsComparable,
+      revenue: { currentCents: essentials.invoicedRevenueCents ?? 0, previousCents: prevRevenue ?? 0 },
       averageBasket: {
         currentCents: essentials.averageBasketCents,
         previousCents: prevBasket,
@@ -565,9 +669,9 @@ export async function loadAnalyseData(
       site: { uniqueVisitors: essentials.site.uniqueVisitors, bookingsCompleted: advancedRaw.siteFull.bookingsCompleted },
     })
     advanced = {
-      revenueChange: computeChange(essentials.invoicedRevenueCents, advancedRaw.prevRevenue),
+      revenueChange,
       appointmentsChange: computeChange(essentials.appointmentsTotal, appointmentsTotal(advancedRaw.prevAppts)),
-      basketChange: computeChange(essentials.averageBasketCents ?? 0, prevBasket ?? 0),
+      basketChange,
       newClientsChange: computeChange(essentials.clients.newClients, advancedRaw.prevClients.newClients),
       serviceVolume: advancedRaw.serviceVolume,
       serviceRevenue: advancedRaw.serviceRevenue,
@@ -582,7 +686,7 @@ export async function loadAnalyseData(
     }
   }
 
-  return { period, current, previous, granularity, currency, essentials, profitability, advanced }
+  return { period, current, previous, granularity, currency, financial, essentials, profitability, advanced }
 }
 
 /** Variante « contexte » : résout le companyId côté serveur si non fourni. */

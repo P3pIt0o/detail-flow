@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { businessToday, resolvePeriodRange } from "@/lib/analytics/periods"
-import { resolveCurrencyContext, normalizeCurrencyCode } from "@/lib/analytics/currency"
+import { resolveCurrencyContext, resolveFinancialContext, normalizeCurrencyCode } from "@/lib/analytics/currency"
 import { classifyClients } from "@/lib/analytics/metrics"
 import { buildBusinessInsights } from "@/lib/analytics/insights"
+
+const single = (code: string) => ({ explicitCodes: [code], hasLegacy: false })
+const empty = { explicitCodes: [] as string[], hasLegacy: false }
 
 /**
  * PATCH DE FIABILISATION — Module Analyse.
@@ -92,6 +95,199 @@ describe("devise — résolution du contexte (aucune conversion FX)", () => {
     expect(normalizeCurrencyCode(" chf ")).toBe("CHF")
     expect(normalizeCurrencyCode(null)).toBe("")
     expect(normalizeCurrencyCode("")).toBe("")
+  })
+})
+
+describe("contexte financier — comparaison current/previous (aucune conversion FX)", () => {
+  it("current EUR + previous EUR → périodes comparables", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      previous: single("EUR"),
+    })
+    expect(fin.currentComparable).toBe(true)
+    expect(fin.previousComparable).toBe(true)
+    expect(fin.periodsComparable).toBe(true)
+  })
+
+  it("current CHF + previous CHF → périodes comparables", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "CHF",
+      current: single("CHF"),
+      previous: single("CHF"),
+    })
+    expect(fin.periodsComparable).toBe(true)
+  })
+
+  it("current EUR + previous CHF → comparaison financière INTERDITE", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      previous: single("CHF"),
+    })
+    expect(fin.currentComparable).toBe(true)
+    expect(fin.previousComparable).toBe(true)
+    // Devises différentes de part et d'autre → aucune évolution possible.
+    expect(fin.periodsComparable).toBe(false)
+  })
+
+  it("current mixed → comparaison interdite (et courant non regroupable)", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: { explicitCodes: ["EUR", "CHF"], hasLegacy: false },
+      previous: single("EUR"),
+    })
+    expect(fin.currentComparable).toBe(false)
+    expect(fin.periodsComparable).toBe(false)
+  })
+
+  it("previous mixed → comparaison interdite", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      previous: { explicitCodes: ["EUR", "CHF"], hasLegacy: false },
+    })
+    expect(fin.currentComparable).toBe(true)
+    expect(fin.previousComparable).toBe(false)
+    expect(fin.periodsComparable).toBe(false)
+  })
+
+  it("previous vide (aucun document) → comparaison autorisée (croissance depuis zéro)", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      previous: empty,
+    })
+    expect(fin.periodsComparable).toBe(true)
+  })
+
+  it("previous non chargé (offre non avancée) → aucune comparaison", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: "EUR", current: single("EUR"), previous: null })
+    expect(fin.periodsComparable).toBe(false)
+  })
+})
+
+describe("contexte financier — paiements multi-devises (indépendants des factures)", () => {
+  it("paiements EUR seul → total autorisé, devise EUR", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      payments: single("EUR"),
+    })
+    expect(fin.paymentsComparable).toBe(true)
+    expect(fin.paymentsCurrency).toBe("EUR")
+  })
+
+  it("paiements CHF seul → total autorisé, devise CHF", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "CHF",
+      current: single("CHF"),
+      payments: single("CHF"),
+    })
+    expect(fin.paymentsComparable).toBe(true)
+    expect(fin.paymentsCurrency).toBe("CHF")
+  })
+
+  it("paiements EUR + CHF → aucun total encaissé combiné", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      payments: { explicitCodes: ["EUR", "CHF"], hasLegacy: false },
+    })
+    expect(fin.paymentsComparable).toBe(false)
+    expect(fin.paymentsCurrency).toBeNull()
+    expect(fin.paymentCurrencies).toEqual(["CHF", "EUR"])
+  })
+
+  it("factures EUR mais paiements CHF → CA regroupable, encaissements regroupables séparément", () => {
+    // Les devises FACTURES et PAIEMENTS sont indépendantes.
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: single("EUR"),
+      payments: single("CHF"),
+    })
+    expect(fin.invoiceCurrency).toBe("EUR")
+    expect(fin.paymentsComparable).toBe(true)
+    expect(fin.paymentsCurrency).toBe("CHF")
+  })
+
+  it("paiements non chargés → non regroupables (rien à afficher)", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: "EUR", current: single("EUR"), payments: null })
+    expect(fin.paymentsComparable).toBe(false)
+  })
+})
+
+describe("contexte financier — rentabilité (CA vs devise comptable des coûts)", () => {
+  it("comptable EUR + CA EUR → rentabilité calculable", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: "EUR", current: single("EUR") })
+    expect(fin.profitabilityComparable).toBe(true)
+  })
+
+  it("comptable CHF + CA CHF → rentabilité calculable", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: "CHF", current: single("CHF") })
+    expect(fin.profitabilityComparable).toBe(true)
+  })
+
+  it("comptable EUR + CA CHF → PAS de rentabilité (coûts implicitement EUR)", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: "EUR", current: single("CHF") })
+    expect(fin.profitabilityComparable).toBe(false)
+  })
+
+  it("legacy EUR (comptable non confirmée) → comportement legacy préservé", () => {
+    // accountingCurrency null + documents legacy → repli EUR de part et d'autre.
+    const fin = resolveFinancialContext({
+      accountingCurrency: null,
+      current: { explicitCodes: [], hasLegacy: true },
+    })
+    expect(fin.invoiceCurrency).toBe("EUR")
+    expect(fin.profitabilityComparable).toBe(true)
+  })
+
+  it("comptable null + CA CHF explicite → coûts implicitement EUR → PAS de rentabilité", () => {
+    const fin = resolveFinancialContext({ accountingCurrency: null, current: single("CHF") })
+    expect(fin.profitabilityComparable).toBe(false)
+  })
+
+  it("current mixed → jamais de rentabilité", () => {
+    const fin = resolveFinancialContext({
+      accountingCurrency: "EUR",
+      current: { explicitCodes: ["EUR", "CHF"], hasLegacy: false },
+    })
+    expect(fin.profitabilityComparable).toBe(false)
+  })
+})
+
+describe("insights — évolution bloquée entre devises différentes", () => {
+  const base = {
+    revenue: { currentCents: 500000, previousCents: 250000 },
+    averageBasket: { currentCents: 8000, previousCents: 5000, invoiceCount: 12 },
+    appointments: { scheduled: 40, cancelled: 2 },
+    topServiceByVolume: { name: "Lavage", count: 20 },
+    topServiceByRevenue: { name: "Lavage", revenueCents: 300000, totalRevenueCents: 500000 },
+    site: { uniqueVisitors: 100, bookingsCompleted: 10 },
+  }
+
+  it("periodsComparable=false → aucun insight d'évolution CA/panier", () => {
+    const insights = buildBusinessInsights({
+      ...base,
+      currencyCode: "EUR",
+      monetaryComparable: true,
+      periodsComparable: false,
+    })
+    expect(insights.some((i) => i.metric === "revenue")).toBe(false)
+    expect(insights.some((i) => i.metric === "average_basket")).toBe(false)
+    // La part de CA d'une prestation (intra-période) reste possible.
+    expect(insights.some((i) => i.metric === "top_service_revenue")).toBe(true)
+  })
+
+  it("periodsComparable=true → évolution CA émise", () => {
+    const insights = buildBusinessInsights({
+      ...base,
+      currencyCode: "EUR",
+      monetaryComparable: true,
+      periodsComparable: true,
+    })
+    expect(insights.some((i) => i.metric === "revenue")).toBe(true)
   })
 })
 
