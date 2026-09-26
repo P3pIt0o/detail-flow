@@ -29,6 +29,7 @@ export type AdminNavIcon =
   | "clients"
   | "prestations"
   | "produits"
+  | "analyse"
   | "reservationLink"
   | "web"
   | "settings"
@@ -81,6 +82,7 @@ export function buildAdminNav(opts: {
     { href: "/admin/clients", label: "Clients", icon: "clients" },
     { href: "/admin/prestations", label: "Prestations", icon: "prestations" },
     { href: "/admin/produits", label: "Produits", icon: "produits" },
+    { href: "/admin/analyse", label: "Analyse", icon: "analyse" },
     webNavItem(opts.intent),
     { href: "/admin/parametres", label: "Paramètres", icon: "settings" },
   ]
@@ -125,6 +127,7 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/prestations": "gestion",
   "/admin/produits": "gestion",
   "/admin/factures": "gestion",
+  "/admin/analyse": "gestion",
   "/admin/parametres": "reglages",
 }
 
