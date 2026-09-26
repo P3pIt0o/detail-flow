@@ -5,101 +5,26 @@ import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-o
 import { requireCompanyId } from "@/lib/tenant"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
+import {
+  netRevenueSumExpr,
+  revenuePeriodDateExpr,
+  revenueDocumentFilter,
+  excludeCancelledOrDeletedBooking,
+} from "@/lib/finance/revenue-sql"
 
 /**
  * Lectures du dashboard administrateur — ISOLÉES PAR ENTREPRISE.
  * Chaque fonction accepte un `companyId` optionnel (résolu depuis le contexte
  * sinon). Toutes les requêtes filtrent sur `bookings.companyId`.
+ *
+ * Les expressions SQL du CA facturé (net des avoirs, exclusion des réservations
+ * annulées, date d'affectation) sont désormais centralisées dans
+ * `lib/finance/revenue-sql.ts` — UNE seule définition partagée avec le module
+ * Analyse. Le comportement du tableau de bord est strictement inchangé.
  */
 
 /** Statuts considérés comme "actifs" (comptent dans le CA / planning). */
 const REVENUE_STATUSES = ["confirmed", "completed"]
-
-/**
- * CA NET : une facture payée compte en positif, un avoir ÉMIS (ou payé/
- * remboursé) compte en NÉGATIF. Les brouillons d'avoir (status 'draft') n'ont
- * aucun impact. Montants stockés positifs ; le signe est appliqué au calcul.
- */
-const netRevenueSumExpr = sql<string>`sum(case when ${invoices.documentType} = 'credit_note' then -${invoices.totalCents} else ${invoices.totalCents} end)`
-
-/**
- * Sous-requête : un avoir n'est déductible du CA net que si sa facture d'ORIGINE
- * entrait elle-même dans le CA payé — c'est-à-dire une facture 'paid', du même
- * tenant, dont la réservation liée n'a pas été annulée/supprimée. On ne déduit
- * donc jamais un avoir rattaché à une facture qui n'a jamais compté (ex. facture
- * annulée puis créditée). Scopée companyId : isolation multi-tenant préservée.
- */
-function creditNoteOriginalCountedInRevenue(companyId: number) {
-  return sql`exists (
-    select 1 from ${invoices} orig
-    where orig.id = ${invoices.originalInvoiceId}
-      and orig."companyId" = ${companyId}
-      and orig."documentType" = 'invoice'
-      and orig.status = 'paid'
-      and (
-        orig."bookingId" is null
-        or exists (
-          select 1 from ${bookings} b
-          where b.id = orig."bookingId"
-            and b."companyId" = ${companyId}
-            and b.status <> 'cancelled'
-        )
-      )
-  )`
-}
-
-/**
- * Documents entrant dans le CA net :
- *  - factures 'paid' (positif) ;
- *  - avoirs 'issued'/'paid' (négatif) UNIQUEMENT si leur facture d'origine
- *    comptait dans le CA payé.
- */
-function revenueDocumentFilter(companyId: number) {
-  return sql`(
-    (${invoices.documentType} = 'invoice' and ${invoices.status} = 'paid')
-    or (
-      ${invoices.documentType} = 'credit_note'
-      and ${invoices.status} in ('issued', 'paid')
-      and ${creditNoteOriginalCountedInRevenue(companyId)}
-    )
-  )`
-}
-
-/**
- * Date retenue pour l'affectation mensuelle :
- *  - facture : date de prestation, sinon émission, sinon création ;
- *  - AVOIR   : sa propre date d'ÉMISSION (issueDate), sinon création. Un avoir
- *    n'a pas de date de prestation ; sa déduction tombe le mois où il est émis.
- */
-const revenuePeriodDateExpr = sql`(
-  case when ${invoices.documentType} = 'credit_note'
-    then coalesce(${invoices.issueDate}, ${invoices.createdAt}::date)
-    else coalesce(${invoices.serviceDate}, ${invoices.issueDate}, ${invoices.createdAt}::date)
-  end
-)`
-
-/**
- * Filtre CA : exclut une facture PAYÉE dès lors qu'elle est rattachée à une
- * réservation (invoices.bookingId non nul) qui a été soit ANNULÉE
- * (status = 'cancelled'), soit SUPPRIMÉE (la réservation n'existe plus).
- *
- * Les factures sans réservation liée (bookingId NULL — factures créées à la
- * main) continuent de compter normalement. La sous-requête est scopée par
- * companyId : l'isolation multi-tenant est préservée (aucune donnée d'un autre
- * tenant n'entre dans le calcul). Ne modifie AUCUNE facture, uniquement la
- * lecture du CA.
- */
-function excludeCancelledOrDeletedBooking(companyId: number) {
-  return sql`(
-    ${invoices.bookingId} is null
-    or exists (
-      select 1 from ${bookings} b
-      where b.id = ${invoices.bookingId}
-        and b."companyId" = ${companyId}
-        and b.status <> 'cancelled'
-    )
-  )`
-}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)

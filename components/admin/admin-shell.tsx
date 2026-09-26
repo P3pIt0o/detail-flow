@@ -28,6 +28,7 @@ import {
   PanelLeftOpen,
   MoreHorizontal,
   ExternalLink,
+  BarChart3,
 } from "lucide-react"
 
 // Clé d'icône (pure, définie dans lib/admin/nav) → composant lucide.
@@ -40,6 +41,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   clients: Users,
   prestations: Sparkles,
   produits: Package,
+  analyse: BarChart3,
   reservationLink: CalendarCheck,
   web: Globe,
   settings: Settings,
