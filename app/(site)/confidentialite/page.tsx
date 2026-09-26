@@ -40,7 +40,7 @@ export default async function ConfidentialitePage() {
   }
 
   // Vitrine racine (aucun tenant) : politique de confidentialité CANONIQUE de
-  // DetailFlow (LPD suisse + RGPD), alimentée par `config/legal.ts`.
+  // DetailFlow (RGPD), alimentée par `config/legal.ts`.
   const tenant = await getCurrentTenant()
   if (!tenant) return <ConfidentialiteContent />
 

@@ -4,7 +4,7 @@ import { ConfidentialiteContent } from "@/components/legal/confidentialite-conte
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
   description:
-    "Politique de confidentialité de DetailFlow : données traitées, finalités, prestataires, durées de conservation et vos droits (LPD / RGPD).",
+    "Politique de confidentialité de DetailFlow : données traitées, finalités, prestataires, durées de conservation et vos droits (RGPD).",
   alternates: { canonical: "/confidentialite" },
   robots: { index: false, follow: true },
 }

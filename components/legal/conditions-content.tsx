@@ -191,8 +191,8 @@ export function ConditionsContent() {
 
         <h2>18. Droit applicable et for</h2>
         <p>
-          Les présentes conditions sont régies par le droit suisse. Sous réserve des dispositions impératives
-          applicables, tout litige relève des tribunaux compétents du siège de l&apos;exploitant, à Genève. Une
+          Les présentes conditions sont régies par le droit français. Sous réserve des dispositions impératives
+          applicables, tout litige relève des tribunaux compétents du ressort du siège de l&apos;exploitant. Une
           solution amiable sera recherchée avant toute action contentieuse.
         </p>
       </LegalContent>

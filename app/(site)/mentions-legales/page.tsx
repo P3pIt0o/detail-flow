@@ -46,7 +46,7 @@ export default async function MentionsLegalesPage() {
   const tenant = await getCurrentTenant()
 
   // Vitrine racine (aucun tenant) : mentions légales CANONIQUES de DetailFlow
-  // (entreprise individuelle, Genève), alimentées par `config/legal.ts`.
+  // (entreprise individuelle, France), alimentées par `config/legal.ts`.
   if (!tenant) return <MentionsLegalesContent />
 
   const contact = await getPublicContact()

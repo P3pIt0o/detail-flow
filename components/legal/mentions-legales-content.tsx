@@ -3,10 +3,10 @@ import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 
 /**
- * MENTIONS LÉGALES — DetailFlow (exploitant : entreprise individuelle, Genève).
+ * MENTIONS LÉGALES — DetailFlow (exploitant : entreprise individuelle, France).
  *
  * Contenu CANONIQUE, alimenté uniquement par `config/legal.ts`. Les lignes dont
- * l'information n'est pas encore connue (nom légal du titulaire, IDE, TVA) sont
+ * l'information n'est pas encore connue (nom légal du titulaire, TVA) sont
  * masquées tant que la donnée est `null` — jamais de placeholder public.
  */
 export function MentionsLegalesContent() {
@@ -37,16 +37,16 @@ export function MentionsLegalesContent() {
           <a href={legalConfig.website} target="_blank" rel="noopener noreferrer">
             {legalConfig.websiteLabel}
           </a>
-          {legalConfig.ideNumber && (
-            <>
-              <br />
-              IDE / UID : {legalConfig.ideNumber}
-            </>
-          )}
+          <br />
+          SIREN : {legalConfig.siren}
+          <br />
+          SIRET : {legalConfig.siret}
+          <br />
+          {legalConfig.rcs}
           {legalConfig.vatNumber && (
             <>
               <br />
-              N° TVA : {legalConfig.vatNumber}
+              N° TVA intracommunautaire : {legalConfig.vatNumber}
             </>
           )}
         </p>
@@ -122,7 +122,7 @@ export function MentionsLegalesContent() {
 
         <h2>Droit applicable</h2>
         <p>
-          Sauf disposition légale impérative contraire, les présentes mentions sont régies par le droit suisse. Les
+          Sauf disposition légale impérative contraire, les présentes mentions sont régies par le droit français. Les
           rapports contractuels avec les utilisateurs professionnels sont précisés dans les{" "}
           <a href="/conditions">conditions générales</a>.
         </p>

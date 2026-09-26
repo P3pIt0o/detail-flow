@@ -5,9 +5,9 @@ import { LegalContent } from "@/components/layout/legal-content"
 /**
  * POLITIQUE DE CONFIDENTIALITÉ — DetailFlow.
  *
- * Rédigée d'abord selon la LPD suisse (exploitant à Genève), avec prise en
- * compte du RGPD lorsque la réglementation européenne est applicable. Les
- * prestataires listés proviennent de l'audit réel (`DATA_PROCESSORS`).
+ * Rédigée selon le RGPD et la loi Informatique et Libertés (exploitant en
+ * France). Les prestataires listés proviennent de l'audit réel
+ * (`DATA_PROCESSORS`).
  */
 export function ConfidentialiteContent() {
   return (
@@ -20,9 +20,9 @@ export function ConfidentialiteContent() {
       <LegalContent>
         <p>
           La présente politique explique comment {legalConfig.brandName} traite les données personnelles. Elle est
-          établie conformément à la loi fédérale suisse sur la protection des données (LPD). Lorsque la réglementation
-          européenne sur la protection des données (RGPD) est applicable, elle est prise en compte pour les personnes
-          concernées situées dans l&apos;Union européenne / l&apos;EEE.
+          établie conformément au Règlement général sur la protection des données (RGPD) et à la loi française
+          Informatique et Libertés. Elle s&apos;applique aux personnes concernées, notamment celles situées dans
+          l&apos;Union européenne / l&apos;EEE.
         </p>
 
         <h2>1. Responsable du traitement</h2>
@@ -125,11 +125,12 @@ export function ConfidentialiteContent() {
 
         <h2>8. Hébergement et transferts</h2>
         <p>
-          L&apos;hébergement principal est assuré par {legalConfig.host.name} en Suisse. Certains prestataires
-          ci-dessus peuvent toutefois traiter des données en dehors de la Suisse, y compris dans l&apos;Union
-          européenne ou hors UE/EEE. Lorsqu&apos;un transfert vers un pays tiers a lieu, il est encadré par des
-          garanties appropriées prévues par la réglementation applicable (clauses contractuelles types, décisions
-          d&apos;adéquation ou mécanismes équivalents), selon les modalités propres à chaque prestataire.
+          L&apos;hébergement principal est assuré par {legalConfig.host.name} en Suisse, pays reconnu comme offrant un
+          niveau de protection adéquat par une décision d&apos;adéquation de la Commission européenne. Certains
+          prestataires ci-dessus peuvent toutefois traiter des données en dehors de l&apos;Union européenne / l&apos;EEE.
+          Lorsqu&apos;un transfert vers un pays tiers a lieu, il est encadré par des garanties appropriées prévues par le
+          RGPD (clauses contractuelles types, décisions d&apos;adéquation ou mécanismes équivalents), selon les modalités
+          propres à chaque prestataire.
         </p>
 
         <h2>9. Durées de conservation</h2>
@@ -164,6 +165,11 @@ export function ConfidentialiteContent() {
           </a>
           . Lorsque vos données sont traitées par un professionnel utilisateur (ses propres clients), adressez-vous
           d&apos;abord à ce professionnel, responsable du traitement.
+        </p>
+        <p>
+          Vous disposez également du droit d&apos;introduire une réclamation auprès de la Commission nationale de
+          l&apos;informatique et des libertés (CNIL), autorité de contrôle française, ou de l&apos;autorité compétente
+          de votre lieu de résidence.
         </p>
 
         <h2>11. Cookies et traceurs</h2>
