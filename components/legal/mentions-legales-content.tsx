@@ -21,9 +21,10 @@ export function MentionsLegalesContent() {
         <h2>Éditeur du service</h2>
         <p>
           Le service <strong>{legalConfig.brandName}</strong> est édité et exploité par{" "}
-          <strong>{legalEditorName}</strong>, {legalConfig.legalForm.toLowerCase()}.
+          <strong>{legalEditorName}</strong>,{" "}
+          {legalConfig.legalForm.charAt(0).toLowerCase() + legalConfig.legalForm.slice(1)}.
           <br />
-          {legalConfig.legalBusinessName && (
+          {legalConfig.legalBusinessName && legalConfig.legalBusinessName !== legalEditorName && (
             <>
               Titulaire : {legalConfig.legalBusinessName}
               <br />
@@ -73,7 +74,17 @@ export function MentionsLegalesContent() {
 
         <h2>Hébergement</h2>
         <p>
-          Le service est hébergé par <strong>{legalConfig.host.name}</strong>
+          L&apos;application est hébergée, exécutée et diffusée par <strong>{legalConfig.appHost.name}</strong>{" "}
+          (déploiement, fonctions serveur et réseau de diffusion).
+          <br />
+          {legalConfig.appHost.address}
+          <br />
+          <a href={legalConfig.appHost.website} target="_blank" rel="noopener noreferrer">
+            {legalConfig.appHost.websiteLabel}
+          </a>
+        </p>
+        <p>
+          Le nom de domaine et la messagerie électronique sont fournis par <strong>{legalConfig.host.name}</strong>.
           <br />
           {legalConfig.host.address}
           <br />

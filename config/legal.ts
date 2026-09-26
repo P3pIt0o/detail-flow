@@ -18,11 +18,12 @@
  *  constituent pas un conseil juridique et devraient être relus par un
  *  professionnel du droit avant un usage contentieux.
  *
- *  DONNÉES MANQUANTES : certaines informations légales ne sont pas encore
- *  connues (nom légal exact du titulaire, TVA intracommunautaire). Elles sont
- *  marquées `null` ci-dessous et listées dans `LEGAL_MISSING_INFO`. Ne JAMAIS
- *  inventer ces valeurs : tant qu'elles sont `null`, les pages légales masquent
- *  proprement la ligne concernée (aucun « [À compléter] » affiché publiquement).
+ *  IDENTITÉ LÉGALE : l'exploitant est Clément Roig, entrepreneur individuel (EI).
+ *  Il est également responsable de la publication. La seule donnée encore
+ *  inconnue est le numéro de TVA intracommunautaire (marqué `null`, listé dans
+ *  `LEGAL_MISSING_INFO`). Ne JAMAIS inventer une valeur `null` : tant qu'elle
+ *  l'est, les pages légales masquent proprement la ligne concernée (aucun
+ *  « [À compléter] » affiché publiquement).
  * ============================================================================
  */
 
@@ -53,13 +54,12 @@ export const legalConfig = {
 
   /* --- Exploitant (entreprise individuelle, droit français) ------------- */
   /**
-   * Nom légal exact du titulaire de l'entreprise individuelle (nom + prénom de
-   * l'entrepreneur individuel). `null` tant qu'il n'est pas fourni → NE PAS
-   * INVENTER (cf. LEGAL_MISSING_INFO).
+   * Nom légal du titulaire de l'entreprise individuelle (nom + prénom de
+   * l'entrepreneur individuel).
    */
-  legalBusinessName: null as string | null,
+  legalBusinessName: "Clément Roig" as string | null,
   /** Forme juridique. */
-  legalForm: "Entreprise individuelle (droit français)",
+  legalForm: "Entrepreneur individuel (EI)",
   /** Numéro SIREN. */
   siren: "931 535 587",
   /** Numéro SIRET (établissement). */
@@ -68,11 +68,8 @@ export const legalConfig = {
   rcs: "RCS Bourg-en-Bresse",
   /** Numéro de TVA intracommunautaire, si l'exploitant y est assujetti. `null` tant qu'inconnu. */
   vatNumber: null as string | null,
-  /**
-   * Responsable de la publication. `null` → repli sur le nom légal du titulaire
-   * lorsqu'il sera renseigné. NE PAS INVENTER un nom.
-   */
-  publicationDirector: null as string | null,
+  /** Responsable de la publication (le titulaire de l'entreprise individuelle). */
+  publicationDirector: "Clément Roig" as string | null,
   /** Adresse de l'exploitant (structurée + ligne formatée). */
   address: OPERATOR_ADDRESS,
   addressLine: OPERATOR_ADDRESS_LINE,
@@ -104,10 +101,32 @@ export const legalConfig = {
 
   /* --- Hébergement ------------------------------------------------------ */
   /**
-   * Hébergeur réel (coordonnées suisses factuelles d'Infomaniak — inchangées).
+   * Hébergeur applicatif RÉEL. L'application `detailflow.fr` (Next.js) est
+   * déployée, exécutée et diffusée par Vercel (build, fonctions serverless,
+   * réseau de diffusion). C'est l'hébergeur au sens des mentions légales.
+   *
+   * ⚠️ L'adresse postale de Vercel doit être confirmée par l'exploitant avant
+   * usage contentieux (cf. LEGAL_MISSING_INFO).
+   */
+  appHost: {
+    name: "Vercel Inc.",
+    role: "Hébergement et diffusion de l'application",
+    address: "340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis",
+    website: "https://vercel.com",
+    websiteLabel: "vercel.com",
+  },
+  /**
+   * Infomaniak : prestataire d'infrastructure de l'exploitant pour le NOM DE
+   * DOMAINE et la MESSAGERIE électronique (adresse contact@detailflow.fr).
+   * Coordonnées suisses factuelles inchangées. Ce n'est PAS l'hébergeur de
+   * l'application (celle-ci est servie par Vercel).
+   *
+   * ⚠️ Le périmètre exact des services Infomaniak est à confirmer par
+   * l'exploitant (cf. LEGAL_MISSING_INFO).
    */
   host: {
     name: "Infomaniak Network SA",
+    role: "Nom de domaine et messagerie électronique",
     address: "Rue Eugène-Marziano 25, 1227 Les Acacias (GE), Suisse",
     ide: "CHE-103.167.648",
     website: "https://www.infomaniak.com",
@@ -130,16 +149,16 @@ export const legalConfig = {
  */
 export const DATA_PROCESSORS = [
   {
-    name: "Infomaniak Network SA",
-    purpose: "Hébergement et infrastructure",
-    location: "Suisse (décision d'adéquation)",
-    crossBorder: false,
-  },
-  {
     name: "Vercel Inc.",
-    purpose: "Diffusion de l'application et mesure d'audience agrégée (sans cookie)",
+    purpose: "Hébergement, exécution et diffusion de l'application ; mesure d'audience agrégée (sans cookie)",
     location: "États-Unis / international",
     crossBorder: true,
+  },
+  {
+    name: "Infomaniak Network SA",
+    purpose: "Nom de domaine et messagerie électronique",
+    location: "Suisse (décision d'adéquation)",
+    crossBorder: false,
   },
   {
     name: "Neon",
@@ -178,9 +197,9 @@ export const DATA_PROCESSORS = [
  * servent uniquement de rappel interne et sont reprises dans le compte-rendu.
  */
 export const LEGAL_MISSING_INFO = [
-  "Nom légal exact du titulaire de l'entreprise individuelle (nom et prénom de l'entrepreneur individuel)",
   "Numéro de TVA intracommunautaire, si l'exploitant est assujetti",
-  "Nom du responsable de la publication (si différent du titulaire)",
+  "Adresse postale exacte de l'hébergeur applicatif (Vercel Inc.) — à confirmer",
+  "Périmètre exact des services fournis par Infomaniak (nom de domaine, messagerie) — à confirmer par l'exploitant",
 ] as const
 
 /** Nom d'éditeur affichable : nom légal si connu, sinon nom commercial. */
