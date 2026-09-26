@@ -96,9 +96,7 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
           <Gift className="size-3.5" aria-hidden="true" />
           {plan.trial}
         </span>
-      ) : (
-        <span className="mt-3 text-[11px] font-medium text-muted-foreground">Sans engagement</span>
-      )}
+      ) : null}
 
       <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">{plan.description}</p>
 
@@ -163,6 +161,7 @@ function CustomSiteCta() {
             <span className="text-sm text-muted-foreground">À partir de</span>
             <span className="text-3xl font-semibold tracking-tight text-foreground">790 €</span>
           </p>
+          <p className="-mt-1 text-xs text-muted-foreground">Sur devis, selon les besoins et fonctionnalités.</p>
           <Link
             href="/diagnostic"
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -188,15 +187,10 @@ function GrowthJourney() {
         Une trajectoire claire, de vos premières réservations au pilotage d'un centre.
       </p>
       <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {PLAN_JOURNEY.map((step, i) => (
-          <li key={step.planId} className="relative rounded-2xl border border-border bg-background p-4">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
-                {i + 1}
-              </span>
-              <p className="text-sm font-semibold text-foreground">{step.name}</p>
-            </div>
-            <p className="mt-2 text-base font-semibold text-foreground">{step.verb}</p>
+        {PLAN_JOURNEY.map((step) => (
+          <li key={step.planId} className="rounded-2xl border border-border bg-background p-4">
+            <p className="text-sm font-semibold text-foreground">{step.name}</p>
+            <p className="mt-1.5 text-[13px] font-semibold text-primary">{step.verb}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.audience}</p>
           </li>
         ))}

@@ -39,7 +39,7 @@ import { SpiritDashboardRequests, type SpiritActionItem } from "@/components/adm
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
 import { publicPageUrl, publicReservationUrl } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
-import { requireCompanyMember } from "@/lib/admin"
+import { requireCompanyMember, getCompanyOwnerName } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { countDueFollowUps } from "@/lib/leads/server"
 import { zonedStartOfDayUtc, addDaysYmd } from "@/lib/leads/model"
@@ -61,12 +61,24 @@ export default async function DashboardPage({
   // Contexte résolu CÔTÉ SERVEUR (jamais depuis le client). Sert à la fois à
   // l'isolation tenant et à l'évaluation des droits via le moteur central.
   // NB: `tenant` (ci-dessus) = slug d'URL ; `company` = entité résolue serveur.
-  const { tenant: company, user } = await requireCompanyMember()
+  const { tenant: company, user, isSuperAdmin } = await requireCompanyMember()
   const companyId = company.id
 
-  // Prénom pour l'accueil humain du dashboard. On n'invente JAMAIS un prénom :
-  // si le nom ressemble à un email ou est vide, on retombe sur un accueil neutre.
-  const rawName = (user.name ?? "").trim()
+  // Prénom pour l'accueil humain du dashboard « Bonjour … ».
+  //  - Utilisateur classique connecté à SON espace (OWNER/ADMIN/EMPLOYEE) →
+  //    son propre prénom (issu de la session).
+  //  - Super-admin en assistance sur le tenant d'un client → prénom du
+  //    PROPRIÉTAIRE du tenant consulté, résolu côté serveur et scopé à
+  //    `companyId`. On n'affiche JAMAIS le nom du super-admin sur le tenant
+  //    d'un client (bug « Bonjour Roig » sur S&WASH / Arrêt au stand…).
+  // L'identité de session (userId, rôle, droits) reste STRICTEMENT inchangée :
+  // seul ce libellé d'accueil est concerné.
+  const greetingSourceName = isSuperAdmin ? await getCompanyOwnerName(companyId) : user.name
+
+  // On n'invente JAMAIS un prénom : si le nom ressemble à un email ou est vide,
+  // on retombe sur un accueil neutre (« Bonjour 👋 »), jamais sur le nom de
+  // l'entreprise ni sur celui du super-admin.
+  const rawName = (greetingSourceName ?? "").trim()
   const firstName = rawName && !rawName.includes("@") ? rawName.split(/\s+/)[0] : null
 
   // Dashboard Spirit ACS : réorganisation UX spécifique (Demandes → Planning →

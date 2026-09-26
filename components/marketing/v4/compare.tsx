@@ -8,7 +8,6 @@ const WITHOUT = [
   { tool: "Agenda", task: "Noter le créneau à la main" },
   { tool: "Excel", task: "Ajouter le client et son véhicule" },
   { tool: "Stripe", task: "Envoyer un lien pour l'acompte" },
-  { tool: "Factures", task: "Recopier la prestation et le prix" },
   { tool: "Site séparé", task: "Penser à mettre les tarifs à jour" },
 ]
 
@@ -28,7 +27,7 @@ export function Compare() {
         <SectionIntro
           titleId="compare-title"
           eyebrow="Avant / après"
-          title="Une réservation. Sept outils, ou un seul."
+          title="Une réservation. Six outils, ou un seul."
           align="center"
         />
 

@@ -122,6 +122,27 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
 }
 
 /**
+ * Nom du PROPRIÉTAIRE (OWNER) d'une entreprise — destiné UNIQUEMENT à l'accueil
+ * humain du dashboard (« Bonjour … »). Strictement filtré par `companyId`
+ * (isolation tenant) : jamais de « premier OWNER global », jamais de repli sur
+ * un autre tenant. Renvoie le nom brut (jamais transformé) ou `null` si
+ * introuvable/vide. N'affecte NI la session, NI les rôles, NI les autorisations :
+ * c'est un simple libellé d'affichage. En cas de plusieurs OWNER (rare), on
+ * retient le plus ancien (createdAt) pour un rendu déterministe.
+ */
+export async function getCompanyOwnerName(companyId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ name: user.name })
+    .from(companyMembers)
+    .innerJoin(user, eq(companyMembers.userId, user.id))
+    .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "OWNER")))
+    .orderBy(companyMembers.createdAt)
+    .limit(1)
+  const name = (row?.name ?? "").trim()
+  return name.length > 0 ? name : null
+}
+
+/**
  * Protège une page/action du dashboard entreprise.
  * Rétro-compatible : renvoie l'utilisateur connecté (comme avant), mais applique
  * désormais l'isolation par entreprise.
