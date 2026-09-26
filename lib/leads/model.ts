@@ -104,7 +104,12 @@ export function advanceLeadStatus(current: LeadStatus, incoming: LeadStatus): Le
   if (current === incoming) return current
   if (current === "CLIENT") return "CLIENT"
   if (current === "LOST") return "LOST"
-  if (incoming === "LOST") return "LOST"
+  if (incoming === "LOST") {
+    // Auto-LOST autorisé uniquement depuis les premiers stades (NEW / CONTACTED),
+    // ex. custom_request « declined ». On ne fait jamais régresser vers LOST un
+    // prospect déjà avancé (rendez-vous pris / client) via une synchro automatique.
+    return PIPELINE_RANK[current] <= PIPELINE_RANK.CONTACTED ? "LOST" : current
+  }
   return PIPELINE_RANK[incoming] > PIPELINE_RANK[current] ? incoming : current
 }
 

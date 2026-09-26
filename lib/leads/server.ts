@@ -38,7 +38,8 @@ export type LeadRow = typeof leads.$inferSelect
 export type LeadActivityRow = typeof leadActivities.$inferSelect
 
 /** Client transactionnel Drizzle (ou le client racine). */
-type DbClient = typeof db
+/** Accepte le client global OU un handle de transaction Drizzle. */
+type DbClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /** Contact brut d'une source externe (jamais pré-normalisé de confiance). */
 export interface ExternalContact {

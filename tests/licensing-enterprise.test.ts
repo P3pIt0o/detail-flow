@@ -75,6 +75,7 @@ const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]
     "profitability_analysis",
     "advanced_reporting",
     "marketing",
+    "leads_crm",
   ],
   // FOUNDER = toutes les features de sa génération (aujourd'hui : toutes).
   FOUNDER: [...FEATURE_KEYS],

@@ -88,8 +88,20 @@ describe("leads — progression automatique (jamais de régression)", () => {
     expect(advanceLeadStatus("APPOINTMENT_BOOKED", "CONTACTED")).toBe("APPOINTMENT_BOOKED")
   })
 
-  it("LOST n'est jamais imposé par une progression automatique", () => {
-    expect(advanceLeadStatus("CONTACTED", "LOST")).not.toBe("LOST")
+  it("auto-LOST autorisé depuis les premiers stades (ex. custom_request declined)", () => {
+    expect(advanceLeadStatus("NEW", "LOST")).toBe("LOST")
+    expect(advanceLeadStatus("CONTACTED", "LOST")).toBe("LOST")
+  })
+
+  it("auto-LOST ne fait jamais régresser un prospect déjà avancé", () => {
+    expect(advanceLeadStatus("APPOINTMENT_BOOKED", "LOST")).toBe("APPOINTMENT_BOOKED")
+    expect(advanceLeadStatus("CLIENT", "LOST")).toBe("CLIENT")
+  })
+
+  it("LOST ne se rouvre jamais automatiquement (réouverture manuelle uniquement)", () => {
+    expect(advanceLeadStatus("LOST", "CONTACTED")).toBe("LOST")
+    expect(advanceLeadStatus("LOST", "APPOINTMENT_BOOKED")).toBe("LOST")
+    expect(advanceLeadStatus("LOST", "CLIENT")).toBe("LOST")
   })
 })
 

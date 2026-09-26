@@ -6,6 +6,8 @@ import { getPaymentProvider } from "./providers"
 import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
 import { computePlatformFeeCents, type PaymentType } from "./types"
 import { normalizePaymentMode, resolveCheckoutType, type PaymentMode } from "./mode"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { safeSyncLeadFromBooking } from "@/lib/leads/server"
 
 /* -------------------------------------------------------------------------- */
 /*  Configuration paiement d'un tenant                                        */
