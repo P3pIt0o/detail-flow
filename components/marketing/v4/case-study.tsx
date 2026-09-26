@@ -29,20 +29,46 @@ export function CaseStudy() {
 
         <div className="mt-14 grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
           <Reveal>
-            <figure className="df-product relative overflow-hidden rounded-2xl border border-border bg-[oklch(0.12_0.012_260)] p-8 shadow-[0_40px_120px_-40px_oklch(0.25_0.08_260/0.55)] sm:p-12">
+            <figure className="df-product relative overflow-hidden rounded-2xl border border-border bg-[oklch(0.12_0.012_260)] p-6 shadow-[0_40px_120px_-40px_oklch(0.25_0.08_260/0.55)] sm:p-10">
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 [background-image:radial-gradient(ellipse_60%_50%_at_50%_40%,oklch(0.7_0.18_0/0.12),transparent)]"
+                className="pointer-events-none absolute inset-0 [background-image:radial-gradient(ellipse_60%_50%_at_50%_30%,oklch(0.7_0.18_0/0.12),transparent)]"
               />
-              <div className="relative mx-auto flex max-w-[280px] items-center justify-center">
-                <Image
-                  src="/marketing/case-studies/spirit-detailing.png"
-                  alt="Logo Spirit ACS — detailing et polissage automobile"
-                  width={560}
-                  height={560}
-                  className="h-auto w-full max-w-full object-contain"
-                />
+
+              <div className="relative mx-auto w-full max-w-[260px]">
+                {/* Phone mockup framing the real Spirit ACS site */}
+                <div className="relative rounded-[2.25rem] border border-white/10 bg-[oklch(0.08_0.01_260)] p-2 shadow-[0_20px_60px_-20px_oklch(0.1_0.02_260/0.8)] ring-1 ring-inset ring-white/5">
+                  <div className="relative overflow-hidden rounded-[1.75rem] bg-black">
+                    <div
+                      aria-hidden="true"
+                      className="absolute left-1/2 top-0 z-10 h-5 w-24 -translate-x-1/2 rounded-b-xl bg-[oklch(0.08_0.01_260)]"
+                    />
+                    <Image
+                      src="/marketing/case-studies/spirit-acs-site.jpg"
+                      alt="Site internet sur mesure de Spirit ACS — detailing automobile à Lagny-sur-Marne"
+                      width={720}
+                      height={1280}
+                      className="h-auto w-full max-w-full object-cover"
+                      sizes="(max-width: 640px) 60vw, 260px"
+                    />
+                  </div>
+                </div>
+
+                {/* Secondary logo badge */}
+                <div className="absolute -bottom-3 -left-3 flex size-16 items-center justify-center rounded-2xl border border-border bg-card p-2 shadow-lg sm:-bottom-4 sm:-left-4 sm:size-20">
+                  <Image
+                    src="/marketing/case-studies/spirit-detailing.png"
+                    alt="Logo Spirit ACS"
+                    width={160}
+                    height={160}
+                    className="h-auto w-full max-w-full object-contain"
+                  />
+                </div>
               </div>
+
+              <figcaption className="relative mt-6 text-center text-xs font-medium text-muted-foreground">
+                spiritacs.com — Detailing automobile à Lagny-sur-Marne
+              </figcaption>
             </figure>
           </Reveal>
 
