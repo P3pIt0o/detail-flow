@@ -26,21 +26,31 @@ const TRUSTPILOT_GREEN = "#00b67a"
 function RatingStars({ size }: { size: number }) {
   const pct = (TRUSTPILOT.ratingValue / 5) * 100
   const stars = Array.from({ length: 5 })
+  // Chaque étoile ne doit JAMAIS rétrécir : la couche verte est clippée à `pct`
+  // via overflow-hidden, mais les icônes gardent leur taille exacte pour rester
+  // parfaitement superposées à la couche grise (sinon effet de double étoile).
+  const star = (color?: string) => (
+    <Star
+      style={{ width: size, height: size, minWidth: size, color }}
+      className="shrink-0"
+      strokeWidth={0}
+      fill="currentColor"
+    />
+  )
   return (
-    <span className="relative inline-flex" aria-hidden="true">
-      <span className="flex text-muted-foreground/30">
+    <span
+      className="relative inline-block align-middle"
+      style={{ width: size * 5, height: size }}
+      aria-hidden="true"
+    >
+      <span className="absolute inset-0 flex text-muted-foreground/30">
         {stars.map((_, i) => (
-          <Star key={i} style={{ width: size, height: size }} strokeWidth={0} fill="currentColor" />
+          <span key={i}>{star()}</span>
         ))}
       </span>
-      <span className="absolute inset-0 flex overflow-hidden" style={{ width: `${pct}%` }}>
+      <span className="absolute inset-y-0 left-0 flex overflow-hidden" style={{ width: `${pct}%` }}>
         {stars.map((_, i) => (
-          <Star
-            key={i}
-            style={{ width: size, height: size, color: TRUSTPILOT_GREEN }}
-            strokeWidth={0}
-            fill="currentColor"
-          />
+          <span key={i}>{star(TRUSTPILOT_GREEN)}</span>
         ))}
       </span>
     </span>
