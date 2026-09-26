@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { legalConfig } from "@/config/legal"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
+import { MentionsLegalesContent } from "@/components/legal/mentions-legales-content"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact } from "@/lib/public-contact"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
@@ -42,14 +43,17 @@ export default async function MentionsLegalesPage() {
   // ISOLATION : les informations éditeur proviennent de l'entreprise résolue.
   // Source de vérité = coordonnées enregistrées dans les paramètres du tenant
   // (getPublicContact → table settings). Aucune donnée statique / de démo.
-  // Sur la vitrine racine (aucun tenant), repli sur la configuration DetailFlow.
   const tenant = await getCurrentTenant()
-  const contact = await getPublicContact()
 
-  const editorName = tenant ? contact.name ?? tenant.name : legalConfig.companyName
-  const phone = tenant ? contact.phone : null
-  const email = tenant ? contact.email : null
-  const address = tenant ? contact.address : null
+  // Vitrine racine (aucun tenant) : mentions légales CANONIQUES de DetailFlow
+  // (entreprise individuelle, France), alimentées par `config/legal.ts`.
+  if (!tenant) return <MentionsLegalesContent />
+
+  const contact = await getPublicContact()
+  const editorName = contact.name ?? tenant.name
+  const phone = contact.phone
+  const email = contact.email
+  const address = contact.address
   const website = contact.website
 
   return (
@@ -59,18 +63,6 @@ export default async function MentionsLegalesPage() {
         <h2>Éditeur du site</h2>
         <p>
           <strong>{editorName}</strong>
-          {!tenant && (
-            <>
-              <br />
-              {legalConfig.legalForm}
-              <br />
-              Siège social : {legalConfig.headquarters}
-              <br />
-              SIRET : {legalConfig.siret}
-              <br />
-              TVA intracommunautaire : {legalConfig.vat}
-            </>
-          )}
         </p>
 
         <h2>Contact</h2>
@@ -106,7 +98,7 @@ export default async function MentionsLegalesPage() {
           {legalConfig.host.address}
           <br />
           <a href={legalConfig.host.website} target="_blank" rel="noopener noreferrer">
-            {legalConfig.host.website}
+            {legalConfig.host.websiteLabel}
           </a>
         </p>
 

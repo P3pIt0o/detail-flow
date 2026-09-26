@@ -132,6 +132,13 @@ export default async function ContactPage() {
               <div className="mt-6">
                 <ContactForm />
               </div>
+              <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                Les informations transmises sont utilisées pour traiter votre demande. En savoir plus dans notre{" "}
+                <a href="/confidentialite" className="underline underline-offset-2 hover:text-foreground">
+                  politique de confidentialité
+                </a>
+                .
+              </p>
             </div>
           </Reveal>
         </div>

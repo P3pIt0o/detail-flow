@@ -28,6 +28,14 @@ const COLUMNS = [
   },
 ]
 
+/** Liens légaux publics (routes résolues via la réécriture marketing). */
+const LEGAL_LINKS = [
+  { href: "/mentions-legales", label: "Mentions légales" },
+  { href: "/conditions", label: "Conditions générales" },
+  { href: "/confidentialite", label: "Politique de confidentialité" },
+  { href: "/cookies", label: "Cookies" },
+]
+
 export function SiteFooter() {
   return (
     <footer className="df-ink border-t border-border bg-background text-foreground">
@@ -56,8 +64,19 @@ export function SiteFooter() {
           </nav>
         ))}
       </Container>
-      <Container className="border-t border-border py-6">
+      <Container className="flex flex-col gap-4 border-t border-border py-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} DetailFlow. Tous droits réservés.</p>
+        <nav aria-label="Liens légaux">
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            {LEGAL_LINKS.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className="transition-colors hover:text-foreground">
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </Container>
     </footer>
   )

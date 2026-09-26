@@ -546,6 +546,14 @@ export function Questionnaire() {
               Continuer
               <ArrowRight className="size-4" aria-hidden="true" />
             </PrimaryButton>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Les informations transmises sont utilisées pour étudier votre demande et vous proposer un devis. En savoir
+              plus dans notre{" "}
+              <Link href="/confidentialite" className="underline underline-offset-2 hover:text-foreground">
+                politique de confidentialité
+              </Link>
+              .
+            </p>
           </div>
         </StepShell>
       )
