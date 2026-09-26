@@ -7,16 +7,16 @@
  * les CTA « Bientôt disponible » évitent toute promesse d'activation immédiate.
  *
  * `true`  = inclus dans la formule ·  `false` = non inclus
- * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Starter, Pro, Ultime, Entreprise.
+ * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Essentiel, Indépendant, Performance, Équipe.
  */
 
 export type PlanColumn = "starter" | "pro" | "ultime" | "entreprise"
 
 export const COMPARE_COLUMNS: { id: PlanColumn; name: string }[] = [
-  { id: "starter", name: "Starter" },
-  { id: "pro", name: "Pro" },
-  { id: "ultime", name: "Ultime" },
-  { id: "entreprise", name: "Entreprise" },
+  { id: "starter", name: "Essentiel" },
+  { id: "pro", name: "Indépendant" },
+  { id: "ultime", name: "Performance" },
+  { id: "entreprise", name: "Équipe" },
 ]
 
 export type CompareRow = {
