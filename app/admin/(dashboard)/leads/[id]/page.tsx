@@ -7,6 +7,7 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { normalizePhone } from "@/lib/admin/client-crm"
 import { getLeadDetail, isLeadsSchemaNotReady } from "@/lib/leads/server"
+import { withTenant } from "@/lib/tenant-link"
 import {
   LEAD_LOST_REASON_LABELS,
   isLeadLostReason,
@@ -54,12 +55,18 @@ function Field({ label, value }: { label: string; value: string | null }) {
 
 export default async function LeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { id } = await params
   const leadId = Number(id)
   if (!Number.isInteger(leadId) || leadId <= 0) notFound()
+
+  const sp = await searchParams
+  const tenant = (Array.isArray(sp.tenant) ? sp.tenant[0] : sp.tenant) ?? null
+  const backHref = withTenant("/admin/leads", tenant)
 
   const ctx = await requireCompanyMember()
   const companyId = ctx.tenant.id
@@ -77,7 +84,7 @@ export default async function LeadDetailPage({
       return (
         <div className="flex flex-col gap-4">
           <Link
-            href="/admin/leads"
+            href={backHref}
             className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -125,9 +132,11 @@ export default async function LeadDetailPage({
 
   const customRequestHref =
     lead.source === "CUSTOM_REQUEST" && lead.sourceExternalId
-      ? `/admin/demandes/${lead.sourceExternalId}`
+      ? withTenant(`/admin/demandes/${lead.sourceExternalId}`, tenant)
       : null
-  const bookingHref = lead.linkedBookingId ? `/admin/reservations/${lead.linkedBookingId}` : null
+  const bookingHref = lead.linkedBookingId
+    ? withTenant(`/admin/reservations/${lead.linkedBookingId}`, tenant)
+    : null
 
   const lostReasonLabel = isLeadLostReason(lead.lostReason)
     ? LEAD_LOST_REASON_LABELS[lead.lostReason]
@@ -136,7 +145,7 @@ export default async function LeadDetailPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4 sm:p-6">
       <Link
-        href="/admin/leads"
+        href={backHref}
         className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />

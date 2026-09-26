@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { CopyLinkButton } from "@/components/admin/copy-link-button"
 import { PwaInstallHint } from "@/components/admin/pwa-install-hint"
+import { withTenant } from "@/lib/tenant-link"
 import type { AdminNavGroup, AdminNavIcon, AdminNavItem } from "@/lib/admin/nav"
 import {
   LayoutDashboard,
@@ -92,9 +93,10 @@ export function AdminShell({
   }, [pathname])
 
   // En aperçu (sans sous-domaine), le tenant est porté par `?tenant=`. On le
-  // conserve à chaque navigation interne. En production (sous-domaines), absent.
+  // conserve à chaque navigation interne via le helper central withTenant (qui
+  // gère aussi les URLs possédant déjà `?status=`, `?due=`, etc.). En production
+  // (sous-domaines), tenantParam est absent : aucun effet.
   const tenantParam = searchParams.get("tenant")
-  const withTenant = (href: string) => (tenantParam ? `${href}?tenant=${tenantParam}` : href)
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -178,7 +180,7 @@ export function AdminShell({
               return (
                 <Link
                   key={item.href}
-                  href={withTenant(item.href)}
+                  href={withTenant(item.href, tenantParam)}
                   aria-current={active ? "page" : undefined}
                   title={collapsed ? item.label : undefined}
                   className={cn(
@@ -211,7 +213,7 @@ export function AdminShell({
               return (
                 <Link
                   key={href}
-                  href={withTenant(href)}
+                  href={withTenant(href, tenantParam)}
                   aria-current={active ? "page" : undefined}
                   title={collapsed ? label : undefined}
                   className={cn(
@@ -292,7 +294,7 @@ export function AdminShell({
         return (
           <Link
             key={item.href}
-            href={withTenant(item.href)}
+            href={withTenant(item.href, tenantParam)}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors",
@@ -355,7 +357,7 @@ export function AdminShell({
             return (
               <Link
                 key={href}
-                href={withTenant(href)}
+                href={withTenant(href, tenantParam)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border p-2 text-center text-xs font-medium transition-colors",
@@ -391,7 +393,7 @@ export function AdminShell({
               {superItems.map(({ href, label, Icon }) => (
                 <Link
                   key={href}
-                  href={withTenant(href)}
+                  href={withTenant(href, tenantParam)}
                   className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-background p-2 text-center text-xs font-medium text-foreground transition-colors hover:bg-muted"
                 >
                   <Icon className="size-5" aria-hidden="true" />

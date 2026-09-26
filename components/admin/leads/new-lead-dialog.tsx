@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { withTenant } from "@/lib/tenant-link"
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ const inputCls =
 
 export function NewLeadDialog() {
   const router = useRouter()
+  const tenant = useSearchParams().get("tenant")
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export function NewLeadDialog() {
         setOpen(false)
         setDuplicate(null)
         form.reset()
-        if (res.leadId) router.push(`/admin/leads/${res.leadId}`)
+        if (res.leadId) router.push(withTenant(`/admin/leads/${res.leadId}`, tenant))
         router.refresh()
       } else {
         setError(res.error)
@@ -140,7 +142,7 @@ export function NewLeadDialog() {
               {duplicate ? (
                 <div className="flex flex-wrap gap-2">
                   <Link
-                    href={`/admin/leads/${duplicate.id}`}
+                    href={withTenant(`/admin/leads/${duplicate.id}`, tenant)}
                     className="inline-flex min-h-9 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-muted"
                   >
                     Voir le prospect

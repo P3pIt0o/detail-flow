@@ -10,6 +10,8 @@ import { FollowUpBadge, LeadSourceBadge, LeadStatusBadge } from "./lead-badges"
  */
 export interface LeadCardData {
   id: number
+  /** URL déjà résolue (tenant-aware) construite par la page serveur. */
+  href: string
   contactName: string
   status: LeadStatus
   source: LeadSource
@@ -24,7 +26,7 @@ export interface LeadCardData {
 export function LeadCard({ lead }: { lead: LeadCardData }) {
   return (
     <Link
-      href={`/admin/leads/${lead.id}`}
+      href={lead.href}
       className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-primary/40 sm:p-4"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

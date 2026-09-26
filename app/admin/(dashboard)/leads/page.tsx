@@ -13,6 +13,7 @@ import {
   type LeadStatus,
 } from "@/lib/leads/model"
 import { getLeadKpis, isLeadsSchemaNotReady, listLeads, type LeadKpis, type LeadListResult } from "@/lib/leads/server"
+import { withTenant } from "@/lib/tenant-link"
 import { LeadsKpis } from "@/components/admin/leads/leads-kpis"
 import { LeadsFilters } from "@/components/admin/leads/leads-filters"
 import { LeadCard, type LeadCardData } from "@/components/admin/leads/lead-card"
@@ -79,6 +80,9 @@ export default async function LeadsPage({
   const sp = await searchParams
   const readStr = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
+  // Contexte tenant (aperçu sans sous-domaine) : conservé sur tous les liens internes.
+  const tenant = readStr(sp.tenant) ?? null
+
   const statusRaw = readStr(sp.status)
   const status: LeadStatus | null = isLeadStatus(statusRaw) ? statusRaw : null
   const sourceRaw = readStr(sp.source)
@@ -126,6 +130,7 @@ export default async function LeadsPage({
     const followYmd = item.nextFollowUpAt ? businessToday(item.nextFollowUpAt, tz) : null
     return {
       id: item.id,
+      href: withTenant(`/admin/leads/${item.id}`, tenant),
       contactName: item.contactName,
       status: item.status,
       source: item.source,
@@ -148,13 +153,13 @@ export default async function LeadsPage({
     if (query) params.set("q", query)
     if (target > 1) params.set("page", String(target))
     const qs = params.toString()
-    return qs ? `/admin/leads?${qs}` : "/admin/leads"
+    return withTenant(qs ? `/admin/leads?${qs}` : "/admin/leads", tenant)
   }
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
       {header}
-      <LeadsKpis kpis={kpis} />
+      <LeadsKpis kpis={kpis} tenant={tenant} />
       <LeadsFilters />
 
       {cards.length === 0 ? (
@@ -162,7 +167,7 @@ export default async function LeadsPage({
           {hasAnyFilter ? (
             <>
               <p className="font-medium text-foreground">Aucun prospect ne correspond à ces filtres.</p>
-              <Link href="/admin/leads" className="text-sm font-medium text-primary hover:underline">
+              <Link href={withTenant("/admin/leads", tenant)} className="text-sm font-medium text-primary hover:underline">
                 Réinitialiser les filtres
               </Link>
             </>
