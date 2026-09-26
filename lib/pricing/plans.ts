@@ -10,16 +10,17 @@
  *  plus ses propres prix indépendamment du moteur — il consomme ce fichier.
  *
  *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
- *    Starter    0 €          -> plan technique FREE      (self-service actif)
- *    Pro        19,90 €/mois -> plan technique PRO        (coming_soon)
- *    Ultime     34,90 €/mois -> plan technique BUSINESS   (coming_soon)
- *    Entreprise 49,90 €/mois -> AUCUN plan technique      (coming_soon)
+ *    Starter    0 €          -> plan technique FREE       (self-service actif)
+ *    Pro        19,90 €/mois -> plan technique PRO         (coming_soon)
+ *    Ultime     34,90 €/mois -> plan technique BUSINESS    (coming_soon)
+ *    Entreprise 49,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
  *  L'offre « Entreprise » (gestion multi-employés, agendas par collaborateur,
- *  permissions, RDV simultanés) N'A PAS de correspondance dans le moteur de
- *  licences actuel (`lib/licensing/registry.ts`) : `licensePlan: null`. Elle
- *  reste donc `coming_soon`, ne promet aucune feature gated, et ne mène jamais
- *  à /demarrer. Le besoin technique est signalé dans le compte-rendu.
+ *  permissions, RDV simultanés) pointe vers le plan technique ENTERPRISE. Ce
+ *  plan hérite aujourd'hui des droits de BUSINESS ; les fonctionnalités
+ *  d'équipe seront ajoutées à ENTERPRISE quand leurs modules seront livrés.
+ *  L'offre reste `coming_soon` : elle ne promet aucune feature gated (aucune
+ *  feature d'équipe n'existe encore) et ne mène jamais à /demarrer.
  *
  *  LE « SUR MESURE » N'EST PAS UNE OFFRE SAAS : c'est une prestation distincte
  *  (développement d'une plateforme dédiée). Voir `CUSTOM_PLATFORM_OFFER`.
@@ -201,10 +202,13 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     id: "entreprise",
     name: "Entreprise",
     tagline: "Pilotez votre centre.",
-    // AUCUN plan technique : la gestion multi-employés (comptes employés,
-    // agendas individuels, permissions, RDV simultanés) n'est pas modélisée
-    // dans le moteur de licences. Voir compte-rendu -> incohérences.
-    licensePlan: null,
+    // Plan technique ENTERPRISE (moteur de licences). Il hérite aujourd'hui des
+    // droits de BUSINESS ; les fonctionnalités d'équipe (comptes employés,
+    // agendas individuels, permissions, RDV simultanés) seront ajoutées à
+    // ENTERPRISE au moment où chaque module sera réellement développé. L'offre
+    // reste `coming_soon` : aucune feature d'équipe n'est promise (invariant
+    // testé -> `includedFeatures` vide tant que ces modules n'existent pas).
+    licensePlan: "ENTERPRISE",
     price: "49,90 €",
     period: "/ mois",
     description: "Pour les centres avec plusieurs collaborateurs.",
