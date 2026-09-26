@@ -17,7 +17,7 @@ function MobileAdmin() {
         <span className="font-mono text-[10px] text-muted-foreground">detailflow.fr/admin</span>
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <span className="text-[13px] font-bold">DetailFlow Pro</span>
+        <span className="text-[13px] font-bold">DetailFlow</span>
         <span className="size-2 rounded-full bg-primary df-pulse-dot" aria-hidden="true" />
       </div>
 

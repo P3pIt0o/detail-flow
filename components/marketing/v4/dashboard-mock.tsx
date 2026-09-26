@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 import { DEMO_UPCOMING } from "./demo-data"
 
 /**
- * Reproduction fidèle du tableau de bord DetailFlow Pro : mêmes entrées de menu
+ * Reproduction fidèle du tableau de bord DetailFlow : mêmes entrées de menu
  * que `lib/admin/nav.ts`, même carte « Cette semaine » que `DashboardWeek`,
  * même badge de statut (`StatusBadge` réel, importé tel quel).
  */

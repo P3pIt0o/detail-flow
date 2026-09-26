@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowUpRight, ArrowRight, MapPin, FileText, Search, Globe } from "lucide-react"
+import { ArrowUpRight, ArrowRight, MapPin, FileText, Globe } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
 import { Container, SectionIntro } from "./primitives"
 
@@ -8,7 +8,6 @@ const BADGES = [
   { label: "Site sur mesure", icon: Globe },
   { label: "SEO local", icon: MapPin },
   { label: "Demandes de devis", icon: FileText },
-  { label: "Référencement local", icon: Search },
 ] as const
 
 const SPIRIT_URL = "https://www.spiritacs.com"
@@ -24,8 +23,8 @@ export function CaseStudy() {
         <SectionIntro
           titleId="cas-client-title"
           eyebrow="Cas client"
-          title="Du logiciel au site qui génère de la visibilité"
-          lead="Spirit ACS nous a confié la création de son site sur mesure."
+          title="Du logiciel au site pensé pour la visibilité."
+          lead="Spirit ACS nous a confié la création de son site internet sur mesure."
         />
 
         <div className="mt-14 grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
@@ -74,15 +73,10 @@ export function CaseStudy() {
           </Reveal>
 
           <div className="min-w-0">
-            <div className="space-y-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <div className="text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
               <p>
-                Spirit ACS nous a confié la création de son site internet sur mesure. Nous avons travaillé sa structure,
-                ses pages prestations et son référencement local pour renforcer sa visibilité autour du detailing et du
-                polissage automobile.
-              </p>
-              <p>
-                Le site est aujourd&apos;hui positionné sur des recherches locales stratégiques liées au detailing
-                automobile et au polissage.
+                Nous avons travaillé sa structure, ses pages prestations et son référencement local pour renforcer sa
+                visibilité sur les recherches liées au detailing et au polissage automobile.
               </p>
             </div>
 
@@ -105,7 +99,7 @@ export function CaseStudy() {
                 rel="noopener noreferrer"
                 className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-semibold text-background transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                Voir le projet
+                Voir le site Spirit ACS
                 <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
               </a>
               <Link

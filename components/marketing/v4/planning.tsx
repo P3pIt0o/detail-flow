@@ -91,14 +91,7 @@ function CalendarMock() {
             className={cn("rounded-xl border border-border p-3", d.today && "border-primary/40 bg-primary/5")}
           >
             <div className="flex items-center justify-between">
-              <p className="flex items-center gap-2 text-[12.5px] font-semibold">
-                {d.label}
-                {d.today && (
-                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
-                    Aujourd&apos;hui
-                  </span>
-                )}
-              </p>
+              <p className="flex items-center gap-2 text-[12.5px] font-semibold">{d.label}</p>
               {d.ca && <p className="text-[11px] text-muted-foreground">{d.ca}</p>}
             </div>
             {d.bookings.length > 0 ? (
@@ -149,7 +142,7 @@ export function Planning() {
               <div className="df-product rounded-2xl border border-border bg-card p-4 text-foreground">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-[12.5px] font-semibold">Cette semaine</p>
-                  <p className="font-mono text-[10.5px] text-muted-foreground">Moteur de disponibilité</p>
+                  <p className="font-mono text-[10.5px] text-muted-foreground">Gestion des disponibilités</p>
                 </div>
                 <WeekStrip />
               </div>

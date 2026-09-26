@@ -32,8 +32,6 @@ function InvoiceDocument() {
           <p className="text-sm font-semibold">Atelier Lumière Detailing</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             12 rue de l&apos;Exemple, 69007 Lyon
-            <br />
-            SIRET 000 000 000 00000
           </p>
         </div>
         <div className="text-right">

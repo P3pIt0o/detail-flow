@@ -157,8 +157,7 @@ export function Website() {
           <div>
             <p className="text-sm font-semibold text-foreground">Présence en ligne</p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Des outils conçus pour améliorer progressivement votre présence en ligne : pages indexables, adresses
-              canoniques, métadonnées propres.
+              Des pages structurées pour améliorer progressivement votre visibilité sur Google.
             </p>
           </div>
         </div>

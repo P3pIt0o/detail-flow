@@ -105,8 +105,8 @@ export const PRICING_COPY = {
   eyebrow: "Tarifs",
   title: "Une formule pour chaque étape de votre activité",
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
-  trialHeadline: "Votre premier mois est offert.",
-  trialSub: "Découvrez toutes les fonctionnalités de votre formule pendant 30 jours sur les offres payantes.",
+  trialHeadline: "À l'ouverture, votre premier mois est offert.",
+  trialSub: "Sur votre future formule payante.",
   note: "Prix indiqués hors taxes. Les offres payantes sont en cours de finalisation et seront activées prochainement.",
   comingSoonLabel: "Bientôt disponible",
   compareLabel: "Comparer les fonctionnalités",
@@ -269,10 +269,10 @@ export const PLAN_JOURNEY: readonly JourneyStep[] = [
  * de propriété (composants tiers, infra et licences restent sous leurs CGU).
  */
 export const CUSTOM_PLATFORM_OFFER = {
-  eyebrow: "Sur mesure",
-  title: "Et si on développait votre propre plateforme ?",
+  eyebrow: "Plateforme métier",
+  title: "Votre plateforme métier sur mesure.",
   description:
-    "Vous avez un fonctionnement particulier ou besoin d'un outil totalement adapté à votre entreprise ? Nous concevons votre plateforme, à votre image et autour de vos processus.",
+    "Besoin de plus qu'un site internet ? Nous concevons une plateforme totalement adaptée à votre entreprise, à votre image et autour de vos processus — pour un fonctionnement que les formules standard ne couvrent pas.",
   price: "À partir de 1 990 €",
   priceNote: "Prestation ponctuelle, distincte des abonnements DetailFlow.",
   argument: "Vous ne vous adaptez plus au logiciel. Le logiciel s'adapte à vous.",
