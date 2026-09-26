@@ -106,6 +106,17 @@ export function LifetimeOffer() {
               </p>
             ))}
           </div>
+
+          <div className="mt-2 flex flex-col items-center gap-2 border-t border-border pt-4">
+            <a
+              href={`mailto:${o.modal.contactEmail}?subject=${encodeURIComponent(o.modal.contactSubject)}`}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {o.modal.contactCta}
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+            <p className="text-[11px] text-muted-foreground">{o.modal.contactHint}</p>
+          </div>
         </DialogContent>
       </Dialog>
     </>
