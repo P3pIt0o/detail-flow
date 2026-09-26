@@ -7,7 +7,13 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { normalizePhone } from "@/lib/admin/client-crm"
 import { getLeadDetail, isLeadsSchemaNotReady } from "@/lib/leads/server"
-import { LEAD_LOST_REASON_LABELS, isLeadLostReason, type LeadActivityType } from "@/lib/leads/model"
+import {
+  LEAD_LOST_REASON_LABELS,
+  isLeadLostReason,
+  type LeadActivityType,
+  type LeadStatus,
+  type LeadSource,
+} from "@/lib/leads/model"
 import { LeadsInitializing } from "@/components/admin/leads/leads-initializing"
 import { LeadStatusBadge, LeadSourceBadge } from "@/components/admin/leads/lead-badges"
 import { LeadQuickActions } from "@/components/admin/leads/lead-quick-actions"
@@ -62,7 +68,27 @@ export default async function LeadDetailPage({
   const allowed = await canUseFeature(companyId, "leads_crm")
   if (!allowed) notFound()
 
-  const detail = await getLeadDetail(companyId, leadId)
+  let detail: Awaited<ReturnType<typeof getLeadDetail>>
+  try {
+    detail = await getLeadDetail(companyId, leadId)
+  } catch (error) {
+    // Le module possède la licence mais la migration CRM n'est pas encore appliquée.
+    if (isLeadsSchemaNotReady(error)) {
+      return (
+        <div className="flex flex-col gap-4">
+          <Link
+            href="/admin/leads"
+            className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Retour aux prospects
+          </Link>
+          <LeadsInitializing />
+        </div>
+      )
+    }
+    throw error
+  }
   if (!detail) notFound()
   const { lead, activities } = detail
 
@@ -121,8 +147,8 @@ export default async function LeadDetailPage({
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground text-balance">{lead.contactName}</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <LeadStatusBadge status={lead.status} />
-            <LeadSourceBadge source={lead.source} />
+            <LeadStatusBadge status={lead.status as LeadStatus} />
+            <LeadSourceBadge source={lead.source as LeadSource} />
             {lostReasonLabel ? (
               <span className="text-xs text-muted-foreground">Motif : {lostReasonLabel}</span>
             ) : null}
@@ -139,7 +165,7 @@ export default async function LeadDetailPage({
       />
 
       <Section title="Statut">
-        <LeadStatusControls leadId={lead.id} current={lead.status} />
+        <LeadStatusControls leadId={lead.id} current={lead.status as LeadStatus} />
       </Section>
 
       <Section title="Relance">
