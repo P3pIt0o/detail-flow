@@ -51,9 +51,25 @@ type DbClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
  * page admin.
  */
 export function isMissingRelationError(err: unknown): boolean {
-  return (
-    typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01"
-  )
+  // Drizzle encapsule l'erreur PostgreSQL native dans une chaîne `cause`
+  // (parfois sur plusieurs niveaux, ex. DrizzleQueryError → cause). On parcourt
+  // cette chaîne (max 5 niveaux) en se prémunissant des cycles.
+  const seen = new Set<unknown>()
+  let current: unknown = err
+
+  for (let depth = 0; depth < 5; depth++) {
+    if (!current || typeof current !== "object" || seen.has(current)) return false
+
+    seen.add(current)
+
+    if ((current as { code?: unknown }).code === "42P01") {
+      return true
+    }
+
+    current = (current as { cause?: unknown }).cause
+  }
+
+  return false
 }
 
 /**
@@ -948,10 +964,15 @@ export async function getLeadDetail(
 ): Promise<{ lead: LeadRow; activities: LeadActivityRow[] } | null> {
   const lead = await getLeadForCompany(companyId, leadId)
   if (!lead) return null
-  const activities = await db
-    .select()
-    .from(leadActivities)
-    .where(and(eq(leadActivities.companyId, companyId), eq(leadActivities.leadId, leadId)))
-    .orderBy(desc(leadActivities.createdAt))
+  // La table `leads` peut exister sans `lead_activities` (migration partielle) :
+  // cette lecture passe aussi par `leadRead()` pour convertir « table absente »
+  // en `LeadsSchemaNotReadyError` au lieu de propager une 500.
+  const activities = await leadRead(() =>
+    db
+      .select()
+      .from(leadActivities)
+      .where(and(eq(leadActivities.companyId, companyId), eq(leadActivities.leadId, leadId)))
+      .orderBy(desc(leadActivities.createdAt)),
+  )
   return { lead, activities }
 }
