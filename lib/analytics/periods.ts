@@ -2,10 +2,12 @@
  * Module Analyse — PÉRIODES & COMPARAISON (fonctions PURES, aucune dépendance
  * base/serveur). Testable unitairement.
  *
- * Toutes les dates sont manipulées en UTC au format `YYYY-MM-DD`, cohérent avec
- * le reste de l'admin (dashboard, analytics de visites) qui utilise déjà
- * `toISOString().slice(0, 10)`. On évite ainsi les décalages 23:00 UTC → jour
- * suivant entre les modules.
+ * Les dates sont manipulées au format `YYYY-MM-DD`. Le « jour courant » est la
+ * DATE MÉTIER du tenant, résolue dans SON fuseau (`companies.timezone`) via
+ * `businessToday()` — et non en UTC. Ainsi, à 00h30 à Paris, le module utilise
+ * déjà le nouveau jour français même si UTC est encore la veille. Les bornes de
+ * période sont ensuite calculées en arithmétique de calendrier pure sur cette
+ * date métier (aucune heure, aucun fuseau à ce stade).
  */
 
 export const ANALYSE_PERIODS = ["30d", "3m", "6m", "12m", "year"] as const
@@ -40,7 +42,36 @@ export type ResolvedPeriod = {
   granularity: Granularity
 }
 
-/* --------------------------- Helpers de date UTC -------------------------- */
+/* ----------------------- Date métier (fuseau tenant) ---------------------- */
+
+/**
+ * DATE MÉTIER `YYYY-MM-DD` du tenant : le jour civil dans SON fuseau
+ * (`companies.timezone`, ex. "Europe/Paris"), pas en UTC. À 00h30 à Paris
+ * (= 23h30 UTC la veille en hiver), renvoie déjà le nouveau jour français.
+ *
+ * PURE : n'utilise que `Intl.DateTimeFormat` (aucun accès base/serveur). En cas
+ * de fuseau invalide, repli sûr sur la date UTC plutôt qu'une exception.
+ */
+export function businessToday(now: Date, timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now)
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
+    const y = get("year")
+    const m = get("month")
+    const d = get("day")
+    if (y && m && d) return `${y}-${m}-${d}`
+  } catch {
+    // Fuseau inconnu : ne pas planter le rendu Analyse.
+  }
+  return now.toISOString().slice(0, 10)
+}
+
+/* --------------------------- Helpers de date -------------------------- */
 
 function toUTC(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`)
@@ -74,8 +105,12 @@ export function addMonths(iso: string, n: number): string {
  *  - Cette année : du 1ᵉʳ janvier à aujourd'hui, comparé au même intervalle de
  *    l'année précédente (year-to-date), granularité mensuelle.
  */
-export function resolvePeriodRange(period: AnalysePeriod, now: Date = new Date()): ResolvedPeriod {
-  const today = now.toISOString().slice(0, 10)
+export function resolvePeriodRange(
+  period: AnalysePeriod,
+  now: Date = new Date(),
+  timeZone = "Europe/Paris",
+): ResolvedPeriod {
+  const today = businessToday(now, timeZone)
 
   if (period === "30d") {
     const start = addDays(today, -29)

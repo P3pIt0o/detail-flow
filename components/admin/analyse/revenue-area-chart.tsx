@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useMemo, useState } from "react"
-import { formatDateShort, formatMonthLabel, formatPrice } from "@/lib/format"
+import { formatDateShort, formatMonthLabel, formatMoney } from "@/lib/format"
 import type { Granularity } from "@/lib/analytics/periods"
 
 /**
@@ -14,10 +14,13 @@ import type { Granularity } from "@/lib/analytics/periods"
 export function RevenueAreaChart({
   data,
   granularity,
+  currencyCode = null,
 }: {
   data: { bucket: string; totalCents: number }[]
   granularity: Granularity
+  currencyCode?: string | null
 }) {
+  const money = (cents: number) => formatMoney(cents, currencyCode)
   const gradientId = useId()
   const [active, setActive] = useState<number | null>(null)
 
@@ -109,7 +112,7 @@ export function RevenueAreaChart({
               fill="transparent"
               tabIndex={0}
               role="button"
-              aria-label={`${label(p.bucket)} : ${formatPrice(p.totalCents)}`}
+              aria-label={`${label(p.bucket)} : ${money(p.totalCents)}`}
               onMouseEnter={() => setActive(i)}
               onFocus={() => setActive(i)}
               onBlur={() => setActive(null)}
@@ -121,7 +124,7 @@ export function RevenueAreaChart({
             className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-center shadow-sm"
             style={{ left: `${(activePoint.x / W) * 100}%` }}
           >
-            <p className="text-sm font-semibold text-foreground">{formatPrice(activePoint.totalCents)}</p>
+            <p className="text-sm font-semibold text-foreground">{money(activePoint.totalCents)}</p>
             <p className="text-xs capitalize text-muted-foreground">{label(activePoint.bucket)}</p>
           </div>
         ) : null}
@@ -144,7 +147,7 @@ export function RevenueAreaChart({
             {data.map((d) => (
               <tr key={d.bucket}>
                 <td>{label(d.bucket)}</td>
-                <td>{formatPrice(d.totalCents)}</td>
+                <td>{money(d.totalCents)}</td>
               </tr>
             ))}
           </tbody>

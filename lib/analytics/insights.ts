@@ -6,7 +6,13 @@
  * gratuites à produire et sans hallucination. Chaque règle a un SEUIL minimum
  * de volume/variation pour ne jamais tirer de conclusion sur un échantillon
  * insuffisant. Ton neutre et non anxiogène (jamais « ERREUR/DANGER/CRITIQUE »).
+ *
+ * DEVISE : ce module ne code AUCUN symbole (€) en dur. Les montants sont
+ * formatés via `formatMoney(cents, currencyCode)` — un helper d'affichage pur
+ * (Intl, sans I/O) — avec la devise réellement résolue du tenant.
  */
+
+import { formatMoney } from "@/lib/format"
 
 export type AnalyseInsight = {
   type: "positive" | "attention" | "neutral"
@@ -24,6 +30,29 @@ export type InsightInput = {
   topServiceByVolume: { name: string; count: number } | null
   topServiceByRevenue: { name: string; revenueCents: number; totalRevenueCents: number } | null
   site: { uniqueVisitors: number; bookingsCompleted: number }
+  /**
+   * Devise d'affichage des montants (résolue côté serveur). `null` → EUR legacy
+   * (cf. `formatMoney`). JAMAIS de symbole codé en dur : un tenant en CHF voit
+   * ses insights en CHF.
+   */
+  currencyCode?: string | null
+  /**
+   * Les montants de la période sont-ils regroupables (une seule devise) ? Si
+   * `false` (période multi-devises sans conversion FX), on N'ÉMET AUCUN insight
+   * financier (CA, panier, part de CA prestation) pour ne jamais additionner
+   * des devises différentes. Les insights non financiers restent produits.
+   * Défaut `true` (rétrocompat mono-devise).
+   */
+  monetaryComparable?: boolean
+  /**
+   * Les périodes courante et précédente sont-elles comparables (devise unique
+   * ET identique de part et d'autre) ? Si `false`, on N'ÉMET AUCUN insight
+   * d'ÉVOLUTION (CA, panier) : comparer une période EUR à une période CHF n'a
+   * aucun sens sans conversion FX. Les insights « intra-période » (part de CA
+   * d'une prestation, annulations, trafic) restent produits selon
+   * `monetaryComparable`. Défaut `true`.
+   */
+  periodsComparable?: boolean
 }
 
 /* Seuils minimaux (évitent les conclusions sur trop peu de données). */
@@ -40,11 +69,6 @@ function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100)
 }
 
-function euros(cents: number): string {
-  // Format compact et neutre ; l'UI reformatte via les helpers devise si besoin.
-  return `${Math.round(cents / 100).toLocaleString("fr-FR")}\u00A0€`
-}
-
 /**
  * Construit la liste d'insights. Si AUCUNE règle n'atteint son seuil, retourne
  * un unique message neutre (« Pas encore assez de données ») plutôt qu'un
@@ -53,9 +77,18 @@ function euros(cents: number): string {
 export function buildBusinessInsights(input: InsightInput): AnalyseInsight[] {
   const out: AnalyseInsight[] = []
 
-  // 1) Évolution du CA facturé (±10 % minimum).
+  // Devise d'affichage résolue (jamais de € codé en dur).
+  const money = (cents: number) => formatMoney(cents, input.currencyCode ?? null)
+  // Montants regroupables ? (une seule devise sur la période). Si non, on
+  // n'émet AUCUN insight financier — additionner EUR + CHF serait faux.
+  const monetaryComparable = input.monetaryComparable ?? true
+  // Périodes comparables ? (même devise de part et d'autre). Conditionne les
+  // insights d'ÉVOLUTION (CA, panier) : pas de % entre deux devises différentes.
+  const periodsComparable = input.periodsComparable ?? true
+
+  // 1) Évolution du CA facturé (±10 % minimum). Comparaison inter-période.
   const revChange = pctChange(input.revenue.currentCents, input.revenue.previousCents)
-  if (revChange !== null && Math.abs(revChange) >= MIN_REVENUE_CHANGE_PCT) {
+  if (monetaryComparable && periodsComparable && revChange !== null && Math.abs(revChange) >= MIN_REVENUE_CHANGE_PCT) {
     const up = revChange > 0
     out.push({
       type: up ? "positive" : "attention",
@@ -67,9 +100,15 @@ export function buildBusinessInsights(input: InsightInput): AnalyseInsight[] {
     })
   }
 
-  // 2) Panier moyen (min. 4 factures + variation ≥ 5 %).
+  // 2) Panier moyen (min. 4 factures + variation ≥ 5 %). Comparaison inter-période.
   const { currentCents, previousCents, invoiceCount } = input.averageBasket
-  if (currentCents !== null && previousCents !== null && invoiceCount >= MIN_BASKET_INVOICES) {
+  if (
+    monetaryComparable &&
+    periodsComparable &&
+    currentCents !== null &&
+    previousCents !== null &&
+    invoiceCount >= MIN_BASKET_INVOICES
+  ) {
     const basketChange = pctChange(currentCents, previousCents)
     if (basketChange !== null && Math.abs(basketChange) >= MIN_BASKET_CHANGE_PCT) {
       const up = basketChange > 0
@@ -99,13 +138,13 @@ export function buildBusinessInsights(input: InsightInput): AnalyseInsight[] {
 
   // 4) Prestation qui contribue le plus au CA (part ≥ 25 %).
   const tr = input.topServiceByRevenue
-  if (tr && tr.totalRevenueCents > 0) {
+  if (monetaryComparable && tr && tr.totalRevenueCents > 0) {
     const share = Math.round((tr.revenueCents / tr.totalRevenueCents) * 100)
     if (share >= MIN_SERVICE_REVENUE_SHARE_PCT) {
       out.push({
         type: "neutral",
         title: "Prestation la plus contributrice",
-        message: `${tr.name} représente ${share}\u00A0% de votre CA facturé sur cette période (${euros(tr.revenueCents)}).`,
+        message: `${tr.name} représente ${share}\u00A0% de votre CA facturé sur cette période (${money(tr.revenueCents)}).`,
         metric: "top_service_revenue",
       })
     }

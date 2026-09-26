@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { requireCompanyId } from "@/lib/tenant"
 import { canUseFeature } from "@/lib/licensing/enforce"
-import { formatPrice } from "@/lib/format"
+import { formatMoney } from "@/lib/format"
 import { resolveAnalyseAccess } from "@/lib/analytics/access"
 import { loadAnalyseData } from "@/lib/analytics/business"
 import { parsePeriod, PERIOD_LABELS, type AnalysePeriod } from "@/lib/analytics/periods"
@@ -93,7 +93,30 @@ export default async function AnalysePage({
   }
 
   const data = await loadAnalyseData(companyId, period, access)
-  const { essentials, profitability: profit, advanced: adv } = data
+  const { essentials, profitability: profit, advanced: adv, financial } = data
+
+  // Devises d'affichage résolues côté serveur (jamais de € codé en dur). Les
+  // FACTURES et les PAIEMENTS ont leur propre devise (elles peuvent différer).
+  const money = (cents: number) => formatMoney(cents, financial.invoiceCurrency)
+  const moneyPay = (cents: number) => formatMoney(cents, financial.paymentsCurrency)
+
+  // DetailFlow ne convertit JAMAIS de change : dès que plusieurs devises
+  // incompatibles coexistent, on n'agrège AUCUN total et on l'explique. Les
+  // décisions (factures / paiements / rentabilité) viennent de `financial`.
+  const invoicesComparable = financial.currentComparable
+  const currencyNotice = (currencies: string[]) => (
+    <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground text-pretty">
+      Plusieurs devises ({currencies.join(", ")}) sont présentes sur cette période. Les totaux financiers ne
+      peuvent pas être regroupés sans conversion.
+    </p>
+  )
+  const invoiceNotice = currencyNotice(financial.invoiceCurrencies)
+  const paymentsNotice = (
+    <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground text-pretty">
+      Plusieurs devises ({financial.paymentCurrencies.join(", ")}) sont présentes dans les paiements de cette
+      période. Le total ne peut pas être regroupé sans conversion.
+    </p>
+  )
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
@@ -104,13 +127,18 @@ export default async function AnalysePage({
 
       {essentials ? (
         <>
+          {invoicesComparable ? null : invoiceNotice}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <AnalyseKpi
               label={`CA facturé · ${PERIOD_LABELS[period].toLowerCase()}`}
-              value={formatPrice(essentials.invoicedRevenueCents)}
+              value={invoicesComparable ? money(essentials.invoicedRevenueCents ?? 0) : "—"}
               icon={Banknote}
-              hint="Factures payées, net des avoirs, sur la période."
-              change={adv?.revenueChange}
+              hint={
+                invoicesComparable
+                  ? "Factures payées, net des avoirs, sur la période."
+                  : "Plusieurs devises sur la période : total non regroupable."
+              }
+              change={adv?.revenueChange ?? undefined}
             />
             <AnalyseKpi
               label="Rendez-vous"
@@ -121,10 +149,18 @@ export default async function AnalysePage({
             />
             <AnalyseKpi
               label="Panier moyen"
-              value={essentials.averageBasketCents === null ? "—" : formatPrice(essentials.averageBasketCents)}
+              value={
+                invoicesComparable && essentials.averageBasketCents !== null
+                  ? money(essentials.averageBasketCents)
+                  : "—"
+              }
               icon={ShoppingBag}
-              hint="CA des factures payées ÷ nombre de factures payées."
-              change={adv?.basketChange}
+              hint={
+                invoicesComparable
+                  ? "CA des factures payées ÷ nombre de factures payées."
+                  : "Plusieurs devises sur la période : total non regroupable."
+              }
+              change={adv?.basketChange ?? undefined}
             />
             <AnalyseKpi
               label="Nouveaux clients"
@@ -135,43 +171,53 @@ export default async function AnalysePage({
             />
           </div>
 
-          <Section
-            title="Évolution du chiffre d'affaires"
-            description="CA facturé (net des avoirs) sur la période sélectionnée."
-          >
-            <RevenueAreaChart data={essentials.revenueSeries} granularity={essentials.granularity} />
-          </Section>
+          {invoicesComparable ? (
+            <Section
+              title="Évolution du chiffre d'affaires"
+              description="CA facturé (net des avoirs) sur la période sélectionnée."
+            >
+              <RevenueAreaChart
+                data={essentials.revenueSeries}
+                granularity={essentials.granularity}
+                currencyCode={financial.invoiceCurrency}
+              />
+            </Section>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Section title="Encaissements réels" description="Ce qui est réellement entré sur la période.">
-              <dl className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Wallet className="size-4" aria-hidden="true" /> Encaissé net
-                  </dt>
-                  <dd className="tabular-nums text-sm font-semibold text-foreground">
-                    {formatPrice(essentials.collected.netCents)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Coins className="size-4" aria-hidden="true" /> Encaissé brut
-                  </dt>
-                  <dd className="tabular-nums text-sm text-foreground">
-                    {formatPrice(essentials.collected.grossCents)}
-                  </dd>
-                </div>
-                {essentials.collected.refundedCents > 0 ? (
+              {financial.paymentsComparable && essentials.collected ? (
+                <dl className="flex flex-col gap-3">
                   <div className="flex items-center justify-between gap-3">
                     <dt className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Receipt className="size-4" aria-hidden="true" /> Remboursé
+                      <Wallet className="size-4" aria-hidden="true" /> Encaissé net
                     </dt>
-                    <dd className="tabular-nums text-sm text-foreground">
-                      −{formatPrice(essentials.collected.refundedCents)}
+                    <dd className="tabular-nums text-sm font-semibold text-foreground">
+                      {moneyPay(essentials.collected.netCents)}
                     </dd>
                   </div>
-                ) : null}
-              </dl>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Coins className="size-4" aria-hidden="true" /> Encaissé brut
+                    </dt>
+                    <dd className="tabular-nums text-sm text-foreground">
+                      {moneyPay(essentials.collected.grossCents)}
+                    </dd>
+                  </div>
+                  {essentials.collected.refundedCents > 0 ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Receipt className="size-4" aria-hidden="true" /> Remboursé
+                      </dt>
+                      <dd className="tabular-nums text-sm text-foreground">
+                        −{moneyPay(essentials.collected.refundedCents)}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : (
+                paymentsNotice
+              )}
             </Section>
 
             <Section title="Clientèle" description="Répartition des clients vus sur la période.">
@@ -207,16 +253,31 @@ export default async function AnalysePage({
           title="Rentabilité estimée"
           description="Estimation simple : CA facturé moins le coût des produits/consommables achetés. N'inclut pas les charges (temps, déplacements, taxes)."
         >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <AnalyseKpi label="CA facturé" value={formatPrice(profit.invoicedRevenueCents)} icon={Banknote} />
-            <AnalyseKpi label="Coût produits" value={formatPrice(profit.productCostsCents)} icon={ShoppingBag} />
-            <AnalyseKpi
-              label="Résultat estimé"
-              value={formatPrice(profit.resultCents)}
-              icon={TrendingUp}
-              hint="CA facturé − coût des produits. Indicatif."
-            />
-          </div>
+          {profit.comparable ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <AnalyseKpi
+                label="CA facturé"
+                value={formatMoney(profit.invoicedRevenueCents ?? 0, profit.currencyCode)}
+                icon={Banknote}
+              />
+              <AnalyseKpi
+                label="Coût produits"
+                value={formatMoney(profit.productCostsCents ?? 0, profit.currencyCode)}
+                icon={ShoppingBag}
+              />
+              <AnalyseKpi
+                label="Résultat estimé"
+                value={formatMoney(profit.resultCents ?? 0, profit.currencyCode)}
+                icon={TrendingUp}
+                hint="CA facturé − coût des produits. Indicatif."
+              />
+            </div>
+          ) : (
+            <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground text-pretty">
+              Le résultat estimé n&apos;est pas disponible pour cette période car les dépenses enregistrées et le
+              chiffre d&apos;affaires ne sont pas dans une devise comparable.
+            </p>
+          )}
         </Section>
       ) : null}
 
@@ -226,8 +287,15 @@ export default async function AnalysePage({
             <Section title="Prestations les plus demandées" description="Par nombre de rendez-vous sur la période.">
               <ShareBars rows={adv.serviceVolume} kind="count" />
             </Section>
-            <Section title="Prestations les plus rentables" description="Par chiffre d'affaires facturé sur la période.">
-              <ShareBars rows={adv.serviceRevenue} kind="money" />
+            <Section
+              title="Prestations qui génèrent le plus de CA"
+              description="Répartition du chiffre d'affaires facturé par prestation sur la période."
+            >
+              {invoicesComparable ? (
+                <ShareBars rows={adv.serviceRevenue} kind="money" currencyCode={financial.invoiceCurrency} />
+              ) : (
+                invoiceNotice
+              )}
             </Section>
           </div>
 

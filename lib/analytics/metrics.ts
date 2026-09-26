@@ -103,23 +103,33 @@ export type ClientBookingRow = {
 }
 
 export type ClientStats = {
-  /** Clients actifs sur la période (au moins 1 RDV non annulé dans l'intervalle). */
+  /** Clients actifs sur la période (au moins 1 vrai RDV dans l'intervalle). */
   activeClients: number
-  /** Premier RDV non annulé dans la période. */
+  /** Premier vrai RDV dans la période. */
   newClients: number
   /** Activité avant la période ET pendant la période. */
   returningClients: number
 }
 
 /**
+ * Statuts représentant une VRAIE activité client (un rendez-vous réel).
+ *
+ * `pending_deposit` en est explicitement EXCLU : c'est un panier en attente de
+ * caution, PAS encore un rendez-vous. Un client dont le seul « RDV » est en
+ * `pending_deposit` ne doit donc jamais être compté comme nouveau/récurrent.
+ * `cancelled` est exclu de fait (rendez-vous qui n'a pas eu lieu).
+ */
+export const REAL_CLIENT_STATUSES = new Set<string>(["confirmed", "completed"])
+
+/**
  * Classe les clients en nouveaux / récurrents sur `[start, end]`.
  *
  * Définitions (testées) :
- *  - on ignore les réservations annulées, de démonstration, ou sans identité ;
- *  - « nouveau »   : le PREMIER rendez-vous (non annulé) du client tombe dans la
- *    période ;
- *  - « récurrent » : le client a une activité AVANT la période ET pendant ;
- *  - « actif »     : au moins un rendez-vous dans la période (= nouveaux + récurrents).
+ *  - on ne compte QUE les vrais rendez-vous (`confirmed`/`completed`) ; les
+ *    `pending_deposit`, `cancelled`, démonstration, ou sans identité sont ignorés ;
+ *  - « nouveau »   : le PREMIER vrai rendez-vous du client tombe dans la période ;
+ *  - « récurrent » : le client a une vraie activité AVANT la période ET pendant ;
+ *  - « actif »     : au moins un vrai rendez-vous dans la période (= nouveaux + récurrents).
  *
  * `rows` doit contenir l'historique jusqu'à `end` inclus (le serveur ne charge
  * pas au-delà). Complexité O(n) : aucune requête N+1.
@@ -130,7 +140,7 @@ export function classifyClients(rows: ClientBookingRow[], range: { start: string
   const inPeriod = new Map<string, boolean>()
 
   for (const r of rows) {
-    if (r.status === "cancelled" || r.isDemoData) continue
+    if (!REAL_CLIENT_STATUSES.has(r.status) || r.isDemoData) continue
     const key = clientIdentityKey({ email: r.email, phone: r.phone })
     if (!key) continue
     const d = r.date.slice(0, 10)
