@@ -27,6 +27,16 @@ export const DIAGNOSTIC_RATE_LIMIT_ID = "diagnostic-form"
 export const DIAGNOSTIC_RATE_LIMITED_MESSAGE =
   "Trop de demandes ont été envoyées. Merci de réessayer dans quelques minutes."
 
+/**
+ * Message générique lorsque la protection anti-abus est INDISPONIBLE
+ * (service de rate limit injoignable, ou règle Firewall non déployée en
+ * production). Par sécurité (fail-closed) on refuse la soumission plutôt que
+ * de laisser partir des emails sans protection. Ne révèle aucune information
+ * technique (ni cause, ni seuil, ni mécanisme).
+ */
+export const DIAGNOSTIC_UNAVAILABLE_MESSAGE =
+  "Nous ne pouvons pas traiter votre demande pour le moment. Merci de réessayer dans quelques minutes."
+
 /** Fenêtre / limite attendues, documentées pour la config Firewall et les tests. */
 export const DIAGNOSTIC_RATE_LIMIT = {
   /** Nombre maximal de soumissions par IP sur la fenêtre. */
@@ -37,8 +47,12 @@ export const DIAGNOSTIC_RATE_LIMIT = {
 
 export type RateLimitDecision =
   | { limited: false }
-  /** `reason: "config"` = règle Firewall absente (fail-closed). */
-  | { limited: true; reason: "quota" | "blocked" | "config" }
+  /**
+   * `quota`/`blocked` = limite réellement atteinte.
+   * `config` = règle Firewall absente en production (fail-closed).
+   * `unavailable` = service de rate limit injoignable (fail-closed).
+   */
+  | { limited: true; reason: "quota" | "blocked" | "config" | "unavailable" }
 
 /**
  * Vérifie le rate limit pour la requête courante. Renvoie une décision simple
@@ -65,7 +79,11 @@ export async function checkDiagnosticRateLimit(headers: Headers): Promise<RateLi
 
     return rateLimited ? { limited: true, reason: "quota" } : { limited: false }
   } catch {
-    // Indisponibilité du service de rate limit : ne pas casser le formulaire.
-    return { limited: false }
+    // FAIL-CLOSED : si le service de rate limit est injoignable, on REFUSE la
+    // soumission (qui déclenche un email public vers Resend) plutôt que de la
+    // laisser passer sans protection. Ne casse que la SOUMISSION du diagnostic,
+    // pas le reste du site. Aucune donnée sensible n'est journalisée.
+    console.log("[DetailFlow] Rate limit diagnostic indisponible (service injoignable) — soumission refusée (fail-closed).")
+    return { limited: true, reason: "unavailable" }
   }
 }
