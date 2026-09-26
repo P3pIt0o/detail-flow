@@ -11,6 +11,7 @@ import { StaggerGroup, StaggerItem } from "@/components/ui/reveal"
 import { cn } from "@/lib/utils"
 import { Container, DetailFlowMark, SectionIntro } from "./primitives"
 import { COMPARE_CATEGORIES, COMPARE_COLUMNS } from "./pricing-data"
+import { LifetimeOffer } from "./lifetime-offer"
 
 /**
  * Tarifs alimentés par la SOURCE UNIQUE `lib/pricing/plans.ts`.
@@ -384,6 +385,8 @@ export function Pricing() {
             </StaggerItem>
           ))}
         </StaggerGroup>
+
+        <LifetimeOffer />
 
         <CustomSiteCta />
 
