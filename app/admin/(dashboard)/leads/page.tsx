@@ -12,11 +12,12 @@ import {
   type LeadSource,
   type LeadStatus,
 } from "@/lib/leads/model"
-import { getLeadKpis, listLeads } from "@/lib/leads/server"
+import { getLeadKpis, isLeadsSchemaNotReady, listLeads, type LeadKpis, type LeadListResult } from "@/lib/leads/server"
 import { LeadsKpis } from "@/components/admin/leads/leads-kpis"
 import { LeadsFilters } from "@/components/admin/leads/leads-filters"
 import { LeadCard, type LeadCardData } from "@/components/admin/leads/lead-card"
 import { LeadsLocked } from "@/components/admin/leads/leads-locked"
+import { LeadsInitializing } from "@/components/admin/leads/leads-initializing"
 import { NewLeadDialog } from "@/components/admin/leads/new-lead-dialog"
 
 export const metadata: Metadata = {
@@ -91,18 +92,34 @@ export default async function LeadsPage({
   // « À relancer » : relance due jusqu'à la fin de la journée métier (= début de demain local).
   const dueBefore = zonedStartOfDayUtc(addDaysYmd(todayYmd, 1), tz)
 
-  const [kpis, result] = await Promise.all([
-    getLeadKpis(companyId, dueBefore),
-    listLeads({
-      companyId,
-      status,
-      source,
-      dueBefore: due ? dueBefore : null,
-      query,
-      page,
-      pageSize: PAGE_SIZE,
-    }),
-  ])
+  let kpis: LeadKpis
+  let result: LeadListResult
+  try {
+    ;[kpis, result] = await Promise.all([
+      getLeadKpis(companyId, dueBefore),
+      listLeads({
+        companyId,
+        status,
+        source,
+        dueBefore: due ? dueBefore : null,
+        query,
+        page,
+        pageSize: PAGE_SIZE,
+      }),
+    ])
+  } catch (err) {
+    // Tables CRM pas encore créées (migration additive non appliquée) : état
+    // propre plutôt qu'une 500. Toute autre erreur remonte normalement.
+    if (isLeadsSchemaNotReady(err)) {
+      return (
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
+          {header}
+          <LeadsInitializing />
+        </div>
+      )
+    }
+    throw err
+  }
 
   const now = new Date()
   const cards: LeadCardData[] = result.items.map((item) => {

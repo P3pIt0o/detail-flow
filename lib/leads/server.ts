@@ -41,6 +41,51 @@ export type LeadActivityRow = typeof leadActivities.$inferSelect
 /** Accepte le client global OU un handle de transaction Drizzle. */
 type DbClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/* ------------------- Tolérance « migration non appliquée » ---------------- */
+
+/**
+ * Code d'erreur PostgreSQL « relation inexistante » : les tables `leads` /
+ * `lead_activities` n'existent pas encore (migration additive non appliquée sur
+ * cet environnement). Ce module doit rester TOLÉRANT à cet état transitoire pour
+ * ne jamais casser les flux existants (demandes, réservations, paiements) ni la
+ * page admin.
+ */
+export function isMissingRelationError(err: unknown): boolean {
+  return (
+    typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01"
+  )
+}
+
+/**
+ * Levée par les LECTURES CRM quand le schéma n'est pas encore présent. Les pages
+ * admin l'interceptent pour afficher un état « en cours d'initialisation »
+ * plutôt qu'une erreur 500. Ne transporte aucune PII.
+ */
+export class LeadsSchemaNotReadyError extends Error {
+  constructor() {
+    super("leads_schema_not_ready")
+    this.name = "LeadsSchemaNotReadyError"
+  }
+}
+
+/** Vrai si l'erreur signale un schéma CRM pas encore initialisé. */
+export function isLeadsSchemaNotReady(err: unknown): err is LeadsSchemaNotReadyError {
+  return err instanceof LeadsSchemaNotReadyError
+}
+
+/**
+ * Enveloppe une LECTURE CRM : convertit « table absente » en
+ * `LeadsSchemaNotReadyError` (état propre à afficher), laisse remonter le reste.
+ */
+async function leadRead<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (err) {
+    if (isMissingRelationError(err)) throw new LeadsSchemaNotReadyError()
+    throw err
+  }
+}
+
 /** Contact brut d'une source externe (jamais pré-normalisé de confiance). */
 export interface ExternalContact {
   name?: string | null
@@ -291,6 +336,14 @@ export async function safeSyncLeadFromCustomRequest(input: CustomRequestSyncInpu
   try {
     await syncLeadFromCustomRequest(input)
   } catch (err) {
+    // Migration CRM pas encore appliquée : état ATTENDU, log technique minimal
+    // (aucune PII) et on n'alarme pas. Le flux « demande » continue normalement.
+    if (isMissingRelationError(err)) {
+      console.warn("[v0] leads: schéma non initialisé, sync custom_request ignorée", {
+        companyId: input.companyId,
+      })
+      return
+    }
     console.error("[v0] leads: échec sync custom_request", {
       companyId: input.companyId,
       requestId: input.requestId,
@@ -396,6 +449,14 @@ export async function safeSyncLeadFromBooking(input: BookingSyncInput): Promise<
   try {
     await syncLeadFromBooking(input)
   } catch (err) {
+    // Migration CRM pas encore appliquée : état ATTENDU, log minimal sans PII.
+    // La réservation / le paiement continuent normalement.
+    if (isMissingRelationError(err)) {
+      console.warn("[v0] leads: schéma non initialisé, sync booking ignorée", {
+        companyId: input.companyId,
+      })
+      return
+    }
     console.error("[v0] leads: échec sync booking", {
       companyId: input.companyId,
       bookingId: input.bookingId,
@@ -518,11 +579,13 @@ export async function createManualLead(input: CreateManualInput): Promise<LeadRo
 
 /** Charge un prospect en garantissant l'appartenance au tenant (ou null). */
 export async function getLeadForCompany(companyId: number, leadId: number): Promise<LeadRow | null> {
-  const [row] = await db
-    .select()
-    .from(leads)
-    .where(and(eq(leads.id, leadId), eq(leads.companyId, companyId)))
-    .limit(1)
+  const [row] = await leadRead(() =>
+    db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, leadId), eq(leads.companyId, companyId)))
+      .limit(1),
+  )
   return row ?? null
 }
 
@@ -761,29 +824,31 @@ export async function listLeads(filter: LeadListFilter): Promise<LeadListResult>
     WHERE ${leadActivities.leadId} = ${leads.id}
   ), ${leads.updatedAt}))`
 
-  const [rows, totalRows] = await Promise.all([
-    db
-      .select({
-        id: leads.id,
-        contactName: leads.contactName,
-        status: leads.status,
-        source: leads.source,
-        email: leads.email,
-        phone: leads.phone,
-        vehicleBrand: leads.vehicleBrand,
-        vehicleModel: leads.vehicleModel,
-        serviceInterest: leads.serviceInterest,
-        nextFollowUpAt: leads.nextFollowUpAt,
-        createdAt: leads.createdAt,
-        lastActivityAt,
-      })
-      .from(leads)
-      .where(where)
-      .orderBy(desc(lastActivityAt))
-      .limit(pageSize)
-      .offset(offset),
-    db.select({ n: sql<number>`count(*)::int` }).from(leads).where(where),
-  ])
+  const [rows, totalRows] = await leadRead(() =>
+    Promise.all([
+      db
+        .select({
+          id: leads.id,
+          contactName: leads.contactName,
+          status: leads.status,
+          source: leads.source,
+          email: leads.email,
+          phone: leads.phone,
+          vehicleBrand: leads.vehicleBrand,
+          vehicleModel: leads.vehicleModel,
+          serviceInterest: leads.serviceInterest,
+          nextFollowUpAt: leads.nextFollowUpAt,
+          createdAt: leads.createdAt,
+          lastActivityAt,
+        })
+        .from(leads)
+        .where(where)
+        .orderBy(desc(lastActivityAt))
+        .limit(pageSize)
+        .offset(offset),
+      db.select({ n: sql<number>`count(*)::int` }).from(leads).where(where),
+    ]),
+  )
 
   const total = totalRows[0]?.n ?? 0
   return {
@@ -820,24 +885,28 @@ export interface LeadKpis {
  * prospect non clôturé (ni CLIENT ni LOST).
  */
 export async function getLeadKpis(companyId: number, dueBefore: Date): Promise<LeadKpis> {
-  const rows = await db
-    .select({ status: leads.status, n: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(eq(leads.companyId, companyId))
-    .groupBy(leads.status)
+  const rows = await leadRead(() =>
+    db
+      .select({ status: leads.status, n: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(eq(leads.companyId, companyId))
+      .groupBy(leads.status),
+  )
 
   const byStatus = new Map<string, number>(rows.map((r) => [r.status, r.n]))
-  const [due] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(
-      and(
-        eq(leads.companyId, companyId),
-        isNotNull(leads.nextFollowUpAt),
-        lte(leads.nextFollowUpAt, dueBefore),
-        inArray(leads.status, ["NEW", "CONTACTED", "APPOINTMENT_BOOKED"]),
+  const [due] = await leadRead(() =>
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(
+        and(
+          eq(leads.companyId, companyId),
+          isNotNull(leads.nextFollowUpAt),
+          lte(leads.nextFollowUpAt, dueBefore),
+          inArray(leads.status, ["NEW", "CONTACTED", "APPOINTMENT_BOOKED"]),
+        ),
       ),
-    )
+  )
 
   return {
     newCount: byStatus.get("NEW") ?? 0,
@@ -847,20 +916,29 @@ export async function getLeadKpis(companyId: number, dueBefore: Date): Promise<L
   }
 }
 
-/** Nombre de relances dues (pour l'encart dashboard « À traiter »). */
+/**
+ * Nombre de relances dues (pour l'encart dashboard « À traiter »). TOLÉRANT :
+ * renvoie 0 si le schéma CRM n'est pas encore présent, afin que le dashboard
+ * principal ne casse jamais avant l'application de la migration.
+ */
 export async function countDueFollowUps(companyId: number, dueBefore: Date): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(
-      and(
-        eq(leads.companyId, companyId),
-        isNotNull(leads.nextFollowUpAt),
-        lte(leads.nextFollowUpAt, dueBefore),
-        inArray(leads.status, ["NEW", "CONTACTED", "APPOINTMENT_BOOKED"]),
-      ),
-    )
-  return row?.n ?? 0
+  try {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(
+        and(
+          eq(leads.companyId, companyId),
+          isNotNull(leads.nextFollowUpAt),
+          lte(leads.nextFollowUpAt, dueBefore),
+          inArray(leads.status, ["NEW", "CONTACTED", "APPOINTMENT_BOOKED"]),
+        ),
+      )
+    return row?.n ?? 0
+  } catch (err) {
+    if (isMissingRelationError(err)) return 0
+    throw err
+  }
 }
 
 /** Détail complet d'un prospect + historique chronologique (fiche). */
