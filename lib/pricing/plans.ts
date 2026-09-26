@@ -322,7 +322,7 @@ export const LIFETIME_OFFER = {
     priceBullets: ["1 290 € HT en une fois", "ou 2 × 690 € HT", "Offre limitée à 50 licences maximum"],
     features: [
       "Licence d'utilisation de DetailFlow à vie",
-      "Fonctionnalités proches de la formule Performance",
+      "Le périmètre fonctionnel exact de la licence Lifetime sera affiché avant toute ouverture des ventes.",
       "Pas d'abonnement mensuel",
       "0 % de commission DetailFlow prévue sur les paiements en ligne",
       "20 SMS de bienvenue offerts",
@@ -337,5 +337,9 @@ export const LIFETIME_OFFER = {
       "Lifetime correspond à une licence d'utilisation de DetailFlow. Elle ne transfère pas la propriété du code source, de l'infrastructure ou de DetailFlow.",
       "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être proposés séparément.",
     ],
+    contactCta: "Je suis intéressé par Lifetime",
+    contactEmail: "contact@detailflow.fr",
+    contactSubject: "Intérêt pour DetailFlow Lifetime",
+    contactHint: "L'achat en ligne sera activé prochainement.",
   },
 } as const
