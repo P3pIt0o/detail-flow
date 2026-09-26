@@ -95,14 +95,10 @@ export function Hero() {
         <p className="df-rise mt-3 text-xs text-muted-foreground [animation-delay:280ms] sm:mt-4">
           Sans carte bancaire · Offre gratuite · Sans engagement
         </p>
-        <div className="df-rise mt-4 [animation-delay:320ms] sm:mt-6">
-          <TrustpilotProof />
-        </div>
-        <p className="df-rise mt-3 max-w-md text-pretty text-xs text-muted-foreground [animation-delay:360ms] sm:mt-4 sm:text-sm">
-          <span className="font-semibold text-foreground">+10 entreprises</span> utilisent déjà DetailFlow pour gérer et
-          développer leur activité.
-        </p>
-        <p className="df-rise mt-2 max-w-md text-pretty text-xs text-muted-foreground/80 [animation-delay:400ms]">
+                <div className="df-rise mt-4 [animation-delay:320ms] sm:mt-6">
+                  <TrustpilotProof />
+                </div>
+                <p className="df-rise mt-3 max-w-md text-pretty text-xs text-muted-foreground/80 [animation-delay:360ms] sm:mt-4">
           Pensé avec des professionnels du detailing, pour les professionnels du detailing.
         </p>
       </Container>
