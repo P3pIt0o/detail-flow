@@ -10,12 +10,12 @@
  *  plus ses propres prix indépendamment du moteur — il consomme ce fichier.
  *
  *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
- *    Starter    0 €          -> plan technique FREE       (self-service actif)
- *    Pro        19,90 €/mois -> plan technique PRO         (coming_soon)
- *    Ultime     34,90 €/mois -> plan technique BUSINESS    (coming_soon)
- *    Entreprise 49,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
+ *    Essentiel   0 €          -> plan technique FREE       (self-service actif)
+ *    Indépendant 19,90 €/mois -> plan technique PRO         (coming_soon)
+ *    Performance 34,90 €/mois -> plan technique BUSINESS    (coming_soon)
+  *    Équipe      59,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
- *  L'offre « Entreprise » (gestion multi-employés, agendas par collaborateur,
+ *  L'offre « Équipe » (gestion multi-employés, agendas par collaborateur,
  *  permissions, RDV simultanés) pointe vers le plan technique ENTERPRISE. Ce
  *  plan hérite aujourd'hui des droits de BUSINESS ; les fonctionnalités
  *  d'équipe seront ajoutées à ENTERPRISE quand leurs modules seront livrés.
@@ -115,15 +115,15 @@ export const PRICING_COPY = {
 /**
  * Offres présentées sur la grille principale (4 colonnes).
  *
- * ÉTAT ACTUEL : seule « Starter » (FREE) est `self_serve`. « Pro », « Ultime »
- * et « Entreprise » sont `coming_soon` tant que le Checkout + l'attribution
+ * ÉTAT ACTUEL : seule « Essentiel » (FREE) est `self_serve`. « Indépendant »,
+ * « Performance » et « Équipe » sont `coming_soon` tant que le Checkout + l'attribution
  * payante ne sont pas livrés — elles restent visibles pour communiquer la
  * trajectoire, sans CTA trompeur vers /demarrer.
  */
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
     id: "starter",
-    name: "Starter",
+    name: "Essentiel",
     tagline: "Commencez simplement.",
     licensePlan: "FREE",
     price: "0 €",
@@ -147,15 +147,15 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "pro",
-    name: "Pro",
-    tagline: "Automatisez votre activité.",
+    name: "Indépendant",
+    tagline: "Automatisez votre quotidien.",
     licensePlan: "PRO",
     price: "19,90 €",
     period: "/ mois",
     description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Starter",
+      "Tout Essentiel",
       "Réservation avancée (véhicules, options, suppléments)",
       "Acompte & paiements en ligne",
       "Rappels & demandes d'avis automatiques",
@@ -170,15 +170,15 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "ultime",
-    name: "Ultime",
-    tagline: "Développez votre activité.",
+    name: "Performance",
+    tagline: "Passez à la vitesse supérieure.",
     licensePlan: "BUSINESS",
     price: "34,90 €",
     period: "/ mois",
     description: "Pour développer, automatiser et fidéliser à grande échelle.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Pro",
+      "Tout Indépendant",
       "Devis, factures & avoirs",
       "Statistiques avancées & analyse du CA",
       "Automatisations, SMS & relances",
@@ -202,8 +202,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   },
   {
     id: "entreprise",
-    name: "Entreprise",
-    tagline: "Pilotez votre centre.",
+    name: "Équipe",
+    tagline: "Travaillez efficacement à plusieurs.",
     // Plan technique ENTERPRISE (moteur de licences). Il hérite aujourd'hui des
     // droits de BUSINESS ; les fonctionnalités d'équipe (comptes employés,
     // agendas individuels, permissions, RDV simultanés) seront ajoutées à
@@ -211,12 +211,12 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     // reste `coming_soon` : aucune feature d'équipe n'est promise (invariant
     // testé -> `includedFeatures` vide tant que ces modules n'existent pas).
     licensePlan: "ENTERPRISE",
-    price: "49,90 €",
+    price: "59,90 €",
     period: "/ mois",
     description: "Pour les centres avec plusieurs collaborateurs.",
     trial: "1er mois offert",
     highlights: [
-      "Tout Ultime",
+      "Tout Performance",
       "Comptes & agendas par collaborateur",
       "Disponibilités, horaires & congés individuels",
       "Attribution des rendez-vous & RDV simultanés",
@@ -252,10 +252,10 @@ export type JourneyStep = {
 
 /** Montée en gamme lisible sans passer par le tableau tarifaire. */
 export const PLAN_JOURNEY: readonly JourneyStep[] = [
-  { planId: "starter", name: "Starter", verb: "Commencez.", audience: "Je veux juste démarrer." },
-  { planId: "pro", name: "Pro", verb: "Automatisez.", audience: "Je suis indépendant." },
-  { planId: "ultime", name: "Ultime", verb: "Développez.", audience: "Je veux développer mon activité." },
-  { planId: "entreprise", name: "Entreprise", verb: "Travaillez en équipe.", audience: "J'ai plusieurs collaborateurs." },
+  { planId: "starter", name: "Essentiel", verb: "Commencez.", audience: "Je veux juste démarrer." },
+  { planId: "pro", name: "Indépendant", verb: "Automatisez.", audience: "Je suis indépendant." },
+  { planId: "ultime", name: "Performance", verb: "Développez.", audience: "Je veux développer mon activité." },
+  { planId: "entreprise", name: "Équipe", verb: "Travaillez en équipe.", audience: "J'ai plusieurs collaborateurs." },
 ]
 
 /* ------------------------------------------------------------------------- */

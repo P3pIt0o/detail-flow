@@ -37,6 +37,6 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Combien coûte DetailFlow ?",
-    a: "L'offre Starter est gratuite et disponible dès maintenant. Les offres Pro, Business et Lifetime sont présentées dans la section Tarifs et seront activées prochainement.",
+    a: "L'offre Essentiel est gratuite et disponible dès maintenant. Les offres Indépendant, Performance et Lifetime sont présentées dans la section Tarifs et seront activées prochainement.",
   },
 ]

@@ -17,7 +17,7 @@ export function LeadsLocked({ pricingHref }: { pricingHref: string }) {
         Suivez vos demandes, vos relances et vos conversions au même endroit
       </h2>
       <p className="mt-2 text-sm text-muted-foreground text-pretty">
-        Le CRM prospects est inclus dans la formule Ultime. Enregistrez vos prospects, notez vos échanges,
+        Le CRM prospects est inclus dans la formule Performance. Enregistrez vos prospects, notez vos échanges,
         planifiez vos relances et transformez-les en clients.
       </p>
       <Link

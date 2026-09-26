@@ -110,7 +110,7 @@ export const PLAN_META: Record<LicensePlan, PlanMeta> = {
   PRO: { label: "Pro", generation: "LIFETIME_V1", internalOnly: false, purchasable: true },
   // Existe techniquement mais NON commercialisable tant que premium pas prêt.
   BUSINESS: { label: "Business", generation: "LIFETIME_V1", internalOnly: false, purchasable: false },
-  // Plan technique de l'offre commerciale « Entreprise » (49,90 €/mois, prix
+  // Plan technique de l'offre commerciale « Équipe » (59,90 €/mois, prix
   // géré dans lib/pricing). Publiquement présenté (internalOnly: false) mais
   // PAS encore achetable en self-service (purchasable: false) : passera à true
   // quand équipe/agendas/permissions/checkout seront livrés.

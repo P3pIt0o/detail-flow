@@ -45,7 +45,7 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
     }
   })
 
-  it("Entreprise pointe vers le plan technique ENTERPRISE et reste coming_soon", () => {
+  it("Équipe pointe vers le plan technique ENTERPRISE et reste coming_soon", () => {
     const entreprise = COMMERCIAL_PLANS.find((p) => p.id === "entreprise")
     expect(entreprise?.licensePlan).toBe("ENTERPRISE")
     expect(isLicensePlan(entreprise?.licensePlan)).toBe(true)
@@ -77,7 +77,7 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     }
   })
 
-  it("Pro, Ultime et Entreprise sont coming_soon tant que le paiement n'est pas livré", () => {
+  it("Indépendant, Performance et Équipe sont coming_soon tant que le paiement n'est pas livré", () => {
     const byId = Object.fromEntries(ALL_COMMERCIAL_PLANS.map((p) => [p.id, p]))
     expect(byId.pro.availability).toBe("coming_soon")
     expect(byId.ultime.availability).toBe("coming_soon")
@@ -96,9 +96,9 @@ describe("séparation page publique standard vs feature `website`", () => {
 })
 
 describe("cohérence avec le registre interne (super-admin)", () => {
-  it("Ultime s'appuie sur BUSINESS, non commercialisable en self-service (aligné sur PLAN_META)", () => {
+  it("Performance s'appuie sur BUSINESS, non commercialisable en self-service (aligné sur PLAN_META)", () => {
     // PLAN_META.purchasable = sellabilité manuelle super-admin ; la source
-    // commerciale reste au moins aussi prudente pour l'offre Ultime (BUSINESS).
+    // commerciale reste au moins aussi prudente pour l'offre Performance (BUSINESS).
     expect(PLAN_META.BUSINESS.purchasable).toBe(false)
     expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("coming_soon")
   })
