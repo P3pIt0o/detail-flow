@@ -295,7 +295,7 @@ export function Bento() {
           lead="Chaque module partage les mêmes données : un client, ses véhicules, ses rendez-vous, ses paiements et ses factures."
         />
 
-        <StaggerGroup className="mt-14 grid auto-rows-auto gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <StaggerGroup className="mt-14 grid auto-rows-auto grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
           <BentoCard
             className="md:col-span-2 lg:col-span-4"
             title="Clients et véhicules"
