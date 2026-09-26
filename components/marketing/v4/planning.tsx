@@ -137,7 +137,7 @@ export function Planning() {
           lead="Vos réservations arrivent directement dans votre planning. Vos règles décident de ce que le client peut réserver."
         />
 
-        <div className="mt-14 grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8">
+        <div className="mt-14 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8">
           <Reveal>
             <AppWindow url="votre-entreprise.detailflow.fr/admin/calendrier">
               <CalendarMock />
