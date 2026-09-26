@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { BellRing, CalendarCheck, CheckCircle2, Sparkles } from "lucide-react"
 import type { LeadKpis } from "@/lib/leads/server"
+import { withTenant } from "@/lib/tenant-link"
 
 /**
  * KPIs compacts du CRM (max 4). Chaque carte est un raccourci vers la liste
@@ -13,13 +14,13 @@ const CARDS = [
   { key: "client", label: "Convertis", href: "/admin/leads?status=CLIENT", Icon: CheckCircle2 },
 ] as const
 
-export function LeadsKpis({ kpis }: { kpis: LeadKpis }) {
+export function LeadsKpis({ kpis, tenant = null }: { kpis: LeadKpis; tenant?: string | null }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {CARDS.map(({ key, label, href, Icon }) => (
         <Link
           key={key}
-          href={href}
+          href={withTenant(href, tenant)}
           className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40"
         >
           <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">

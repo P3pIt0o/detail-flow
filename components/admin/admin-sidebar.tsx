@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { withTenant } from "@/lib/tenant-link"
 import { siteConfig } from "@/config/site"
 import {
   LayoutDashboard,
@@ -67,10 +68,9 @@ export function AdminSidebar({
   const [open, setOpen] = useState(false)
 
   // En aperçu (sans sous-domaine), le tenant est porté par `?tenant=`. On le
-  // conserve à chaque navigation pour rester sur la même entreprise. En
+  // conserve à chaque navigation via le helper central withTenant. En
   // production (sous-domaines), ce paramètre est absent : aucun effet.
   const tenantParam = searchParams.get("tenant")
-  const withTenant = (href: string) => (tenantParam ? `${href}?tenant=${tenantParam}` : href)
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -100,7 +100,7 @@ export function AdminSidebar({
           return (
             <Link
               key={href}
-              href={withTenant(href)}
+              href={withTenant(href, tenantParam)}
               onClick={() => setOpen(false)}
               aria-current={isActive(href) ? "page" : undefined}
               className={cn(
@@ -123,7 +123,7 @@ export function AdminSidebar({
               Plateforme
             </p>
             <Link
-              href={withTenant("/super-admin")}
+              href={withTenant("/super-admin", tenantParam)}
               onClick={() => setOpen(false)}
               aria-current={isActive("/super-admin") ? "page" : undefined}
               className={cn(
@@ -139,7 +139,7 @@ export function AdminSidebar({
             {/* Accès technique au Boîtier : masqué du menu normal, conservé pour
                 le super-admin (aucune route/donnée supprimée). */}
             <Link
-              href={withTenant("/admin/boitier")}
+              href={withTenant("/admin/boitier", tenantParam)}
               onClick={() => setOpen(false)}
               aria-current={isActive("/admin/boitier") ? "page" : undefined}
               className={cn(

@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Trash2 } from "lucide-react"
+import { withTenant } from "@/lib/tenant-link"
 import {
   Dialog,
   DialogClose,
@@ -23,6 +24,7 @@ import { deleteLeadAction } from "@/app/admin/(dashboard)/leads/actions"
  */
 export function LeadDeleteButton({ leadId, contactName }: { leadId: number; contactName: string }) {
   const router = useRouter()
+  const tenant = useSearchParams().get("tenant")
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +38,7 @@ export function LeadDeleteButton({ leadId, contactName }: { leadId: number; cont
       if (!res.ok) setError(res.error)
       else {
         setOpen(false)
-        router.push("/admin/leads")
+        router.push(withTenant("/admin/leads", tenant))
         router.refresh()
       }
     })
