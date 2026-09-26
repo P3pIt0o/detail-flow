@@ -9,6 +9,7 @@ import { BookingSection } from "@/components/marketing/v4/booking-section"
 import { Planning } from "@/components/marketing/v4/planning"
 import { Bento } from "@/components/marketing/v4/bento"
 import { Website } from "@/components/marketing/v4/website"
+import { CaseStudy } from "@/components/marketing/v4/case-study"
 import { CustomizeSection } from "@/components/marketing/v4/customize-section"
 import { Invoicing } from "@/components/marketing/v4/invoicing"
 import { Mobile } from "@/components/marketing/v4/mobile"
@@ -92,6 +93,7 @@ export default function MarketingPage() {
       <Planning />
       <Bento />
       <Website />
+      <CaseStudy />
       <CustomizeSection />
       <Invoicing />
       <Mobile />
