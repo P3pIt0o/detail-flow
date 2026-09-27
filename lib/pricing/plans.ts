@@ -355,7 +355,7 @@ export const LIFETIME_OFFER = {
     ],
     legal: [
       "Lifetime correspond à une licence d'utilisation de DetailFlow. Elle ne transfère pas la propriété du code source, de l'infrastructure ou de DetailFlow.",
-      "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être propos��s séparément.",
+      "Certains futurs modules ou services tiers entraînant des coûts spécifiques pourront être proposés séparément.",
     ],
     contactCta: "Je suis intéressé par Lifetime",
     contactEmail: "contact@detailflow.fr",
