@@ -26,6 +26,7 @@
  */
 
 import type { LicensePlan } from "@/lib/licensing/types"
+import { getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -67,6 +68,27 @@ export type BillingPlanConfig = {
 /*  Noms de variables d'environnement (source unique)                         */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Erreur dédiée aux problèmes de configuration Billing : variable manquante,
+ * plan/price inconnu, Price ID mal formé, ou unicité violée. Permet aux
+ * appelants de la distinguer clairement d'une erreur réseau/Stripe.
+ */
+export class BillingConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BillingConfigError"
+  }
+}
+
+/**
+ * Un Price ID Stripe valide est une chaîne non vide commençant par `price_`.
+ * Rejette explicitement `prod_...`, une clé (`sk_...`), une valeur vide ou tout
+ * format inconnu. Ne fait AUCUN appel réseau — simple contrôle de forme.
+ */
+export function isValidStripePriceId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().startsWith("price_")
+}
+
 export const STRIPE_PRICE_ENV = {
   PRO: "STRIPE_PRICE_INDEPENDANT_MONTHLY",
   BUSINESS: "STRIPE_PRICE_PERFORMANCE_MONTHLY",
@@ -91,21 +113,17 @@ export const REQUIRED_STRIPE_PRICE_ENVS: readonly string[] = [
  * partie de la grille d'abonnement mensuel et n'ont donc pas d'entrée ici.
  * `getBillingPlanConfig` renvoie `null` pour eux (aucun fallback silencieux).
  */
-export const BILLING_PLANS: Readonly<Record<BillingLicensePlan, BillingPlanConfig>> = {
-  FREE: {
-    licensePlan: "FREE",
-    commercialName: "Essentiel",
-    monthlyPriceCents: 0,
-    currency: "eur",
-    interval: null,
-    stripePriceEnv: null,
-    lookupKey: null,
-    isPaid: false,
-  },
+/**
+ * Métadonnées PROPRES À STRIPE de chaque plan. Le nom commercial et le prix
+ * mensuel ne sont PAS dupliqués ici : ils proviennent de la source unique
+ * `lib/pricing/plans.ts` (voir `buildBillingPlanConfig`). Cette couche ne
+ * conserve que ce qui est spécifique à la facturation Stripe.
+ */
+type StripeBillingMeta = Pick<BillingPlanConfig, "currency" | "interval" | "stripePriceEnv" | "lookupKey" | "isPaid">
+
+const STRIPE_BILLING_META: Readonly<Record<BillingLicensePlan, StripeBillingMeta>> = {
+  FREE: { currency: "eur", interval: null, stripePriceEnv: null, lookupKey: null, isPaid: false },
   PRO: {
-    licensePlan: "PRO",
-    commercialName: "Indépendant",
-    monthlyPriceCents: 1990,
     currency: "eur",
     interval: "month",
     stripePriceEnv: STRIPE_PRICE_ENV.PRO,
@@ -113,9 +131,6 @@ export const BILLING_PLANS: Readonly<Record<BillingLicensePlan, BillingPlanConfi
     isPaid: true,
   },
   BUSINESS: {
-    licensePlan: "BUSINESS",
-    commercialName: "Performance",
-    monthlyPriceCents: 3490,
     currency: "eur",
     interval: "month",
     stripePriceEnv: STRIPE_PRICE_ENV.BUSINESS,
@@ -123,15 +138,40 @@ export const BILLING_PLANS: Readonly<Record<BillingLicensePlan, BillingPlanConfi
     isPaid: true,
   },
   ENTERPRISE: {
-    licensePlan: "ENTERPRISE",
-    commercialName: "Équipe",
-    monthlyPriceCents: 5990,
     currency: "eur",
     interval: "month",
     stripePriceEnv: STRIPE_PRICE_ENV.ENTERPRISE,
     lookupKey: "detailflow_equipe_monthly",
     isPaid: true,
   },
+} as const
+
+/**
+ * Fusionne la source commerciale unique (nom public + prix mensuel en centimes,
+ * définis dans `lib/pricing/plans.ts`) avec les métadonnées Stripe ci-dessus.
+ * Fail-closed : si aucune offre commerciale n'existe pour le plan, on lève une
+ * erreur explicite au chargement plutôt que d'inventer un nom/prix.
+ */
+function buildBillingPlanConfig(plan: BillingLicensePlan): BillingPlanConfig {
+  const commercial = getCommercialPlanByLicensePlan(plan)
+  if (!commercial) {
+    throw new BillingConfigError(
+      `Aucune offre commerciale (lib/pricing/plans.ts) pour le plan « ${plan} » : nom/prix introuvables.`,
+    )
+  }
+  return {
+    licensePlan: plan,
+    commercialName: commercial.name,
+    monthlyPriceCents: commercial.monthlyPriceCents,
+    ...STRIPE_BILLING_META[plan],
+  }
+}
+
+export const BILLING_PLANS: Readonly<Record<BillingLicensePlan, BillingPlanConfig>> = {
+  FREE: buildBillingPlanConfig("FREE"),
+  PRO: buildBillingPlanConfig("PRO"),
+  BUSINESS: buildBillingPlanConfig("BUSINESS"),
+  ENTERPRISE: buildBillingPlanConfig("ENTERPRISE"),
 } as const
 
 /** Les seuls plans payants nécessitant un Product/Price Stripe (ordre stable). */
@@ -178,17 +218,6 @@ function readEnv(env: EnvLike, name: string): string | null {
 }
 
 /**
- * Erreur dédiée aux problèmes de configuration Billing (variable manquante,
- * plan/price inconnu). Permet aux appelants futurs de la distinguer clairement.
- */
-export class BillingConfigError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "BillingConfigError"
-  }
-}
-
-/**
  * PLAN → PRICE ID. Résout le Price ID Stripe d'un plan PAYANT.
  *
  * - FREE (ou plan sans abonnement) → erreur : aucun Price attendu, jamais de
@@ -209,6 +238,11 @@ export function resolveStripePriceIdForPlan(plan: LicensePlan, env: EnvLike = pr
   if (!priceId) {
     throw new BillingConfigError(
       `Variable d'environnement « ${config.stripePriceEnv} » manquante pour le plan « ${plan} » (${config.commercialName}).`,
+    )
+  }
+  if (!isValidStripePriceId(priceId)) {
+    throw new BillingConfigError(
+      `Variable « ${config.stripePriceEnv} » = « ${priceId} » n'est pas un Price ID Stripe valide (doit commencer par « price_ »).`,
     )
   }
   return priceId
@@ -242,8 +276,39 @@ export function resolvePlanForStripePriceId(priceId: string, env: EnvLike = proc
  * l'app : uniquement à l'entrée d'un flux qui en dépend (Checkout, futurs lots).
  */
 export function assertBillingPricesConfigured(env: EnvLike = process.env): void {
-  const missing = REQUIRED_STRIPE_PRICE_ENVS.filter((name) => readEnv(env, name) === null)
+  const missing: string[] = []
+  const invalid: string[] = []
+  const present: Array<{ name: string; value: string }> = []
+
+  for (const name of REQUIRED_STRIPE_PRICE_ENVS) {
+    const value = readEnv(env, name)
+    if (value === null) {
+      missing.push(name)
+    } else if (!isValidStripePriceId(value)) {
+      invalid.push(name)
+    } else {
+      present.push({ name, value })
+    }
+  }
+
   if (missing.length > 0) {
     throw new BillingConfigError(`Configuration Stripe Billing incomplète — variables manquantes : ${missing.join(", ")}.`)
+  }
+  if (invalid.length > 0) {
+    throw new BillingConfigError(
+      `Configuration Stripe Billing invalide — Price IDs mal formés (doivent commencer par « price_ ») : ${invalid.join(", ")}.`,
+    )
+  }
+
+  // Chaque plan payant DOIT pointer vers un Price ID DISTINCT (jamais partagé).
+  const seen = new Map<string, string>()
+  for (const { name, value } of present) {
+    const previous = seen.get(value)
+    if (previous) {
+      throw new BillingConfigError(
+        `Price IDs Stripe dupliqués : « ${previous} » et « ${name} » partagent le même identifiant « ${value} ».`,
+      )
+    }
+    seen.set(value, name)
   }
 }

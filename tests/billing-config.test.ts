@@ -11,7 +11,9 @@ import {
   resolveStripePriceIdForPlan,
   resolvePlanForStripePriceId,
   assertBillingPricesConfigured,
+  isValidStripePriceId,
 } from "@/lib/billing/config"
+import { getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
 
 /**
  * LOT S2 — vérifie UNIQUEMENT la couche de configuration Stripe Billing
@@ -143,6 +145,61 @@ describe("Validation stricte de configuration", () => {
       "STRIPE_PRICE_PERFORMANCE_MONTHLY",
       "STRIPE_PRICE_EQUIPE_MONTHLY",
     ])
+  })
+})
+
+describe("LOT S2.1 — durcissement configuration", () => {
+  it("isValidStripePriceId : price_… accepté, reste rejeté", () => {
+    expect(isValidStripePriceId("price_123")).toBe(true)
+    expect(isValidStripePriceId("prod_123")).toBe(false)
+    expect(isValidStripePriceId("sk_test_123")).toBe(false)
+    expect(isValidStripePriceId("abc")).toBe(false)
+    expect(isValidStripePriceId("")).toBe(false)
+    expect(isValidStripePriceId(undefined)).toBe(false)
+  })
+
+  it("resolveStripePriceIdForPlan rejette un Price ID mal formé (prod_ / arbitraire / clé)", () => {
+    expect(() => resolveStripePriceIdForPlan("PRO", { STRIPE_PRICE_INDEPENDANT_MONTHLY: "prod_xxx" })).toThrow(
+      BillingConfigError,
+    )
+    expect(() => resolveStripePriceIdForPlan("PRO", { STRIPE_PRICE_INDEPENDANT_MONTHLY: "abc" })).toThrow(
+      BillingConfigError,
+    )
+    expect(() => resolveStripePriceIdForPlan("PRO", { STRIPE_PRICE_INDEPENDANT_MONTHLY: "sk_test_x" })).toThrow(
+      BillingConfigError,
+    )
+  })
+
+  it("resolveStripePriceIdForPlan accepte un Price ID valide", () => {
+    expect(resolveStripePriceIdForPlan("PRO", { STRIPE_PRICE_INDEPENDANT_MONTHLY: "price_ok" })).toBe("price_ok")
+  })
+
+  it("assertBillingPricesConfigured rejette un Price ID mal formé", () => {
+    expect(() =>
+      assertBillingPricesConfigured({
+        STRIPE_PRICE_INDEPENDANT_MONTHLY: "price_a",
+        STRIPE_PRICE_PERFORMANCE_MONTHLY: "prod_b",
+        STRIPE_PRICE_EQUIPE_MONTHLY: "price_c",
+      }),
+    ).toThrow(/price_/)
+  })
+
+  it("assertBillingPricesConfigured rejette des Price IDs dupliqués entre deux plans", () => {
+    expect(() =>
+      assertBillingPricesConfigured({
+        STRIPE_PRICE_INDEPENDANT_MONTHLY: "price_same",
+        STRIPE_PRICE_PERFORMANCE_MONTHLY: "price_same",
+        STRIPE_PRICE_EQUIPE_MONTHLY: "price_other",
+      }),
+    ).toThrow(BillingConfigError)
+  })
+
+  it("source unique : montants & noms viennent de lib/pricing/plans.ts", () => {
+    for (const plan of ["FREE", "PRO", "BUSINESS", "ENTERPRISE"] as const) {
+      const commercial = getCommercialPlanByLicensePlan(plan)
+      expect(getBillingPlanConfig(plan)?.monthlyPriceCents).toBe(commercial?.monthlyPriceCents)
+      expect(getBillingPlanConfig(plan)?.commercialName).toBe(commercial?.name)
+    }
   })
 })
 
