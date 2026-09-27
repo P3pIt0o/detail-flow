@@ -39,13 +39,13 @@ const eligibleCompany = {
 }
 
 describe("Lifetime — configuration centrale", () => {
-  it("plafond = 50, BUSINESS, lifetime, 0 bps, 20 SMS, TTL 30 min, EUR", () => {
+  it("plafond = 50, BUSINESS, lifetime, 0 bps, 20 SMS, TTL réservation 60 min, EUR", () => {
     expect(LIFETIME_MAX_LICENSES).toBe(50)
     expect(LIFETIME_LICENSE_PLAN).toBe("BUSINESS")
     expect(LIFETIME_BILLING_MODE).toBe("lifetime")
     expect(LIFETIME_PLATFORM_FEE_BPS).toBe(0)
     expect(LIFETIME_WELCOME_SMS).toBe(20)
-    expect(LIFETIME_RESERVATION_TTL_MINUTES).toBe(30)
+    expect(LIFETIME_RESERVATION_TTL_MINUTES).toBe(60)
     expect(LIFETIME_CURRENCY).toBe("eur")
   })
 

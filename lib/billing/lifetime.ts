@@ -34,8 +34,15 @@ export const LIFETIME_PLATFORM_FEE_BPS = 0
 /** SMS de bienvenue (crédit réel branché avec le flux d'achat complet). */
 export const LIFETIME_WELCOME_SMS = 20
 
-/** Durée de vie d'une réservation de slot avant un futur Checkout. */
-export const LIFETIME_RESERVATION_TTL_MINUTES = 30
+/**
+ * Durée de vie d'une réservation de slot (LOT S3A : 60 min). Elle DOIT rester
+ * supérieure à la durée du Checkout Stripe pour laisser une marge de réception
+ * du webhook après la fin du paiement.
+ */
+export const LIFETIME_RESERVATION_TTL_MINUTES = 60
+
+/** Durée de vie d'une Checkout Session Stripe Lifetime (minimum Stripe : 30 min). */
+export const LIFETIME_CHECKOUT_TTL_MINUTES = 30
 
 export const LIFETIME_CURRENCY = "eur" as const
 
@@ -95,6 +102,8 @@ export type LifetimeErrorCode =
   | "RESERVATION_EXPIRED"
   | "RESERVATION_RELEASED"
   | "ACTIVE_NOT_RELEASABLE"
+  | "CHECKOUT_SESSION_MISMATCH"
+  | "CHECKOUT_ATTACH_FAILED"
 
 export class LifetimeError extends Error {
   constructor(

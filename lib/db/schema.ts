@@ -310,10 +310,21 @@ export const lifetimeLicenseAllocations = pgTable(
     reservationExpiresAt: timestamp("reservationExpiresAt"),
     activatedAt: timestamp("activatedAt"),
     releasedAt: timestamp("releasedAt"),
+    // LOT S3A — traçabilité Stripe (scripts/lifetime-checkout-migration.sql)
+    stripeCheckoutSessionId: text("stripeCheckoutSessionId"),
+    stripePaymentIntentId: text("stripePaymentIntentId"),
+    paidAmountCents: integer("paidAmountCents"),
+    paidAt: timestamp("paidAt"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => ({
+    uniqCheckoutSession: uniqueIndex("lifetime_license_allocations_checkout_session_key")
+      .on(t.stripeCheckoutSessionId)
+      .where(sql`${t.stripeCheckoutSessionId} IS NOT NULL`),
+    uniqPaymentIntent: uniqueIndex("lifetime_license_allocations_payment_intent_key")
+      .on(t.stripePaymentIntentId)
+      .where(sql`${t.stripePaymentIntentId} IS NOT NULL`),
     statusCheck: check(
       "lifetime_license_allocations_status_check",
       sql`${t.status} IN ('RESERVED', 'ACTIVE', 'RELEASED')`,
@@ -691,7 +702,7 @@ export const settings = pgTable(
     depositType: text("depositType").notNull().default("none"),
     depositValue: integer("depositValue").notNull().default(0),
     // Moyens de paiement acceptés pour l'acompte (slugs séparés par des virgules,
-    // ex. "transfer,wero"). Aucun fournisseur n'est imposé.
+    // ex. "transfer,wero"). Aucun fournisseur n'est impos��.
     depositMethods: text("depositMethods"),
     // Instructions de paiement affichées au client (IBAN, n° Wero, lien, etc.).
     depositInstructions: text("depositInstructions"),
