@@ -288,6 +288,51 @@ export const licenseAuditLog = pgTable(
   }),
 )
 
+/**
+ * Inventaire des licences Lifetime (LOT S2.5A) — plafond réel de 50.
+ * Une ligne = une réservation (RESERVED), une licence attribuée (ACTIVE) ou une
+ * réservation libérée (RELEASED). Le plafond, l'unicité par entreprise et
+ * l'immutabilité des ACTIVE sont garantis PAR LA DB (trigger + index partiel,
+ * voir scripts/lifetime-license-allocation-migration.sql). companyId passe à
+ * NULL si le tenant est supprimé : la licence vendue reste comptabilisée.
+ */
+export const lifetimeLicenseAllocations = pgTable(
+  "lifetime_license_allocations",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId").references(() => companies.id, { onDelete: "set null" }),
+    companyNameSnapshot: text("companyNameSnapshot"),
+    // RESERVED | ACTIVE | RELEASED
+    status: text("status").notNull(),
+    // single | split_2x
+    paymentPlan: text("paymentPlan").notNull(),
+    reservedAt: timestamp("reservedAt").notNull().defaultNow(),
+    reservationExpiresAt: timestamp("reservationExpiresAt"),
+    activatedAt: timestamp("activatedAt"),
+    releasedAt: timestamp("releasedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    statusCheck: check(
+      "lifetime_license_allocations_status_check",
+      sql`${t.status} IN ('RESERVED', 'ACTIVE', 'RELEASED')`,
+    ),
+    paymentPlanCheck: check(
+      "lifetime_license_allocations_paymentPlan_check",
+      sql`${t.paymentPlan} IN ('single', 'split_2x')`,
+    ),
+    uniqOpenPerCompany: uniqueIndex("lifetime_license_allocations_company_open_key")
+      .on(t.companyId)
+      .where(sql`${t.status} IN ('RESERVED', 'ACTIVE') AND ${t.companyId} IS NOT NULL`),
+    byCompany: index("lifetime_license_allocations_companyId_idx").on(t.companyId),
+    byStatusExpires: index("lifetime_license_allocations_status_expires_idx").on(
+      t.status,
+      t.reservationExpiresAt,
+    ),
+  }),
+)
+
 /** Rattachement d'un utilisateur à une entreprise avec un rôle. */
 export const companyMembers = pgTable(
   "company_members",
