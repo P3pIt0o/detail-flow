@@ -18,7 +18,12 @@ import {
   LIFETIME_RESERVATION_TTL_MINUTES,
   type LifetimeAllocationStatus,
 } from "./lifetime"
-import { LIFETIME_STRIPE_PRICES } from "./lifetime-stripe-setup"
+import {
+  LIFETIME_STRIPE_PRICES,
+  assertLifetimePriceMatches,
+  assertLifetimeProductValid,
+} from "./lifetime-stripe-setup"
+import { detectStripeMode } from "./stripe-setup"
 
 export const LIFETIME_SINGLE_PRICE_ENV = LIFETIME_STRIPE_PRICES.single.envName
 export const LIFETIME_SINGLE_AMOUNT_CENTS = LIFETIME_PAYMENT_PLANS.single.totalCents
@@ -42,6 +47,7 @@ export const LIFETIME_BILLING_WEBHOOK_EVENTS = [
 export type LifetimeCheckoutErrorCode =
   | "FORBIDDEN_ROLE"
   | "PRICE_NOT_CONFIGURED"
+  | "PRICE_INVALID"
   | "CHECKOUT_IN_PROGRESS"
   | "CHECKOUT_ALREADY_COMPLETED"
   | "CHECKOUT_CREATE_FAILED"
@@ -84,6 +90,30 @@ export function resolveLifetimeSinglePriceId(env: EnvLike): string {
     )
   }
   return value
+}
+
+/**
+ * Validation stricte du Price réellement renvoyé par Stripe (Product expandé)
+ * AVANT toute réservation : une env pointant vers un autre Price valide ne doit
+ * jamais permettre de facturer un mauvais montant/produit. Réutilise les règles
+ * S2.5B ; ajoute l'identité exacte de l'ID et la cohérence TEST/LIVE.
+ * Lève une erreur au message TECHNIQUE (jamais de secret) — à ne pas exposer.
+ */
+export function validateLifetimeSinglePrice(price: Stripe.Price, expectedPriceId: string, secretKey: string | undefined): void {
+  const mode = detectStripeMode(secretKey)
+  if (price.id !== expectedPriceId) {
+    throw new Error(`price.id « ${price.id} » ≠ ${LIFETIME_SINGLE_PRICE_ENV}`)
+  }
+  const product = price.product
+  if (!product || typeof product === "string" || ("deleted" in product && product.deleted)) {
+    throw new Error("Product du Price introuvable, supprimé ou non expandé")
+  }
+  const expectLive = mode === "LIVE"
+  if (price.livemode !== expectLive || product.livemode !== expectLive) {
+    throw new Error(`Price/Product livemode incohérent avec la clé Stripe (${mode})`)
+  }
+  assertLifetimeProductValid(product)
+  assertLifetimePriceMatches(price, "single", product.id)
 }
 
 /* ---------------------------------- Metadata ------------------------------ */

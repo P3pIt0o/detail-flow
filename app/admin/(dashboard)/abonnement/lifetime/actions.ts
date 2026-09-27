@@ -10,7 +10,7 @@ import { headers } from "next/headers"
 import { requireCompanyMember } from "@/lib/admin"
 import { getStripe } from "@/lib/payments/stripe-client"
 import { withTenant } from "@/lib/tenant-link"
-import { createLifetimeSingleCheckout, type LifetimeStripeClient } from "@/lib/billing/lifetime-checkout"
+import { createLifetimeSingleCheckout, type LifetimeCheckoutStripeClient } from "@/lib/billing/lifetime-checkout"
 import { LifetimeCheckoutError } from "@/lib/billing/lifetime-checkout-core"
 import { LifetimeError } from "@/lib/billing/lifetime"
 
@@ -38,7 +38,7 @@ export async function startLifetimeSingleCheckout(): Promise<LifetimeCheckoutAct
         ),
         cancelUrl: await absoluteUrl(withTenant("/admin/abonnement/lifetime/retour?annule=1", slug)),
       },
-      { stripe: getStripe() as unknown as LifetimeStripeClient },
+      { stripe: getStripe() as unknown as LifetimeCheckoutStripeClient },
     )
     return { ok: true, url: result.url }
   } catch (error) {

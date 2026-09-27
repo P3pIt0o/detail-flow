@@ -19,6 +19,7 @@ import {
   assertLifetimePurchaseRole,
   buildLifetimeSingleCheckoutParams,
   resolveLifetimeSinglePriceId,
+  validateLifetimeSinglePrice,
 } from "./lifetime-checkout-core"
 import { LifetimeError, assertValidCompanyId } from "./lifetime"
 import {
@@ -45,8 +46,13 @@ export interface LifetimeStripeClient {
   checkout: { sessions: LifetimeStripeSessions }
 }
 
+/** Client requis par la création du Checkout : ajoute la lecture du Price. */
+export type LifetimeCheckoutStripeClient = LifetimeStripeClient & {
+  prices: { retrieve(id: string, params?: { expand?: string[] }): Promise<Stripe.Price> }
+}
+
 export interface LifetimeCheckoutDeps extends LifetimeDeps {
-  stripe: LifetimeStripeClient
+  stripe: LifetimeCheckoutStripeClient
   env?: Record<string, string | undefined>
   now?: () => Date
 }
@@ -71,6 +77,29 @@ async function releaseQuietly(allocation: LifetimeAllocation, deps: LifetimeChec
   await releaseLifetimeReservation({ companyId: allocation.companyId, allocationId: allocation.id }, deps).catch(
     (error) => console.error("[lifetime-checkout] libération impossible:", allocation.id, error),
   )
+}
+
+const PRICE_INVALID_MESSAGE = "Le paiement Lifetime est momentanément indisponible."
+
+async function assertLifetimeSinglePriceUsable(
+  priceId: string,
+  env: Record<string, string | undefined>,
+  deps: LifetimeCheckoutDeps,
+): Promise<void> {
+  let price: Stripe.Price
+  try {
+    price = await deps.stripe.prices.retrieve(priceId, { expand: ["product"] })
+  } catch (error) {
+    const e = error as { type?: string; code?: string }
+    console.error("[lifetime-checkout] Price Stripe irrécupérable:", e?.type ?? "unknown", e?.code ?? "")
+    throw new LifetimeCheckoutError("PRICE_INVALID", PRICE_INVALID_MESSAGE)
+  }
+  try {
+    validateLifetimeSinglePrice(price, priceId, env.STRIPE_SECRET_KEY)
+  } catch (error) {
+    console.error("[lifetime-checkout] Price Stripe refusé:", error instanceof Error ? error.message : "invalide")
+    throw new LifetimeCheckoutError("PRICE_INVALID", PRICE_INVALID_MESSAGE)
+  }
 }
 
 /**
@@ -124,7 +153,10 @@ export async function createLifetimeSingleCheckout(
   assertLifetimePurchaseRole(input.role, input.isSuperAdmin)
   assertValidCompanyId(input.companyId)
   // Fail closed AVANT toute réservation : aucun slot bloqué par une config absente.
-  const priceId = resolveLifetimeSinglePriceId(deps.env ?? process.env)
+  const env = deps.env ?? process.env
+  const priceId = resolveLifetimeSinglePriceId(env)
+  // Price réellement vérifié chez Stripe AVANT toute lecture/écriture d'allocation.
+  await assertLifetimeSinglePriceUsable(priceId, env, deps)
   const now = deps.now?.() ?? new Date()
   const { companyId } = input
 
