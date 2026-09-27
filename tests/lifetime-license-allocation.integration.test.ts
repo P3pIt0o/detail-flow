@@ -120,6 +120,10 @@ describe.skipIf(!connectionString)("Lifetime inventory (integration réelle)", (
       )
     `)
     await admin.query(MIGRATION_SQL)
+    // LOT S3A : le service lit aussi les colonnes de traçabilité Checkout.
+    await admin.query(
+      readFileSync(resolve(process.cwd(), "scripts/lifetime-checkout-migration.sql"), "utf8"),
+    )
 
     pool = new Pool({ connectionString, max: 4 })
     pool.on("connect", (client) => {

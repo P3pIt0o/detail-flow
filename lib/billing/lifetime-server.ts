@@ -47,10 +47,15 @@ export interface LifetimeAllocation {
   reservationExpiresAt: Date | null
   activatedAt: Date | null
   releasedAt: Date | null
+  stripeCheckoutSessionId: string | null
+  stripePaymentIntentId: string | null
+  paidAmountCents: number | null
+  paidAt: Date | null
 }
 
 const ALLOCATION_COLUMNS = `"id", "companyId", "companyNameSnapshot", "status", "paymentPlan",
-  "reservedAt", "reservationExpiresAt", "activatedAt", "releasedAt"`
+  "reservedAt", "reservationExpiresAt", "activatedAt", "releasedAt",
+  "stripeCheckoutSessionId", "stripePaymentIntentId", "paidAmountCents", "paidAt"`
 
 const CONSUMING_PREDICATE = `("status" = 'ACTIVE' OR ("status" = 'RESERVED' AND "reservationExpiresAt" > NOW()))`
 
@@ -188,12 +193,24 @@ export interface LifetimeActivationResult {
  * RESERVED → ACTIVE et bascule du tenant en Lifetime, atomiquement.
  * Idempotente : une allocation déjà ACTIVE est renvoyée sans rien modifier.
  */
+export interface LifetimePaymentTrace {
+  checkoutSessionId: string
+  paymentIntentId: string | null
+  paidAmountCents: number
+}
+
 export async function activateLifetimeSlot(
-  input: { companyId: number; allocationId: number; actorUserId?: string | null },
+  input: {
+    companyId: number
+    allocationId: number
+    actorUserId?: string | null
+    /** LOT S3A : preuve de paiement, écrite dans la MÊME transaction. */
+    payment?: LifetimePaymentTrace
+  },
   deps?: LifetimeDeps,
 ): Promise<LifetimeActivationResult> {
   assertValidCompanyId(input.companyId)
-  const { companyId, allocationId } = input
+  const { companyId, allocationId, payment } = input
 
   return withInventoryTransaction(deps, async (client) => {
     const { rows } = await client.query<LifetimeAllocation & { valid: boolean }>(
@@ -207,6 +224,11 @@ export async function activateLifetimeSlot(
       throw new LifetimeError("ALLOCATION_NOT_FOUND", "Allocation Lifetime introuvable pour cette entreprise.")
     }
     const { valid, ...allocation } = rows[0]
+
+    // Revérifié sous verrou : la session payée doit être celle de l'allocation.
+    if (payment && allocation.stripeCheckoutSessionId !== payment.checkoutSessionId) {
+      throw new LifetimeError("CHECKOUT_SESSION_MISMATCH", "La session Stripe ne correspond pas à cette allocation.")
+    }
 
     if (allocation.status === "ACTIVE") {
       return { allocation, alreadyActive: true }
@@ -223,10 +245,13 @@ export async function activateLifetimeSlot(
 
     const { rows: activated } = await client.query<LifetimeAllocation>(
       `UPDATE "lifetime_license_allocations"
-          SET "status" = 'ACTIVE', "activatedAt" = NOW(), "updatedAt" = NOW()
+          SET "status" = 'ACTIVE', "activatedAt" = NOW(), "updatedAt" = NOW(),
+              "stripePaymentIntentId" = COALESCE($2, "stripePaymentIntentId"),
+              "paidAmountCents" = COALESCE($3, "paidAmountCents"),
+              "paidAt" = CASE WHEN $4::boolean THEN NOW() ELSE "paidAt" END
         WHERE "id" = $1
         RETURNING ${ALLOCATION_COLUMNS}`,
-      [allocationId],
+      [allocationId, payment?.paymentIntentId ?? null, payment?.paidAmountCents ?? null, Boolean(payment)],
     )
 
     // Uniquement les colonnes licence/billing du tenant concerné : Stripe
@@ -269,6 +294,80 @@ export async function activateLifetimeSlot(
 
     return { allocation: activated[0], alreadyActive: false }
   })
+}
+
+/* ------------------------------ Checkout (S3A) ---------------------------- */
+
+/** Réservation RESERVED encore valide du tenant (au plus une, index unique). */
+export async function findOpenLifetimeReservation(
+  companyId: number,
+  deps?: LifetimeDeps,
+): Promise<LifetimeAllocation | null> {
+  assertValidCompanyId(companyId)
+  const { rows } = await (deps?.pool ?? defaultPool).query<LifetimeAllocation>(
+    `SELECT ${ALLOCATION_COLUMNS} FROM "lifetime_license_allocations"
+      WHERE "companyId" = $1 AND "status" = 'RESERVED' AND "reservationExpiresAt" > NOW()
+      LIMIT 1`,
+    [companyId],
+  )
+  return rows[0] ?? null
+}
+
+/**
+ * Rattache une Checkout Session à la SEULE allocation RESERVED valide du tenant
+ * qui n'en possède pas encore. Une ACTIVE, une RELEASED, une réservation
+ * expirée ou d'un autre tenant ne sont jamais modifiées (UPDATE conditionnel).
+ */
+export async function attachLifetimeCheckoutSession(
+  input: { companyId: number; allocationId: number; checkoutSessionId: string },
+  deps?: LifetimeDeps,
+): Promise<LifetimeAllocation> {
+  assertValidCompanyId(input.companyId)
+  // Sous le verrou advisory du stock (pris AVANT le verrou ligne) : même ordre
+  // de verrouillage que reserve/activate/release, sinon interblocage avec le
+  // trigger de garde qui prend lui aussi ce verrou.
+  return withInventoryTransaction(deps, async (client) => {
+    const { rows } = await client.query<LifetimeAllocation>(
+      `UPDATE "lifetime_license_allocations"
+          SET "stripeCheckoutSessionId" = $3, "updatedAt" = NOW()
+        WHERE "id" = $1 AND "companyId" = $2
+          AND "status" = 'RESERVED' AND "reservationExpiresAt" > NOW()
+          AND "stripeCheckoutSessionId" IS NULL
+        RETURNING ${ALLOCATION_COLUMNS}`,
+      [input.allocationId, input.companyId, input.checkoutSessionId],
+    )
+    if (rows.length === 0) {
+      throw new LifetimeError("CHECKOUT_ATTACH_FAILED", "Impossible de rattacher la session Stripe à la réservation.")
+    }
+    return rows[0]
+  })
+}
+
+/** Lecture par id pour le webhook (le rattachement tenant est validé ensuite). */
+export async function getLifetimeAllocationById(
+  allocationId: number,
+  deps?: LifetimeDeps,
+): Promise<LifetimeAllocation | null> {
+  if (!Number.isSafeInteger(allocationId) || allocationId <= 0) return null
+  const { rows } = await (deps?.pool ?? defaultPool).query<LifetimeAllocation>(
+    `SELECT ${ALLOCATION_COLUMNS} FROM "lifetime_license_allocations" WHERE "id" = $1`,
+    [allocationId],
+  )
+  return rows[0] ?? null
+}
+
+/** Lecture STRICTEMENT scopée au tenant (page de retour). Aucune écriture. */
+export async function getLifetimeAllocationForCheckoutSession(
+  input: { companyId: number; checkoutSessionId: string },
+  deps?: LifetimeDeps,
+): Promise<LifetimeAllocation | null> {
+  assertValidCompanyId(input.companyId)
+  const { rows } = await (deps?.pool ?? defaultPool).query<LifetimeAllocation>(
+    `SELECT ${ALLOCATION_COLUMNS} FROM "lifetime_license_allocations"
+      WHERE "companyId" = $1 AND "stripeCheckoutSessionId" = $2`,
+    [input.companyId, input.checkoutSessionId],
+  )
+  return rows[0] ?? null
 }
 
 /* ---------------------------------- Libération ---------------------------- */
