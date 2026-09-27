@@ -231,3 +231,80 @@ describe("Divers", () => {
     }
   })
 })
+
+/* ---------------- Correctif S3A : validation runtime du Price ---------------- */
+
+import { validateLifetimeSinglePrice } from "@/lib/billing/lifetime-checkout-core"
+
+describe("validateLifetimeSinglePrice (Price Stripe réel, Product expandé)", () => {
+  const good = (o: Record<string, unknown> = {}, p: Record<string, unknown> = {}) =>
+    ({
+      id: PRICE,
+      object: "price",
+      active: true,
+      livemode: false,
+      currency: "eur",
+      unit_amount: 129000,
+      type: "one_time",
+      recurring: null,
+      lookup_key: "detailflow_lifetime_single",
+      metadata: { app: "detailflow", billing_type: "lifetime", payment_plan: "single", installment_count: "1" },
+      product: {
+        id: "prod_x",
+        object: "product",
+        active: true,
+        livemode: false,
+        name: "DetailFlow Lifetime",
+        metadata: { app: "detailflow", billing_type: "lifetime", offer: "lifetime" },
+        ...p,
+      },
+      ...o,
+    }) as unknown as Stripe.Price
+  const ok = (price: Stripe.Price, key = "sk_test_x") => {
+    try {
+      validateLifetimeSinglePrice(price, PRICE, key)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it("Price conforme accepté (TEST et rk_test_)", () => {
+    expect(ok(good())).toBe(true)
+    expect(ok(good(), "rk_test_x")).toBe(true)
+    expect(ok(good({ livemode: true }, { livemode: true }), "sk_live_x")).toBe(true)
+  })
+
+  it.each([
+    ["mauvais montant", good({ unit_amount: 129001 })],
+    ["mauvaise currency", good({ currency: "usd" })],
+    ["recurring", good({ type: "recurring", recurring: { interval: "month" } })],
+    ["mauvais lookup_key", good({ lookup_key: "other" })],
+    ["metadata installment_count", good({ metadata: { app: "detailflow", billing_type: "lifetime", payment_plan: "single", installment_count: "2" } })],
+    ["Price inactif", good({ active: false })],
+    ["id ≠ env", good({ id: "price_other" })],
+    ["Product non expandé", good({ product: "prod_x" })],
+    ["Product supprimé", good({ product: { id: "prod_x", object: "product", deleted: true } })],
+    ["Product inactif", good({}, { active: false })],
+    ["mauvais nom Product", good({}, { name: "DetailFlow" })],
+    ["metadata Product", good({}, { metadata: { app: "detailflow", billing_type: "lifetime", offer: "founder" } })],
+    ["Price LIVE / clé TEST", good({ livemode: true }, { livemode: true })],
+  ])("%s → refusé", (_label, price) => {
+    expect(ok(price)).toBe(false)
+  })
+
+  it("Price TEST / clé LIVE → refusé ; clé absente ou pk_ → refusé", () => {
+    expect(ok(good(), "sk_live_x")).toBe(false)
+    expect(ok(good(), "")).toBe(false)
+    expect(ok(good(), "pk_test_x")).toBe(false)
+  })
+
+  it("service : validation du Price placée AVANT toute lecture/réservation d'allocation", () => {
+    const src = readFileSync(resolve(process.cwd(), "lib/billing/lifetime-checkout.ts"), "utf8")
+    const body = src.slice(src.indexOf("export async function createLifetimeSingleCheckout"))
+    const validate = body.indexOf("assertLifetimeSinglePriceUsable(")
+    expect(validate).toBeGreaterThan(0)
+    expect(validate).toBeLessThan(body.indexOf("reuseOrCleanExisting("))
+    expect(validate).toBeLessThan(body.indexOf("reserveLifetimeSlot("))
+  })
+})

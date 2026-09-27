@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Client, Pool } from "pg"
 import type Stripe from "stripe"
-import { createLifetimeSingleCheckout, type LifetimeStripeClient } from "@/lib/billing/lifetime-checkout"
+import { createLifetimeSingleCheckout, type LifetimeCheckoutStripeClient } from "@/lib/billing/lifetime-checkout"
 import { handleBillingWebhook, type BillingWebhookDeps } from "@/lib/billing/lifetime-webhook"
 import { LifetimeCheckoutError } from "@/lib/billing/lifetime-checkout-core"
 import { LifetimeError } from "@/lib/billing/lifetime"
@@ -21,16 +21,54 @@ const CHECKOUT_SQL = read("scripts/lifetime-checkout-migration.sql")
 const TEST_SCHEMA = `df_lifetime_co_${Date.now().toString(36)}`
 const T = `"lifetime_license_allocations"`
 const PRICE = "price_single_test"
-const ENV = { STRIPE_PRICE_LIFETIME_SINGLE: PRICE }
+const ENV = { STRIPE_PRICE_LIFETIME_SINGLE: PRICE, STRIPE_SECRET_KEY: "sk_test_fake" }
 const SECRET = "whsec_test_fake"
 
+/** Price + Product Lifetime conformes (TEST), altérables par test. */
+function lifetimePrice(
+  overrides: Partial<Stripe.Price> = {},
+  productOverrides: Partial<Stripe.Product> = {},
+): Stripe.Price {
+  const product = {
+    id: "prod_lifetime_test",
+    object: "product",
+    active: true,
+    livemode: false,
+    name: "DetailFlow Lifetime",
+    metadata: { app: "detailflow", billing_type: "lifetime", offer: "lifetime" },
+    ...productOverrides,
+  } as Stripe.Product
+  return {
+    id: PRICE,
+    object: "price",
+    active: true,
+    livemode: false,
+    currency: "eur",
+    unit_amount: 129000,
+    type: "one_time",
+    recurring: null,
+    lookup_key: "detailflow_lifetime_single",
+    metadata: { app: "detailflow", billing_type: "lifetime", payment_plan: "single", installment_count: "1" },
+    product,
+    ...overrides,
+  } as Stripe.Price
+}
+
 /** Faux Stripe : sessions en mémoire, signature valide ssi header === "valid". */
-function fakeStripe(opts: { failCreate?: boolean } = {}) {
+function fakeStripe(opts: { failCreate?: boolean; price?: Stripe.Price; priceError?: boolean } = {}) {
   const sessions = new Map<string, Stripe.Checkout.Session>()
   const lineItems = new Map<string, Stripe.LineItem[]>()
   let counter = 0
-  const calls = { create: 0, expire: 0 }
+  const calls = { create: 0, expire: 0, priceRetrieve: 0 }
   const client = {
+    prices: {
+      async retrieve(_id: string, params?: { expand?: string[] }) {
+        calls.priceRetrieve++
+        if (opts.priceError) throw Object.assign(new Error("No such price"), { type: "StripeInvalidRequestError", code: "resource_missing" })
+        if (!params?.expand?.includes("product")) throw new Error("product non expandé")
+        return opts.price ?? lifetimePrice()
+      },
+    },
     checkout: {
       sessions: {
         async create(params: Stripe.Checkout.SessionCreateParams) {
@@ -114,7 +152,7 @@ describe.skipIf(!connectionString)("Lifetime Checkout + webhook Billing (intégr
   const checkout = (companyId: number, fake: Fake, role = "OWNER") =>
     createLifetimeSingleCheckout(
       { companyId, role, isSuperAdmin: false, successUrl: "https://x/ok", cancelUrl: "https://x/ko" },
-      { pool, env: ENV, stripe: fake.client as unknown as LifetimeStripeClient },
+      { pool, env: ENV, stripe: fake.client as unknown as LifetimeCheckoutStripeClient },
     )
 
   const webhook = (fake: Fake, rawBody: string, signature: string | null = "valid", secret: string | undefined = SECRET) =>
@@ -251,10 +289,69 @@ describe.skipIf(!connectionString)("Lifetime Checkout + webhook Billing (intégr
     const fake = fakeStripe()
     const p = createLifetimeSingleCheckout(
       { companyId: id, role: "OWNER", isSuperAdmin: false, successUrl: "s", cancelUrl: "c" },
-      { pool, env: {}, stripe: fake.client as unknown as LifetimeStripeClient },
+      { pool, env: {}, stripe: fake.client as unknown as LifetimeCheckoutStripeClient },
     )
     expect(await errCode(p)).toBe("PRICE_NOT_CONFIGURED")
     expect(await allocations()).toHaveLength(0)
+  })
+
+  it("Price Stripe conforme → vérifié AVANT réservation, Checkout possible", async () => {
+    const id = await createCompany("pricegood")
+    const fake = fakeStripe()
+    const res = await checkout(id, fake)
+    expect(res.checkoutSessionId).toBeTruthy()
+    expect(fake.calls.priceRetrieve).toBe(1)
+  })
+
+  describe("Price Stripe invalide → PRICE_INVALID, aucun slot, aucun Checkout", () => {
+    const cases: Array<[string, Parameters<typeof fakeStripe>[0]]> = [
+      ["mauvais montant", { price: lifetimePrice({ unit_amount: 69000 }) }],
+      ["mauvaise currency", { price: lifetimePrice({ currency: "usd" }) }],
+      ["recurring", { price: lifetimePrice({ type: "recurring", recurring: { interval: "month" } as Stripe.Price.Recurring }) }],
+      ["mauvais lookup_key", { price: lifetimePrice({ lookup_key: "detailflow_lifetime_installment" }) }],
+      ["mauvaises metadata", { price: lifetimePrice({ metadata: { app: "detailflow", billing_type: "lifetime", payment_plan: "split_2x", installment_count: "2" } }) }],
+      ["Price inactif", { price: lifetimePrice({ active: false }) }],
+      ["mauvais Product", { price: lifetimePrice({}, { name: "DetailFlow Performance", metadata: { app: "detailflow", billing_type: "subscription" } }) }],
+      ["Product inactif", { price: lifetimePrice({}, { active: false }) }],
+      ["Product non expandé", { price: lifetimePrice({ product: "prod_lifetime_test" }) }],
+      ["ID Price différent de l'env", { price: lifetimePrice({ id: "price_other" }) }],
+      ["Price LIVE avec clé TEST", { price: lifetimePrice({ livemode: true }, { livemode: true }) }],
+      ["Price introuvable / erreur Stripe", { priceError: true }],
+    ]
+    for (const [label, opts] of cases) {
+      it(label, async () => {
+        const id = await createCompany(`bad-${label.replace(/[^a-z]/gi, "").toLowerCase()}`)
+        const fake = fakeStripe(opts)
+        const p = checkout(id, fake)
+        expect(await errCode(p)).toBe("PRICE_INVALID")
+        await p.catch((e: Error) => {
+          expect(e.message).toBe("Le paiement Lifetime est momentanément indisponible.")
+        })
+        expect(await allocations()).toHaveLength(0)
+        expect(fake.calls.create).toBe(0)
+      })
+    }
+
+    it("Price TEST avec clé LIVE → refusé", async () => {
+      const id = await createCompany("livekey")
+      const fake = fakeStripe()
+      const p = createLifetimeSingleCheckout(
+        { companyId: id, role: "OWNER", isSuperAdmin: false, successUrl: "s", cancelUrl: "c" },
+        { pool, env: { ...ENV, STRIPE_SECRET_KEY: "sk_live_fake" }, stripe: fake.client as unknown as LifetimeCheckoutStripeClient },
+      )
+      expect(await errCode(p)).toBe("PRICE_INVALID")
+      expect(await allocations()).toHaveLength(0)
+    })
+
+    it("Price invalide + réservation existante → réservation intacte (aucune lecture/écriture d'allocation)", async () => {
+      const id = await createCompany("keepres")
+      const first = await checkout(id, fakeStripe())
+      const before = await allocations()
+      expect(await errCode(checkout(id, fakeStripe({ price: lifetimePrice({ unit_amount: 1 }) })))).toBe("PRICE_INVALID")
+      const after = await allocations()
+      expect(after).toEqual(before)
+      expect(after[0].stripeCheckoutSessionId).toBe(first.checkoutSessionId)
+    })
   })
 
   it("sold out → aucun Checkout Stripe", async () => {
