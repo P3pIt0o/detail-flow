@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import {
   ANALYSE_PERIODS,
   parsePeriod,
@@ -200,5 +202,99 @@ describe("access — gating serveur par features (jamais par plan)", () => {
   it("profitability_analysis seul → rentabilité visible sans avancé", () => {
     const a = resolveAnalyseAccess({ businessStats: false, profitability: true, advanced: false })
     expect(a).toEqual({ locked: false, showEssentials: false, showProfitability: true, showAdvanced: false })
+  })
+})
+
+describe("clients — acquisition = date de CRÉATION de la réservation (pas date du RDV)", () => {
+  // 30 jours se terminant le 28/09/2026.
+  const range = { start: "2026-08-30", end: "2026-09-28" }
+  const businessSrc = readFileSync(join(process.cwd(), "lib/analytics/business.ts"), "utf8")
+  const fnBody = (name: string) => {
+    const start = businessSrc.indexOf(`async function ${name}(`)
+    const end = businessSrc.indexOf("\n}\n", start)
+    return businessSrc.slice(start, end)
+  }
+
+  it("cas Samuel CHATELAIN : créée le 28/09, RDV le 02/10 → 1 nouveau client, 0 rendez-vous", () => {
+    const samuel = {
+      email: "samuel.chatelain@example.fr",
+      phone: null,
+      createdAt: "2026-09-28",
+      appointmentDate: "2026-10-02",
+      status: "confirmed",
+    }
+    // Côté client : la ligne porte la date de CRÉATION (acquisition).
+    const clients = classifyClients(
+      [{ email: samuel.email, phone: samuel.phone, date: samuel.createdAt, status: samuel.status }],
+      range,
+    )
+    expect(clients.newClients).toBe(1)
+    expect(clients.activeClients).toBe(1)
+    expect(clients.returningClients).toBe(0)
+
+    // Côté rendez-vous : filtrage sur la date du RDV (02/10) → hors période.
+    const inRange = samuel.appointmentDate >= range.start && samuel.appointmentDate <= range.end
+    const counts = {
+      completed: 0,
+      confirmed: inRange && samuel.status === "confirmed" ? 1 : 0,
+      cancelled: 0,
+      pendingDeposit: 0,
+    }
+    expect(appointmentsTotal(counts)).toBe(0)
+  })
+
+  it("queryClientHistory utilise createdAt (fuseau tenant) et ne filtre plus sur la date du RDV", () => {
+    const body = fnBody("queryClientHistory")
+    expect(body).toContain("bookings.createdAt")
+    expect(body).toContain("AT TIME ZONE")
+    expect(body).not.toContain("lte(bookings.date")
+    expect(body).not.toContain("date: bookings.date")
+  })
+
+  it("queryAppointmentCounts reste sur bookings.date (inchangée)", () => {
+    const body = fnBody("queryAppointmentCounts")
+    expect(body).toContain("gte(bookings.date, range.start)")
+    expect(body).toContain("lte(bookings.date, range.end)")
+    expect(body).not.toContain("createdAt")
+  })
+
+  it("completed créée dans la période → nouveau", () => {
+    expect(classifyClients([{ email: "b@x.fr", phone: null, date: "2026-09-10", status: "completed" }], range).newClients).toBe(1)
+  })
+
+  it("pending_deposit / cancelled / démo → 0 nouveau", () => {
+    const stats = classifyClients(
+      [
+        { email: "p@x.fr", phone: null, date: "2026-09-10", status: "pending_deposit" },
+        { email: "c@x.fr", phone: null, date: "2026-09-10", status: "cancelled" },
+        { email: "d@x.fr", phone: null, date: "2026-09-10", status: "confirmed", isDemoData: true },
+      ],
+      range,
+    )
+    expect(stats).toEqual({ activeClients: 0, newClients: 0, returningClients: 0 })
+  })
+
+  it("réservation réelle créée avant la période + nouvelle créée pendant → récurrent", () => {
+    const stats = classifyClients(
+      [
+        { email: "r@x.fr", phone: null, date: "2026-05-01", status: "completed" },
+        { email: "r@x.fr", phone: null, date: "2026-09-20", status: "confirmed" },
+      ],
+      range,
+    )
+    expect(stats).toEqual({ activeClients: 1, newClients: 0, returningClients: 1 })
+  })
+
+  it("plusieurs réservations dans la période, casse d'email différente, même téléphone → comptés une fois", () => {
+    const stats = classifyClients(
+      [
+        { email: "Samuel@X.fr", phone: null, date: "2026-09-01", status: "confirmed" },
+        { email: "samuel@x.fr", phone: null, date: "2026-09-28", status: "confirmed" },
+        { email: null, phone: "06 00 00 00 09", date: "2026-09-05", status: "confirmed" },
+        { email: null, phone: "0600000009", date: "2026-09-06", status: "completed" },
+      ],
+      range,
+    )
+    expect(stats).toEqual({ activeClients: 2, newClients: 2, returningClients: 0 })
   })
 })

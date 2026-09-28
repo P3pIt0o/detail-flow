@@ -168,7 +168,7 @@ export default async function AnalysePage({
               label="Nouveaux clients"
               value={String(essentials.clients.newClients)}
               icon={UserPlus}
-              hint="Clients dont le tout premier rendez-vous tombe dans la période."
+              hint="Clients dont la première réservation confirmée a été créée pendant la période."
               change={adv?.newClientsChange}
             />
           </div>

@@ -250,20 +250,26 @@ async function queryAppointmentCounts(cid: number, range: DateRange): Promise<Ap
  * un `pending_deposit` (caution en attente) n'est pas encore une activité
  * client et ne doit jamais créer un « nouveau client ». Exclut aussi la démo.
  * Colonnes minimales, une seule requête.
+ *
+ * Date d'ACQUISITION client = date locale (fuseau du tenant) de CRÉATION de la
+ * réservation (`bookings.createdAt`, horodatage UTC), et NON la date du
+ * rendez-vous : un client qui réserve aujourd'hui pour un RDV futur est acquis
+ * aujourd'hui. Les statistiques de rendez-vous restent sur `bookings.date`.
  */
-async function queryClientHistory(cid: number, end: string) {
+async function queryClientHistory(cid: number, end: string, timeZone: string) {
+  const createdLocalDate = sql`((${bookings.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone})::date`
   return db
     .select({
       email: bookings.customerEmail,
       phone: bookings.customerPhone,
-      date: bookings.date,
+      date: sql<string>`to_char(${createdLocalDate}, 'YYYY-MM-DD')`,
       status: bookings.status,
     })
     .from(bookings)
     .where(
       and(
         eq(bookings.companyId, cid),
-        lte(bookings.date, end),
+        sql`${createdLocalDate} <= ${end}::date`,
         inArray(bookings.status, [...REAL_APPOINTMENT_STATUSES]),
         eq(bookings.isDemoData, false),
       ),
@@ -531,7 +537,7 @@ export async function loadAnalyseData(
     ? (async () => {
         const [appts, clientRows, site, revBundle, collected] = await Promise.all([
           queryAppointmentCounts(cid, current),
-          queryClientHistory(cid, current.end),
+          queryClientHistory(cid, current.end, timeZone),
           querySiteStats(cid, current),
           financial.currentComparable
             ? Promise.all([
@@ -602,7 +608,7 @@ export async function loadAnalyseData(
             ? Promise.all([queryInvoicedRevenueCents(cid, previous), queryPaidInvoiceAggregate(cid, previous)])
             : Promise.resolve(null),
           queryAppointmentCounts(cid, previous),
-          queryClientHistory(cid, previous.end),
+          queryClientHistory(cid, previous.end, timeZone),
           queryServiceVolume(cid, current),
           financial.currentComparable ? queryServiceRevenue(cid, current) : Promise.resolve([] as ServiceShare[]),
           querySiteStats(cid, current),
