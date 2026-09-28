@@ -29,11 +29,16 @@ export class LifetimeEnvironmentGuardError extends Error {
   }
 }
 
-/** Valeur exacte exigée pour `current_setting('detailflow.environment', true)`. */
+/** Valeur exacte exigée dans `detailflow_environment_guard.environment`. */
 export const LIFETIME_PREVIEW_DATABASE_MARKER = "preview-lifetime"
 
-/** Requête SQL (lecture seule) du marqueur posé sur la base Preview dédiée. */
-export const LIFETIME_DATABASE_MARKER_SQL = "SELECT current_setting('detailflow.environment', true) AS environment"
+/**
+ * Requête SQL (lecture seule) de la table marqueur créée manuellement,
+ * uniquement sur la branche Neon Preview dédiée. L'application ne crée
+ * jamais cette table : absente (Production) => erreur SQL => refus.
+ */
+export const LIFETIME_DATABASE_MARKER_SQL =
+  "SELECT environment FROM detailflow_environment_guard LIMIT 1"
 
 /**
  * Outil de test Preview, contrôles A et B (purs, sans I/O) :
@@ -57,10 +62,10 @@ export function assertLifetimePreviewTestEnvironment(env: Env): void {
 }
 
 /**
- * Contrôle C : la base PostgreSQL elle-même doit porter le marqueur
- * `detailflow.environment = 'preview-lifetime'`. `readMarker` exécute
- * LIFETIME_DATABASE_MARKER_SQL (lecture seule). Absent, différent ou
- * erreur de lecture = refus.
+ * Contrôle C : la base PostgreSQL elle-même doit contenir la table
+ * `detailflow_environment_guard` avec la ligne `'preview-lifetime'`.
+ * `readMarker` exécute LIFETIME_DATABASE_MARKER_SQL (lecture seule).
+ * Table absente / erreur SQL, aucune ligne, NULL, vide ou différent = refus.
  */
 export async function assertLifetimePreviewDatabaseMarker(
   readMarker: () => Promise<string | null | undefined>,
@@ -72,7 +77,7 @@ export async function assertLifetimePreviewDatabaseMarker(
     throw new LifetimeEnvironmentGuardError("DATABASE_MARKER_UNREADABLE", "Marqueur de base illisible.")
   }
   if (marker === null || marker === undefined || marker === "") {
-    throw new LifetimeEnvironmentGuardError("DATABASE_MARKER_MISSING", "Base sans marqueur detailflow.environment.")
+    throw new LifetimeEnvironmentGuardError("DATABASE_MARKER_MISSING", "Base sans marqueur detailflow_environment_guard.")
   }
   if (marker !== LIFETIME_PREVIEW_DATABASE_MARKER) {
     throw new LifetimeEnvironmentGuardError(

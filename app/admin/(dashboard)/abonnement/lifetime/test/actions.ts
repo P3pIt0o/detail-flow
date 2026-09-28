@@ -4,7 +4,7 @@
  * Action serveur DÉDIÉE à l'outil de test Lifetime Preview.
  * Garde-fous (avant auth, réservation, allocation et tout appel Stripe) :
  * A. VERCEL_ENV=preview  B. clé Stripe TEST
- * C. marqueur PostgreSQL detailflow.environment = 'preview-lifetime'.
+ * C. table marqueur detailflow_environment_guard contenant 'preview-lifetime'.
  * Puis OWNER exigé et flux Checkout Lifetime comptant existant.
  */
 

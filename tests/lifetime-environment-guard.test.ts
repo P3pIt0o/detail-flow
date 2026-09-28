@@ -156,15 +156,25 @@ async function generalAction() {
   return mod.startLifetimeSingleCheckout()
 }
 
+describe("LIFETIME_DATABASE_MARKER_SQL", () => {
+  it("lit la table marqueur, en lecture seule, sans current_setting", () => {
+    expect(LIFETIME_DATABASE_MARKER_SQL).toBe(
+      "SELECT environment FROM detailflow_environment_guard LIMIT 1",
+    )
+    expect(LIFETIME_DATABASE_MARKER_SQL).not.toMatch(/current_setting|CREATE|INSERT|UPDATE|DELETE|ALTER|DROP/i)
+  })
+})
+
 describe("assertLifetimePreviewDatabaseMarker (pur)", () => {
   it("'preview-lifetime' exact → accepté", async () => {
     await expect(assertLifetimePreviewDatabaseMarker(async () => "preview-lifetime")).resolves.toBeUndefined()
   })
   const refused: Array<[string, () => Promise<string | null | undefined>, string]> = [
-    ["NULL (paramètre inexistant)", async () => null, "DATABASE_MARKER_MISSING"],
+    ["environment NULL", async () => null, "DATABASE_MARKER_MISSING"],
     ["undefined (aucune ligne)", async () => undefined, "DATABASE_MARKER_MISSING"],
     ["chaîne vide", async () => "", "DATABASE_MARKER_MISSING"],
     ["'production'", async () => "production", "DATABASE_MARKER_MISMATCH"],
+    ["'preview'", async () => "preview", "DATABASE_MARKER_MISMATCH"],
     ["casse différente", async () => "Preview-Lifetime", "DATABASE_MARKER_MISMATCH"],
     ["espace parasite", async () => "preview-lifetime ", "DATABASE_MARKER_MISMATCH"],
     [
@@ -210,7 +220,15 @@ describe("startLifetimePreviewTestCheckout — refus A/B (avant toute requête D
 
 describe("startLifetimePreviewTestCheckout — refus C (marqueur de base)", () => {
   const refused: Array<[string, () => void]> = [
+    [
+      "table detailflow_environment_guard inexistante (42P01)",
+      () =>
+        spies.poolQuery.mockRejectedValue(
+          Object.assign(new Error('relation "detailflow_environment_guard" does not exist'), { code: "42P01" }),
+        ),
+    ],
     ["base sans marker (NULL)", () => spies.poolQuery.mockResolvedValue(markerRows(null))],
+    ["base sans marker (chaîne vide)", () => spies.poolQuery.mockResolvedValue(markerRows(""))],
     ["base sans marker (aucune ligne)", () => spies.poolQuery.mockResolvedValue({ rows: [] })],
     ["marker différent ('production')", () => spies.poolQuery.mockResolvedValue(markerRows("production"))],
     ["marker différent ('preview')", () => spies.poolQuery.mockResolvedValue(markerRows("preview"))],
