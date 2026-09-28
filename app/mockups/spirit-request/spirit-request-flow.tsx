@@ -32,7 +32,7 @@ import {
   VEHICLE_TYPES,
 } from "./data"
 
-const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-osw" })
+const oswald = Oswald({ subsets: ["latin"], variable: "--font-osw" })
 
 /* -------------------------------------------------------------------------- */
 /*  STATE                                                                     */

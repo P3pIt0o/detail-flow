@@ -72,7 +72,7 @@ const PRESTATION_LABELS: Record<string, string> = {
   "moteur-echappement": "Moteur & échappement",
 }
 
-const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-osw" })
+const oswald = Oswald({ subsets: ["latin"], variable: "--font-osw" })
 
 const initialServerState: DemandeFormState = { status: "idle", message: "" }
 
