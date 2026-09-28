@@ -38,7 +38,7 @@ export const LIFETIME_PREVIEW_DATABASE_MARKER = "preview-lifetime"
  * jamais cette table : absente (Production) => erreur SQL => refus.
  */
 export const LIFETIME_DATABASE_MARKER_SQL =
-  "SELECT environment FROM detailflow_environment_guard WHERE environment = 'preview-lifetime' LIMIT 1"
+  "SELECT environment FROM detailflow_environment_guard LIMIT 1"
 
 /**
  * Outil de test Preview, contrôles A et B (purs, sans I/O) :

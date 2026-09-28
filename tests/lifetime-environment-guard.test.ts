@@ -159,7 +159,7 @@ async function generalAction() {
 describe("LIFETIME_DATABASE_MARKER_SQL", () => {
   it("lit la table marqueur, en lecture seule, sans current_setting", () => {
     expect(LIFETIME_DATABASE_MARKER_SQL).toBe(
-      "SELECT environment FROM detailflow_environment_guard WHERE environment = 'preview-lifetime' LIMIT 1",
+      "SELECT environment FROM detailflow_environment_guard LIMIT 1",
     )
     expect(LIFETIME_DATABASE_MARKER_SQL).not.toMatch(/current_setting|CREATE|INSERT|UPDATE|DELETE|ALTER|DROP/i)
   })
