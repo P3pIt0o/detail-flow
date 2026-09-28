@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
-import { startLifetimeSingleCheckout } from "../actions"
+import { startLifetimePreviewTestCheckout } from "./actions"
 
 export function LifetimeTestCheckoutButton() {
   const [error, setError] = useState<string | null>(null)
@@ -11,7 +11,7 @@ export function LifetimeTestCheckoutButton() {
   function handleClick() {
     setError(null)
     startTransition(async () => {
-      const result = await startLifetimeSingleCheckout()
+      const result = await startLifetimePreviewTestCheckout()
       if (result.ok) {
         window.location.assign(result.url)
       } else {

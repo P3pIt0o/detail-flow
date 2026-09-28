@@ -14,8 +14,7 @@ const requireMemberMock = vi.fn(async (_roles: string[]) => ({ role: "OWNER", te
 
 vi.mock("next/navigation", () => ({ notFound: () => notFoundMock() }))
 vi.mock("@/lib/admin", () => ({ requireCompanyMember: (roles: string[]) => requireMemberMock(roles) }))
-vi.mock("@/app/admin/(dashboard)/abonnement/lifetime/actions", () => ({ startLifetimeSingleCheckout: vi.fn() }))
-vi.mock("../app/admin/(dashboard)/abonnement/lifetime/actions", () => ({ startLifetimeSingleCheckout: vi.fn() }))
+vi.mock("../app/admin/(dashboard)/abonnement/lifetime/test/actions", () => ({ startLifetimePreviewTestCheckout: vi.fn() }))
 
 describe("isLifetimePreviewTestEnabled", () => {
   it("n'autorise que preview", () => {
@@ -69,10 +68,12 @@ describe("page /admin/abonnement/lifetime/test", () => {
 })
 
 describe("bouton client", () => {
-  it("réutilise l'action S3A existante, sans argument", () => {
-    expect(buttonSrc).toMatch(/import \{ startLifetimeSingleCheckout \} from "\.\.\/actions"/)
-    expect(buttonSrc).toContain("startLifetimeSingleCheckout()")
-    expect(buttonSrc).not.toMatch(/startLifetimeSingleCheckout\([^)]/)
+  it("utilise EXCLUSIVEMENT l'action Preview protégée, sans argument", () => {
+    expect(buttonSrc).toMatch(/import \{ startLifetimePreviewTestCheckout \} from "\.\/actions"/)
+    expect(buttonSrc).toContain("startLifetimePreviewTestCheckout()")
+    expect(buttonSrc).not.toMatch(/startLifetimePreviewTestCheckout\([^)]/)
+    expect(buttonSrc).not.toContain("startLifetimeSingleCheckout")
+    expect(buttonSrc).not.toContain("../actions")
   })
 
   it("ne transmet aucune donnée sensible depuis le navigateur", () => {
