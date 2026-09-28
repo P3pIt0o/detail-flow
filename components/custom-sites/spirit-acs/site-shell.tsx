@@ -23,7 +23,6 @@ const SPIRIT_WHATSAPP_MESSAGE = "Bonjour, je souhaite obtenir des renseignements
 // variable CSS scopée au conteneur Spirit uniquement.
 const spiritDisplay = Oswald({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
   variable: "--font-spirit-display",
   display: "swap",
 })
