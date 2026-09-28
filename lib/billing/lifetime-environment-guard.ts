@@ -1,9 +1,9 @@
 /**
  * DetailFlow — Garde-fous d'environnement du Checkout Lifetime (hotfix S3A).
  *
- * Fonctions PURES (aucun I/O) évaluées AVANT toute réservation DB, toute
- * lecture d'allocation et tout appel Stripe. Toute ambiguïté = refus.
- * Aucun secret n'est jamais inclus dans les messages : au plus un hostname.
+ * Évalués AVANT toute réservation DB, toute lecture d'allocation et tout
+ * appel Stripe. Toute ambiguïté = refus. Aucun secret dans les messages.
+ * Seul I/O : la lecture (injectée) du marqueur de base, en lecture seule.
  */
 
 import { detectStripeMode } from "./stripe-setup"
@@ -14,10 +14,9 @@ export type LifetimeEnvironmentGuardCode =
   | "NOT_PREVIEW"
   | "STRIPE_KEY_INVALID"
   | "STRIPE_NOT_TEST"
-  | "DATABASE_URL_MISSING"
-  | "DATABASE_URL_UNPARSABLE"
-  | "PREVIEW_DATABASE_HOST_MISSING"
-  | "DATABASE_HOST_MISMATCH"
+  | "DATABASE_MARKER_UNREADABLE"
+  | "DATABASE_MARKER_MISSING"
+  | "DATABASE_MARKER_MISMATCH"
   | "LIVE_CHECKOUT_DISABLED"
 
 export class LifetimeEnvironmentGuardError extends Error {
@@ -30,26 +29,17 @@ export class LifetimeEnvironmentGuardError extends Error {
   }
 }
 
-/** Hostname d'une URL Postgres, sans jamais exposer user/password. */
-export function extractDatabaseHostname(databaseUrl: string | undefined): string {
-  const raw = typeof databaseUrl === "string" ? databaseUrl.trim() : ""
-  if (!raw) throw new LifetimeEnvironmentGuardError("DATABASE_URL_MISSING", "DATABASE_URL absente.")
-  let hostname: string
-  try {
-    hostname = new URL(raw).hostname
-  } catch {
-    throw new LifetimeEnvironmentGuardError("DATABASE_URL_UNPARSABLE", "DATABASE_URL illisible.")
-  }
-  if (!hostname) throw new LifetimeEnvironmentGuardError("DATABASE_URL_UNPARSABLE", "DATABASE_URL sans hostname.")
-  return hostname.toLowerCase()
-}
+/** Valeur exacte exigée pour `current_setting('detailflow.environment', true)`. */
+export const LIFETIME_PREVIEW_DATABASE_MARKER = "preview-lifetime"
+
+/** Requête SQL (lecture seule) du marqueur posé sur la base Preview dédiée. */
+export const LIFETIME_DATABASE_MARKER_SQL = "SELECT current_setting('detailflow.environment', true) AS environment"
 
 /**
- * Outil de test Preview : exige VERCEL_ENV=preview, une clé Stripe TEST et
- * une DATABASE_URL dont le hostname est EXACTEMENT LIFETIME_PREVIEW_DATABASE_HOST.
- * Renvoie le hostname validé (loggable).
+ * Outil de test Preview, contrôles A et B (purs, sans I/O) :
+ * VERCEL_ENV=preview exact + clé Stripe TEST (sk_test_ / rk_test_).
  */
-export function assertLifetimePreviewTestEnvironment(env: Env): { databaseHost: string } {
+export function assertLifetimePreviewTestEnvironment(env: Env): void {
   if (env.VERCEL_ENV !== "preview") {
     throw new LifetimeEnvironmentGuardError("NOT_PREVIEW", "Outil réservé aux déploiements Vercel Preview.")
   }
@@ -64,21 +54,32 @@ export function assertLifetimePreviewTestEnvironment(env: Env): { databaseHost: 
     throw new LifetimeEnvironmentGuardError("STRIPE_NOT_TEST", "Clé Stripe LIVE refusée dans l'outil de test.")
   }
 
-  const expected = (env.LIFETIME_PREVIEW_DATABASE_HOST ?? "").trim().toLowerCase()
-  if (!expected) {
+}
+
+/**
+ * Contrôle C : la base PostgreSQL elle-même doit porter le marqueur
+ * `detailflow.environment = 'preview-lifetime'`. `readMarker` exécute
+ * LIFETIME_DATABASE_MARKER_SQL (lecture seule). Absent, différent ou
+ * erreur de lecture = refus.
+ */
+export async function assertLifetimePreviewDatabaseMarker(
+  readMarker: () => Promise<string | null | undefined>,
+): Promise<void> {
+  let marker: string | null | undefined
+  try {
+    marker = await readMarker()
+  } catch {
+    throw new LifetimeEnvironmentGuardError("DATABASE_MARKER_UNREADABLE", "Marqueur de base illisible.")
+  }
+  if (marker === null || marker === undefined || marker === "") {
+    throw new LifetimeEnvironmentGuardError("DATABASE_MARKER_MISSING", "Base sans marqueur detailflow.environment.")
+  }
+  if (marker !== LIFETIME_PREVIEW_DATABASE_MARKER) {
     throw new LifetimeEnvironmentGuardError(
-      "PREVIEW_DATABASE_HOST_MISSING",
-      "LIFETIME_PREVIEW_DATABASE_HOST absente.",
+      "DATABASE_MARKER_MISMATCH",
+      `Marqueur de base inattendu (${String(marker).slice(0, 64)}).`,
     )
   }
-  const actual = extractDatabaseHostname(env.DATABASE_URL)
-  if (actual !== expected) {
-    throw new LifetimeEnvironmentGuardError(
-      "DATABASE_HOST_MISMATCH",
-      `Base de données inattendue (hostname ${actual}).`,
-    )
-  }
-  return { databaseHost: actual }
 }
 
 /**

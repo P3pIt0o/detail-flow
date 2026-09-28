@@ -1,18 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import type Stripe from "stripe"
 import {
+  LIFETIME_DATABASE_MARKER_SQL,
   LifetimeEnvironmentGuardError,
   assertLifetimeLiveCheckoutAllowed,
+  assertLifetimePreviewDatabaseMarker,
   assertLifetimePreviewTestEnvironment,
-  extractDatabaseHostname,
 } from "@/lib/billing/lifetime-environment-guard"
 
 /* Aucun réseau : Stripe, DB et session sont entièrement simulés. */
 
 const PRICE = "price_fake_single"
-const PREVIEW_HOST = "ep-preview-lifetime-123.eu-central-1.aws.neon.tech"
-const PROD_HOST = "ep-production-999.eu-central-1.aws.neon.tech"
-const dbUrl = (host: string) => `postgresql://user:s3cret@${host}/neondb?sslmode=require`
 
 const validPrice = {
   id: PRICE,
@@ -46,6 +44,7 @@ const spies = vi.hoisted(() => ({
   sessionsExpire: vi.fn(),
   getStripe: vi.fn(),
   requireCompanyMember: vi.fn(),
+  poolQuery: vi.fn(),
 }))
 
 vi.mock("@/lib/billing/lifetime-server", () => ({
@@ -54,6 +53,7 @@ vi.mock("@/lib/billing/lifetime-server", () => ({
   attachLifetimeCheckoutSession: spies.attachLifetimeCheckoutSession,
   releaseLifetimeReservation: spies.releaseLifetimeReservation,
 }))
+vi.mock("@/lib/db", () => ({ pool: { query: spies.poolQuery }, db: {} }))
 vi.mock("@/lib/payments/stripe-client", () => ({ getStripe: spies.getStripe }))
 vi.mock("@/lib/admin", () => ({ requireCompanyMember: spies.requireCompanyMember }))
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "preview.example.test" }) }))
@@ -73,8 +73,6 @@ const fakeStripe = {
 const ENV_KEYS = [
   "VERCEL_ENV",
   "STRIPE_SECRET_KEY",
-  "DATABASE_URL",
-  "LIFETIME_PREVIEW_DATABASE_HOST",
   "LIFETIME_LIVE_CHECKOUT_ENABLED",
   "STRIPE_PRICE_LIFETIME_SINGLE",
 ] as const
@@ -88,11 +86,11 @@ function setEnv(values: Partial<Record<(typeof ENV_KEYS)[number], string | undef
   }
 }
 
+const markerRows = (environment: string | null) => ({ rows: [{ environment }] })
+
 const allowedPreview = {
   VERCEL_ENV: "preview",
   STRIPE_SECRET_KEY: "sk_test_fake",
-  DATABASE_URL: dbUrl(PREVIEW_HOST),
-  LIFETIME_PREVIEW_DATABASE_HOST: PREVIEW_HOST,
   STRIPE_PRICE_LIFETIME_SINGLE: PRICE,
 }
 
@@ -100,6 +98,7 @@ beforeEach(() => {
   for (const key of ENV_KEYS) saved[key] = process.env[key]
   for (const spy of Object.values(spies)) spy.mockReset()
   spies.getStripe.mockReturnValue(fakeStripe)
+  spies.poolQuery.mockResolvedValue(markerRows("preview-lifetime"))
   spies.requireCompanyMember.mockResolvedValue({
     role: "OWNER",
     isSuperAdmin: false,
@@ -129,14 +128,23 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** Aucune réservation RESERVED, aucune lecture d'allocation, aucun Stripe, aucune auth. */
 function expectNothingTouched() {
   expect(spies.reserveLifetimeSlot).not.toHaveBeenCalled()
   expect(spies.findOpenLifetimeReservation).not.toHaveBeenCalled()
+  expect(spies.attachLifetimeCheckoutSession).not.toHaveBeenCalled()
   expect(spies.pricesRetrieve).not.toHaveBeenCalled()
   expect(spies.sessionsCreate).not.toHaveBeenCalled()
   expect(spies.getStripe).not.toHaveBeenCalled()
   expect(spies.requireCompanyMember).not.toHaveBeenCalled()
 }
+
+/** La seule requête DB autorisée avant refus est la lecture du marqueur. */
+function expectOnlyMarkerRead() {
+  for (const call of spies.poolQuery.mock.calls) expect(call[0]).toBe(LIFETIME_DATABASE_MARKER_SQL)
+}
+
+const REFUSED = { ok: false, error: "L'outil de test Lifetime n'est pas disponible sur cet environnement." }
 
 async function previewAction() {
   const mod = await import("../app/admin/(dashboard)/abonnement/lifetime/test/actions")
@@ -148,87 +156,95 @@ async function generalAction() {
   return mod.startLifetimeSingleCheckout()
 }
 
-describe("extractDatabaseHostname", () => {
-  it("extrait uniquement le hostname, jamais les credentials", () => {
-    expect(extractDatabaseHostname(dbUrl(PREVIEW_HOST))).toBe(PREVIEW_HOST)
-    expect(extractDatabaseHostname(dbUrl(PREVIEW_HOST))).not.toContain("s3cret")
+describe("assertLifetimePreviewDatabaseMarker (pur)", () => {
+  it("'preview-lifetime' exact → accepté", async () => {
+    await expect(assertLifetimePreviewDatabaseMarker(async () => "preview-lifetime")).resolves.toBeUndefined()
   })
-  it("absente / illisible → refus", () => {
-    expect(() => extractDatabaseHostname(undefined)).toThrow(LifetimeEnvironmentGuardError)
-    expect(() => extractDatabaseHostname("")).toThrow(LifetimeEnvironmentGuardError)
-    expect(() => extractDatabaseHostname("pas une url")).toThrow(LifetimeEnvironmentGuardError)
-  })
+  const refused: Array<[string, () => Promise<string | null | undefined>, string]> = [
+    ["NULL (paramètre inexistant)", async () => null, "DATABASE_MARKER_MISSING"],
+    ["undefined (aucune ligne)", async () => undefined, "DATABASE_MARKER_MISSING"],
+    ["chaîne vide", async () => "", "DATABASE_MARKER_MISSING"],
+    ["'production'", async () => "production", "DATABASE_MARKER_MISMATCH"],
+    ["casse différente", async () => "Preview-Lifetime", "DATABASE_MARKER_MISMATCH"],
+    ["espace parasite", async () => "preview-lifetime ", "DATABASE_MARKER_MISMATCH"],
+    [
+      "lecture en erreur",
+      async () => {
+        throw new Error("connection refused")
+      },
+      "DATABASE_MARKER_UNREADABLE",
+    ],
+  ]
+  for (const [label, reader, code] of refused) {
+    it(`${label} → ${code}`, async () => {
+      await expect(assertLifetimePreviewDatabaseMarker(reader)).rejects.toMatchObject({ code })
+      await expect(assertLifetimePreviewDatabaseMarker(reader)).rejects.toBeInstanceOf(LifetimeEnvironmentGuardError)
+    })
+  }
 })
 
-describe("assertLifetimePreviewTestEnvironment — messages sans secret", () => {
-  it("mauvais hostname : message avec le hostname seul, sans mot de passe", () => {
-    try {
-      assertLifetimePreviewTestEnvironment({ ...allowedPreview, DATABASE_URL: dbUrl(PROD_HOST) })
-      throw new Error("aurait dû refuser")
-    } catch (error) {
-      expect((error as LifetimeEnvironmentGuardError).code).toBe("DATABASE_HOST_MISMATCH")
-      expect((error as Error).message).toContain(PROD_HOST)
-      expect((error as Error).message).not.toContain("s3cret")
-      expect((error as Error).message).not.toContain("user:")
-    }
-  })
-  it("cas autorisé → renvoie le hostname validé", () => {
-    expect(assertLifetimePreviewTestEnvironment(allowedPreview)).toEqual({ databaseHost: PREVIEW_HOST })
-  })
-})
-
-describe("startLifetimePreviewTestCheckout — cas refusés (aucune DB, aucun Stripe)", () => {
+describe("startLifetimePreviewTestCheckout — refus A/B (avant toute requête DB)", () => {
   const refused: Array<[string, Record<string, string | undefined>, string]> = [
-    ["1. VERCEL_ENV=production", { ...allowedPreview, VERCEL_ENV: "production" }, "NOT_PREVIEW"],
-    ["2. VERCEL_ENV=development", { ...allowedPreview, VERCEL_ENV: "development" }, "NOT_PREVIEW"],
-    ["3. VERCEL_ENV absent", { ...allowedPreview, VERCEL_ENV: undefined }, "NOT_PREVIEW"],
-    ["4. Preview + sk_live_", { ...allowedPreview, STRIPE_SECRET_KEY: "sk_live_fake" }, "STRIPE_NOT_TEST"],
-    ["5. Preview + rk_live_", { ...allowedPreview, STRIPE_SECRET_KEY: "rk_live_fake" }, "STRIPE_NOT_TEST"],
-    ["6. Preview + clé absente", { ...allowedPreview, STRIPE_SECRET_KEY: undefined }, "STRIPE_KEY_INVALID"],
-    ["6b. Preview + clé publishable", { ...allowedPreview, STRIPE_SECRET_KEY: "pk_test_fake" }, "STRIPE_KEY_INVALID"],
-    ["7. Preview + DATABASE_URL Production", { ...allowedPreview, DATABASE_URL: dbUrl(PROD_HOST) }, "DATABASE_HOST_MISMATCH"],
-    [
-      "8. Preview + hostname Neon différent",
-      { ...allowedPreview, DATABASE_URL: dbUrl("ep-other-branch-555.eu-central-1.aws.neon.tech") },
-      "DATABASE_HOST_MISMATCH",
-    ],
-    [
-      "9. Preview + LIFETIME_PREVIEW_DATABASE_HOST absent",
-      { ...allowedPreview, LIFETIME_PREVIEW_DATABASE_HOST: undefined },
-      "PREVIEW_DATABASE_HOST_MISSING",
-    ],
-    ["9b. Preview + DATABASE_URL absente", { ...allowedPreview, DATABASE_URL: undefined }, "DATABASE_URL_MISSING"],
+    ["VERCEL_ENV=production", { ...allowedPreview, VERCEL_ENV: "production" }, "NOT_PREVIEW"],
+    ["VERCEL_ENV=development", { ...allowedPreview, VERCEL_ENV: "development" }, "NOT_PREVIEW"],
+    ["VERCEL_ENV absent", { ...allowedPreview, VERCEL_ENV: undefined }, "NOT_PREVIEW"],
+    ["Preview + sk_live_", { ...allowedPreview, STRIPE_SECRET_KEY: "sk_live_fake" }, "STRIPE_NOT_TEST"],
+    ["Preview + rk_live_", { ...allowedPreview, STRIPE_SECRET_KEY: "rk_live_fake" }, "STRIPE_NOT_TEST"],
+    ["Preview + clé absente", { ...allowedPreview, STRIPE_SECRET_KEY: undefined }, "STRIPE_KEY_INVALID"],
+    ["Preview + clé publishable", { ...allowedPreview, STRIPE_SECRET_KEY: "pk_test_fake" }, "STRIPE_KEY_INVALID"],
+    ["Preview + clé inconnue", { ...allowedPreview, STRIPE_SECRET_KEY: "xx_fake" }, "STRIPE_KEY_INVALID"],
   ]
 
   for (const [label, env, code] of refused) {
-    it(label, async () => {
+    it(`${label} → ${code}`, async () => {
       setEnv(env)
       expect(() => assertLifetimePreviewTestEnvironment(process.env)).toThrowError(
         expect.objectContaining({ code }),
       )
-      const result = await previewAction()
-      expect(result).toEqual({ ok: false, error: "L'outil de test Lifetime n'est pas disponible sur cet environnement." })
+      expect(await previewAction()).toEqual(REFUSED)
+      expectNothingTouched()
+      expect(spies.poolQuery).not.toHaveBeenCalled()
+    })
+  }
+})
+
+describe("startLifetimePreviewTestCheckout — refus C (marqueur de base)", () => {
+  const refused: Array<[string, () => void]> = [
+    ["base sans marker (NULL)", () => spies.poolQuery.mockResolvedValue(markerRows(null))],
+    ["base sans marker (aucune ligne)", () => spies.poolQuery.mockResolvedValue({ rows: [] })],
+    ["marker différent ('production')", () => spies.poolQuery.mockResolvedValue(markerRows("production"))],
+    ["marker différent ('preview')", () => spies.poolQuery.mockResolvedValue(markerRows("preview"))],
+    ["lecture du marker en erreur", () => spies.poolQuery.mockRejectedValue(new Error("ECONNREFUSED"))],
+  ]
+
+  for (const [label, arrange] of refused) {
+    it(`Preview + sk_test_ + ${label} → refus`, async () => {
+      setEnv(allowedPreview)
+      arrange()
+      expect(await previewAction()).toEqual(REFUSED)
+      expect(spies.poolQuery).toHaveBeenCalledTimes(1)
+      expectOnlyMarkerRead()
       expectNothingTouched()
     })
   }
 })
 
 describe("startLifetimePreviewTestCheckout — cas autorisé", () => {
-  it("Preview + sk_test_ + hostname exact + OWNER → Checkout créé", async () => {
+  it("Preview + sk_test_ + marker preview-lifetime + OWNER → Checkout créé", async () => {
     setEnv(allowedPreview)
     const result = await previewAction()
     expect(result).toEqual({ ok: true, url: "https://checkout.stripe.test/cs_fake_1" })
+    expect(spies.poolQuery).toHaveBeenCalledWith(LIFETIME_DATABASE_MARKER_SQL)
     expect(spies.requireCompanyMember).toHaveBeenCalledWith(["OWNER"])
     expect(spies.pricesRetrieve).toHaveBeenCalledTimes(1)
     expect(spies.reserveLifetimeSlot).toHaveBeenCalledTimes(1)
     expect(spies.sessionsCreate).toHaveBeenCalledTimes(1)
-    // L'ordre reste : Price validé AVANT la réservation, réservation AVANT Checkout.
-    expect(spies.pricesRetrieve.mock.invocationCallOrder[0]).toBeLessThan(
-      spies.reserveLifetimeSlot.mock.invocationCallOrder[0],
-    )
-    expect(spies.reserveLifetimeSlot.mock.invocationCallOrder[0]).toBeLessThan(
-      spies.sessionsCreate.mock.invocationCallOrder[0],
-    )
+    // Marker → auth → Price validé → réservation → Checkout.
+    const order = (spy: { mock: { invocationCallOrder: number[] } }) => spy.mock.invocationCallOrder[0]
+    expect(order(spies.poolQuery)).toBeLessThan(order(spies.requireCompanyMember))
+    expect(order(spies.requireCompanyMember)).toBeLessThan(order(spies.pricesRetrieve))
+    expect(order(spies.pricesRetrieve)).toBeLessThan(order(spies.reserveLifetimeSlot))
+    expect(order(spies.reserveLifetimeSlot)).toBeLessThan(order(spies.sessionsCreate))
   })
 
   it("rk_test_ accepté", async () => {
@@ -244,10 +260,15 @@ describe("startLifetimePreviewTestCheckout — cas autorisé", () => {
     expect(spies.pricesRetrieve).not.toHaveBeenCalled()
     expect(spies.sessionsCreate).not.toHaveBeenCalled()
   })
+
+  it("l'action ne prend aucun argument (rien ne vient du navigateur)", async () => {
+    const mod = await import("../app/admin/(dashboard)/abonnement/lifetime/test/actions")
+    expect(mod.startLifetimePreviewTestCheckout.length).toBe(0)
+  })
 })
 
 describe("startLifetimeSingleCheckout — verrou LIVE (LIFETIME_LIVE_CHECKOUT_ENABLED)", () => {
-  const base = { STRIPE_PRICE_LIFETIME_SINGLE: PRICE, DATABASE_URL: dbUrl(PROD_HOST) }
+  const base = { STRIPE_PRICE_LIFETIME_SINGLE: PRICE }
   const refused: Array<[string, Record<string, string | undefined>]> = [
     ["Production + sk_live_ sans opt-in", { ...base, VERCEL_ENV: "production", STRIPE_SECRET_KEY: "sk_live_fake" }],
     ["Production + sk_test_ sans opt-in", { ...base, VERCEL_ENV: "production", STRIPE_SECRET_KEY: "sk_test_fake" }],
