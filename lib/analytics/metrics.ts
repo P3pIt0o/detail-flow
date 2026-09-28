@@ -96,7 +96,10 @@ export function clientIdentityKey(contact: { email?: string | null; phone?: stri
 export type ClientBookingRow = {
   email: string | null
   phone: string | null
-  /** Date du rendez-vous `YYYY-MM-DD`. */
+  /**
+   * Date d'acquisition `YYYY-MM-DD` : date locale de CRÉATION de la réservation
+   * (`bookings.createdAt`), pas la date du rendez-vous.
+   */
   date: string
   status: string
   isDemoData?: boolean
@@ -127,9 +130,10 @@ export const REAL_CLIENT_STATUSES = new Set<string>(["confirmed", "completed"])
  * Définitions (testées) :
  *  - on ne compte QUE les vrais rendez-vous (`confirmed`/`completed`) ; les
  *    `pending_deposit`, `cancelled`, démonstration, ou sans identité sont ignorés ;
- *  - « nouveau »   : le PREMIER vrai rendez-vous du client tombe dans la période ;
- *  - « récurrent » : le client a une vraie activité AVANT la période ET pendant ;
- *  - « actif »     : au moins un vrai rendez-vous dans la période (= nouveaux + récurrents).
+ *  - « nouveau »   : la PREMIÈRE vraie réservation du client a été CRÉÉE dans la période ;
+ *  - « récurrent » : une vraie réservation créée AVANT la période ET une autre créée pendant ;
+ *  - « actif »     : au moins une vraie réservation créée dans la période (= nouveaux + récurrents).
+ * `date` est la date de création de la réservation (acquisition), jamais celle du RDV.
  *
  * `rows` doit contenir l'historique jusqu'à `end` inclus (le serveur ne charge
  * pas au-delà). Complexité O(n) : aucune requête N+1.
