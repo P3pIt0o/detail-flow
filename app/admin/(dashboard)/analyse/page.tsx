@@ -12,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react"
 import { requireCompanyId } from "@/lib/tenant"
+import { withTenant } from "@/lib/tenant-link"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { formatMoney } from "@/lib/format"
 import { resolveAnalyseAccess } from "@/lib/analytics/access"
@@ -58,7 +59,7 @@ function Section({
 export default async function AnalysePage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>
+  searchParams: Promise<{ period?: string; tenant?: string }>
 }) {
   const companyId = await requireCompanyId()
   const sp = await searchParams
@@ -72,7 +73,8 @@ export default async function AnalysePage({
   ])
   const access = resolveAnalyseAccess({ businessStats, profitability, advanced })
 
-  const hrefFor = (p: AnalysePeriod) => (p === "30d" ? "/admin/analyse" : `/admin/analyse?period=${p}`)
+  const hrefFor = (p: AnalysePeriod) =>
+    withTenant(p === "30d" ? "/admin/analyse" : `/admin/analyse?period=${p}`, sp.tenant ?? null)
 
   const header = (
     <header className="flex flex-col gap-1">
