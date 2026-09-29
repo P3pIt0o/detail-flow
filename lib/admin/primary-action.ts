@@ -31,11 +31,11 @@ export type WidgetPrimaryAction = {
   /** Code d'intégration existant (`buildEmbedScriptSnippet`), slug injecté serveur. */
   scriptSnippet: string
   /**
-   * Lien de réservation direct (`/p/<slug>/reservation`), proposé uniquement si
-   * actif. Même route que l'iframe du widget, sans `?embed=1`. Utilisé à la fois
-   * par « Copier mon lien de réservation » et « Voir mon module ».
+   * Lien public de réservation (`/p/<slug>/reservation`), toujours fourni : c'est
+   * l'action principale du mode widget. Même route que l'iframe du widget, sans
+   * `?embed=1`. Utilisé par « Copier mon lien de réservation » et « Voir mon module ».
    */
-  bookingUrl: string | null
+  bookingUrl: string
 }
 
 /**
@@ -54,7 +54,7 @@ export function buildWidgetPrimaryAction(opts: {
   return {
     active: opts.active,
     scriptSnippet: opts.scriptSnippet,
-    bookingUrl: opts.active ? `${origin}/p/${encodeURIComponent(opts.slug)}/reservation` : null,
+    bookingUrl: `${origin}/p/${encodeURIComponent(opts.slug)}/reservation`,
   }
 }
 

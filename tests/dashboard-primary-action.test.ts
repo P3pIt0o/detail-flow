@@ -105,14 +105,44 @@ describe("widget : lien de réservation direct + « Voir mon site »", () => {
     expect(ui).toMatch(/copy\("link", bookingUrl\)/)
     expect(ui).toMatch(/href=\{bookingUrl\}/)
     expect(ui).toMatch(/Copier mon lien de réservation/)
-    expect(ui).toMatch(/Intégrer sur mon site/)
     expect(ui).not.toMatch(/\/book\//)
   })
 
-  it("widget inactif → pas de lien, admin intact, code d'intégration conservé", () => {
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: false, scriptSnippet: snippet, origin: ORIGIN })
-    expect(a.bookingUrl).toBeNull()
+  it("ordre : lien public (copier, voir) AVANT l'intégration directe (code)", () => {
+    const ui = read("components/admin/widget-action-button.tsx")
+    const order = [
+      "Partager votre réservation",
+      "Copier mon lien de réservation",
+      "Voir mon module",
+      "Intégrer le module directement sur mon site",
+      "Copier le code d'intégration",
+    ].map((label) => ui.indexOf(label))
+    for (const i of order) expect(i).toBeGreaterThan(-1)
+    expect([...order].sort((x, y) => x - y)).toEqual(order)
+    expect(ui).not.toMatch(/Afficher le module intégré à votre page/)
+  })
+
+  it("« Copier mon lien » copie l'URL seule, jamais le code div data-* / script", () => {
+    const ui = read("components/admin/widget-action-button.tsx")
+    expect(ui).toMatch(/copy\("code", action\.scriptSnippet\)/)
+    expect(ui).not.toMatch(/copy\("link", action\.scriptSnippet\)/)
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    expect(a.bookingUrl).not.toMatch(/<|>|data-|script/i)
     expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
+  })
+
+  it("widget inactif → lien public toujours fourni + code d'intégration conservé", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: false, scriptSnippet: snippet, origin: ORIGIN })
+    expect(a.active).toBe(false)
+    expect(a.bookingUrl).toBe("https://www.detailflow.fr/p/tenant-a/reservation")
+    expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
+  })
+
+  it("aucun slug de tenant codé en dur dans la logique widget", () => {
+    for (const f of ["components/admin/widget-action-button.tsx", "lib/admin/primary-action.ts"]) {
+      const src = read(f).replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "")
+      expect(src).not.toMatch(/cleanyzer|spirit|rozan|textile/i)
+    }
   })
 
   it("« Voir mon site » : masqué en widget, inchangé en link / NULL", () => {
