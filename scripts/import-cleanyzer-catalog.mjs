@@ -2,11 +2,11 @@
  * Initialisation du catalogue Cleanyzer (tenant EXISTANT `cleanyzer`).
  *
  *   Dry-run (aucune écriture) :
- *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs --durations=durees.json
+ *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs
  *   Application (uniquement si le dry-run affiche SAFE TO APPLY: YES) :
- *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs --durations=durees.json --apply
+ *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs --apply
  *
- *   durees.json = { "<slug prestation>": minutes, ... } — obligatoire pour chaque prestation à créer.
+ *   Durées initiales intégrées au catalogue ; --durations=fichier.json reste possible pour les surcharger.
  *
  * Logique : scripts/cleanyzer-catalog-import.mjs (create if missing, preserve if existing).
  */

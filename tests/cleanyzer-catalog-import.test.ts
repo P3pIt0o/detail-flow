@@ -93,16 +93,14 @@ describe("import Cleanyzer", () => {
 
     const services = (await db.query<{ slug: string; visible: boolean; basePriceCents: number }>(
       `SELECT slug, visible, "basePriceCents" FROM services WHERE "companyId" = $1`, [cleanyzerId])).rows
-    expect(services).toHaveLength(10)
+    expect(services).toHaveLength(8)
+    expect(services.some((s) => s.slug.includes("diamond"))).toBe(false)
     for (const [slug, cents] of [["canape-2-3-places", 8000], ["canape-3-4-places", 11000], ["canape-5-places-et-plus", 15000]] as const) {
       expect(services.find((s) => s.slug === slug)).toMatchObject({ visible: true, basePriceCents: cents })
     }
     const durs = (await db.query<{ slug: string; durationMin: number }>(
       `SELECT slug, "durationMin" FROM services WHERE "companyId" = $1`, [cleanyzerId])).rows
     for (const d of durs) expect(d.durationMin).toBe(DURATIONS[d.slug])
-    for (const slug of ["interieur-diamond", "exterieur-diamond"]) {
-      expect(services.find((s) => s.slug === slug)?.visible).toBe(false)
-    }
     const prices = (await one<{ n: number }>(
       `SELECT count(*)::int AS n FROM service_prices sp JOIN services s ON s.id = sp."serviceId" WHERE s."companyId" = $1`, [cleanyzerId])).n
     expect(prices).toBe(15)
@@ -110,7 +108,10 @@ describe("import Cleanyzer", () => {
     const opts = (await db.query<{ slug: string; visible: boolean; priceCents: number; description: string | null }>(
       `SELECT slug, visible, "priceCents", description FROM options WHERE "companyId" = $1`, [cleanyzerId])).rows
     const bySlug = Object.fromEntries(opts.map((o) => [o.slug, o]))
-    for (const slug of ["capote", "plastiques", "revernissage"]) expect(bySlug[slug].visible).toBe(false)
+    for (const slug of ["demontage-sieges", "vehicule-sale", "incruste", "capote", "duo-capote", "ceramique-hybride", "plastiques", "optiques", "revernissage"]) {
+      expect(bySlug[slug]).toBeUndefined()
+    }
+    expect(opts).toHaveLength(14)
     for (const slug of ["tapis", "sieges"]) {
       expect(bySlug[slug].visible).toBe(false)
       expect(bySlug[slug].description).toMatch(/quantité/)
@@ -139,7 +140,7 @@ describe("import Cleanyzer", () => {
       `UPDATE service_prices SET "priceCents" = 7777, "durationMin" = 120
        WHERE "serviceId" = (SELECT id FROM services WHERE "companyId" = $1 AND slug = 'interieur-eco')`, [cleanyzerId])
     await db.query(`UPDATE options SET "priceCents" = 5900, visible = false, name = 'Ozone Tom' WHERE "companyId" = $1 AND slug = 'ozone'`, [cleanyzerId])
-    await db.query(`UPDATE options SET "priceCents" = 8000, visible = true WHERE "companyId" = $1 AND slug = 'capote'`, [cleanyzerId])
+    await db.query(`UPDATE options SET "priceCents" = 8000, visible = true WHERE "companyId" = $1 AND slug = 'tapis'`, [cleanyzerId])
     await db.query(`UPDATE services SET "basePriceCents" = 9000 WHERE "companyId" = $1 AND slug = 'canape-2-3-places'`, [cleanyzerId])
     const before = await snapshotOther(otherId)
 
@@ -148,7 +149,7 @@ describe("import Cleanyzer", () => {
     expect(r.services.toCreate).toHaveLength(0)
     expect(r.options.toCreate).toHaveLength(0)
     expect(r.categories.toCreate).toHaveLength(0)
-    expect(r.services.preserved).toHaveLength(10)
+    expect(r.services.preserved).toHaveLength(8)
     expect(r.totalRows).toBe(0)
     expect(r.protections).toEqual({ overwritten: 0, otherCompaniesTouched: 0, tenantCreated: false, deleted: 0 })
 
@@ -160,7 +161,7 @@ describe("import Cleanyzer", () => {
     expect(tomPrices.every((p) => p.priceCents === 7777 && p.durationMin === 120)).toBe(true)
     expect(await one(`SELECT name, "priceCents", visible FROM options WHERE "companyId" = $1 AND slug = 'ozone'`, [cleanyzerId]))
       .toEqual({ name: "Ozone Tom", priceCents: 5900, visible: false })
-    expect(await one(`SELECT "priceCents", visible FROM options WHERE "companyId" = $1 AND slug = 'capote'`, [cleanyzerId]))
+    expect(await one(`SELECT "priceCents", visible FROM options WHERE "companyId" = $1 AND slug = 'tapis'`, [cleanyzerId]))
       .toEqual({ priceCents: 8000, visible: true })
     expect(await one(`SELECT "basePriceCents" FROM services WHERE "companyId" = $1 AND slug = 'canape-2-3-places'`, [cleanyzerId]))
       .toEqual({ basePriceCents: 9000 })
@@ -191,15 +192,22 @@ describe("import Cleanyzer", () => {
     expect(r.protections.overwritten).toBe(0)
   })
 
-  it("durée manquante => NO, rien d'écrit, aucune durée inventée", async () => {
-    const { ["canape-2-3-places"]: _omit, ...partial } = DURATIONS
-    const r = await run(true, partial)
+  it("durée invalide => NO, rien d'écrit ; sans surcharge, les durées initiales validées s'appliquent", async () => {
+    const r = await run(true, { ...DURATIONS, "canape-2-3-places": 0 })
     expect(r.safe).toBe(false)
     expect(r.committed).toBe(false)
     expect(r.blockers.join(" ")).toContain("canape-2-3-places")
     expect((await one<{ n: number }>(`SELECT count(*)::int AS n FROM services WHERE "companyId" = $1`, [cleanyzerId])).n).toBe(0)
-    const none = await run(true, {})
-    expect(none.safe).toBe(false)
+
+    const defaults = await run(true, {})
+    expect(defaults.safe).toBe(true)
+    const durs = (await db.query<{ slug: string; durationMin: number }>(
+      `SELECT slug, "durationMin" FROM services WHERE "companyId" = $1`, [cleanyzerId])).rows
+    expect(Object.fromEntries(durs.map((d) => [d.slug, d.durationMin]))).toEqual({
+      "interieur-eco": 90, "interieur-premium": 120, "interieur-excellence": 180,
+      "exterieur-eco": 60, "exterieur-excellence": 90,
+      "canape-2-3-places": 90, "canape-3-4-places": 120, "canape-5-places-et-plus": 150,
+    })
   })
 
   it("tenant introuvable => SAFE TO APPLY NO, aucun tenant créé", async () => {

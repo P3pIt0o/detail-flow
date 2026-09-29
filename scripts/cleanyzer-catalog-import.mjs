@@ -28,25 +28,20 @@ export const TEXTILE_DESCRIPTION = "Aspiration, shampoing, désinfection et trai
 
 // prices = [gabarit 1, gabarit 2, gabarit 3] en euros ; null = aucun prix fixe.
 // flatPrice = prix unique (aucun tarif par gabarit : le prix de base s'applique à tout véhicule).
-// Aucune durée ici : elles sont fournies à l'exécution (--durations=fichier.json), jamais inventées.
+// durationMin = durée INITIALE validée par Cleanyzer (modifiable ensuite dans l'admin).
+// Diamond volontairement absent : ni prix ni durée fournis (à ajouter avec le futur mode « sur devis »).
 export const SERVICES = [
-  { category: "nettoyage-interieur", slug: "interieur-eco", name: "Intérieur — Formule Éco", prices: [50, 60, 75] },
-  { category: "nettoyage-interieur", slug: "interieur-premium", name: "Intérieur — Formule Premium", prices: [80, 95, 120] },
-  { category: "nettoyage-interieur", slug: "interieur-excellence", name: "Intérieur — Formule Excellence", prices: [115, 135, 160] },
-  { category: "nettoyage-interieur", slug: "interieur-diamond", name: "Intérieur — Formule Diamond", prices: null },
-  { category: "nettoyage-exterieur", slug: "exterieur-eco", name: "Extérieur — Formule Éco", prices: [30, 40, 50] },
-  { category: "nettoyage-exterieur", slug: "exterieur-excellence", name: "Extérieur — Formule Excellence", prices: [50, 65, 80] },
-  { category: "nettoyage-exterieur", slug: "exterieur-diamond", name: "Extérieur — Formule Diamond", prices: null },
-  { category: "nettoyage-textile", slug: "canape-2-3-places", name: "Canapé 2/3 places", flatPrice: 80, description: TEXTILE_DESCRIPTION },
-  { category: "nettoyage-textile", slug: "canape-3-4-places", name: "Canapé 3/4 places", flatPrice: 110, description: TEXTILE_DESCRIPTION },
-  {
-    category: "nettoyage-textile",
-    slug: "canape-5-places-et-plus",
-    name: "Canapé 5 places et +",
-    flatPrice: 150,
-    description: `À partir de 150 €. ${TEXTILE_DESCRIPTION}`,
-  },
+  { category: "nettoyage-interieur", slug: "interieur-eco", name: "Intérieur — Formule Éco", prices: [50, 60, 75], durationMin: 90 },
+  { category: "nettoyage-interieur", slug: "interieur-premium", name: "Intérieur — Formule Premium", prices: [80, 95, 120], durationMin: 120 },
+  { category: "nettoyage-interieur", slug: "interieur-excellence", name: "Intérieur — Formule Excellence", prices: [115, 135, 160], durationMin: 180 },
+  { category: "nettoyage-exterieur", slug: "exterieur-eco", name: "Extérieur — Formule Éco", prices: [30, 40, 50], durationMin: 60 },
+  { category: "nettoyage-exterieur", slug: "exterieur-excellence", name: "Extérieur — Formule Excellence", prices: [50, 65, 80], durationMin: 90 },
+  { category: "nettoyage-textile", slug: "canape-2-3-places", name: "Canapé 2/3 places", flatPrice: 80, description: TEXTILE_DESCRIPTION, durationMin: 90 },
+  { category: "nettoyage-textile", slug: "canape-3-4-places", name: "Canapé 3/4 places", flatPrice: 110, description: TEXTILE_DESCRIPTION, durationMin: 120 },
+  { category: "nettoyage-textile", slug: "canape-5-places-et-plus", name: "Canapé 5 places et +", flatPrice: 150, description: TEXTILE_DESCRIPTION, durationMin: 150 },
 ]
+
+export const DEFAULT_DURATIONS = Object.fromEntries(SERVICES.map((s) => [s.slug, s.durationMin]))
 
 // price = euros fixes · unit = tarif à l'unité (quantité non supportée) · quote = pas de prix fixe.
 export const OPTIONS = [
@@ -62,16 +57,6 @@ export const OPTIONS = [
   { slug: "complete", name: "Nettoyage complet", price: 85 },
   { slug: "vomi", name: "Vomi", price: 69 },
   { slug: "rails-regraissage", name: "Rails / regraissage", price: 35 },
-  { slug: "demontage-sieges", name: "Démontage des sièges", price: 25 },
-  { slug: "vehicule-sale", name: "Véhicule sale", price: 39 },
-  { slug: "vehicule-tres-sale", name: "Véhicule très sale", price: 79 },
-  { slug: "incruste", name: "Incrusté", price: 35 },
-  { slug: "capote", name: "Capote", quote: "75 € ou 100 € selon la capote — sur devis" },
-  { slug: "duo-capote", name: "Duo capote", price: 150, description: "150 € au lieu de 175 €" },
-  { slug: "ceramique-hybride", name: "Céramique hybride", price: 65 },
-  { slug: "plastiques", name: "Plastiques", quote: "De 30 à 70 € — sur devis" },
-  { slug: "optiques", name: "Optiques", price: 65 },
-  { slug: "revernissage", name: "Revernissage", quote: "De 50 à 200 € — sur devis" },
   { slug: "textile-cuir", name: "Cuir (textile)", price: 15, unit: "place" },
   { slug: "textile-impermeabilisation", name: "Imperméabilisation (textile)", price: 10, unit: "place" },
 ]
@@ -182,7 +167,8 @@ export function planTextile(siteContent) {
   }
 }
 
-export async function runCleanyzerImport(client, { apply = false, durations = {} } = {}) {
+export async function runCleanyzerImport(client, { apply = false, durations: durationOverrides = {} } = {}) {
+  const durations = { ...DEFAULT_DURATIONS, ...durationOverrides }
   const result = {
     apply,
     tenant: null,
