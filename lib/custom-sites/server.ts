@@ -19,6 +19,7 @@ import { getPublicGallery } from "@/lib/public-gallery"
 import { getPublicPhotoGallery } from "@/lib/public-photo-gallery"
 import { getPublicSiteContent, getPublicCustomRequestsConfig } from "@/lib/site-content"
 import { resolveSpiritEffectiveTexts, type SpiritEffectiveTexts } from "@/components/custom-sites/spirit-acs/site-texts"
+import { getPublicationFlags } from "@/lib/company/publication"
 import { getCustomSiteDefinition } from "./registry"
 import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
 
@@ -36,7 +37,12 @@ import type { CustomSiteDefinition, CustomSitePublicData } from "./types"
 export async function resolveCustomSite(): Promise<CustomSiteDefinition | null> {
   const tenant = await getCurrentTenant()
   const key = tenant?.customSiteKey?.trim()
-  if (!key) return null
+  if (!key || !tenant) return null
+
+  // Site personnalisé en BROUILLON : conservé intégralement, mais non rendu en
+  // public (repli sur le site standard). Avant migration : publié (historique).
+  const { customSitePublished } = await getPublicationFlags(tenant.id)
+  if (!customSitePublished) return null
 
   const def = getCustomSiteDefinition(key)
   if (!def) {

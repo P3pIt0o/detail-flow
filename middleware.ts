@@ -92,7 +92,9 @@ export function middleware(req: NextRequest) {
     !path.startsWith("/rozan-preview") &&
     // Maquettes CLEANYZER (Phase 1) : idem, route ISOLÉE et temporaire servie
     // telle quelle. Validation DA/UX uniquement, aucun tenant impacté.
-    !path.startsWith("/cleanyzer-preview")
+    !path.startsWith("/cleanyzer-preview") &&
+    // Lien de réservation autonome /book/{slug} : servi hors vitrine marketing.
+    !path.startsWith("/book/")
   ) {
     const url = req.nextUrl.clone()
     url.pathname = `/marketing${path === "/" ? "" : path}`
