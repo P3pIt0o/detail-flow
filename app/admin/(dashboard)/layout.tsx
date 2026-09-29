@@ -5,10 +5,15 @@ import { buildAdminNavGroups, buildMobilePrimaryNav } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
-import { resolveDashboardPrimaryMode, type WidgetPrimaryAction } from "@/lib/admin/primary-action"
+import {
+  buildWidgetPrimaryAction,
+  resolveDashboardPrimaryMode,
+  resolveSiteLinkUrl,
+  type WidgetPrimaryAction,
+} from "@/lib/admin/primary-action"
 import { getPublicationFlags } from "@/lib/company/publication"
 import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
-import { bookingLinkUrl, isBookingLinkAccessible } from "@/lib/company/publication-shared"
+import { isBookingLinkAccessible } from "@/lib/company/publication-shared"
 import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
 import { marketingOrigin } from "@/lib/tenant-shared"
 
@@ -58,12 +63,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // comportement inchangé. Tout est résolu depuis le tenant serveur.
   let widgetAction: WidgetPrimaryAction | null = null
   if (resolveDashboardPrimaryMode(bookingDistributionMode) === "widget") {
-    const active = isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id))
-    widgetAction = {
-      active,
+    widgetAction = buildWidgetPrimaryAction({
+      slug: ctx.tenant.slug,
+      active: isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id)),
       scriptSnippet: buildEmbedScriptSnippet(ctx.tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN),
-      moduleUrl: active ? bookingLinkUrl(ctx.tenant.slug, marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN)) : null,
-    }
+      origin: marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN),
+    })
   }
 
   return (
@@ -75,7 +80,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       isSuperAdmin={ctx.isSuperAdmin}
       groups={groups}
       primaryMobile={primaryMobile}
-      publicUrl={publicLink?.url ?? null}
+      publicUrl={resolveSiteLinkUrl(bookingDistributionMode, publicLink?.url ?? null)}
     >
       {children}
     </AdminShell>

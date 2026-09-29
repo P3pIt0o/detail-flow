@@ -30,6 +30,39 @@ export type WidgetPrimaryAction = {
   active: boolean
   /** Code d'intégration existant (`buildEmbedScriptSnippet`), slug injecté serveur. */
   scriptSnippet: string
-  /** Module de réservation (`/book/<slug>`), proposé uniquement si actif. */
-  moduleUrl: string | null
+  /**
+   * Lien de réservation direct (`/p/<slug>/reservation`), proposé uniquement si
+   * actif. Même route que l'iframe du widget, sans `?embed=1`. Utilisé à la fois
+   * par « Copier mon lien de réservation » et « Voir mon module ».
+   */
+  bookingUrl: string | null
+}
+
+/**
+ * Construit l'action widget du tenant AUTHENTIFIÉ (slug fourni par le serveur).
+ * `/book/<slug>` n'est volontairement PAS utilisé : c'est une page de choix
+ * (réservation / devis) dont le lien devis renvoie un 404 quand le tenant a
+ * désactivé les demandes sur mesure.
+ */
+export function buildWidgetPrimaryAction(opts: {
+  slug: string
+  active: boolean
+  scriptSnippet: string
+  origin: string
+}): WidgetPrimaryAction {
+  const origin = opts.origin.replace(/\/+$/, "")
+  return {
+    active: opts.active,
+    scriptSnippet: opts.scriptSnippet,
+    bookingUrl: opts.active ? `${origin}/p/${encodeURIComponent(opts.slug)}/reservation` : null,
+  }
+}
+
+/**
+ * Lien « Voir mon site » (en-tête + feuille « Plus »). Masqué pour le mode
+ * widget : ces tenants distribuent leur réservation depuis leur propre site.
+ * link / NULL → lien public historique inchangé.
+ */
+export function resolveSiteLinkUrl(mode: string | null | undefined, publicUrl: string | null): string | null {
+  return resolveDashboardPrimaryMode(mode) === "widget" ? null : publicUrl
 }
