@@ -30,6 +30,8 @@ import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
 import { getCurrentTenant } from "@/lib/tenant"
 import { getTenantHeroImage, getTenantHeroOverlay } from "@/lib/tenant-hero"
+import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
+import { PracticalInfo } from "@/components/public-page/practical-info"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
@@ -48,17 +50,30 @@ export default async function HomePage() {
     }
   }
 
-  const [tenant, contact, content, order] = await Promise.all([
+  const [tenant, contact, content, order, publicPage] = await Promise.all([
     getCurrentTenant(),
     getPublicContact(),
     getPublicSiteContent(),
     getPublicSectionOrder(),
+    // Config LOT 2 (page publique paramétrable). null hors contexte tenant, et
+    // repli company-only si la table n'existe pas encore → aucune régression.
+    getEffectivePublicPageForCurrentTenant(),
   ])
 
-  // Image de fond du Hero résolue à partir de l'ENTREPRISE (slug validé côté
-  // serveur), jamais de l'URL. Repli sur l'image par défaut pour tout autre
-  // tenant et pour la vitrine racine sans tenant.
-  const heroImage = getTenantHeroImage(tenant?.slug)
+  // Image de fond du Hero : l'image téléversée dans le configurateur (LOT 2)
+  // est PRIORITAIRE si renseignée ; sinon repli sur la surcharge historique par
+  // slug, puis sur l'image par défaut. Aucun tenant sans config n'est affecté.
+  const heroImage = publicPage?.heroImageUrl ?? getTenantHeroImage(tenant?.slug)
+
+  // Bascules de sections du configurateur : STRICTEMENT ADDITIVES. Une section
+  // n'est masquée QUE si une config dédiée existe ET que le propriétaire l'a
+  // explicitement désactivée. Sans config (tous les tenants existants) ou avec
+  // une bascule à `true`, on laisse la logique interne de chaque section
+  // décider — comportement historique intégralement préservé.
+  const cfgHides = (visible: boolean) => Boolean(publicPage?.hasConfig) && !visible
+  const hideAbout = cfgHides(publicPage?.showAbout ?? true)
+  const hideGallery = cfgHides(publicPage?.showGallery ?? true)
+  const hideReviews = cfgHides(publicPage?.showReviews ?? true)
   // Voile du Hero résolu côté serveur par slug. Historique par défaut ; réduit
   // uniquement pour justcleandetailing. Aucun autre tenant n'est affecté.
   const heroOverlay = getTenantHeroOverlay(tenant?.slug)
@@ -66,11 +81,11 @@ export default async function HomePage() {
   // Chaque section conserve sa logique interne d'activation/masquage ; seul
   // l'ORDRE change ici. La section Contact reste masquée si elle est désactivée.
   const sections: Record<HomeSectionKey, React.ReactNode> = {
-    about: <AboutSection key="about" />,
+    about: hideAbout ? null : <AboutSection key="about" />,
     whyUs: <WhyUsSection key="whyUs" />,
     services: <ServicesPreview key="services" />,
     process: <Process key="process" />,
-    gallery: (
+    gallery: hideGallery ? null : (
       <div key="gallery">
         {/* Comparateur Avant/Après (inchangé) puis galerie de photos simples ;
             chacune se masque seule si vide. Regroupées dans le même emplacement
@@ -80,7 +95,7 @@ export default async function HomePage() {
         <PhotoGallerySection />
       </div>
     ),
-    reviews: <ReviewsPreview key="reviews" />,
+    reviews: hideReviews ? null : <ReviewsPreview key="reviews" />,
     // Rendu conditionnel géré dans le composant (désactivé/aucun type => null).
     customRequests: <CustomRequestsSection key="customRequests" />,
     contact: content.contact.enabled ? <CtaSection key="contact" /> : null,
@@ -90,6 +105,16 @@ export default async function HomePage() {
     <>
       <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} overlay={heroOverlay} />
       {order.map((key) => sections[key])}
+      {/* Informations pratiques (LOT 2) : rendu uniquement si le configurateur
+          renseigne au moins un champ. Additif → aucun tenant sans config n'est
+          affecté. */}
+      {publicPage && (
+        <PracticalInfo
+          interventionZone={publicPage.interventionZone}
+          depositRuleText={publicPage.depositRuleText}
+          cancellationPolicy={publicPage.cancellationPolicy}
+        />
+      )}
     </>
   )
 }

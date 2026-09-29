@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { formatDuration } from "@/lib/format"
 import { setServicePrice } from "@/app/admin/(dashboard)/prestations/actions"
 
 type Service = { id: number; name: string; basePriceCents: number; baseDurationMin: number }
@@ -93,8 +94,7 @@ export function PriceMatrixEditor({ services, vehicleTypes, prices }: Props) {
                 <td className="p-3 font-medium sticky left-0 bg-background">
                   <div>{service.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    Base : {(service.basePriceCents / 100).toFixed(2)} € · {service.baseDurationMin}{" "}
-                    min
+                    Base : {(service.basePriceCents / 100).toFixed(2)} € · {formatDuration(service.baseDurationMin)}
                   </div>
                 </td>
                 {vehicleTypes.map((v) => {
@@ -149,7 +149,7 @@ export function PriceMatrixEditor({ services, vehicleTypes, prices }: Props) {
                             <>
                               {(cell!.priceCents! / 100).toFixed(2)} €
                               <span className="block text-xs font-normal text-muted-foreground">
-                                {cell!.durationMin ?? service.baseDurationMin} min
+                                {formatDuration(cell!.durationMin ?? service.baseDurationMin)}
                               </span>
                             </>
                           ) : (

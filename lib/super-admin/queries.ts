@@ -42,6 +42,11 @@ export type CompanyRow = {
   customSitePublished: boolean
   /** Lien de réservation autonome /book/{slug} actif. */
   bookingLinkEnabled: boolean
+  /**
+   * Parcours d'onboarding persisté (SOURCE DE VÉRITÉ du produit choisi) :
+   * "booking_only" | "public_page" | "custom_website" | null (legacy).
+   */
+  onboardingIntent: string | null
 }
 
 /** Liste toutes les entreprises avec quelques compteurs utiles. */
@@ -60,6 +65,7 @@ export async function listCompanies(): Promise<CompanyRow[]> {
       licensePlan: companies.licensePlan,
       licenseGeneration: companies.licenseGeneration,
       customSiteKey: companies.customSiteKey,
+      onboardingIntent: companies.onboardingIntent,
       // Corrélation qualifiée explicitement (`"companies"."id"`) : les tables
       // internes (company_members, bookings, session) possèdent toutes une
       // colonne `id`, donc un `id` non qualifié serait ambigu / mal résolu.

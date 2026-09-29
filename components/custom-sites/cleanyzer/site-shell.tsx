@@ -25,7 +25,6 @@ const LOGO = "/custom-sites/cleanyzer/logo.png"
 // impact sur le thème global ni sur les autres tenants (scope `.cleanyzer`).
 const clzDisplay = Fraunces({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   variable: "--font-clz-display",
   display: "swap",
 })

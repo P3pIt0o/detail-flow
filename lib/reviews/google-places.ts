@@ -175,12 +175,15 @@ export async function getGooglePlaceDetails(
   const revalidate = opts?.revalidateSeconds ?? 3600 // 1 h par défaut
 
   // Langue des données renvoyées par Google (texte localisé des avis + dates
-  // relatives). OPTIONNELLE : par défaut aucune langue n'est imposée → Google
-  // choisit (comportement historique INCHANGÉ pour les appelants existants).
-  // Seuls les sites qui le demandent explicitement (ex. Spirit ACS → "fr")
-  // forcent la langue. La query distincte donne aussi une clé de cache distincte.
-  const languageCode = opts?.languageCode?.trim()
-  const query = languageCode ? `?languageCode=${encodeURIComponent(languageCode)}` : ""
+  // relatives). RÈGLE MÉTIER MUTUALISÉE : tous les avis publics DetailFlow
+  // doivent être en FRANÇAIS. On force donc "fr" PAR DÉFAUT à la source, pour
+  // TOUS les tenants (standards, personnalisés, existants, futurs), sans jamais
+  // dépendre de la langue du navigateur du visiteur ni d'un défaut serveur
+  // Google (qui renvoyait sinon des avis traduits en anglais). Un appelant peut
+  // surcharger la langue, mais aucun ne la retire : le paramètre est toujours
+  // envoyé, ce qui garantit aussi une clé de cache stable.
+  const languageCode = opts?.languageCode?.trim() || "fr"
+  const query = `?languageCode=${encodeURIComponent(languageCode)}`
 
   try {
     const res = await fetch(`${PLACES_BASE}/places/${encodeURIComponent(id)}${query}`, {
@@ -247,6 +250,62 @@ export async function getGooglePlaceDetails(
     console.log("[v0] getGooglePlaceDetails error:", e instanceof Error ? e.message : e)
     return { ok: false, error: "temporary" }
   }
+}
+
+/** Vrai si le code langue correspond au français (fr, fr-FR, FR-ca…). */
+function isFrenchLanguage(code: string | null | undefined): boolean {
+  return typeof code === "string" && code.trim().toLowerCase().startsWith("fr")
+}
+
+/** Résultat de sélection : texte à afficher + attribution de traduction. */
+export type FrenchReviewText = {
+  /** Texte français à afficher (ou meilleur repli disponible), sinon null. */
+  text: string | null
+  /** Vrai UNIQUEMENT si le texte affiché est une traduction Google (≠ original). */
+  translatedByGoogle: boolean
+}
+
+/**
+ * Sélectionne le texte FRANÇAIS d'un avis Google pour l'affichage public.
+ *
+ * RÈGLE MÉTIER : ne jamais faire `text ?? originalText` en aveugle — un `text`
+ * (« translatedText ») n'est pas garanti français. On vérifie le `languageCode`.
+ *
+ * Ordre de préférence :
+ *   1. Texte localisé si son code langue est FRANÇAIS (cas normal : on a demandé
+ *      "fr" à la source). Marqué « Traduit par Google » seulement si un original
+ *      existe dans une AUTRE langue.
+ *   2. Sinon, texte ORIGINAL s'il est français (on n'affiche jamais une
+ *      traduction non française à la place d'un original français).
+ *   3. Repli défensif (aucune version française fiable) : meilleure donnée
+ *      renvoyée par Google pour notre requête fr (texte localisé, sinon
+ *      original). On ne présente jamais un texte non français comme une
+ *      « traduction française », mais on conserve l'attribution honnête si le
+ *      texte affiché est bien une traduction Google.
+ */
+export function selectFrenchReviewText(
+  review: Pick<GoogleReview, "text" | "languageCode" | "originalText" | "originalLanguageCode">,
+): FrenchReviewText {
+  const localizedIsFrench = isFrenchLanguage(review.languageCode)
+  const originalIsFrench = isFrenchLanguage(review.originalLanguageCode)
+
+  // 1. Texte localisé français.
+  if (review.text && localizedIsFrench) {
+    const translatedByGoogle = Boolean(review.originalText) && !originalIsFrench
+    return { text: review.text, translatedByGoogle }
+  }
+
+  // 2. Original français (le localisé n'est pas français → on préfère l'original).
+  if (review.originalText && originalIsFrench) {
+    return { text: review.originalText, translatedByGoogle: false }
+  }
+
+  // 3. Repli : aucune version française fiable.
+  const usedLocalized = Boolean(review.text)
+  const text = review.text ?? review.originalText ?? null
+  const translatedByGoogle =
+    usedLocalized && Boolean(review.originalText) && review.originalLanguageCode !== review.languageCode
+  return { text, translatedByGoogle }
 }
 
 /** Message admin clair (jamais montré au public) pour chaque type d'erreur. */

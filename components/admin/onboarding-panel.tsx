@@ -45,6 +45,8 @@ export function OnboardingPanel({ data }: { data: OnboardingResult }) {
   if (!mounted || hidden) return null
 
   const { steps, doneCount, total, allDone, percent } = data
+  // Prochaine étape recommandée = première étape non terminée (ordre stable).
+  const nextKey = steps.find((s) => !s.done)?.key ?? null
 
   if (allDone) {
     return (
@@ -103,41 +105,56 @@ export function OnboardingPanel({ data }: { data: OnboardingResult }) {
       </div>
 
       <ul className="mt-4 flex flex-col divide-y divide-border">
-        {steps.map((step) => (
-          <li key={step.key}>
-            <Link
-              href={step.href}
-              className="group flex items-start gap-3 py-3 transition-colors hover:bg-muted/40 -mx-2 rounded-lg px-2"
-            >
-              <span
+        {steps.map((step) => {
+          // Première étape non terminée = action recommandée « à faire maintenant ».
+          const isNext = !step.done && step.key === nextKey
+          return (
+            <li key={step.key}>
+              <Link
+                href={step.href}
                 className={
-                  step.done
-                    ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                    : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/40"
+                  isNext
+                    ? "group -mx-2 flex items-start gap-3 rounded-lg bg-primary/5 px-2 py-3 ring-1 ring-inset ring-primary/20 transition-colors hover:bg-primary/10"
+                    : "group -mx-2 flex items-start gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-muted/40"
                 }
-                aria-hidden="true"
               >
-                {step.done ? <Check className="size-3" strokeWidth={3} /> : null}
-              </span>
-              <span className="min-w-0 flex-1">
                 <span
                   className={
                     step.done
-                      ? "block text-sm font-medium text-muted-foreground line-through decoration-muted-foreground/40"
-                      : "block text-sm font-medium text-foreground"
+                      ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                      : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/40"
                   }
+                  aria-hidden="true"
                 >
-                  {step.title}
+                  {step.done ? <Check className="size-3" strokeWidth={3} /> : null}
                 </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground text-pretty">{step.description}</span>
-              </span>
-              <ArrowRight
-                className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
-                aria-hidden="true"
-              />
-            </Link>
-          </li>
-        ))}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={
+                        step.done
+                          ? "text-sm font-medium text-muted-foreground line-through decoration-muted-foreground/40"
+                          : "text-sm font-medium text-foreground"
+                      }
+                    >
+                      {step.title}
+                    </span>
+                    {isNext && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        À faire maintenant
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground text-pretty">{step.description}</span>
+                </span>
+                <ArrowRight
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                  aria-hidden="true"
+                />
+              </Link>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

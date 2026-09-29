@@ -1,16 +1,35 @@
-import { StaticMarketingContent } from "@/components/marketing/static-marketing-content"
 import { marketing } from "@/config/marketing"
 import { siteConfig } from "@/config/site"
+import { MARKETING_MAINTENANCE_ENABLED } from "@/lib/marketing/maintenance"
+import { MaintenanceScreen } from "@/components/marketing/maintenance-screen"
+import { Hero } from "@/components/marketing/v4/hero"
+import { Partners } from "@/components/marketing/v4/partners"
+import { Problem } from "@/components/marketing/v4/problem"
+import { BookingSection } from "@/components/marketing/v4/booking-section"
+import { Planning } from "@/components/marketing/v4/planning"
+import { Bento } from "@/components/marketing/v4/bento"
+import { Website } from "@/components/marketing/v4/website"
+import { CaseStudy } from "@/components/marketing/v4/case-study"
+import { CustomizeSection } from "@/components/marketing/v4/customize-section"
+import { Invoicing } from "@/components/marketing/v4/invoicing"
+import { Mobile } from "@/components/marketing/v4/mobile"
+import { Detailing } from "@/components/marketing/v4/detailing"
+import { Compare } from "@/components/marketing/v4/compare"
+import { Pricing } from "@/components/marketing/v4/pricing"
+import { Faq } from "@/components/marketing/v4/faq"
+import { FinalCta } from "@/components/marketing/v4/final-cta"
+import { LANDING_FAQ } from "@/components/marketing/v4/faq-data"
 
 /**
- * Landing DetailFlow.fr (domaine racine).
+ * Landing DetailFlow.fr (domaine racine) — v4.
  *
- * Server Component : aucune dépendance client au niveau de la page. Rend la
- * version premium statique et légèrement animée (plus de scène 3D immersive
- * `ScrollStage`), ce qui réduit fortement le JavaScript et améliore LCP/INP.
- * Les données structurées (SoftwareApplication, Organization, FAQPage) sont
- * injectées en JSON-LD pour le SEO et les moteurs IA — uniquement des
- * informations réellement présentes sur la page (aucune note ni avis inventé).
+ * Server Component : seuls la navigation, la démo de réservation, la démo de
+ * personnalisation et les révélations au scroll sont des îlots client.
+ * Narration : produit → problème → réservation → planning → modules → site →
+ * administration → facturation → mobile → métier → avant/après → tarifs → FAQ.
+ *
+ * JSON-LD : uniquement des informations réellement présentes (aucune note,
+ * aucun avis, aucun chiffre inventé).
  */
 
 const url = siteConfig.seo.url
@@ -42,13 +61,13 @@ const jsonLd = {
       operatingSystem: "Web",
       url,
       description:
-        "DetailFlow est un logiciel de gestion conçu pour les professionnels du detailing automobile. Il centralise les réservations, le planning, les clients, les véhicules, les prestations, les devis, les factures et les automatisations.",
+        "DetailFlow est un logiciel de gestion pour les professionnels du detailing automobile : site internet, réservation en ligne, planning, clients et véhicules, acomptes, facturation et avoirs.",
       publisher: { "@id": `${url}/#organization` },
     },
     {
       "@type": "FAQPage",
       "@id": `${url}/#faq`,
-      mainEntity: marketing.faq.map((item) => ({
+      mainEntity: LANDING_FAQ.map((item) => ({
         "@type": "Question",
         name: item.q,
         acceptedAnswer: { "@type": "Answer", text: item.a },
@@ -58,10 +77,31 @@ const jsonLd = {
 }
 
 export default function MarketingPage() {
+  // MODE MAINTENANCE (vitrine marketing uniquement) : on court-circuite la
+  // landing sans la supprimer.
+  if (MARKETING_MAINTENANCE_ENABLED) {
+    return <MaintenanceScreen />
+  }
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <StaticMarketingContent />
+      <Hero />
+      <Partners />
+      <Problem />
+      <BookingSection />
+      <Planning />
+      <Bento />
+      <Website />
+      <CaseStudy />
+      <CustomizeSection />
+      <Invoicing />
+      <Mobile />
+      <Detailing />
+      <Compare />
+      <Pricing />
+      <Faq />
+      <FinalCta />
     </>
   )
 }

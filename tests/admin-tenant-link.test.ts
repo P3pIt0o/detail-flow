@@ -86,3 +86,27 @@ describe("Cohérence sur les autres sections admin (factures, clients)", () => {
     expect(clientHref(5, null)).toBe("/admin/clients/5")
   })
 })
+
+// Réplique exacte de hrefFor dans app/admin/(dashboard)/analyse/page.tsx.
+const analysePeriodHref = (p: string, tenant: string | null) =>
+  withTenant(p === "30d" ? "/admin/analyse" : `/admin/analyse?period=${p}`, tenant)
+
+describe("Sélecteur de période Analyse : conservation du tenant", () => {
+  const tenant = "justcleandetailing"
+
+  it("30 jours conserve le tenant", () => {
+    expect(analysePeriodHref("30d", tenant)).toBe("/admin/analyse?tenant=justcleandetailing")
+  })
+
+  it("3 mois, 6 mois, 12 mois et Cette année conservent le tenant", () => {
+    expect(analysePeriodHref("3m", tenant)).toBe("/admin/analyse?period=3m&tenant=justcleandetailing")
+    expect(analysePeriodHref("6m", tenant)).toBe("/admin/analyse?period=6m&tenant=justcleandetailing")
+    expect(analysePeriodHref("12m", tenant)).toBe("/admin/analyse?period=12m&tenant=justcleandetailing")
+    expect(analysePeriodHref("year", tenant)).toBe("/admin/analyse?period=year&tenant=justcleandetailing")
+  })
+
+  it("sans tenant, les liens restent inchangés", () => {
+    expect(analysePeriodHref("30d", null)).toBe("/admin/analyse")
+    expect(analysePeriodHref("3m", null)).toBe("/admin/analyse?period=3m")
+  })
+})

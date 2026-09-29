@@ -137,6 +137,12 @@ export const companies = pgTable("companies", {
   // inconnue ne casse jamais la prod : repli automatique sur le site standard.
   // Jamais attribuée automatiquement : réservée à une action super-admin.
   customSiteKey: text("customSiteKey"),
+  // Parcours d'onboarding choisi AVANT l'inscription (self-service). Valeurs
+  // canoniques : "booking_only" | "public_page" | "custom_website" (contrainte
+  // CHECK côté DB). NULL = tenant historique / inscription directe → dashboard
+  // standard inchangé. Persisté au provisioning ; source de vérité du parcours
+  // affiché après reconnexion (voir lib/onboarding/intent.ts).
+  onboardingIntent: text("onboardingIntent"),
   /* -------------------------- Paiements en ligne --------------------------- */
   // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
   // Null = aucun provider connecté. Seul Stripe est implémenté en V1.
@@ -171,9 +177,56 @@ export const companies = pgTable("companies", {
   // Traçabilité de l'attribution de la licence (super-admin uniquement).
   licenseAssignedAt: timestamp("licenseAssignedAt"),
   licenseAssignedByUserId: text("licenseAssignedByUserId"),
+  /* --------------------- Abonnement DetailFlow (Stripe Billing) ------------- */
+  // COMMENT le tenant paie DetailFlow. DISTINCT de licensePlan (À QUOI il a
+  // droit) : ne jamais dériver l'un depuis l'autre. Valeurs : free |
+  // subscription | lifetime (voir lib/billing/types.ts). Valeur historique
+  // sûre `free` : un tenant existant n'a jamais payé via Stripe Billing et ne
+  // perd aucun droit (ceux-ci restent portés par licensePlan / le resolver).
+  // Ce socle NE branche AUCUN paiement : il prépare uniquement le stockage.
+  billingMode: text("billingMode").notNull().default("free"),
+  // Client Stripe Billing du tenant (`cus_...`). DISTINCT de stripeAccountId
+  // (Stripe Connect, paiements des clients du detailer). Null tant qu'aucun
+  // abonnement DetailFlow n'a été initié. Unique lorsqu'il existe.
+  stripeCustomerId: text("stripeCustomerId"),
+  // Abonnement récurrent Stripe (`sub_...`). Null en mode free/lifetime :
+  // Lifetime = paiement unique, jamais d'abonnement récurrent. Unique si présent.
+  stripeSubscriptionId: text("stripeSubscriptionId"),
+  // Miroir du statut Stripe Subscription (voir SUBSCRIPTION_STATUSES). Null =
+  // aucun abonnement. Aucune donnée n'est supprimée sur past_due/unpaid/canceled.
+  subscriptionStatus: text("subscriptionStatus"),
+  // Price Stripe (`price_...`) de la formule facturée. Null hors abonnement.
+  subscriptionPriceId: text("subscriptionPriceId"),
+  // Fin de la période de facturation en cours (renouvellement / expiration
+  // d'accès en cas d'annulation). Null hors abonnement.
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  // Première souscription (y compris trial). Distinct de l'ancienneté fidélité.
+  subscriptionStartedAt: timestamp("subscriptionStartedAt"),
+  // Source de l'ANCIENNETÉ FIDÉLITÉ : démarre à la 1re facture d'abonnement
+  // RÉELLEMENT PAYÉE (jamais pendant le trial gratuit). Conservée lors d'un
+  // upgrade/downgrade sans interruption ; remise à zéro à une nouvelle
+  // souscription après annulation effective. Remises calculées dans un lot futur.
+  continuousSubscriptionStartedAt: timestamp("continuousSubscriptionStartedAt"),
+  // Annulation programmée en fin de période : l'abonnement reste actif jusqu'à
+  // currentPeriodEnd, donc l'ancienneté n'est PAS cassée tant qu'il est actif.
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").notNull().default(false),
+  // Horodatage de l'annulation effective (résiliation constatée).
+  subscriptionCanceledAt: timestamp("subscriptionCanceledAt"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-})
+}, (t) => ({
+  // Identifiants Stripe uniques UNIQUEMENT lorsqu'ils existent : index uniques
+  // partiels (WHERE ... IS NOT NULL) afin de ne jamais empêcher plusieurs
+  // lignes NULL (tenants sans abonnement).
+  uniqStripeCustomer: uniqueIndex("companies_stripeCustomerId_key")
+    .on(t.stripeCustomerId)
+    .where(sql`${t.stripeCustomerId} IS NOT NULL`),
+  uniqStripeSubscription: uniqueIndex("companies_stripeSubscriptionId_key")
+    .on(t.stripeSubscriptionId)
+    .where(sql`${t.stripeSubscriptionId} IS NOT NULL`),
+  bySubscriptionStatus: index("companies_subscriptionStatus_idx").on(t.subscriptionStatus),
+  byBillingMode: index("companies_billingMode_idx").on(t.billingMode),
+}))
 
 /**
  * Overrides de fonctionnalités par entreprise (gestes commerciaux, modules
@@ -235,6 +288,62 @@ export const licenseAuditLog = pgTable(
   }),
 )
 
+/**
+ * Inventaire des licences Lifetime (LOT S2.5A) — plafond réel de 50.
+ * Une ligne = une réservation (RESERVED), une licence attribuée (ACTIVE) ou une
+ * réservation libérée (RELEASED). Le plafond, l'unicité par entreprise et
+ * l'immutabilité des ACTIVE sont garantis PAR LA DB (trigger + index partiel,
+ * voir scripts/lifetime-license-allocation-migration.sql). companyId passe à
+ * NULL si le tenant est supprimé : la licence vendue reste comptabilisée.
+ */
+export const lifetimeLicenseAllocations = pgTable(
+  "lifetime_license_allocations",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId").references(() => companies.id, { onDelete: "set null" }),
+    companyNameSnapshot: text("companyNameSnapshot"),
+    // RESERVED | ACTIVE | RELEASED
+    status: text("status").notNull(),
+    // single | split_2x
+    paymentPlan: text("paymentPlan").notNull(),
+    reservedAt: timestamp("reservedAt").notNull().defaultNow(),
+    reservationExpiresAt: timestamp("reservationExpiresAt"),
+    activatedAt: timestamp("activatedAt"),
+    releasedAt: timestamp("releasedAt"),
+    // LOT S3A — traçabilité Stripe (scripts/lifetime-checkout-migration.sql)
+    stripeCheckoutSessionId: text("stripeCheckoutSessionId"),
+    stripePaymentIntentId: text("stripePaymentIntentId"),
+    paidAmountCents: integer("paidAmountCents"),
+    paidAt: timestamp("paidAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqCheckoutSession: uniqueIndex("lifetime_license_allocations_checkout_session_key")
+      .on(t.stripeCheckoutSessionId)
+      .where(sql`${t.stripeCheckoutSessionId} IS NOT NULL`),
+    uniqPaymentIntent: uniqueIndex("lifetime_license_allocations_payment_intent_key")
+      .on(t.stripePaymentIntentId)
+      .where(sql`${t.stripePaymentIntentId} IS NOT NULL`),
+    statusCheck: check(
+      "lifetime_license_allocations_status_check",
+      sql`${t.status} IN ('RESERVED', 'ACTIVE', 'RELEASED')`,
+    ),
+    paymentPlanCheck: check(
+      "lifetime_license_allocations_paymentPlan_check",
+      sql`${t.paymentPlan} IN ('single', 'split_2x')`,
+    ),
+    uniqOpenPerCompany: uniqueIndex("lifetime_license_allocations_company_open_key")
+      .on(t.companyId)
+      .where(sql`${t.status} IN ('RESERVED', 'ACTIVE') AND ${t.companyId} IS NOT NULL`),
+    byCompany: index("lifetime_license_allocations_companyId_idx").on(t.companyId),
+    byStatusExpires: index("lifetime_license_allocations_status_expires_idx").on(
+      t.status,
+      t.reservationExpiresAt,
+    ),
+  }),
+)
+
 /** Rattachement d'un utilisateur à une entreprise avec un rôle. */
 export const companyMembers = pgTable(
   "company_members",
@@ -254,6 +363,52 @@ export const companyMembers = pgTable(
     uniqMember: unique("company_members_company_user_unique").on(t.companyId, t.userId),
     byCompany: index("company_members_companyId_idx").on(t.companyId),
     byUser: index("company_members_userId_idx").on(t.userId),
+  }),
+)
+
+/**
+ * Configuration de la PAGE PUBLIQUE paramétrable (LOT 2), une ligne par
+ * entreprise. Normalisée : une colonne requêtable par réglage (pas de JSON
+ * opaque). Complète — sans dupliquer — les champs déjà portés par `companies`
+ * (logoUrl, brand*, hero*, siteContent, socialLinks).
+ *
+ * Résolution applicative (fallback) : cette config → colonnes `companies` →
+ * défauts neutres. Une entreprise sans ligne ici garde son rendu actuel.
+ *
+ * Sites custom (`companies.customSiteKey != null`) : JAMAIS gérés ici (rendu
+ * dédié historique conservé). Migration : scripts/detailflow-v2-lot2-public-page-config.sql
+ */
+export const publicPageConfig = pgTable(
+  "public_page_config",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .unique()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // "classic" | "bold" | "minimal"… (null = variante par défaut de l'app).
+    layoutVariant: text("layoutVariant"),
+    heroImageUrl: text("heroImageUrl"),
+    heroImagePosition: text("heroImagePosition"),
+    heroOverlay: integer("heroOverlay"),
+    accentPrimary: text("accentPrimary"),
+    accentSecondary: text("accentSecondary"),
+    // "light" | "dark" | "auto".
+    theme: text("theme").notNull().default("auto"),
+    showGallery: boolean("showGallery").notNull().default(true),
+    showReviews: boolean("showReviews").notNull().default(true),
+    showAbout: boolean("showAbout").notNull().default(true),
+    interventionZone: text("interventionZone"),
+    depositRuleText: text("depositRuleText"),
+    cancellationPolicy: text("cancellationPolicy"),
+    // Indexation désactivée par défaut (gating SEO strict, cf. Lot 6).
+    seoIndexable: boolean("seoIndexable").notNull().default(false),
+    publishedAt: timestamp("publishedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("public_page_config_companyId_idx").on(t.companyId),
   }),
 )
 
@@ -293,8 +448,8 @@ export const clients = pgTable(
      * NULL = UNKNOWN / LEGACY / NON CONFIRMÉ (JAMAIS déduit B2C). Un nouveau
      * client choisit explicitement individual ou business. Quand une règle
      * réglementaire dépend du B2B/B2C, NULL produira REVIEW_REQUIRED (LOT 2B),
-     * jamais une hypothèse silencieuse. Aucun backfill vers "individual".
-     * Le pays DU CLIENT (et non du vendeur) détermine le schéma d'identifiant. */
+     * jamais une hypoth��se silencieuse. Aucun backfill vers "individual".
+     * Le pays DU CLIENT (et non du vendeur) détermine le sch��ma d'identifiant. */
     customerType: text("customerType"), // "individual" | "business" | null (=unknown/legacy)
     country: text("country"), // ISO 3166-1 alpha-2 (FR, BE, CH, ...)
     legalRegistrationNumber: text("legalRegistrationNumber"),
@@ -547,7 +702,7 @@ export const settings = pgTable(
     depositType: text("depositType").notNull().default("none"),
     depositValue: integer("depositValue").notNull().default(0),
     // Moyens de paiement acceptés pour l'acompte (slugs séparés par des virgules,
-    // ex. "transfer,wero"). Aucun fournisseur n'est imposé.
+    // ex. "transfer,wero"). Aucun fournisseur n'est impos��.
     depositMethods: text("depositMethods"),
     // Instructions de paiement affichées au client (IBAN, n° Wero, lien, etc.).
     depositInstructions: text("depositInstructions"),
@@ -1067,7 +1222,7 @@ export const customRequests = pgTable(
     proposalMessage: text("proposalMessage"),
     proposalSentAt: timestamp("proposalSentAt"),
     respondedAt: timestamp("respondedAt"),
-    // Réservation créée après conversion (anti-doublon).
+    // Réservation cr��ée après conversion (anti-doublon).
     bookingId: integer("bookingId"),
     // Clé d'idempotence de la soumission publique (uuid opaque généré côté
     // navigateur). Empêche un double clic / rechargement / nouvelle tentative de
@@ -1125,6 +1280,113 @@ export const quoteRequestAttachments = pgTable(
     byRequest: index("quote_request_attachments_requestId_idx").on(t.requestId),
     // Un même Blob ne peut jamais être associé deux fois.
     byPathname: unique("quote_request_attachments_pathname_key").on(t.pathname),
+  }),
+)
+
+/* -------------------------------------------------------------------------- */
+/*  CRM PROSPECTS (leads) — table métier tenant, ajout ADDITIF.               */
+/*                                                                            */
+/*  Isolation stricte par companyId (jamais cross-tenant). L'architecture est */
+/*  prête pour recevoir plus tard des sources externes (Meta/Instagram Lead   */
+/*  Ads, formulaires, imports, campagnes) SANS refonte : d'où les colonnes    */
+/*  d'attribution (sourceExternalId, campaignExternalId, adExternalId…) et le  */
+/*  `sourceMetadata` réservé à de PETITES métadonnées d'attribution (jamais de */
+/*  token, secret, payload brut complet ni donnée bancaire).                  */
+/*                                                                            */
+/*  Idempotence : UNIQUE(companyId, source, sourceExternalId) quand            */
+/*  sourceExternalId est présent — une même donnée externe (ou une même       */
+/*  custom_request) ne crée jamais deux prospects.                            */
+/* -------------------------------------------------------------------------- */
+export const leads = pgTable(
+  "leads",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Statut CRM (voir lib/leads/model.ts) : NEW | CONTACTED | APPOINTMENT_BOOKED | CLIENT | LOST.
+    status: text("status").notNull().default("NEW"),
+    // Source (voir lib/leads/model.ts) : MANUAL | CUSTOM_REQUEST | META | IMPORT.
+    source: text("source").notNull().default("MANUAL"),
+    // Identité prospect.
+    contactName: text("contactName").notNull(),
+    email: text("email"),
+    // Email/téléphone NORMALISÉS calculés côté serveur (rapprochement fiable).
+    emailNormalized: text("emailNormalized"),
+    phone: text("phone"),
+    phoneNormalized: text("phoneNormalized"),
+    // Véhicule (facultatif).
+    vehicleType: text("vehicleType"),
+    vehicleBrand: text("vehicleBrand"),
+    vehicleModel: text("vehicleModel"),
+    vehiclePlate: text("vehiclePlate"),
+    // Besoin / prestation recherchée (texte libre court).
+    serviceInterest: text("serviceInterest"),
+    // Résumé interne (jamais envoyé au prospect).
+    internalSummary: text("internalSummary"),
+    // Motif de perte (facultatif) — voir LEAD_LOST_REASONS.
+    lostReason: text("lostReason"),
+    // Relance planifiée (fuseau tenant appliqué en amont).
+    nextFollowUpAt: timestamp("nextFollowUpAt"),
+    // Jalons temporels du cycle de vie.
+    contactedAt: timestamp("contactedAt"),
+    appointmentBookedAt: timestamp("appointmentBookedAt"),
+    convertedAt: timestamp("convertedAt"),
+    lostAt: timestamp("lostAt"),
+    // Réservation réelle liée (jamais un 2e moteur de réservation).
+    linkedBookingId: integer("linkedBookingId"),
+    // Attribution source externe (préparation Meta / formulaires / imports).
+    sourceExternalId: text("sourceExternalId"),
+    sourceChannel: text("sourceChannel"),
+    campaignExternalId: text("campaignExternalId"),
+    campaignName: text("campaignName"),
+    formExternalId: text("formExternalId"),
+    adExternalId: text("adExternalId"),
+    // Petites métadonnées d'attribution UNIQUEMENT (pas une poubelle).
+    sourceMetadata: jsonb("sourceMetadata"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: index("leads_companyId_idx").on(t.companyId),
+    byCompanyStatus: index("leads_company_status_idx").on(t.companyId, t.status),
+    byCompanyCreated: index("leads_company_createdAt_idx").on(t.companyId, t.createdAt),
+    byCompanyFollowUp: index("leads_company_followUp_idx").on(t.companyId, t.nextFollowUpAt),
+    byCompanyEmail: index("leads_company_email_idx").on(t.companyId, t.emailNormalized),
+    byCompanyPhone: index("leads_company_phone_idx").on(t.companyId, t.phoneNormalized),
+    // Idempotence des sources externes (Meta Lead ID, ID custom_request…).
+    bySourceExternal: uniqueIndex("leads_company_source_external_key")
+      .on(t.companyId, t.source, t.sourceExternalId)
+      .where(sql`${t.sourceExternalId} IS NOT NULL`),
+  }),
+)
+
+/**
+ * Historique / activité d'un prospect. Suppression EN CASCADE avec le prospect
+ * (et avec l'entreprise). `metadata` (jsonb) reste réservé à de petites données
+ * structurées (ancien/nouveau statut, motif de perte…). `createdByUserId` est un
+ * identifiant technique (jamais d'email en clair).
+ */
+export const leadActivities = pgTable(
+  "lead_activities",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    leadId: integer("leadId")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    // Type d'activité (voir LEAD_ACTIVITY_TYPES).
+    type: text("type").notNull(),
+    message: text("message"),
+    metadata: jsonb("metadata"),
+    createdByUserId: text("createdByUserId"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byLead: index("lead_activities_leadId_idx").on(t.leadId),
+    byCompany: index("lead_activities_companyId_idx").on(t.companyId),
   }),
 )
 

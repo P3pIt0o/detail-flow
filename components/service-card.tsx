@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { Clock, ArrowRight } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
+import { formatDuration } from "@/lib/format"
 import { ServiceHighlightBadge } from "@/components/service-highlight-badge"
 
 export type PublicService = {
@@ -22,15 +23,14 @@ export type PublicService = {
 
 const FALLBACK_IMAGE = "/services/default.png"
 
-function formatDuration(min: number): string {
-  const safe = Number.isFinite(min) && min > 0 ? Math.round(min) : 60
-  const h = Math.floor(safe / 60)
-  const m = safe % 60
-
-  if (h === 0) return `${m} min`
-  if (m === 0) return `${h}h`
-
-  return `${h}h${m.toString().padStart(2, "0")}`
+/**
+ * Durée « sûre » pour l'affichage carte : garantit un entier de minutes positif
+ * (repli 60 min si valeur absente/invalide), puis délègue le formatage humain
+ * (« 1 h 30 », « 45 min ») au helper GLOBAL DetailFlow `formatDuration`. Aucun
+ * format local : tous les tenants partagent la même présentation.
+ */
+function safeDurationMin(min: number): number {
+  return Number.isFinite(min) && min > 0 ? Math.round(min) : 60
 }
 
 function formatPrice(cents: number): string {
@@ -94,7 +94,7 @@ export function ServiceCard({ service }: { service: PublicService }) {
 
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Clock className="size-4" aria-hidden="true" />
-            {formatDuration(service.durationMin)}
+                {formatDuration(safeDurationMin(service.durationMin))}
           </span>
         </div>
 

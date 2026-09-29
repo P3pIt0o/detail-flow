@@ -1,6 +1,14 @@
 import { formatPrice, formatMoney, formatDateLong, formatDuration } from "@/lib/format"
 import { parseDepositMethods } from "@/lib/booking/types"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
+import {
+  BOOKING_LABELS,
+  DOMAIN_LABELS,
+  FEATURE_LABELS,
+  GOAL_LABELS,
+  IDENTITY_LABELS,
+  type DiagnosticData,
+} from "@/lib/diagnostic/schema"
 
 /**
  * Gabarits HTML des emails transactionnels.
@@ -24,6 +32,8 @@ export type BookingEmailData = {
   endTime: string
   totalDurationMin: number
   address: string
+  /** Prestation réalisée à l'atelier du professionnel (pas chez le client). */
+  atWorkshop?: boolean
   items: { serviceName: string; vehicleTypeName: string; priceCents: number }[]
   servicesCents: number
   optionsCents: number
@@ -113,7 +123,7 @@ function bookingSummary(b: BookingEmailData): string {
       <span style="color:${MUTED};">${esc(b.startTime)} – ${esc(b.endTime)} (${esc(formatDuration(b.totalDurationMin))})</span>
     </div>
 
-    <div style="font-size:13px;color:${MUTED};">Adresse</div>
+    <div style="font-size:13px;color:${MUTED};">${b.atWorkshop ? "Lieu : à l&#39;atelier" : "Adresse"}</div>
     <div style="font-size:15px;color:${INK};">${esc(b.address)}</div>
   </div>
 
@@ -121,7 +131,7 @@ function bookingSummary(b: BookingEmailData): string {
     ${rows}
     <tr><td colspan="2" style="padding:8px 0;"><div style="border-top:1px solid ${BORDER};"></div></td></tr>
     ${b.optionsCents > 0 ? line("Options", formatPrice(b.optionsCents)) : ""}
-    ${line("Déplacement", b.travelFeeCents > 0 ? formatPrice(b.travelFeeCents) : "Offert")}
+    ${b.atWorkshop ? "" : line("Déplacement", b.travelFeeCents > 0 ? formatPrice(b.travelFeeCents) : "Offert")}
     ${line("Total", formatPrice(b.totalCents), true)}
     ${b.depositCents > 0 ? line("Acompte demandé", formatPrice(b.depositCents)) : ""}
   </table>`
@@ -143,6 +153,140 @@ function manageBlock(b: BookingEmailData): string {
     <p style="text-align:center;font-size:13px;line-height:1.6;color:${MUTED};margin:8px 0 0;">
       Vous pourrez annuler votre rendez-vous ou choisir un autre créneau.
     </p>`
+}
+
+/* ---------------------- Demande de site personnalisé --------------------- */
+
+/**
+ * Email INTERNE (vers l'équipe DetailFlow) qualifiant une demande de site sur
+ * mesure émise depuis l'espace d'un professionnel. Aucun /p/<slug> n'est
+ * présenté comme « le site » : c'est une prise de contact à étudier.
+ */
+export function customWebsiteRequestEmail(opts: {
+  companyName: string
+  city?: string | null
+  currentSite?: string | null
+  instagram?: string | null
+  needs: string
+  features?: string | null
+  contactName: string
+  contactEmail: string
+  contactPhone?: string | null
+  tenantSlug: string
+}) {
+  const multiline = (s: string) => esc(s).replace(/\r?\n/g, "<br>")
+  const rows: [string, string | null | undefined][] = [
+    ["Entreprise", opts.companyName],
+    ["Ville", opts.city],
+    ["Site actuel", opts.currentSite],
+    ["Instagram", opts.instagram],
+    ["Espace DetailFlow", opts.tenantSlug],
+    ["Contact", opts.contactName],
+    ["Email", opts.contactEmail],
+    ["Téléphone", opts.contactPhone],
+  ]
+  const infoRows = rows
+    .filter(([, v]) => Boolean(v && String(v).trim()))
+    .map(
+      ([label, v]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:${MUTED};white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+         <td style="padding:6px 0;color:${INK};">${esc(String(v))}</td></tr>`,
+    )
+    .join("")
+
+  const featuresBlock = opts.features?.trim()
+    ? `<div style="font-size:13px;color:${MUTED};margin:16px 0 4px;">Fonctionnalités souhaitées</div>
+       <div style="font-size:15px;color:${INK};line-height:1.6;">${multiline(opts.features)}</div>`
+    : ""
+
+  const body = `
+  <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${INK};">
+    Une nouvelle demande de site personnalisé vient d'être transmise.
+  </p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;background:${BG};border-radius:10px;padding:6px;">
+    ${infoRows}
+  </table>
+  <div style="font-size:13px;color:${MUTED};margin:16px 0 4px;">Besoins</div>
+  <div style="font-size:15px;color:${INK};line-height:1.6;">${multiline(opts.needs)}</div>
+  ${featuresBlock}`
+
+  return {
+    subject: `Demande de site personnalisé — ${opts.companyName}`,
+    html: layout({
+      businessName: "DetailFlow",
+      heading: "Nouvelle demande de site personnalisé",
+      bodyHtml: body,
+    }),
+  }
+}
+
+/* ------------------ Demande de site sur mesure (diagnostic) -------------- */
+
+/**
+ * Email INTERNE (vers l'équipe DetailFlow) qualifiant une demande de site sur
+ * mesure émise depuis le questionnaire public « diagnostic gratuit ».
+ * Structuré par blocs pour être immédiatement exploitable commercialement.
+ */
+export function customSiteDiagnosticEmail(data: DiagnosticData) {
+  const section = (heading: string, innerHtml: string) => `
+    <div style="margin:18px 0 4px;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${BRAND};">${esc(heading)}</div>
+    <div style="font-size:15px;line-height:1.6;color:${INK};">${innerHtml}</div>`
+
+  const kv = (rows: [string, string | null | undefined][]) =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+      ${rows
+        .filter(([, v]) => Boolean(v && String(v).trim()))
+        .map(
+          ([label, v]) =>
+            `<tr><td style="padding:5px 12px 5px 0;color:${MUTED};white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+             <td style="padding:5px 0;color:${INK};">${esc(String(v))}</td></tr>`,
+        )
+        .join("")}
+    </table>`
+
+  const list = (items: string[]) =>
+    items.length
+      ? `<ul style="margin:4px 0 0;padding-left:18px;color:${INK};">${items
+          .map((i) => `<li style="margin:2px 0;">${esc(i)}</li>`)
+          .join("")}</ul>`
+      : `<span style="color:${MUTED};">Non renseigné</span>`
+
+  const siteLine = data.hasSite === "oui" ? data.siteUrl || "Oui, déjà en ligne" : "Aucun site"
+  const domainLine =
+    data.hasDomain === "oui" && data.domain ? `${DOMAIN_LABELS.oui} (${data.domain})` : DOMAIN_LABELS[data.hasDomain]
+  const bookingLine = data.bookingTool
+    ? `${BOOKING_LABELS[data.booking]} — ${data.bookingTool}`
+    : BOOKING_LABELS[data.booking]
+
+  const body = `
+    <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:${INK};">
+      Nouvelle demande de <strong>site sur mesure</strong> via le diagnostic gratuit.
+    </p>
+    ${section(
+      "Contact",
+      kv([
+        ["Entreprise", data.companyName],
+        ["Prénom", data.firstName],
+        ["Email", data.email],
+        ["Téléphone", data.phone],
+      ]),
+    )}
+    ${section("Site actuel", esc(siteLine))}
+    ${section("Domaine", esc(domainLine))}
+    ${section("Rendez-vous", esc(bookingLine))}
+    ${section("Objectifs", list(data.goals.map((g) => GOAL_LABELS[g] ?? g)))}
+    ${section("Fonctionnalités souhaitées", list(data.features.map((f) => FEATURE_LABELS[f] ?? f)))}
+    ${section("Identité visuelle", esc(IDENTITY_LABELS[data.identity]))}
+    ${data.comment.trim() ? section("Commentaire", esc(data.comment).replace(/\r?\n/g, "<br>")) : ""}`
+
+  return {
+    subject: `Nouvelle demande site sur mesure — ${data.companyName}`,
+    html: layout({
+      businessName: "DetailFlow",
+      heading: "Nouvelle demande de site sur mesure",
+      bodyHtml: body,
+    }),
+  }
 }
 
 /* -------------------------- Confirmation client -------------------------- */

@@ -2,6 +2,8 @@ import "server-only"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { bookings } from "@/lib/db/schema"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { safeSyncLeadFromBooking } from "@/lib/leads/server"
 
 /**
  * ============================================================================
@@ -66,6 +68,8 @@ export async function cancelBookingByToken(
       status: bookings.status,
       date: bookings.date,
       startTime: bookings.startTime,
+      customerEmail: bookings.customerEmail,
+      customerPhone: bookings.customerPhone,
     })
     .from(bookings)
     .where(and(eq(bookings.manageToken, clean), eq(bookings.companyId, companyId)))
@@ -91,5 +95,19 @@ export async function cancelBookingByToken(
     .returning({ id: bookings.id })
 
   if (!updated.length) return { ok: false, code: "not_found" }
+
+  // CRM prospects (non bloquant, feature-gated) : une annulation ne marque
+  // jamais LOST automatiquement (voir nextStatusFromBooking). Toute erreur est
+  // isolée pour ne jamais empêcher l'annulation côté client.
+  if (await canUseFeature(companyId, "leads_crm")) {
+    await safeSyncLeadFromBooking({
+      companyId,
+      bookingId: existing.id,
+      status: "cancelled",
+      customerEmail: existing.customerEmail,
+      customerPhone: existing.customerPhone,
+    })
+  }
+
   return { ok: true, bookingId: existing.id }
 }

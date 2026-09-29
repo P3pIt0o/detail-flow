@@ -7,6 +7,7 @@ import { getPublicContact } from "@/lib/public-contact"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
 import { buildTenantMetadata } from "@/lib/seo/tenant-seo.server"
 import { SpiritConfidentialite } from "@/components/custom-sites/spirit-acs/legal-page"
+import { ConfidentialiteContent } from "@/components/legal/confidentialite-content"
 
 export async function generateMetadata(): Promise<Metadata> {
   // Spirit ACS : canonique www.spiritacs.com adaptée à la ROUTE existante
@@ -38,12 +39,15 @@ export default async function ConfidentialitePage() {
     if (data) return <SpiritConfidentialite data={data} />
   }
 
-  // Coordonnées réelles du tenant (aucune donnée statique). Repli sur la config
-  // DetailFlow uniquement sur la vitrine racine (aucun tenant).
+  // Vitrine racine (aucun tenant) : politique de confidentialité CANONIQUE de
+  // DetailFlow (RGPD), alimentée par `config/legal.ts`.
   const tenant = await getCurrentTenant()
+  if (!tenant) return <ConfidentialiteContent />
+
+  // Coordonnées réelles du tenant (aucune donnée statique).
   const contact = await getPublicContact()
-  const companyName = tenant ? contact.name ?? tenant.name : legalConfig.companyName
-  const email = tenant ? contact.email : null
+  const companyName = contact.name ?? tenant.name
+  const email = contact.email
 
   return (
     <>

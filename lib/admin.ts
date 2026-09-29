@@ -38,6 +38,15 @@ export async function adminExists(): Promise<boolean> {
   return (rows[0]?.n ?? 0) > 0
 }
 
+/** Vrai si l'utilisateur est rattaché à au moins une entreprise. */
+async function userHasAnyMembership(userId: string): Promise<boolean> {
+  const rows = await db
+    .select({ n: count() })
+    .from(companyMembers)
+    .where(eq(companyMembers.userId, userId))
+  return (rows[0]?.n ?? 0) > 0
+}
+
 /** Charge le drapeau super-admin depuis la base (jamais depuis la session). */
 async function isSuperAdmin(userId: string): Promise<boolean> {
   const [row] = await db
@@ -69,9 +78,13 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
   const tenant = explicitTenant ?? (await getTenantFromMembership())
 
   // Aucun tenant : un super-admin sans entreprise est renvoyé vers la console
-  // plateforme ; sinon 404 neutre.
+  // plateforme. Un utilisateur fraîchement inscrit (aucune appartenance) est
+  // dirigé vers la création de son espace (parcours self-service). Sinon
+  // (appartenance existante mais entreprise inaccessible, ex. ARCHIVED) : 404.
   if (!tenant) {
     if (superAdmin) redirect("/super-admin")
+    const hasMembership = await userHasAnyMembership(session.user.id)
+    if (!hasMembership) redirect("/admin/creer-mon-espace")
     notFound()
   }
 
@@ -106,6 +119,27 @@ export async function requireCompanyMember(roles?: Role[]): Promise<MemberContex
     role,
     isSuperAdmin: superAdmin,
   }
+}
+
+/**
+ * Nom du PROPRIÉTAIRE (OWNER) d'une entreprise — destiné UNIQUEMENT à l'accueil
+ * humain du dashboard (« Bonjour … »). Strictement filtré par `companyId`
+ * (isolation tenant) : jamais de « premier OWNER global », jamais de repli sur
+ * un autre tenant. Renvoie le nom brut (jamais transformé) ou `null` si
+ * introuvable/vide. N'affecte NI la session, NI les rôles, NI les autorisations :
+ * c'est un simple libellé d'affichage. En cas de plusieurs OWNER (rare), on
+ * retient le plus ancien (createdAt) pour un rendu déterministe.
+ */
+export async function getCompanyOwnerName(companyId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ name: user.name })
+    .from(companyMembers)
+    .innerJoin(user, eq(companyMembers.userId, user.id))
+    .where(and(eq(companyMembers.companyId, companyId), eq(companyMembers.role, "OWNER")))
+    .orderBy(companyMembers.createdAt)
+    .limit(1)
+  const name = (row?.name ?? "").trim()
+  return name.length > 0 ? name : null
 }
 
 /**

@@ -28,6 +28,8 @@ import {
   businessHours,
   timeOff,
   companies,
+  leads,
+  leadActivities,
 } from "@/lib/db/schema"
 import { createZip, toCsv } from "./zip"
 
@@ -51,6 +53,8 @@ export type CompanyExport = {
   invoices: unknown[]
   invoiceItems: unknown[]
   invoicePayments: unknown[]
+  leads: unknown[]
+  leadActivities: unknown[]
 }
 
 /** Champs de branding/coordonnées exportés depuis `companies` (liste blanche). */
@@ -80,6 +84,8 @@ export async function buildCompanyExport(companyId: number): Promise<CompanyExpo
     timeOffRows,
     bookingRows,
     invoiceRows,
+    leadRows,
+    leadActivityRows,
   ] = await Promise.all([
     db.select().from(vehicleTypes).where(eq(vehicleTypes.companyId, companyId)),
     db.select().from(serviceCategories).where(eq(serviceCategories.companyId, companyId)),
@@ -89,6 +95,8 @@ export async function buildCompanyExport(companyId: number): Promise<CompanyExpo
     db.select().from(timeOff).where(eq(timeOff.companyId, companyId)),
     db.select().from(bookings).where(eq(bookings.companyId, companyId)),
     db.select().from(invoices).where(eq(invoices.companyId, companyId)),
+    db.select().from(leads).where(eq(leads.companyId, companyId)),
+    db.select().from(leadActivities).where(eq(leadActivities.companyId, companyId)),
   ])
 
   // Enfants : filtrés via les identifiants parents déjà scopés.
@@ -131,6 +139,8 @@ export async function buildCompanyExport(companyId: number): Promise<CompanyExpo
     invoices: invoiceRows,
     invoiceItems: invoiceItemRows,
     invoicePayments: paymentRows,
+    leads: leadRows,
+    leadActivities: leadActivityRows,
   }
 }
 
@@ -150,6 +160,8 @@ export function packExportZip(data: CompanyExport): Uint8Array {
     { name: "csv/invoices.csv", content: toCsv(data.invoices as Record<string, unknown>[]) },
     { name: "csv/invoice-items.csv", content: toCsv(data.invoiceItems as Record<string, unknown>[]) },
     { name: "csv/invoice-payments.csv", content: toCsv(data.invoicePayments as Record<string, unknown>[]) },
+    { name: "csv/leads.csv", content: toCsv(data.leads as Record<string, unknown>[]) },
+    { name: "csv/lead-activities.csv", content: toCsv(data.leadActivities as Record<string, unknown>[]) },
   ]
   return createZip(files)
 }

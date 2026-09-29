@@ -1,31 +1,37 @@
-import type { Metadata } from "next"
-import Link from "next/link"
-import { marketing } from "@/config/marketing"
+import type { Metadata, Viewport } from "next"
+import { MARKETING_MAINTENANCE_ENABLED } from "@/lib/marketing/maintenance"
+import { SiteNav } from "@/components/marketing/v4/site-nav"
+import { SiteFooter } from "@/components/marketing/v4/site-footer"
 
 // `title.absolute` évite le gabarit "%s | DetailFlow" du root layout : la marque
 // n'apparaît donc qu'UNE fois dans le <title> de la home marketing.
-const marketingTitle = "Logiciel de detailing tout-en-un pour les professionnels | DetailFlow"
+const marketingTitle = "DetailFlow — Logiciel de gestion et de réservation pour le detailing automobile"
 const marketingDescription =
-  "Gérez votre activité de detailing avec DetailFlow : site professionnel, réservations, planning, clients et véhicules, devis, factures et rappels automatiques."
+  "Site internet, réservation en ligne, planning, clients et véhicules, acomptes, facturation : DetailFlow réunit la gestion de votre centre de detailing dans une seule plateforme."
 
 export const metadata: Metadata = {
   title: { absolute: marketingTitle },
   description: marketingDescription,
   keywords: [
+    "logiciel detailing automobile",
     "logiciel detailing",
-    "logiciel detailer",
-    "CRM detailing",
-    "gestion entreprise detailing",
-    "réservation detailing",
-    "devis facturation detailing",
+    "logiciel réservation detailing",
+    "logiciel gestion detailing",
+    "prise de rendez-vous detailing",
+    "site internet detailing",
+    "logiciel centre esthétique automobile",
+    "logiciel lavage automobile",
+    "logiciel gestion centre detailing",
   ],
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     url: "/",
+    siteName: "DetailFlow",
+    locale: "fr_FR",
     title: marketingTitle,
     description: marketingDescription,
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour le detailing" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "DetailFlow — logiciel de gestion pour detailing automobile" }],
   },
   twitter: {
     card: "summary_large_image",
@@ -35,47 +41,31 @@ export const metadata: Metadata = {
   },
 }
 
+export function generateViewport(): Viewport {
+  return MARKETING_MAINTENANCE_ENABLED ? {} : { themeColor: "#fbfcfe", colorScheme: "light" }
+}
+
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+  // MODE MAINTENANCE : on retire l'en-tête/pied de page marketing (dont la
+  // navigation par ancres qui n'existent plus sur l'écran de maintenance).
+  // L'écran de maintenance fournit sa propre mise en page complète.
+  if (MARKETING_MAINTENANCE_ENABLED) {
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>
+  }
+
+  // `.df-mkt` : thème clair SCOPÉ à la vitrine (voir globals.css). Aucun tenant
+  // ni espace admin ne porte cette classe.
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* En-tête léger, sticky, translucide */}
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="text-lg font-bold tracking-tight text-foreground">
-            {marketing.brand.name}
-          </Link>
-          <nav className="flex items-center gap-6 text-sm">
-            <Link href="#features" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
-              Fonctionnalités
-            </Link>
-            <Link href="#workflow" className="hidden text-muted-foreground transition-colors hover:text-foreground md:block">
-              Comment ça marche
-            </Link>
-            <Link href="#faq" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
-              FAQ
-            </Link>
-            <Link
-              href="#beta"
-              className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110"
-            >
-              Rejoindre la Beta
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main>{children}</main>
-
-      {/* Pied de page minimal */}
-      <footer className="border-t border-border/60 py-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
-          <p>© {new Date().getFullYear()} DetailFlow. Tous droits réservés.</p>
-          {/* Liens légaux marketing volontairement retirés : les pages /conditions
-              et /mentions-legales appartiennent au groupe tenant (site) et
-              renvoyaient un contenu inadapté / 404 sur le domaine marketing.
-              À rebrancher lorsque de vraies pages légales marketing existeront. */}
-        </div>
-      </footer>
+    <div className="df-mkt min-h-screen bg-background font-sans text-foreground antialiased">
+      <a
+        href="#contenu"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-foreground focus:px-4 focus:py-2 focus:text-sm focus:text-background"
+      >
+        Aller au contenu
+      </a>
+      <SiteNav />
+      <main id="contenu">{children}</main>
+      <SiteFooter />
     </div>
   )
 }

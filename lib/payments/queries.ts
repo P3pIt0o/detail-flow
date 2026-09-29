@@ -6,6 +6,8 @@ import { getPaymentProvider } from "./providers"
 import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
 import { computePlatformFeeCents, type PaymentType } from "./types"
 import { normalizePaymentMode, resolveCheckoutType, type PaymentMode } from "./mode"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { safeSyncLeadFromBooking } from "@/lib/leads/server"
 
 /* -------------------------------------------------------------------------- */
 /*  Configuration paiement d'un tenant                                        */
@@ -343,7 +345,7 @@ export async function settlePaymentPaid(input: {
   paymentIntentId?: string | null
 }): Promise<SettlePaidResult> {
   const { externalId, companyId, bookingId, paymentIntentId } = input
-  return db.transaction(async (tx) => {
+  const settleResult = await db.transaction(async (tx) => {
     const [pay] = await tx
       .select({
         id: payments.id,
@@ -393,6 +395,31 @@ export async function settlePaymentPaid(input: {
 
     return { justPaid, amountCents: pay.grossAmountCents, type: pay.type as PaymentType }
   })
+
+  // CRM prospects (non bloquant, feature-gated) : un acompte payé confirme le
+  // rendez-vous → le prospect lié progresse (APPOINTMENT_BOOKED). Toute erreur
+  // est isolée : le règlement du paiement n'est jamais compromis.
+  if (settleResult.justPaid) {
+    try {
+      if (await canUseFeature(companyId, "leads_crm")) {
+        const [b] = await db
+          .select({ email: bookings.customerEmail, phone: bookings.customerPhone })
+          .from(bookings)
+          .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, companyId)))
+          .limit(1)
+        await safeSyncLeadFromBooking({
+          companyId,
+          bookingId,
+          status: "confirmed",
+          customerEmail: b?.email ?? null,
+          customerPhone: b?.phone ?? null,
+        })
+      }
+    } catch {
+      // isolé : ne jamais casser le règlement du paiement
+    }
+  }
+  return settleResult
 }
 
 /* -------------------------------------------------------------------------- */

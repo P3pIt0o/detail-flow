@@ -125,6 +125,71 @@ export function tenantPathUrl(path: string, slug: string, rootDomain?: string): 
   return `${p}${query}`
 }
 
+/** Chemin public canonique « joli » d'une entreprise : `/p/<slug>`. */
+export function publicPagePath(slug: string): string {
+  return `/p/${slug}`
+}
+
+/**
+ * URL publique ABSOLUE « jolie » d'une entreprise via le chemin `/p/<slug>`
+ * (alias de `tenantPublicUrl`, format chemin). En l'absence de domaine racine
+ * (aperçu/local), retombe sur le chemin relatif `/p/<slug>`.
+ */
+export function publicPageUrl(slug: string, rootDomain?: string): string {
+  const root = normalizeRootHost(rootDomain)
+  const path = publicPagePath(slug)
+  return root ? `https://${root}${path}` : path
+}
+
+/**
+ * Chemin public canonique de RÉSERVATION d'une entreprise : `/p/<slug>/reservation`.
+ *
+ * C'est le lien à partager par un professionnel qui a DÉJÀ son propre site
+ * (Cas A) : il fonctionne immédiatement (le tunnel de réservation n'est pas
+ * conditionné à la publication de la page publique standard).
+ */
+export function publicReservationPath(slug: string): string {
+  return `/p/${slug}/reservation`
+}
+
+/**
+ * URL publique ABSOLUE de réservation (`https://www.<root>/p/<slug>/reservation`).
+ * En l'absence de domaine racine (aperçu/local), retombe sur le chemin relatif.
+ */
+export function publicReservationUrl(slug: string, rootDomain?: string): string {
+  const root = normalizeRootHost(rootDomain)
+  const path = publicReservationPath(slug)
+  return root ? `https://${root}${path}` : path
+}
+
+/**
+ * Analyse un pathname pour la route publique par chemin `/p/<slug>[/reste]`.
+ *
+ * PURE (aucun accès réseau/DB) : sert au middleware (edge) et aux tests.
+ *  - `/p/mon-garage`            → { slug: "mon-garage", rest: "/" }
+ *  - `/p/mon-garage/reservation`→ { slug: "mon-garage", rest: "/reservation" }
+ *  - `/p` ou `/p/`              → null (pas de slug)
+ *  - slug syntaxiquement invalide (ex. `/p/ADMIN espace`) → null
+ *
+ * On ne vérifie PAS l'existence du tenant ici (pas de DB en edge) : c'est
+ * `getCurrentTenant()` qui tranche côté serveur à partir de l'en-tête posé.
+ */
+export function parsePublicPagePath(pathname: string): { slug: string; rest: string } | null {
+  if (pathname !== "/p" && !pathname.startsWith("/p/")) return null
+  const after = pathname.slice("/p".length) // "" | "/" | "/slug" | "/slug/reste"
+  const segments = after.split("/").filter(Boolean)
+  if (segments.length === 0) return null
+  const [slug, ...rest] = segments
+  // Exception de ROUTING pour le tenant historique DetailFlow : son slug est
+  // volontairement présent dans RESERVED_SLUGS (interdit à la création d'un
+  // nouveau tenant), mais l'entreprise existe déjà et doit rester accessible
+  // via `/p/detailflow`. On l'accepte donc explicitement ici, sans jamais
+  // relâcher la validation pour les autres slugs réservés.
+  const isLegacyDefaultTenant = slug === DEFAULT_TENANT_SLUG
+  if (!isLegacyDefaultTenant && !isValidSlug(slug)) return null
+  return { slug, rest: rest.length ? `/${rest.join("/")}` : "/" }
+}
+
 /**
  * Domaines personnalisés VÉRIFIÉS, mappés explicitement vers le slug du tenant.
  *

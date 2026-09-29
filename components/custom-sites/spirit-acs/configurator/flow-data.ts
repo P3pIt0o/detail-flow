@@ -100,7 +100,7 @@ export type CleaningVehicleKey = "citadine" | "berline" | "sportive" | "suv" | "
 // (ex. citadine « intérieur comme neuf », SUV « intérieur comme neuf »).
 const CLEANING_INTERIOR: Record<CleaningLevel, Record<CleaningVehicleKey, number>> = {
   indispensable: { citadine: 9000, berline: 10000, sportive: 10000, suv: 11000, monospace5: 12000, monospace7: 13000 },
-  "comme-neuf": { citadine: 10000, berline: 12000, sportive: 12000, suv: 13000, monospace5: 15000, monospace7: 16000 },
+  "comme-neuf": { citadine: 11000, berline: 12000, sportive: 12000, suv: 13000, monospace5: 15000, monospace7: 16000 },
 }
 
 const CLEANING_EXTERIOR: Record<CleaningLevel, Record<CleaningVehicleKey, number>> = {

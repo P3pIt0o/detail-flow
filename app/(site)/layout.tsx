@@ -8,7 +8,13 @@ import { getCurrentTenant } from "@/lib/tenant"
 import { getPublicContact } from "@/lib/public-contact"
 import { resolveSiteContent, type SiteContent } from "@/lib/site-content"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
-import { buildTenantMetadata, resolveTenantSeo, buildTenantLocalBusiness } from "@/lib/seo/tenant-seo.server"
+import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
+import {
+  buildTenantMetadata,
+  resolveTenantSeo,
+  buildTenantLocalBusiness,
+  resolvePublicPageRobots,
+} from "@/lib/seo/tenant-seo.server"
 import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
 
 /**
@@ -66,9 +72,16 @@ export async function generateMetadata(): Promise<Metadata> {
     ? SPIRIT_PAGE_META.home.description
     : (clean(tenant.heroSubtitle) ?? clean(rawContent?.about?.text) ?? genericDesc)
 
+  // Directive d'indexation : une page publique standard n'est indexable que si
+  // elle est PUBLIÉE et que l'indexation a été autorisée dans le configurateur.
+  // Les sites personnalisés et les sites `website` restent indexés comme avant
+  // (résolu dans `resolvePublicPageRobots`). S'applique aussi aux sous-pages du
+  // segment (ex. `/reservation`) par héritage des métadonnées du layout.
+  const robots = await resolvePublicPageRobots()
+
   // Métadonnées centralisées : canonique tenant-aware (conserve ?tenant=),
   // Open Graph + Twitter, image OG et favicon Spirit le cas échéant.
-  return buildTenantMetadata({ path: "/", title, description })
+  return buildTenantMetadata({ path: "/", title, description, robots })
 }
 
 // Données structurées Schema.org (LocalBusiness/AutoWash) pour un SEO local
@@ -95,30 +108,38 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // Coordonnées publiques réelles du tenant (jamais de données statiques).
   const contact = await getPublicContact()
 
+  // DISPATCH DE SHELL : un site personnalisé enregistré avec `ownShell` fournit
+  // sa PROPRE navigation/pied de page. Résolu ici (avant le calcul des couleurs)
+  // pour garantir que le configurateur LOT 2 n'affecte JAMAIS un site custom.
+  const customSite = await resolveCustomSite()
+  const useOwnShell = Boolean(customSite?.ownShell)
+
+  // Config LOT 2 : couleurs d'accent éditables dans le configurateur. Elles ne
+  // s'appliquent qu'au SHELL STANDARD (jamais aux sites personnalisés Spirit
+  // ACS / Rozan / Cleanyzer, exclus ci-dessus). Repli garanti sur les couleurs
+  // de marque de l'entreprise puis sur le thème par défaut : un tenant sans
+  // config obtient exactement le comportement historique.
+  const publicPage = customSite ? null : await getEffectivePublicPageForCurrentTenant()
+  const accentPrimary = publicPage?.accentPrimary ?? tenant?.brandPrimary ?? null
+  const accentSecondary = publicPage?.accentSecondary ?? tenant?.brandSecondary ?? null
+
   // Couleurs de marque du tenant : surcharge des variables de thème UNIQUEMENT
   // si l'entreprise en a défini. Sinon aucune variable n'est injectée → la
   // vitrine racine (detailflow.fr) et les tenants sans couleur gardent le thème
   // par défaut de globals.css. Les hex sont des valeurs CSS valides pour ces vars.
   const brandStyle: React.CSSProperties = {}
-  if (tenant?.brandPrimary) {
-    ;(brandStyle as Record<string, string>)["--primary"] = tenant.brandPrimary
-    ;(brandStyle as Record<string, string>)["--ring"] = tenant.brandPrimary
+  if (accentPrimary) {
+    ;(brandStyle as Record<string, string>)["--primary"] = accentPrimary
+    ;(brandStyle as Record<string, string>)["--ring"] = accentPrimary
   }
-  if (tenant?.brandSecondary) {
-    ;(brandStyle as Record<string, string>)["--secondary"] = tenant.brandSecondary
+  if (accentSecondary) {
+    ;(brandStyle as Record<string, string>)["--secondary"] = accentSecondary
   }
-  const hasBrandColors = Boolean(tenant?.brandPrimary || tenant?.brandSecondary)
+  const hasBrandColors = Boolean(accentPrimary || accentSecondary)
 
   // Contenu personnalisable du pied de page (texte + slogan). Repli sur le
   // comportement par défaut du composant Footer si le tenant n'a rien renseigné.
   const footerContent = resolveSiteContent(tenant?.siteContent).footer
-
-  // DISPATCH DE SHELL : un site personnalisé enregistré avec `ownShell` fournit
-  // sa PROPRE navigation/pied de page. On n'applique alors pas la Navbar/Footer
-  // standard, mais on CONSERVE le tracking et les gardes communes. Clé null ou
-  // inconnue => `null` => shell standard exact ci-dessous (aucune régression).
-  const customSite = await resolveCustomSite()
-  const useOwnShell = Boolean(customSite?.ownShell)
 
   // JSON-LD LocalBusiness/AutoWash construit à partir des données RÉELLES du
   // tenant (adresse postale structurée complète, horaires, réseaux, fiche
@@ -145,24 +166,34 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           jamais la vitrine racine sans tenant). companyId résolu côté serveur. */}
       {tenant && <SiteTracker />}
       {localBusinessJsonLd && <StructuredData jsonLd={localBusinessJsonLd} />}
+      {/* `data-df-chrome` : chrome du site standard, masqué en mode embarqué
+          (widget de réservation `?embed=1`). `contents` = le wrapper ne crée
+          aucune boîte, la mise en page (sticky/fixed) des enfants est préservée. */}
       <a
         href="#contenu"
+        data-df-chrome
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
       >
         Aller au contenu
       </a>
-      <Navbar brandName={brandName} logoSrc={logoSrc} phone={contact.phone} phoneRaw={contact.phoneRaw} />
+      <div data-df-chrome className="contents">
+        <Navbar brandName={brandName} logoSrc={logoSrc} phone={contact.phone} phoneRaw={contact.phoneRaw} />
+      </div>
       <main id="contenu">{children}</main>
-      <Footer
-        brandName={brandName}
-        logoSrc={logoSrc}
-        tenantSlug={tenant?.slug ?? null}
-        contact={contact}
-        socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
-        footerText={footerContent.text || undefined}
-        footerTagline={footerContent.tagline || undefined}
-      />
-      <WhatsAppButton phone={contact.phoneRaw} />
+      <div data-df-chrome className="contents">
+        <Footer
+          brandName={brandName}
+          logoSrc={logoSrc}
+          tenantSlug={tenant?.slug ?? null}
+          contact={contact}
+          socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
+          footerText={footerContent.text || undefined}
+          footerTagline={footerContent.tagline || undefined}
+        />
+      </div>
+      <div data-df-chrome data-df-whatsapp className="contents">
+        <WhatsAppButton phone={contact.phoneRaw} />
+      </div>
     </div>
   )
 }

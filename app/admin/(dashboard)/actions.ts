@@ -8,6 +8,8 @@ import { requireCompanyMember } from "@/lib/admin"
 import { sendStatusChangeEmail } from "@/lib/email/notifications"
 import { stampBookingCompletedAt, clearBookingCompletedAt } from "@/lib/notifications/completion"
 import type { BookingStatus } from "@/lib/booking/status"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { safeSyncLeadFromBooking } from "@/lib/leads/server"
 
 /** Transitions de statut autorisées depuis le dashboard. */
 const ALLOWED: Record<BookingStatus, BookingStatus[]> = {
@@ -28,7 +30,11 @@ export async function updateBookingStatus(
 
   // Lecture scopée entreprise : une réservation d'un autre tenant est invisible.
   const rows = await db
-    .select({ status: bookings.status })
+    .select({
+      status: bookings.status,
+      customerEmail: bookings.customerEmail,
+      customerPhone: bookings.customerPhone,
+    })
     .from(bookings)
     .where(and(eq(bookings.id, bookingId), eq(bookings.companyId, tenant.id)))
     .limit(1)
@@ -58,6 +64,18 @@ export async function updateBookingStatus(
   // Email au client pour les transitions qui le concernent (non bloquant).
   if (next === "confirmed" || next === "completed" || next === "cancelled") {
     await sendStatusChangeEmail(bookingId, next)
+  }
+
+  // CRM prospects (non bloquant, feature-gated) : la synchronisation ne fait
+  // jamais régresser un prospect CLIENT et ne marque jamais LOST sur annulation.
+  if (await canUseFeature(tenant.id, "leads_crm")) {
+    await safeSyncLeadFromBooking({
+      companyId: tenant.id,
+      bookingId,
+      status: next,
+      customerEmail: rows[0]?.customerEmail ?? null,
+      customerPhone: rows[0]?.customerPhone ?? null,
+    })
   }
 
   revalidatePath("/admin", "layout")

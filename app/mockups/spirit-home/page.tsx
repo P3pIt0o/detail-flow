@@ -13,7 +13,7 @@ import { Oswald } from "next/font/google"
  * À supprimer une fois la direction UX validée.
  */
 
-const oswald = Oswald({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-osw" })
+const oswald = Oswald({ subsets: ["latin"], variable: "--font-osw" })
 
 export const metadata: Metadata = {
   title: "Maquette — Accueil Spirit ACS",

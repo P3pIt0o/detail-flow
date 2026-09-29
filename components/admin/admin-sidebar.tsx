@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { withTenant } from "@/lib/tenant-link"
 import { siteConfig } from "@/config/site"
 import {
   LayoutDashboard,
@@ -21,50 +22,55 @@ import {
   ShieldCheck,
   Cpu,
   Package,
+  Globe,
+  CalendarCheck,
+  BarChart3,
+  UserPlus,
 } from "lucide-react"
+import { buildAdminNav, type AdminNavIcon } from "@/lib/admin/nav"
+import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 
-const NAV = [
-  { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
-  { href: "/admin/calendrier", label: "Calendrier", icon: CalendarDays },
-  { href: "/admin/reservations", label: "Réservations", icon: ClipboardList },
-  { href: "/admin/demandes", label: "Demandes", icon: Inbox },
-  { href: "/admin/factures", label: "Factures", icon: FileText },
-  { href: "/admin/clients", label: "Clients", icon: Users },
-  { href: "/admin/prestations", label: "Prestations", icon: Sparkles },
-  { href: "/admin/produits", label: "Produits", icon: Package },
-  { href: "/admin/parametres", label: "Paramètres", icon: Settings },
-]
-
-// Entrées masquées POUR SPIRIT ACS UNIQUEMENT (site 100 % personnalisé, parcours
-// demande → devis) : les routes/modules restent intacts et disponibles pour tous
-// les autres tenants — seuls les liens disparaissent de SA navigation.
-const SPIRIT_ACS_HIDDEN_NAV = new Set([
-  "/admin/reservations",
-  "/admin/prestations",
-  "/admin/produits",
-])
+// Mappe la clé d'icône (pure, définie dans lib/admin/nav) vers le composant
+// lucide correspondant. Garde la logique de menu testable sans JSX.
+const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  calendar: CalendarDays,
+  reservations: ClipboardList,
+  demandes: Inbox,
+  leads: UserPlus,
+  factures: FileText,
+  clients: Users,
+  prestations: Sparkles,
+  produits: Package,
+  analyse: BarChart3,
+  reservationLink: CalendarCheck,
+  web: Globe,
+  settings: Settings,
+}
 
 export function AdminSidebar({
   adminName,
   isSuperAdmin = false,
   customSiteKey = null,
+  onboardingIntent = null,
 }: {
   adminName: string
   isSuperAdmin?: boolean
   customSiteKey?: string | null
+  onboardingIntent?: OnboardingIntentValue | null
 }) {
-  const navItems =
-    customSiteKey === "spirit-acs" ? NAV.filter((item) => !SPIRIT_ACS_HIDDEN_NAV.has(item.href)) : NAV
+  // Le menu s'adapte DURABLEMENT au parcours choisi (entrée « web » : Ma
+  // réservation / Mon site / Page publique). Modules métier communs inchangés.
+  const navItems = buildAdminNav({ intent: onboardingIntent, customSiteKey })
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
 
   // En aperçu (sans sous-domaine), le tenant est porté par `?tenant=`. On le
-  // conserve à chaque navigation pour rester sur la même entreprise. En
+  // conserve à chaque navigation via le helper central withTenant. En
   // production (sous-domaines), ce paramètre est absent : aucun effet.
   const tenantParam = searchParams.get("tenant")
-  const withTenant = (href: string) => (tenantParam ? `${href}?tenant=${tenantParam}` : href)
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -89,23 +95,26 @@ export function AdminSidebar({
       </div>
 
       <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Navigation dashboard">
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={withTenant(href)}
-            onClick={() => setOpen(false)}
-            aria-current={isActive(href) ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              isActive(href)
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4 shrink-0" aria-hidden="true" />
-            {label}
-          </Link>
-        ))}
+        {navItems.map(({ href, label, icon }) => {
+          const Icon = NAV_ICONS[icon]
+          return (
+            <Link
+              key={href}
+              href={withTenant(href, tenantParam)}
+              onClick={() => setOpen(false)}
+              aria-current={isActive(href) ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive(href)
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              {label}
+            </Link>
+          )
+        })}
 
         {isSuperAdmin && (
           <>
@@ -114,7 +123,7 @@ export function AdminSidebar({
               Plateforme
             </p>
             <Link
-              href={withTenant("/super-admin")}
+              href={withTenant("/super-admin", tenantParam)}
               onClick={() => setOpen(false)}
               aria-current={isActive("/super-admin") ? "page" : undefined}
               className={cn(
@@ -130,7 +139,7 @@ export function AdminSidebar({
             {/* Accès technique au Boîtier : masqué du menu normal, conservé pour
                 le super-admin (aucune route/donnée supprimée). */}
             <Link
-              href={withTenant("/admin/boitier")}
+              href={withTenant("/admin/boitier", tenantParam)}
               onClick={() => setOpen(false)}
               aria-current={isActive("/admin/boitier") ? "page" : undefined}
               className={cn(

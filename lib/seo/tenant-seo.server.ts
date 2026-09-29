@@ -31,6 +31,9 @@ import {
 import { tenantCanonicalHost } from "@/lib/tenant-shared"
 import { buildTenantPageMetadata } from "./tenant-metadata"
 import { buildLocalBusinessJsonLd, type LocalBusinessInput } from "./structured-data"
+import { resolvePublicRobots } from "./robots"
+import { hasFeature } from "@/lib/licensing/server"
+import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
 import { SPIRIT_TENANT_SLUG, SPIRIT_BUSINESS } from "@/components/custom-sites/spirit-acs/seo-content"
 
 /** Chemin de l'image Open Graph propre à Spirit ACS (existe dans /public). */
@@ -76,6 +79,58 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
     siteName: tenant.name || siteConfig.brand.name,
   }
 })
+
+/**
+ * Directive robots de la page publique du TENANT COURANT, ou `undefined`
+ * (aucune directive → indexable, comportement historique).
+ *
+ * Compose la politique PURE `resolvePublicRobots` avec l'état réel du tenant :
+ *  - site personnalisé (customSiteKey) ou feature `website` → jamais dégradé
+ *    (indexé comme avant) ;
+ *  - page publique standard self-service → indexée uniquement si PUBLIÉE et si
+ *    l'indexation a été explicitement autorisée dans le configurateur ; sinon
+ *    `noindex` (brouillon → `nofollow` également).
+ *
+ * Toutes les lectures sont scopées au tenant courant (résolu côté serveur) et
+ * tolérantes à l'absence de config (repli non-publié). Mémoïsé par requête via
+ * les helpers sous-jacents.
+ */
+export async function resolvePublicPageRobots(): Promise<Metadata["robots"] | undefined> {
+  const seo = await resolveTenantSeo()
+  if (!seo.tenant) return undefined
+  const tenant = seo.tenant
+
+  const isCustomSite = Boolean(tenant.customSiteKey?.trim())
+
+  // Feature `website` : offres payantes / LIFETIME / sites custom. Un échec de
+  // lecture licence ne doit jamais dégrader l'indexation d'un site existant →
+  // on considère alors « historique » (aucune directive).
+  let hasWebsiteFeature = false
+  try {
+    hasWebsiteFeature = await hasFeature(tenant.id, "website")
+  } catch {
+    hasWebsiteFeature = true
+  }
+
+  let isPublished = false
+  let seoIndexable = false
+  // La config n'est consultée que pour un site standard self-service (les autres
+  // cas sont déjà tranchés « indexable » par la règle pure).
+  if (!isCustomSite && !hasWebsiteFeature) {
+    const pp = await getEffectivePublicPageForCurrentTenant()
+    isPublished = pp?.isPublished ?? false
+    seoIndexable = pp?.seoIndexable ?? false
+  }
+
+  const directive = resolvePublicRobots({
+    hasTenant: true,
+    isCustomSite,
+    hasWebsiteFeature,
+    isPublished,
+    seoIndexable,
+  })
+  return directive ?? undefined
+}
 
 /** URL canonique tenant-aware d'un chemin pour le tenant courant. */
 export async function tenantCanonical(path: string): Promise<string> {

@@ -81,6 +81,12 @@ export type AccessInfo = {
   companyName: string
   slug: string
   publicUrl: string
+  /**
+   * Libellé de la ligne d'URL publique. Contextuel selon le produit choisi
+   * (« Site public » par défaut, « Lien de réservation » pour booking_only,
+   * « Site vitrine » pour public_page). Défaut historique : « Site public ».
+   */
+  publicLabel?: string
   adminUrl: string
   ownerEmail: string
   /** Mot de passe temporaire (connu uniquement à la création / réinitialisation). */
@@ -94,7 +100,7 @@ export function buildShareBlock(info: AccessInfo): string {
     "",
     `Entreprise : ${info.companyName}`,
     `Tenant : ${info.slug}`,
-    `Site public : ${info.publicUrl}`,
+    `${info.publicLabel ?? "Site public"} : ${info.publicUrl}`,
     `Administration : ${info.adminUrl}`,
     `Email : ${info.ownerEmail}`,
     ...(info.tempPassword
@@ -116,7 +122,7 @@ export function AccessRecap({ info }: { info: AccessInfo }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
         <RecapRow label="Entreprise" value={info.companyName} />
-        <RecapRow label="Site public" value={info.publicUrl} href={info.publicUrl} />
+        <RecapRow label={info.publicLabel ?? "Site public"} value={info.publicUrl} href={info.publicUrl} />
         <RecapRow label="Administration" value={info.adminUrl} href={info.adminUrl} />
         <RecapRow label="Email" value={info.ownerEmail} />
         {info.tempPassword ? (
