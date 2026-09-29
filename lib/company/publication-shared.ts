@@ -34,6 +34,42 @@ export function bookingLinkPath(slug: string): string {
   return `/book/${encodeURIComponent(slug)}`
 }
 
+/** URL absolue du lien /book/{slug} sur `origin` (ex. https://www.detailflow.fr). */
+export function bookingLinkUrl(slug: string, origin: string): string {
+  return `${origin.replace(/\/+$/, "")}${bookingLinkPath(slug)}`
+}
+
+/**
+ * Section « Réservation en ligne » de Page publique pour un site personnalisé.
+ * Indépendante de customSitePublished. Spirit ACS exclu (parcours devis dédié).
+ */
+export function showsCustomSiteBookingAdmin(customSiteKey: string | null | undefined): boolean {
+  return Boolean(customSiteKey) && customSiteKey !== "spirit-acs"
+}
+
+/**
+ * Sites personnalisés conservant le tunnel de réservation historique
+ * (BookingWizard). Exception ciblée par customSiteKey, jamais par
+ * customSitePublished : publier/dépublier un site ne change pas le moteur.
+ */
+const LEGACY_BOOKING_WIZARD_SITE_KEYS = new Set(["spirit-acs", "rozan"])
+
+export function usesLegacyBookingWizard(customSiteKey: string | null | undefined): boolean {
+  return LEGACY_BOOKING_WIZARD_SITE_KEYS.has(String(customSiteKey ?? "").trim())
+}
+
+/**
+ * Widget (?embed=1) d'un tenant à site personnalisé : fermé tant que le lien
+ * de réservation n'est pas publié. Tenants standards : inchangé (non bloqué).
+ */
+export function isEmbedBlocked(
+  customSiteKey: string | null | undefined,
+  status: string | null | undefined,
+  flags: PublicationFlags,
+): boolean {
+  return Boolean(String(customSiteKey ?? "").trim()) && !isBookingLinkAccessible(status, flags)
+}
+
 /** Normalise une ligne SQL brute ; toute valeur non booléenne => défaut. */
 export function toPublicationFlags(row: Record<string, unknown> | undefined | null): PublicationFlags {
   if (!row) return { ...DEFAULT_PUBLICATION_FLAGS }

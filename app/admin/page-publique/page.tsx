@@ -7,6 +7,15 @@ import { publicPagePath } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { ConfigEditor } from "@/components/public-page/config-editor"
+import { marketingOrigin } from "@/lib/tenant-shared"
+import { getPublicationFlags } from "@/lib/company/publication"
+import {
+  bookingLinkUrl,
+  isBookingLinkAccessible,
+  showsCustomSiteBookingAdmin,
+} from "@/lib/company/publication-shared"
+import { buildEmbedScriptSnippet, buildEmbedIframeSnippet } from "@/lib/embed/snippet"
+import { CustomSiteBookingSection } from "@/components/admin/booking-hub/custom-site-booking-section"
 
 export const metadata: Metadata = { title: "Page publique" }
 
@@ -88,6 +97,15 @@ export default async function PagePubliquePage({
             </p>
           </div>
         </div>
+        {showsCustomSiteBookingAdmin(tenant.customSiteKey) && (
+          <CustomSiteBookingSection
+            active={isBookingLinkAccessible(tenant.status, await getPublicationFlags(tenant.id))}
+            bookingUrl={bookingLinkUrl(tenant.slug, marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN))}
+            prestationsHref={withTenant("/admin/prestations", tenantParam ?? null)}
+            scriptSnippet={buildEmbedScriptSnippet(tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)}
+            iframeSnippet={buildEmbedIframeSnippet(tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)}
+          />
+        )}
       </div>
     )
   }
