@@ -13,7 +13,7 @@ import Image from "next/image"
 import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
 import { BRAND } from "./content"
-import { CLZ_PREVIEW_BASE, type ClzNavItem } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
@@ -91,7 +91,7 @@ export function CleanyzerShell({
   }, [open])
 
   const reserverHref = `${CLZ_PREVIEW_BASE}/reservation`
-  const devisHref = `${CLZ_PREVIEW_BASE}/demande`
+  const devisHref = CLZ_BOOKING_HREF
 
   // Surface opaque dès qu'on quitte le sommet OU que le menu mobile est ouvert.
   const solidSurface = scrolled || open

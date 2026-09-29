@@ -17,7 +17,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
-import { CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 
 const POSTER = "/custom-sites/cleanyzer/hero-poster.png"
 const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
@@ -118,7 +118,7 @@ export function CleanyzerHero() {
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href={`${CLZ_PREVIEW_BASE}/demande`}
+            href={CLZ_BOOKING_HREF}
             className="group inline-flex items-center gap-1.5 text-base font-medium text-white/85 transition hover:text-white"
           >
             Demander un devis
