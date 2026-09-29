@@ -5,6 +5,11 @@ import { buildAdminNavGroups, buildMobilePrimaryNav } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
+import { resolveDashboardPrimaryMode, type WidgetPrimaryAction } from "@/lib/admin/primary-action"
+import { getPublicationFlags } from "@/lib/company/publication"
+import { bookingLinkUrl, isBookingLinkAccessible } from "@/lib/company/publication-shared"
+import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
+import { marketingOrigin } from "@/lib/tenant-shared"
 
 export const metadata = {
   title: "Espace pro",
@@ -42,8 +47,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
     rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
   })
 
+  // Action principale : widget pour les sites historiques mappés (Cleanyzer),
+  // sinon comportement inchangé. Tout est résolu depuis le tenant serveur.
+  let widgetAction: WidgetPrimaryAction | null = null
+  if (resolveDashboardPrimaryMode(ctx.tenant.customSiteKey) === "widget") {
+    const active = isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id))
+    widgetAction = {
+      active,
+      scriptSnippet: buildEmbedScriptSnippet(ctx.tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN),
+      moduleUrl: active ? bookingLinkUrl(ctx.tenant.slug, marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN)) : null,
+    }
+  }
+
   return (
     <AdminShell
+      widgetAction={widgetAction}
       brandName={siteConfig.brand.name}
       companyName={ctx.tenant.name || siteConfig.brand.name}
       adminName={ctx.user.name || ctx.user.email}
