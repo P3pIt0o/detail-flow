@@ -1,6 +1,6 @@
 import "server-only"
 import { randomUUID, randomBytes } from "crypto"
-import { and, eq, inArray, count } from "drizzle-orm"
+import { and, eq, inArray, count, sql } from "drizzle-orm"
 import { del } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
@@ -32,6 +32,8 @@ import { ownerInvitationEmail } from "@/lib/email/templates"
 import { grantBetaBonus } from "@/lib/sms/credits"
 import { SELF_SERVICE_LICENSE_PLAN } from "@/lib/pricing/plans"
 import { isCanonicalIntent } from "@/lib/onboarding/intent"
+import { isBookingDistributionMode } from "@/lib/admin/primary-action"
+import { bookingDistributionColumnExists } from "@/lib/company/booking-distribution"
 
 /* -------------------------------------------------------------------------- */
 /*  Provisionnement d'une entreprise (tenant) — cœur du "créer en < 2 min".    */
@@ -271,6 +273,8 @@ export type SelfServiceProvisionInput = {
    * valeur non canonique est ignorée (colonne laissée NULL → dashboard standard).
    */
   onboardingIntent?: string
+  /** Choix explicite de distribution ("link" | "widget"). Toute autre valeur est ignorée. */
+  bookingDistributionMode?: string
 }
 
 export type SelfServiceProvisionResult = {
@@ -352,6 +356,9 @@ export async function provisionCompanyForUser(
   // Parcours d'onboarding : persisté seulement s'il est canonique. Toute autre
   // valeur (ou absence) laisse la colonne NULL → dashboard standard inchangé.
   const intentValue = isCanonicalIntent(input.onboardingIntent) ? input.onboardingIntent : null
+  const distributionValue = isBookingDistributionMode(input.bookingDistributionMode)
+    ? input.bookingDistributionMode
+    : null
 
   // 0) IDEMPOTENCE : l'utilisateur a-t-il déjà une entreprise ? Si oui, la
   //    renvoyer telle quelle (retry / double soumission → aucun doublon).
@@ -387,6 +394,9 @@ export async function provisionCompanyForUser(
   const now = new Date()
 
   // 2) Écriture atomique : entreprise + réglages + horaires + membership OWNER.
+  // Colonne hors schéma Drizzle (tolérance pré-migration) : écrite seulement si présente.
+  const persistDistribution = distributionValue !== null && (await bookingDistributionColumnExists())
+
   let companyId: number
   try {
     companyId = await db.transaction(async (tx) => {
@@ -418,6 +428,12 @@ export async function provisionCompanyForUser(
           updatedAt: now,
         })
         .returning({ id: companies.id })
+
+      if (persistDistribution) {
+        await tx.execute(
+          sql`UPDATE companies SET "bookingDistributionMode" = ${distributionValue} WHERE id = ${company.id}`,
+        )
+      }
 
       await tx.insert(settingsTable).values({ companyId: company.id, businessName: companyName })
 

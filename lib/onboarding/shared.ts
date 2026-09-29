@@ -17,6 +17,8 @@ export type OnboardingIntent = "booking" | "page" | "website"
 
 export type OnboardingPayload = {
   intent: OnboardingIntent
+  /** Parcours « booking » : distribution choisie explicitement ("link" | "widget"). */
+  distribution?: "link" | "widget"
   /** Site existant (parcours booking) OU domaine visé (parcours website). */
   websiteUrl?: string
   activities: string[]

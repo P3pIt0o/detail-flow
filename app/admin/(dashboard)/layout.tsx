@@ -7,6 +7,7 @@ import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
 import { resolveDashboardPrimaryMode, type WidgetPrimaryAction } from "@/lib/admin/primary-action"
 import { getPublicationFlags } from "@/lib/company/publication"
+import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 import { bookingLinkUrl, isBookingLinkAccessible } from "@/lib/company/publication-shared"
 import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
 import { marketingOrigin } from "@/lib/tenant-shared"
@@ -34,7 +35,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Navigation GROUPÉE + barre mobile — mêmes routes, mêmes règles d'éligibilité
   // (Spirit ACS, parcours web) : seule la présentation change.
-  const navOpts = { intent: onboardingIntent, customSiteKey: ctx.tenant.customSiteKey ?? null }
+  // Mode de distribution PERSISTÉ du tenant authentifié (jamais un slug client).
+  const bookingDistributionMode = await getBookingDistributionMode(ctx.tenant.id)
+  const navOpts = {
+    intent: onboardingIntent,
+    customSiteKey: ctx.tenant.customSiteKey ?? null,
+    bookingDistributionMode,
+  }
   const groups = buildAdminNavGroups(navOpts)
   const primaryMobile = buildMobilePrimaryNav(navOpts)
 
@@ -47,10 +54,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
   })
 
-  // Action principale : widget pour les sites historiques mappés (Cleanyzer),
-  // sinon comportement inchangé. Tout est résolu depuis le tenant serveur.
+  // Action principale : widget si bookingDistributionMode = "widget", sinon
+  // comportement inchangé. Tout est résolu depuis le tenant serveur.
   let widgetAction: WidgetPrimaryAction | null = null
-  if (resolveDashboardPrimaryMode(ctx.tenant.customSiteKey) === "widget") {
+  if (resolveDashboardPrimaryMode(bookingDistributionMode) === "widget") {
     const active = isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id))
     widgetAction = {
       active,

@@ -2,23 +2,27 @@
  * Action principale du dashboard (gros bouton du header / feuille « Plus »).
  * Logique PURE, décidée côté serveur à partir du tenant résolu.
  *
- * - `copy_link` : comportement historique inchangé (copie `resolvePublicLink`).
- * - `widget`    : « Intégrer la réservation » → code d'intégration existant +
- *                 « Voir mon module ».
+ * SOURCE DE VÉRITÉ : `companies.bookingDistributionMode` ("link" | "widget"),
+ * choisi explicitement à l'onboarding (ou backfillé par migration). Le mode
+ * n'est JAMAIS déduit de websiteUrl, customSiteKey, customSitePublished,
+ * bookingLinkEnabled, du slug ou d'un domaine.
  *
- * L'onboarding ne distingue pas encore Widget / Lien (seul `booking_only`
- * existe) : on N'INFÈRE PAS ce choix depuis un autre champ. Les sites
- * personnalisés historiques sont donc mappés explicitement ; tout autre tenant
- * (Spirit ACS, Rozan, standards) conserve exactement son comportement actuel.
- * customSitePublished n'intervient jamais dans ce choix.
+ * - `widget`    : « Intégrer la réservation » → code d'intégration existant.
+ * - `copy_link` : comportement historique inchangé (valeur "link" OU NULL —
+ *                 tenants existants, dont Spirit ACS et Rozan).
  */
+
+export const BOOKING_DISTRIBUTION_MODES = ["link", "widget"] as const
+export type BookingDistributionMode = (typeof BOOKING_DISTRIBUTION_MODES)[number]
+
+export function isBookingDistributionMode(v: unknown): v is BookingDistributionMode {
+  return v === "link" || v === "widget"
+}
 
 export type DashboardPrimaryMode = "copy_link" | "widget"
 
-const LEGACY_WIDGET_CUSTOM_SITE_KEYS: ReadonlySet<string> = new Set(["cleanyzer"])
-
-export function resolveDashboardPrimaryMode(customSiteKey: string | null | undefined): DashboardPrimaryMode {
-  return customSiteKey && LEGACY_WIDGET_CUSTOM_SITE_KEYS.has(customSiteKey) ? "widget" : "copy_link"
+export function resolveDashboardPrimaryMode(mode: string | null | undefined): DashboardPrimaryMode {
+  return mode === "widget" ? "widget" : "copy_link"
 }
 
 export type WidgetPrimaryAction = {
