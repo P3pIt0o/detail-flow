@@ -154,6 +154,22 @@ describe("import Cleanyzer", () => {
     expect(await snapshotOther(otherId)).toBe(before)
   })
 
+  it("idempotence : 2e passage sans modification => 0 création, 0 modification, 0 doublon", async () => {
+    await runCleanyzerImport(db, { apply: true })
+    const snapshotAll = async () => JSON.stringify([await snapshotOther(cleanyzerId), await snapshotOther(otherId)])
+    const before = await snapshotAll()
+    const r = await runCleanyzerImport(db, { apply: true })
+    expect(r.safe).toBe(true)
+    expect(r.totalRows).toBe(0)
+    expect(r.servicePricesToCreate).toBe(0)
+    expect(r.categories.toCreate.length + r.services.toCreate.length + r.options.toCreate.length).toBe(0)
+    expect(r.protections).toEqual({ overwritten: 0, otherCompaniesTouched: 0, tenantCreated: false, deleted: 0 })
+    expect(await snapshotAll()).toBe(before)
+    const dup = await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM (SELECT "serviceId", "vehicleTypeId" FROM service_prices GROUP BY 1, 2 HAVING count(*) > 1) d`)
+    expect(dup.n).toBe(0)
+  })
+
   it("prestation supprimée par Tom : seule la ligne manquante est recréée, le reste est préservé", async () => {
     await runCleanyzerImport(db, { apply: true })
     await db.query(`DELETE FROM options WHERE "companyId" = $1 AND slug = 'vitres'`, [cleanyzerId])

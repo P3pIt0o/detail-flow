@@ -23,7 +23,7 @@ vi.mock("@/lib/company/publication", () => ({
   getPublicationFlags: (id: number) => getPublicationFlags(id),
 }))
 
-import BookingLinkPage from "@/app/book/[slug]/page"
+import BookingLinkPage, { generateMetadata } from "@/app/book/[slug]/page"
 
 const base = { id: 42, name: "Cleanyzer", slug: "cleanyzer", city: null, logoUrl: null, brandPrimary: null }
 const render = () => BookingLinkPage({ params: Promise.resolve({ slug: "cleanyzer" }) })
@@ -63,5 +63,29 @@ describe("/book/[slug]", () => {
     companyRow.mockReturnValue([])
     await expect(render()).rejects.toThrow("NEXT_NOT_FOUND")
     expect(getPublicationFlags).not.toHaveBeenCalled()
+  })
+
+  it.each(["../admin", "CLEANYZER", "clean yzer", ""])("slug mal formé %j => 404 sans requête", async (slug) => {
+    await expect(BookingLinkPage({ params: Promise.resolve({ slug }) })).rejects.toThrow("NEXT_NOT_FOUND")
+    expect(companyRow).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [false, false, false],
+    [false, true, true],
+    [true, false, false],
+    [true, true, true],
+  ])("site=%s / booking=%s => /book accessible=%s", async (customSitePublished, bookingLinkEnabled, accessible) => {
+    companyRow.mockReturnValue([{ ...base, status: "ACTIVE" }])
+    getPublicationFlags.mockResolvedValue({ customSitePublished, bookingLinkEnabled })
+    if (accessible) await expect(render()).resolves.toBeTruthy()
+    else await expect(render()).rejects.toThrow("NEXT_NOT_FOUND")
+  })
+
+  it("page toujours noindex", async () => {
+    companyRow.mockReturnValue([{ ...base, status: "ACTIVE" }])
+    getPublicationFlags.mockResolvedValue({ customSitePublished: false, bookingLinkEnabled: true })
+    const meta = await generateMetadata({ params: Promise.resolve({ slug: "cleanyzer" }) })
+    expect(meta.robots).toEqual({ index: false, follow: false })
   })
 })

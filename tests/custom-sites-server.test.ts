@@ -74,6 +74,18 @@ describe("resolveCustomSite — dispatch sûr", () => {
     expect(getPublicationFlags).toHaveBeenCalledWith(7)
   })
 
+  it.each([
+    [false, false, false],
+    [false, true, false],
+    [true, false, true],
+    [true, true, true],
+  ])("site=%s / booking=%s => site personnalisé rendu=%s", async (customSitePublished, bookingLinkEnabled, rendered) => {
+    getCurrentTenant.mockResolvedValue({ id: 7, slug: "cleanyzer", customSiteKey: "spirit-acs" })
+    getPublicationFlags.mockResolvedValueOnce({ customSitePublished, bookingLinkEnabled })
+    getCustomSiteDefinition.mockReturnValue(fakeDef)
+    await expect(resolveCustomSite()).resolves.toBe(rendered ? fakeDef : null)
+  })
+
   it("hors contexte tenant (vitrine racine) => null", async () => {
     getCurrentTenant.mockResolvedValue(null)
     await expect(resolveCustomSite()).resolves.toBeNull()
