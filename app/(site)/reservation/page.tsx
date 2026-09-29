@@ -14,7 +14,10 @@ import {
   getSettings,
 } from "@/lib/booking/queries"
 import { BookingV2 } from "@/components/booking-v2/booking-v2"
-import { resolveRequestTenant } from "@/lib/tenant"
+import { headers } from "next/headers"
+import { resolvePublicRequestTenant, resolveRequestTenant } from "@/lib/tenant"
+import { isOnlineBookingOpen } from "@/lib/booking/online-booking-access"
+import { BookingUnavailable } from "@/components/booking/booking-unavailable"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
@@ -56,7 +59,20 @@ export default async function ReservationPage({
   const { embed } = await searchParams
   const isEmbed = embed === "1"
 
-  const requestTenant = await resolveRequestTenant()
+  const requestTenant = await resolvePublicRequestTenant()
+  if (!requestTenant && (await headers()).get("x-tenant-slug")?.trim()) notFound()
+
+  // Contrôle serveur AVANT tout chargement de BookingV2 : tenant désactivé
+  // (bookingMode DISABLED, suspendu, licence sans online_booking) → aucun
+  // tunnel servi. Les tunnels historiques (Spirit ACS, Rozan) sont exclus.
+  if (
+    requestTenant &&
+    !usesLegacyBookingWizard(requestTenant.customSiteKey) &&
+    !isOnlineBookingOpen(requestTenant, await canUseFeature(requestTenant.id, "online_booking"))
+  ) {
+    return <BookingUnavailable embed={isEmbed} />
+  }
+
   if (
     isEmbed &&
     requestTenant &&
