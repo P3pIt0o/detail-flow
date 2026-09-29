@@ -100,32 +100,37 @@ describe("widget : lien de réservation direct + « Voir mon site »", () => {
     expect(embedIframeSrc("tenant-a", ROOT)).toBe(`${a.bookingUrl}?embed=1`)
   })
 
-  it("« Copier mon lien » et « Voir mon module » utilisent exactement bookingUrl", () => {
+  it("bouton du dashboard : libellé/icône inchangés, copie UNIQUEMENT bookingUrl", () => {
     const ui = read("components/admin/widget-action-button.tsx")
-    expect(ui).toMatch(/copy\("link", bookingUrl\)/)
-    expect(ui).toMatch(/href=\{bookingUrl\}/)
-    expect(ui).toMatch(/Copier mon lien de réservation/)
+    expect(ui).toMatch(/onClick=\{\(\) => copy\("link", bookingUrl\)\}/)
+    expect(ui).toMatch(/Intégrer la réservation/)
+    expect(ui).toMatch(/<Code2 className="size-4 shrink-0"/)
+    expect(ui).not.toMatch(/scriptSnippet/)
+    expect(ui).not.toMatch(/role="dialog"/)
     expect(ui).not.toMatch(/\/book\//)
   })
 
-  it("ordre : lien public (copier, voir) AVANT l'intégration directe (code)", () => {
-    const ui = read("components/admin/widget-action-button.tsx")
+  it("Paramètres > Réservation en ligne : lien public AVANT le code d'intégration", () => {
+    const ui = read("components/admin/settings/online-booking-settings.tsx")
     const order = [
-      "Partager votre réservation",
-      "Copier mon lien de réservation",
-      "Voir mon module",
-      "Intégrer le module directement sur mon site",
+      "Réservation en ligne",
+      "Votre lien de réservation",
+      "Copier le lien",
+      "Intégrer la réservation sur votre site",
       "Copier le code d'intégration",
     ].map((label) => ui.indexOf(label))
     for (const i of order) expect(i).toBeGreaterThan(-1)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
-    expect(ui).not.toMatch(/Afficher le module intégré à votre page/)
   })
 
-  it("« Copier mon lien » copie l'URL seule, jamais le code div data-* / script", () => {
-    const ui = read("components/admin/widget-action-button.tsx")
-    expect(ui).toMatch(/copy\("code", action\.scriptSnippet\)/)
-    expect(ui).not.toMatch(/copy\("link", action\.scriptSnippet\)/)
+  it("Paramètres : deux copies distinctes (URL seule vs code div data-* / script)", () => {
+    const ui = read("components/admin/settings/online-booking-settings.tsx")
+    expect(ui).toMatch(/copy\("link", bookingUrl\)/)
+    expect(ui).toMatch(/copy\("code", scriptSnippet\)/)
+    expect(ui).not.toMatch(/copy\("link", scriptSnippet\)/)
+    const page = read("app/admin/(dashboard)/parametres/page.tsx")
+    expect(page).toMatch(/resolveDashboardPrimaryMode\(await getBookingDistributionMode\(tenant\.id\)\) === "widget"/)
+    expect(page).toMatch(/slug: tenant\.slug/)
     const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
     expect(a.bookingUrl).not.toMatch(/<|>|data-|script/i)
     expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
@@ -139,7 +144,11 @@ describe("widget : lien de réservation direct + « Voir mon site »", () => {
   })
 
   it("aucun slug de tenant codé en dur dans la logique widget", () => {
-    for (const f of ["components/admin/widget-action-button.tsx", "lib/admin/primary-action.ts"]) {
+    for (const f of [
+      "components/admin/widget-action-button.tsx",
+      "components/admin/settings/online-booking-settings.tsx",
+      "lib/admin/primary-action.ts",
+    ]) {
       const src = read(f).replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "")
       expect(src).not.toMatch(/cleanyzer|spirit|rozan|textile/i)
     }
