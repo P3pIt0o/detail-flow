@@ -1,0 +1,104 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { describe, expect, it } from "vitest"
+import { isBookingDistributionMode, resolveDashboardPrimaryMode } from "@/lib/admin/primary-action"
+import { buildAdminNav, buildAdminNavGroups } from "@/lib/admin/nav"
+import { resolvePublicLink } from "@/lib/admin/public-link"
+import { isBookingLinkAccessible } from "@/lib/company/publication-shared"
+import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
+
+const ROOT = "detailflow.fr"
+const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+const hasPagePublique = (items: { href: string }[]) => items.some((i) => i.href === "/admin/page-publique")
+
+describe("bookingDistributionMode : source de vérité", () => {
+  it("n'accepte que link | widget", () => {
+    expect(isBookingDistributionMode("link")).toBe(true)
+    expect(isBookingDistributionMode("widget")).toBe(true)
+    for (const v of [null, undefined, "", "cleanyzer", "WIDGET", 1]) expect(isBookingDistributionMode(v)).toBe(false)
+  })
+
+  it("widget → bouton principal = intégration", () => {
+    expect(resolveDashboardPrimaryMode("widget")).toBe("widget")
+  })
+
+  it("link → partage du lien conservé", () => {
+    expect(resolveDashboardPrimaryMode("link")).toBe("copy_link")
+    const booking = resolvePublicLink({ slug: "demo", intent: "booking_only", customSiteKey: null, status: "ACTIVE", rootDomain: ROOT })
+    expect(booking?.kind).toBe("reservation")
+  })
+
+  it("tenants existants sans valeur (dont Spirit ACS / Rozan) → fallback historique", () => {
+    expect(resolveDashboardPrimaryMode(null)).toBe("copy_link")
+    expect(resolveDashboardPrimaryMode(undefined)).toBe("copy_link")
+  })
+
+  it("ni customSiteKey ni slug ne déterminent le mode", () => {
+    for (const key of ["cleanyzer", "spirit-acs", "rozan"]) expect(resolveDashboardPrimaryMode(key)).toBe("copy_link")
+    const code = read("lib/admin/primary-action.ts").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")
+    expect(code).not.toMatch(/cleanyzer|spirit|rozan/i)
+    expect(read("app/admin/(dashboard)/layout.tsx")).not.toMatch(/["']cleanyzer["']/)
+  })
+
+  it("Cleanyzer → widget via le backfill ciblé (id + slug + customSiteKey, NULL uniquement)", () => {
+    const sqlText = read("scripts/booking-distribution-mode-migration.sql").replace(/^\s*--.*$/gm, "")
+    expect(sqlText).toMatch(/SET "bookingDistributionMode" = 'widget'\s+WHERE id = 104\s+AND slug = 'cleanyzer'\s+AND "customSiteKey" = 'cleanyzer'\s+AND "bookingDistributionMode" IS NULL/)
+    expect(sqlText).not.toMatch(/\b(DROP|DELETE|TRUNCATE)\b/i)
+    expect(sqlText.match(/\bUPDATE\b/gi)?.length).toBe(1)
+    expect(sqlText).not.toMatch(/DEFAULT/i)
+  })
+})
+
+describe("navigation admin", () => {
+  const base = { intent: "booking_only" as const, customSiteKey: null }
+
+  it("widget → « Page publique » absente (liste et groupes)", () => {
+    expect(hasPagePublique(buildAdminNav({ ...base, bookingDistributionMode: "widget" }))).toBe(false)
+    const grouped = buildAdminNavGroups({ ...base, bookingDistributionMode: "widget" }).flatMap((g) => g.items)
+    expect(hasPagePublique(grouped)).toBe(false)
+  })
+
+  it("link / null → navigation strictement identique à l'historique", () => {
+    for (const customSiteKey of [null, "spirit-acs", "rozan", "cleanyzer"]) {
+      for (const intent of ["booking_only", "public_page", null] as const) {
+        const legacy = buildAdminNav({ intent, customSiteKey })
+        expect(buildAdminNav({ intent, customSiteKey, bookingDistributionMode: null })).toEqual(legacy)
+        expect(buildAdminNav({ intent, customSiteKey, bookingDistributionMode: "link" })).toEqual(legacy)
+      }
+    }
+  })
+})
+
+describe("onboarding → persistance", () => {
+  it("le choix explicite est transmis puis persisté", () => {
+    expect(read("app/demarrer/onboarding.tsx")).toMatch(/Comment souhaitez-vous recevoir vos réservations/)
+    expect(read("app/admin/creer-mon-espace/create-workspace-form.tsx")).toMatch(/name="distribution"/)
+    const action = read("app/admin/creer-mon-espace/actions.ts")
+    expect(action).toMatch(/distributionRaw === "link" \|\| distributionRaw === "widget"/)
+    expect(action).toMatch(/bookingDistributionMode: distribution/)
+    expect(read("lib/company/provision.ts")).toMatch(/SET "bookingDistributionMode" = \$\{distributionValue\} WHERE id = \$\{company\.id\}/)
+  })
+})
+
+describe("activation et isolation", () => {
+  it("bookingLinkEnabled=false + widget → module inactif", () => {
+    expect(resolveDashboardPrimaryMode("widget")).toBe("widget")
+    expect(isBookingLinkAccessible("BETA", { customSitePublished: false, bookingLinkEnabled: false })).toBe(false)
+    expect(isBookingLinkAccessible("BETA", { customSitePublished: false, bookingLinkEnabled: true })).toBe(true)
+    expect(isBookingLinkAccessible("SUSPENDED", { customSitePublished: false, bookingLinkEnabled: true })).toBe(false)
+  })
+
+  it("le code d'intégration ne porte que le slug du tenant", () => {
+    const a = buildEmbedScriptSnippet("tenant-a", ROOT)
+    const b = buildEmbedScriptSnippet("tenant-b", ROOT)
+    expect(a).toContain('data-detailflow-slug="tenant-a"')
+    expect(a).not.toContain("tenant-b")
+    expect(b).not.toContain("tenant-a")
+  })
+
+  it("mode et slug résolus côté serveur depuis le tenant authentifié", () => {
+    const layout = read("app/admin/(dashboard)/layout.tsx")
+    expect(layout).toMatch(/getBookingDistributionMode\(ctx\.tenant\.id\)/)
+    expect(read("lib/company/booking-distribution.ts")).toMatch(/WHERE id = \$\{companyId\}/)
+  })
+})

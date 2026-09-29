@@ -73,7 +73,17 @@ export function webNavItem(intent: OnboardingIntentValue | null): AdminNavItem {
 export function buildAdminNav(opts: {
   intent: OnboardingIntentValue | null
   customSiteKey: string | null
+  /** `companies.bookingDistributionMode` : "widget" masque « Page publique » (la route reste servie). */
+  bookingDistributionMode?: string | null
 }): AdminNavItem[] {
+  const nav = baseAdminNav(opts)
+  if (opts.bookingDistributionMode === "widget") {
+    return nav.filter((item) => item.href !== "/admin/page-publique")
+  }
+  return nav
+}
+
+function baseAdminNav(opts: { intent: OnboardingIntentValue | null; customSiteKey: string | null }): AdminNavItem[] {
   const nav: AdminNavItem[] = [
     { href: "/admin", label: "Tableau de bord", icon: "dashboard" },
     { href: "/admin/calendrier", label: "Calendrier", icon: "calendar" },
@@ -160,6 +170,7 @@ const WEB_HREFS = new Set<string>(["/admin/ma-reservation", "/admin/page-publiqu
 export function buildAdminNavGroups(opts: {
   intent: OnboardingIntentValue | null
   customSiteKey: string | null
+  bookingDistributionMode?: string | null
 }): AdminNavGroup[] {
   const flat = buildAdminNav(opts).map(withDisplayLabel)
   const buckets = new Map<string, AdminNavItem[]>()
@@ -194,6 +205,7 @@ const MOBILE_PRIMARY_ORDER = [
 export function buildMobilePrimaryNav(opts: {
   intent: OnboardingIntentValue | null
   customSiteKey: string | null
+  bookingDistributionMode?: string | null
 }): AdminNavItem[] {
   const flat = buildAdminNav(opts).map(withDisplayLabel)
   const byHref = new Map(flat.map((i) => [i.href, i] as const))

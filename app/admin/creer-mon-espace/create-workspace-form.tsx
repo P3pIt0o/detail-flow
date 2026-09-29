@@ -146,6 +146,9 @@ export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
           {onboarding && (
             <>
               <input type="hidden" name="intent" value={onboarding.intent} />
+              {onboarding.distribution && (
+                <input type="hidden" name="distribution" value={onboarding.distribution} />
+              )}
               {onboarding.city && <input type="hidden" name="city" value={onboarding.city} />}
               {onboarding.country && <input type="hidden" name="country" value={onboarding.country} />}
               {onboarding.phone && <input type="hidden" name="phone" value={onboarding.phone} />}

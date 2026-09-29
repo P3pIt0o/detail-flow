@@ -7,6 +7,8 @@ import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { CopyLinkButton } from "@/components/admin/copy-link-button"
 import { PwaInstallHint } from "@/components/admin/pwa-install-hint"
+import { WidgetActionButton } from "@/components/admin/widget-action-button"
+import type { WidgetPrimaryAction } from "@/lib/admin/primary-action"
 import { withTenant } from "@/lib/tenant-link"
 import type { AdminNavGroup, AdminNavIcon, AdminNavItem } from "@/lib/admin/nav"
 import {
@@ -62,8 +64,10 @@ export function AdminShell({
   groups,
   primaryMobile,
   publicUrl,
+  widgetAction = null,
   children,
 }: {
+  widgetAction?: WidgetPrimaryAction | null
   brandName: string
   companyName: string
   adminName: string
@@ -264,7 +268,7 @@ export function AdminShell({
         <p className="hidden truncate text-xs text-muted-foreground sm:block">Votre activité aujourd&apos;hui</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        <CopyLinkButton url={publicUrl} />
+        {widgetAction ? <WidgetActionButton action={widgetAction} /> : <CopyLinkButton url={publicUrl} />}
         {publicUrl ? (
           <a
             href={publicUrl}
@@ -348,7 +352,11 @@ export function AdminShell({
         </div>
 
         <div className="mb-3">
-          <CopyLinkButton url={publicUrl} className="w-full" />
+          {widgetAction ? (
+            <WidgetActionButton action={widgetAction} className="w-full" />
+          ) : (
+            <CopyLinkButton url={publicUrl} className="w-full" />
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-2">

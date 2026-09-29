@@ -101,6 +101,7 @@ export function Onboarding() {
   const [step, setStep] = useState<Step>("intent")
   const [intent, setIntent] = useState<OnboardingIntent | "">("")
 
+  const [distribution, setDistribution] = useState<"link" | "widget" | "">("")
   const [existingSite, setExistingSite] = useState("")
   const [hasDomain, setHasDomain] = useState<"yes" | "no" | "">("")
   const [domain, setDomain] = useState("")
@@ -158,6 +159,7 @@ export function Onboarding() {
     if (intent) {
       saveOnboarding({
         intent,
+        distribution: intent === "booking" && distribution ? distribution : undefined,
         websiteUrl: websiteUrl || undefined,
         activities,
         companyName: companyName.trim(),
@@ -273,10 +275,42 @@ export function Onboarding() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
+                  if (!distribution) {
+                    setError("Choisissez comment recevoir vos réservations.")
+                    return
+                  }
                   goNext()
                 }}
                 className="flex flex-col gap-6"
               >
+                <fieldset className="flex flex-col gap-3">
+                  <legend className="mb-1 text-base font-semibold text-foreground">
+                    Comment souhaitez-vous recevoir vos réservations ?
+                  </legend>
+                  {(
+                    [
+                      { id: "widget", title: "Intégrer le module sur mon site", text: "Un module à installer sur votre site existant." },
+                      { id: "link", title: "Partager un lien de réservation", text: "Une page de réservation DetailFlow prête à partager." },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      aria-pressed={distribution === opt.id}
+                      onClick={() => {
+                        setError(null)
+                        setDistribution(opt.id)
+                      }}
+                      className={`flex flex-col gap-1 rounded-2xl border p-5 text-left transition-all ${
+                        distribution === opt.id ? "border-primary bg-primary/[0.06]" : "border-border bg-card hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-base font-semibold text-foreground">{opt.title}</span>
+                      <span className="text-sm leading-relaxed text-muted-foreground">{opt.text}</span>
+                    </button>
+                  ))}
+                  {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+                </fieldset>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="existing-site">Adresse de votre site (facultatif)</Label>
                   <Input
@@ -286,7 +320,6 @@ export function Onboarding() {
                     value={existingSite}
                     onChange={(e) => setExistingSite(e.target.value)}
                     placeholder="https://mon-site.fr"
-                    autoFocus
                   />
                   <p className="text-xs text-muted-foreground">Pas encore de site ? Laissez ce champ vide, ce n&apos;est pas obligatoire.</p>
                 </div>
