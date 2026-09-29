@@ -4,11 +4,20 @@ export type PublicationFlags = {
 }
 
 /**
- * Valeurs appliquées quand la colonne est absente (migration non appliquée)
- * ou illisible : site personnalisé publié (comportement historique), lien de
- * réservation FERMÉ (activation explicite obligatoire).
+ * Défaut OPT-IN (migration appliquée) : ligne absente ou valeur illisible =>
+ * rien n'est publié. Identique au DEFAULT false des deux colonnes.
  */
 export const DEFAULT_PUBLICATION_FLAGS: PublicationFlags = {
+  customSitePublished: false,
+  bookingLinkEnabled: false,
+}
+
+/**
+ * Uniquement tant que les colonnes n'existent pas (migration non appliquée) :
+ * reproduit le comportement historique (site personnalisé servi d'après
+ * customSiteKey) pour ne pas couper Spirit ACS. Lien /book toujours FERMÉ.
+ */
+export const PRE_MIGRATION_PUBLICATION_FLAGS: PublicationFlags = {
   customSitePublished: true,
   bookingLinkEnabled: false,
 }

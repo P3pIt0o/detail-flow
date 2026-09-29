@@ -5,6 +5,7 @@ import {
   bookingLinkPath,
   DEFAULT_PUBLICATION_FLAGS,
   isBookingLinkAccessible,
+  PRE_MIGRATION_PUBLICATION_FLAGS,
   toPublicationFlags,
 } from "@/lib/company/publication-shared"
 
@@ -19,18 +20,23 @@ describe("publication flags", () => {
     expect(toPublicationFlags({ bookingLinkEnabled: "true" }).bookingLinkEnabled).toBe(false)
   })
 
-  it("custom site keeps its historical published default", () => {
-    expect(DEFAULT_PUBLICATION_FLAGS.customSitePublished).toBe(true)
+  it("custom site is opt-in once migrated; historical behaviour only before migration", () => {
+    expect(DEFAULT_PUBLICATION_FLAGS.customSitePublished).toBe(false)
+    expect(toPublicationFlags(undefined).customSitePublished).toBe(false)
+    expect(toPublicationFlags({ customSitePublished: "true" }).customSitePublished).toBe(false)
+    expect(PRE_MIGRATION_PUBLICATION_FLAGS).toEqual({ customSitePublished: true, bookingLinkEnabled: false })
   })
 
-  it("migration defaults bookingLinkEnabled to false and keeps only the two publication columns", () => {
+  it("migration defaults both columns to false and only touches the two publication columns", () => {
     const sql = readFileSync(join(process.cwd(), "scripts/booking-link-publication-migration.sql"), "utf8")
-    const statements = sql.split("\n").filter((l) => l.trim().startsWith("ALTER TABLE"))
+    const statements = sql.split("\n").filter((l) => /^\s*ALTER TABLE/.test(l))
     expect(statements.some((l) => /"bookingLinkEnabled" boolean NOT NULL DEFAULT false/.test(l))).toBe(true)
+    expect(statements.some((l) => /"customSitePublished" boolean NOT NULL DEFAULT false/.test(l))).toBe(true)
     expect(statements.every((l) => /"companies"/.test(l))).toBe(true)
     expect(statements.every((l) => /customSitePublished|bookingLinkEnabled/.test(l))).toBe(true)
     const executable = sql.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n")
-    expect(executable).not.toMatch(/\b(DROP|UPDATE|DELETE|INSERT)\b/)
+    expect(executable).not.toMatch(/\b(DROP|DELETE|TRUNCATE|INSERT)\b/)
+    expect(executable).not.toMatch(/DEFAULT true/)
   })
 
   it("active tenant + booking ON => accessible", () => {

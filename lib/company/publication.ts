@@ -1,7 +1,12 @@
 import "server-only"
 import { sql } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { DEFAULT_PUBLICATION_FLAGS, toPublicationFlags, type PublicationFlags } from "./publication-shared"
+import {
+  DEFAULT_PUBLICATION_FLAGS,
+  PRE_MIGRATION_PUBLICATION_FLAGS,
+  toPublicationFlags,
+  type PublicationFlags,
+} from "./publication-shared"
 
 /**
  * Drapeaux de publication par entreprise, TOLÉRANTS à l'absence de migration
@@ -34,7 +39,7 @@ export async function publicationColumnsExist(): Promise<boolean> {
 }
 
 export async function getPublicationFlags(companyId: number): Promise<PublicationFlags> {
-  if (!(await publicationColumnsExist())) return { ...DEFAULT_PUBLICATION_FLAGS }
+  if (!(await publicationColumnsExist())) return { ...PRE_MIGRATION_PUBLICATION_FLAGS }
   const res = await db.execute(sql`
     SELECT "customSitePublished", "bookingLinkEnabled" FROM companies WHERE id = ${companyId} LIMIT 1
   `)
@@ -47,7 +52,7 @@ export async function getPublicationFlagsMap(companyIds: number[]): Promise<Map<
   const ids = companyIds.filter((id) => Number.isInteger(id) && id > 0)
   if (ids.length === 0) return map
   if (!(await publicationColumnsExist())) {
-    for (const id of ids) map.set(id, { ...DEFAULT_PUBLICATION_FLAGS })
+    for (const id of ids) map.set(id, { ...PRE_MIGRATION_PUBLICATION_FLAGS })
     return map
   }
   const res = await db.execute(sql`
