@@ -3,6 +3,8 @@
  * Purement structurel — aucune donnée métier, aucun couplage tenant.
  */
 
+import { publicReservationPath } from "@/lib/tenant-shared"
+
 export const CLZ_SECTIONS = {
   prestations: "prestations",
   realisations: "realisations",
@@ -15,3 +17,6 @@ export type ClzNavItem = { id: string; label: string; href?: string }
 
 /** Base du préfixe des routes de maquette (pour liens internes des mockups). */
 export const CLZ_PREVIEW_BASE = "/cleanyzer-preview"
+
+/** Module de réservation standard (BookingV2) du tenant CLEANYZER. */
+export const CLZ_BOOKING_HREF = publicReservationPath("cleanyzer")
