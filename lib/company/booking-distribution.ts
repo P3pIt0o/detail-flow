@@ -4,10 +4,10 @@ import { db } from "@/lib/db"
 import { isBookingDistributionMode, type BookingDistributionMode } from "@/lib/admin/primary-action"
 
 /**
- * `companies.bookingDistributionMode`, TOLÉRANT à l'absence de migration
- * (scripts/booking-distribution-mode-migration.sql). Volontairement absent du
- * schéma Drizzle : sinon chaque `select()` de `companies` casserait (42703)
- * tant que la migration n'est pas appliquée. Avant migration → null (historique).
+ * `companies.bookingDistributionMode` (déclaré dans lib/db/schema.ts). La
+ * migration scripts/booking-distribution-mode-migration.sql DOIT être appliquée
+ * avant le déploiement : le schéma Drizzle référence désormais la colonne dans
+ * chaque `select()` de `companies`. Garde-fou conservé : colonne absente → null.
  */
 
 let columnCache: { value: boolean; at: number } | null = null
