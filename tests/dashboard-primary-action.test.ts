@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { isBookingDistributionMode, resolveDashboardPrimaryMode } from "@/lib/admin/primary-action"
+import {
+  buildWidgetPrimaryAction,
+  isBookingDistributionMode,
+  resolveDashboardPrimaryMode,
+  resolveSiteLinkUrl,
+} from "@/lib/admin/primary-action"
 import { buildAdminNav, buildAdminNavGroups } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { isBookingLinkAccessible } from "@/lib/company/publication-shared"
-import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
+import { buildEmbedScriptSnippet, embedIframeSrc } from "@/lib/embed/snippet"
 
 const ROOT = "detailflow.fr"
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
@@ -77,6 +82,60 @@ describe("onboarding → persistance", () => {
     expect(action).toMatch(/distributionRaw === "link" \|\| distributionRaw === "widget"/)
     expect(action).toMatch(/bookingDistributionMode: distribution/)
     expect(read("lib/company/provision.ts")).toMatch(/SET "bookingDistributionMode" = \$\{distributionValue\} WHERE id = \$\{company\.id\}/)
+  })
+})
+
+describe("widget : lien de réservation direct + « Voir mon site »", () => {
+  const ORIGIN = "https://www.detailflow.fr"
+  const snippet = buildEmbedScriptSnippet("tenant-a", ROOT)
+
+  it("URL directe = route canonique /p/<slug>/reservation (jamais /book, jamais ?tenant=)", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    expect(a.bookingUrl).toBe("https://www.detailflow.fr/p/tenant-a/reservation")
+    expect(a.bookingUrl).not.toMatch(/\/book\/|\?tenant=|embed=1|\/admin/)
+  })
+
+  it("même route que l'iframe du widget (un seul moteur)", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    expect(embedIframeSrc("tenant-a", ROOT)).toBe(`${a.bookingUrl}?embed=1`)
+  })
+
+  it("« Copier mon lien » et « Voir mon module » utilisent exactement bookingUrl", () => {
+    const ui = read("components/admin/widget-action-button.tsx")
+    expect(ui).toMatch(/copy\("link", bookingUrl\)/)
+    expect(ui).toMatch(/href=\{bookingUrl\}/)
+    expect(ui).toMatch(/Copier mon lien de réservation/)
+    expect(ui).toMatch(/Intégrer sur mon site/)
+    expect(ui).not.toMatch(/\/book\//)
+  })
+
+  it("widget inactif → pas de lien, admin intact, code d'intégration conservé", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: false, scriptSnippet: snippet, origin: ORIGIN })
+    expect(a.bookingUrl).toBeNull()
+    expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
+  })
+
+  it("« Voir mon site » : masqué en widget, inchangé en link / NULL", () => {
+    const url = "https://www.detailflow.fr/p/demo"
+    expect(resolveSiteLinkUrl("widget", url)).toBeNull()
+    expect(resolveSiteLinkUrl("link", url)).toBe(url)
+    expect(resolveSiteLinkUrl(null, url)).toBe(url)
+    expect(resolveSiteLinkUrl(undefined, url)).toBe(url)
+    for (const key of ["cleanyzer", "spirit-acs", "rozan"]) expect(resolveSiteLinkUrl(key, url)).toBe(url)
+  })
+
+  it("isolation : le lien ne porte que le slug du tenant authentifié (encodé)", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    const b = buildWidgetPrimaryAction({ slug: "tenant-b", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    expect(a.bookingUrl).not.toContain("tenant-b")
+    expect(b.bookingUrl).not.toContain("tenant-a")
+    const evil = buildWidgetPrimaryAction({ slug: "x/../y?tenant=z", active: true, scriptSnippet: "", origin: ORIGIN })
+    expect(evil.bookingUrl).toBe("https://www.detailflow.fr/p/x%2F..%2Fy%3Ftenant%3Dz/reservation")
+    const layout = read("app/admin/(dashboard)/layout.tsx")
+    expect(layout).toMatch(/slug: ctx\.tenant\.slug/)
+    expect(layout).toMatch(/resolveSiteLinkUrl\(bookingDistributionMode/)
+    const layoutCode = layout.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")
+    expect(layoutCode).not.toMatch(/searchParams|cleanyzer/i)
   })
 })
 
