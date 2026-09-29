@@ -14,7 +14,6 @@ type CopyTarget = "link" | "code"
  */
 export function WidgetActionButton({ action, className }: { action: WidgetPrimaryAction; className?: string }) {
   const [open, setOpen] = useState(false)
-  const [showCode, setShowCode] = useState(false)
   const [copied, setCopied] = useState<CopyTarget | null>(null)
   const [error, setError] = useState<CopyTarget | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -81,72 +80,60 @@ export function WidgetActionButton({ action, className }: { action: WidgetPrimar
               </button>
             </div>
 
-            {bookingUrl ? (
-              <div className="flex flex-col gap-2">
-                <p className="truncate rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground" title={bookingUrl}>
-                  {bookingUrl}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => copy("link", bookingUrl)}
-                  aria-live="polite"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  {copied === "link" ? <Check className="size-4" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}
-                  {copied === "link" ? "Lien copié" : error === "link" ? "Réessayer" : "Copier mon lien de réservation"}
-                </button>
-                <p className="text-xs leading-relaxed text-muted-foreground text-pretty">
-                  À partager sur vos réseaux sociaux, Google, WhatsApp ou par message.
-                </p>
-                <a
-                  href={bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <ExternalLink className="size-4" aria-hidden="true" />
-                  Voir mon module
-                </a>
-              </div>
-            ) : (
-              <p className="rounded-lg bg-muted px-3 py-2 text-sm leading-relaxed text-muted-foreground text-pretty">
-                La réservation en ligne n&apos;est pas encore activée : votre lien et votre module seront disponibles dès
-                que DetailFlow l&apos;aura activée.
-              </p>
-            )}
-
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold text-foreground">Intégrer sur mon site</h3>
+            <section className="flex flex-col gap-2" aria-labelledby="widget-share-title">
+              <h3 id="widget-share-title" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Partager votre réservation
+              </h3>
               <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-                Le plus simple : ajoutez un bouton « Réserver maintenant » sur votre site et collez-y votre lien de
-                réservation.
+                Utilisez votre lien pour permettre à vos clients de réserver depuis votre site, vos réseaux sociaux ou
+                Google.
               </p>
-              {showCode ? (
-                <>
-                  <pre className="overflow-x-auto rounded-lg bg-muted px-3 py-2 font-mono text-xs leading-relaxed text-foreground">
-                    {action.scriptSnippet}
-                  </pre>
-                  <button
-                    type="button"
-                    onClick={() => copy("code", action.scriptSnippet)}
-                    aria-live="polite"
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    {copied === "code" ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
-                    {copied === "code" ? "Code copié" : error === "code" ? "Réessayer" : "Copier le code du widget"}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCode(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  <Code2 className="size-4" aria-hidden="true" />
-                  Afficher le module intégré à votre page
-                </button>
-              )}
-            </div>
+              <p className="truncate rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground" title={bookingUrl}>
+                {bookingUrl}
+              </p>
+              <button
+                type="button"
+                onClick={() => copy("link", bookingUrl)}
+                aria-live="polite"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                {copied === "link" ? <Check className="size-4" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}
+                {copied === "link" ? "Lien copié" : error === "link" ? "Réessayer" : "Copier mon lien de réservation"}
+              </button>
+              <a
+                href={bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <ExternalLink className="size-4" aria-hidden="true" />
+                Voir mon module
+              </a>
+              {!action.active ? (
+                <p className="rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground text-pretty">
+                  La réservation en ligne n&apos;est pas encore activée : vos clients pourront réserver via ce lien dès
+                  son activation.
+                </p>
+              ) : null}
+            </section>
+
+            <section className="flex flex-col gap-2 border-t border-border pt-4" aria-labelledby="widget-embed-title">
+              <h3 id="widget-embed-title" className="text-sm font-semibold text-foreground">
+                Intégrer le module directement sur mon site
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
+                Affichez directement votre module de réservation dans une page de votre site.
+              </p>
+              <button
+                type="button"
+                onClick={() => copy("code", action.scriptSnippet)}
+                aria-live="polite"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                {copied === "code" ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
+                {copied === "code" ? "Code copié" : error === "code" ? "Réessayer" : "Copier le code d'intégration"}
+              </button>
+            </section>
           </div>
         </div>
       ) : null}
