@@ -2,8 +2,9 @@ import "server-only"
 import { cache } from "react"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { settings, businessHours } from "@/lib/db/schema"
+import { settings, businessHours, companies } from "@/lib/db/schema"
 import { getCurrentTenant, type Tenant } from "@/lib/tenant"
+import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 
 /**
  * Coordonnées publiques résolues d'un tenant.
@@ -113,6 +114,25 @@ export const getPublicContact = cache(async (): Promise<PublicContact> => {
   const tenant = await getCurrentTenant()
   if (!tenant) return EMPTY
   return buildForTenant(tenant)
+})
+
+/**
+ * Email de contact d'un tenant en mode "widget", identifié côté serveur par la
+ * clé de SON site personnalisé (jamais par une donnée navigateur). Exige une
+ * correspondance UNIQUE et le mode "widget" ; sinon `null` (aucun repli).
+ */
+export const getWidgetTenantContactEmail = cache(async (customSiteKey: string): Promise<string | null> => {
+  const key = customSiteKey.trim()
+  if (!key) return null
+  try {
+    const rows = await db.select().from(companies).where(eq(companies.customSiteKey, key)).limit(2)
+    if (rows.length !== 1) return null
+    const tenant = rows[0]
+    if ((await getBookingDistributionMode(tenant.id)) !== "widget") return null
+    return (await buildForTenant(tenant)).email
+  } catch {
+    return null
+  }
 })
 
 /** Horaire public d'un jour, prêt pour l'affichage vitrine. */

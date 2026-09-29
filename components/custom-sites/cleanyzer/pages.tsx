@@ -13,6 +13,7 @@ import { PageHero } from "./page-primitives"
 import { CleanyzerFaq } from "./faq"
 import { CLZ_NAV_ITEMS } from "./nav"
 import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
+import { tenantContactMailto } from "@/lib/tenant-contact"
 import {
   BRAND,
   INTERIEUR_FORMULAS,
@@ -254,7 +255,8 @@ export function TarifsPage() {
 
 /* ---------------- FAQ ---------------- */
 
-export function FaqPage() {
+export function FaqPage({ contactEmail }: { contactEmail?: string | null } = {}) {
+  const contactHref = tenantContactMailto(contactEmail)
   return (
     <CleanyzerShell navItems={CLZ_NAV_ITEMS} active="Questions fréquentes">
       <PageHero
@@ -271,7 +273,9 @@ export function FaqPage() {
               <Quote className="h-6 w-6 flex-none text-[var(--clz-blue)]" />
               <p className="text-[var(--clz-fg)]">Une question spécifique ? Faites une demande, on vous répond avec un devis adapté.</p>
             </div>
-            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary shrink-0">Nous contacter</Link>
+            {contactHref && (
+              <a href={contactHref} className="clz-btn clz-btn-primary shrink-0">Nous contacter</a>
+            )}
           </div>
         </div>
       </section>
