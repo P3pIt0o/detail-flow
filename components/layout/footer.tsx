@@ -25,6 +25,8 @@ type FooterProps = {
   footerText?: string
   /** Slogan personnalisable, affiché à la place du slogan par défaut si renseigné. */
   footerTagline?: string
+  /** Affiche la signature discrète « Propulsé par DetailFlow » (opt-in par tenant). */
+  showPoweredBy?: boolean
 }
 
 export function Footer({
@@ -35,6 +37,7 @@ export function Footer({
   socialLinks = null,
   footerText,
   footerTagline,
+  showPoweredBy = false,
 }: FooterProps = {}) {
   const year = new Date().getFullYear()
   // Site tenant → liens du tenant uniquement ; racine DetailFlow → liens statiques.
@@ -141,6 +144,20 @@ export function Footer({
           </p>
           <ReportProblemButton className="rounded-md border-none px-0 py-0 text-sm text-muted-foreground hover:bg-transparent hover:text-foreground" />
         </div>
+
+        {showPoweredBy && (
+          <p className="mt-6 text-center text-xs text-muted-foreground/70">
+            Propulsé par{" "}
+            <a
+              href={siteConfig.seo.url}
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-muted-foreground transition-colors hover:text-primary"
+            >
+              DetailFlow
+            </a>
+          </p>
+        )}
       </div>
     </footer>
   )
