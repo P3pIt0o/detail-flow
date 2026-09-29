@@ -8,7 +8,7 @@ import { DEFAULT_PUBLICATION_FLAGS, toPublicationFlags, type PublicationFlags } 
  * (scripts/booking-link-publication-migration.sql). Les colonnes ne sont pas
  * déclarées dans le schéma Drizzle : sinon chaque `select()` de `companies`
  * casserait (42703) tant que la migration n'est pas appliquée.
- * Avant migration : valeurs historiques (site publié, lien actif).
+ * Avant migration : site personnalisé publié (historique), lien /book FERMÉ.
  */
 
 let columnsCache: { value: boolean; at: number } | null = null

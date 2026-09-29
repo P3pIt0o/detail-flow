@@ -3,10 +3,22 @@ export type PublicationFlags = {
   bookingLinkEnabled: boolean
 }
 
-/** Valeurs historiques (avant migration) : site publié, lien actif. */
+/**
+ * Valeurs appliquées quand la colonne est absente (migration non appliquée)
+ * ou illisible : site personnalisé publié (comportement historique), lien de
+ * réservation FERMÉ (activation explicite obligatoire).
+ */
 export const DEFAULT_PUBLICATION_FLAGS: PublicationFlags = {
   customSitePublished: true,
-  bookingLinkEnabled: true,
+  bookingLinkEnabled: false,
+}
+
+/** Statuts d'entreprise autorisés à exposer un lien public (liste blanche). */
+const BOOKING_LINK_ALLOWED_STATUSES = new Set(["BETA", "ACTIVE"])
+
+/** Lien /book accessible uniquement si activé ET entreprise ni suspendue ni archivée. */
+export function isBookingLinkAccessible(status: string | null | undefined, flags: PublicationFlags): boolean {
+  return flags.bookingLinkEnabled === true && BOOKING_LINK_ALLOWED_STATUSES.has(String(status ?? "").toUpperCase())
 }
 
 export function bookingLinkPath(slug: string): string {

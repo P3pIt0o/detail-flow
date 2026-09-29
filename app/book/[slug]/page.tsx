@@ -6,6 +6,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
 import { getPublicationFlags } from "@/lib/company/publication"
+import { isBookingLinkAccessible } from "@/lib/company/publication-shared"
 
 export const dynamic = "force-dynamic"
 
@@ -29,7 +30,7 @@ async function loadCompany(slug: string) {
     .limit(1)
   if (!company) return null
   const flags = await getPublicationFlags(company.id)
-  return flags.bookingLinkEnabled ? company : null
+  return isBookingLinkAccessible(company.status, flags) ? company : null
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
