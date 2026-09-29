@@ -27,7 +27,7 @@ import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/ava
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
 import { getLocationConfig, setBookingLocationType, getBookingLocationType } from "@/lib/booking/location"
 import { toPublicLocation, resolveLocationType, type LocationType } from "@/lib/booking/location-shared"
-import { resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
+import { resolvePublicRequestTenant, resolveRequestTenant, tenantAcceptsBookings } from "@/lib/tenant"
 import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { willRequireOnlinePayment } from "@/lib/payments/mode"
@@ -218,7 +218,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   if (!customer?.phone?.trim()) return { ok: false, error: "Téléphone requis.", code: "invalid" }
 
   // Entreprise (tenant) courante : toutes les lectures/écritures y sont rattachées.
-  const tenant = await resolveRequestTenant()
+  const tenant = await resolvePublicRequestTenant()
   if (!tenant) notFound()
 
   // Contrôle serveur : une entreprise suspendue/archivée ou n'acceptant pas les
