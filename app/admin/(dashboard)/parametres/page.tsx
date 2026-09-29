@@ -53,6 +53,11 @@ import { withTenant } from "@/lib/tenant-link"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
+import { OnlineBookingSettings } from "@/components/admin/settings/online-booking-settings"
+import { buildWidgetPrimaryAction, resolveDashboardPrimaryMode } from "@/lib/admin/primary-action"
+import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
+import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
+import { marketingOrigin } from "@/lib/tenant-shared"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
@@ -168,6 +173,19 @@ export default async function ParametresPage({
   // Config paiements du tenant (commission résolue côté serveur : override → global).
   const paymentConfig = await getTenantPaymentConfig(tenant.id)
 
+  // Réservation en ligne : uniquement pour les tenants en mode widget, à partir
+  // du tenant authentifié (NULL / link => rien ne change).
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+  const onlineBooking =
+    resolveDashboardPrimaryMode(await getBookingDistributionMode(tenant.id)) === "widget"
+      ? buildWidgetPrimaryAction({
+          slug: tenant.slug,
+          active: true,
+          scriptSnippet: buildEmbedScriptSnippet(tenant.slug, rootDomain),
+          origin: marketingOrigin(rootDomain),
+        })
+      : null
+
   const revolutUrl = process.env.REVOLUT_PAYMENT_URL ?? null
   const revolutQrSrc = process.env.REVOLUT_PAYMENT_QR_URL ?? null
 
@@ -202,12 +220,17 @@ export default async function ParametresPage({
       </div>
 
       {!activeCategory ? (
-        // Accueil : 6 cartes (grille sur ordinateur, liste verticale sur mobile).
-        <SettingsCategoryGrid
-          categories={visibleCategories}
-          tenantParam={tenantParam ?? null}
-          billingPercent={billingSetup.percent}
-        />
+        <>
+          {onlineBooking ? (
+            <OnlineBookingSettings bookingUrl={onlineBooking.bookingUrl} scriptSnippet={onlineBooking.scriptSnippet} />
+          ) : null}
+          {/* Accueil : 6 cartes (grille sur ordinateur, liste verticale sur mobile). */}
+          <SettingsCategoryGrid
+            categories={visibleCategories}
+            tenantParam={tenantParam ?? null}
+            billingPercent={billingSetup.percent}
+          />
+        </>
       ) : (
         <div className="space-y-6">
           {/* En-tête de catégorie + retour */}
