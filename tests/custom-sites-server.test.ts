@@ -14,8 +14,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const getCurrentTenant = vi.fn()
 const getCustomSiteDefinition = vi.fn()
+const getPublicationFlags = vi.fn(async (_id: number) => ({ customSitePublished: true, bookingLinkEnabled: false }))
 
 vi.mock("server-only", () => ({}))
+vi.mock("@/lib/company/publication", () => ({
+  getPublicationFlags: (id: number) => getPublicationFlags(id),
+}))
 vi.mock("@/lib/tenant", () => ({
   getCurrentTenant: () => getCurrentTenant(),
 }))
@@ -60,6 +64,26 @@ describe("resolveCustomSite — dispatch sûr", () => {
     await expect(resolveCustomSite()).resolves.toBeNull()
     expect(logSpy).toHaveBeenCalled()
     logSpy.mockRestore()
+  })
+
+  it("site personnalisé non publié => site standard (null), même avec lien de réservation actif", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 7, slug: "cleanyzer", customSiteKey: "spirit-acs" })
+    getPublicationFlags.mockResolvedValueOnce({ customSitePublished: false, bookingLinkEnabled: true })
+    getCustomSiteDefinition.mockReturnValue(fakeDef)
+    await expect(resolveCustomSite()).resolves.toBeNull()
+    expect(getPublicationFlags).toHaveBeenCalledWith(7)
+  })
+
+  it.each([
+    [false, false, false],
+    [false, true, false],
+    [true, false, true],
+    [true, true, true],
+  ])("site=%s / booking=%s => site personnalisé rendu=%s", async (customSitePublished, bookingLinkEnabled, rendered) => {
+    getCurrentTenant.mockResolvedValue({ id: 7, slug: "cleanyzer", customSiteKey: "spirit-acs" })
+    getPublicationFlags.mockResolvedValueOnce({ customSitePublished, bookingLinkEnabled })
+    getCustomSiteDefinition.mockReturnValue(fakeDef)
+    await expect(resolveCustomSite()).resolves.toBe(rendered ? fakeDef : null)
   })
 
   it("hors contexte tenant (vitrine racine) => null", async () => {

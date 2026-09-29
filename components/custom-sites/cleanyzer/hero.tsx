@@ -69,12 +69,12 @@ export function CleanyzerHero() {
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            className="object-cover object-[50%_38%]"
           />
         ) : (
           <video
             ref={videoRef}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-[50%_38%]"
             poster={POSTER}
             autoPlay
             muted
@@ -94,20 +94,26 @@ export function CleanyzerHero() {
       {/* Le logo n'apparaît QUE dans le header (brief §2) : aucun filigrane,
           aucun watermark, aucun logo superposé à la vidéo du hero. */}
 
-      <div className="relative mx-auto flex min-h-[92vh] max-w-6xl flex-col justify-center px-4 py-24 md:px-6">
+      <div className="relative mx-auto flex min-h-[100svh] max-w-6xl flex-col justify-center px-6 pb-28 pt-24 md:px-6 md:pb-24">
         <span className="clz-eyebrow">
           {BRAND.name} — {BRAND.area}
         </span>
-        <h1 className="clz-display clz-h1 mt-5 max-w-3xl text-balance text-white">
-          Le détail fait toute <span className="clz-accent">la différence.</span>
+        {/* Composition imposée en 3 lignes (maquette) : blocs explicites pour
+            que le navigateur ne choisisse pas librement les retours. */}
+        <h1 className="clz-display clz-hero-title mt-4 max-w-[16ch] text-white">
+          <span className="block">Le détail</span>
+          <span className="block">fait toute</span>
+          <span className="clz-accent block">la différence.</span>
         </h1>
-        <p className="mt-6 max-w-md text-pretty text-lg leading-relaxed text-[var(--clz-on-dark-muted)]">
-          Nettoyage automobile à domicile.
-          <br className="hidden sm:block" /> Intérieur, extérieur &amp; detailing.
+        {/* Sous-titre : deux lignes tenues (maquette), taille réduite avant tout
+            retour supplémentaire — autorisé seulement sur très petits écrans. */}
+        <p className="mt-6 max-w-md text-pretty text-base leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
+          <span className="block">Nettoyage automobile à domicile.</span>
+          <span className="block">Intérieur, extérieur &amp; detailing.</span>
         </p>
 
-        <div className="mt-9 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
-          <Link href={`${CLZ_PREVIEW_BASE}#prestations`} className="clz-btn clz-btn-primary !px-7 !py-4 !text-base">
+        <div className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
+          <Link href={`${CLZ_PREVIEW_BASE}#prestations`} className="clz-btn clz-btn-primary !px-6 !py-3 !text-[0.95rem]">
             Découvrir nos prestations
             <ArrowRight className="h-4 w-4" />
           </Link>
@@ -121,7 +127,7 @@ export function CleanyzerHero() {
         </div>
 
         {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
-        <div className="mt-12 flex items-center gap-3">
+        <div className="mt-10 flex items-center gap-3">
           <div className="flex" aria-hidden>
             {Array.from({ length: 5 }).map((_, i) => (
               <Star key={i} className="h-4 w-4 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />

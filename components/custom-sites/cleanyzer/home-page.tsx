@@ -29,7 +29,7 @@ import { CLZ_NAV_ITEMS } from "./nav"
 export function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
   void data
   return (
-    <CleanyzerShell navItems={CLZ_NAV_ITEMS}>
+    <CleanyzerShell navItems={CLZ_NAV_ITEMS} immersive>
       <CleanyzerHero />
       <UniversSection />
       <PrestationsPreview />

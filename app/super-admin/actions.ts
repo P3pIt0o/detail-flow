@@ -19,6 +19,7 @@ import { smsCreditedEmail } from "@/lib/email/templates"
 import { tenantAdminUrl } from "@/lib/tenant-shared"
 import { setDefaultPlatformFeeBps } from "@/lib/payments/config"
 import { isRegisteredCustomSiteKey, customSiteLabel } from "@/lib/custom-sites/registry"
+import { setPublicationFlag, type PublicationFlagKey } from "@/lib/company/publication"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions de super-administration. TOUTES commencent par requireSuperAdmin().*/
@@ -467,6 +468,36 @@ export async function setCustomSiteKeyAction(
           ? "Site standard rétabli."
           : `Site personnalisé attribué : ${customSiteLabel(value) ?? value}.`,
     }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
+  }
+}
+
+/**
+ * Publication du site personnalisé / activation du lien /book/{slug}.
+ * Requiert la migration scripts/booking-link-publication-migration.sql.
+ */
+export async function setPublicationFlagAction(
+  companyId: number,
+  key: PublicationFlagKey,
+  value: boolean,
+): Promise<ActionState> {
+  await requireSuperAdmin()
+  if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Entreprise invalide." }
+  if (key !== "customSitePublished" && key !== "bookingLinkEnabled") return { ok: false, error: "Réglage inconnu." }
+  if (typeof value !== "boolean") return { ok: false, error: "Valeur invalide." }
+
+  try {
+    const applied = await setPublicationFlag(companyId, key, value)
+    if (!applied) {
+      return { ok: false, error: "Migration non appliquée (scripts/booking-link-publication-migration.sql)." }
+    }
+    revalidatePath("/super-admin")
+    const label =
+      key === "customSitePublished"
+        ? value ? "Site personnalisé publié." : "Site personnalisé repassé en brouillon."
+        : value ? "Lien de réservation activé." : "Lien de réservation désactivé."
+    return { ok: true, message: label }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erreur inconnue." }
   }
