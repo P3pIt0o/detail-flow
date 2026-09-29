@@ -33,10 +33,7 @@ export function StepService({ services, vehicleTypes, priceMap, selectedId, onSe
           range.minCents === range.maxCents
             ? formatPriceCompact(range.minCents)
             : `dès ${formatPriceCompact(range.minCents)}`
-        const duration =
-          range.minDuration === range.maxDuration
-            ? formatDuration(range.minDuration)
-            : `dès ${formatDuration(range.minDuration)}`
+        const duration = formatDuration(range.minDuration)
         return (
           <li key={s.id}>
             <button
