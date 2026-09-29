@@ -42,6 +42,11 @@ async function snapshotOther(id: number) {
   ])
 }
 
+// Durées de TEST uniquement (fournies à l'exécution) : aucune durée n'est codée dans le script.
+const DURATIONS: Record<string, number> = Object.fromEntries(SERVICES.map((s, i) => [s.slug, 100 + i]))
+const run = (apply: boolean, durations: Record<string, number> = DURATIONS) =>
+  runCleanyzerImport(db, { apply, durations })
+
 const one = async <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
   (await db.query<T>(text, params)).rows[0]
 
@@ -65,7 +70,7 @@ beforeEach(async () => {
 
 describe("import Cleanyzer", () => {
   it("dry-run : rapport complet, SAFE TO APPLY YES, aucune écriture", async () => {
-    const r = await runCleanyzerImport(db, { apply: false })
+    const r = await run(false)
     expect(r.safe).toBe(true)
     expect(r.committed).toBe(false)
     expect(r.services.toCreate).toHaveLength(SERVICES.length)
@@ -81,14 +86,20 @@ describe("import Cleanyzer", () => {
 
   it("1re exécution : catalogue créé, sans faux prix ni faux calcul, autres tenants intacts", async () => {
     const before = await snapshotOther(otherId)
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(true)
     expect(r.committed).toBe(true)
     expect(r.protections).toEqual({ overwritten: 0, otherCompaniesTouched: 0, tenantCreated: false, deleted: 0 })
 
     const services = (await db.query<{ slug: string; visible: boolean; basePriceCents: number }>(
       `SELECT slug, visible, "basePriceCents" FROM services WHERE "companyId" = $1`, [cleanyzerId])).rows
-    expect(services).toHaveLength(7)
+    expect(services).toHaveLength(10)
+    for (const [slug, cents] of [["canape-2-3-places", 8000], ["canape-3-4-places", 11000], ["canape-5-places-et-plus", 15000]] as const) {
+      expect(services.find((s) => s.slug === slug)).toMatchObject({ visible: true, basePriceCents: cents })
+    }
+    const durs = (await db.query<{ slug: string; durationMin: number }>(
+      `SELECT slug, "durationMin" FROM services WHERE "companyId" = $1`, [cleanyzerId])).rows
+    for (const d of durs) expect(d.durationMin).toBe(DURATIONS[d.slug])
     for (const slug of ["interieur-diamond", "exterieur-diamond"]) {
       expect(services.find((s) => s.slug === slug)?.visible).toBe(false)
     }
@@ -108,15 +119,19 @@ describe("import Cleanyzer", () => {
     // Aucune option visible à 0 € : aucun faux prix public.
     expect(opts.filter((o) => o.visible && o.priceCents <= 0)).toHaveLength(0)
 
-    const company = await one<{ siteContent: { customRequests: { types: { key: string }[] } } }>(
-      `SELECT "siteContent" FROM companies WHERE id = $1`, [cleanyzerId])
-    expect(company.siteContent.customRequests.types.map((t) => t.key)).toEqual(["textile"])
+    for (const slug of ["textile-cuir", "textile-impermeabilisation"]) {
+      expect(bySlug[slug].visible).toBe(false)
+      expect(bySlug[slug].description).toMatch(/quantité/)
+    }
+    // Textile = prestations BookingV2 normales : la ligne companies n'est pas modifiée.
+    const company = await one<{ siteContent: unknown }>(`SELECT "siteContent" FROM companies WHERE id = $1`, [cleanyzerId])
+    expect(company.siteContent).toBeNull()
 
     expect(await snapshotOther(otherId)).toBe(before)
   })
 
   it("2e exécution : les modifications de Tom sont CONSERVÉES", async () => {
-    await runCleanyzerImport(db, { apply: true })
+    await run(true)
     await db.query(
       `UPDATE services SET name = 'Éco by Tom', "basePriceCents" = 5500, "durationMin" = 95, visible = false, description = 'Texte Tom'
        WHERE "companyId" = $1 AND slug = 'interieur-eco'`, [cleanyzerId])
@@ -125,17 +140,15 @@ describe("import Cleanyzer", () => {
        WHERE "serviceId" = (SELECT id FROM services WHERE "companyId" = $1 AND slug = 'interieur-eco')`, [cleanyzerId])
     await db.query(`UPDATE options SET "priceCents" = 5900, visible = false, name = 'Ozone Tom' WHERE "companyId" = $1 AND slug = 'ozone'`, [cleanyzerId])
     await db.query(`UPDATE options SET "priceCents" = 8000, visible = true WHERE "companyId" = $1 AND slug = 'capote'`, [cleanyzerId])
-    await db.query(
-      `UPDATE companies SET "siteContent" = jsonb_set("siteContent", '{customRequests,enabled}', 'false') WHERE id = $1`, [cleanyzerId])
+    await db.query(`UPDATE services SET "basePriceCents" = 9000 WHERE "companyId" = $1 AND slug = 'canape-2-3-places'`, [cleanyzerId])
     const before = await snapshotOther(otherId)
 
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(true)
     expect(r.services.toCreate).toHaveLength(0)
     expect(r.options.toCreate).toHaveLength(0)
     expect(r.categories.toCreate).toHaveLength(0)
-    expect(r.services.preserved).toHaveLength(7)
-    expect(r.textile).toBe("existante préservée")
+    expect(r.services.preserved).toHaveLength(10)
     expect(r.totalRows).toBe(0)
     expect(r.protections).toEqual({ overwritten: 0, otherCompaniesTouched: 0, tenantCreated: false, deleted: 0 })
 
@@ -149,16 +162,16 @@ describe("import Cleanyzer", () => {
       .toEqual({ name: "Ozone Tom", priceCents: 5900, visible: false })
     expect(await one(`SELECT "priceCents", visible FROM options WHERE "companyId" = $1 AND slug = 'capote'`, [cleanyzerId]))
       .toEqual({ priceCents: 8000, visible: true })
-    const sc = await one<{ siteContent: { customRequests: { enabled: boolean } } }>(`SELECT "siteContent" FROM companies WHERE id = $1`, [cleanyzerId])
-    expect(sc.siteContent.customRequests.enabled).toBe(false)
+    expect(await one(`SELECT "basePriceCents" FROM services WHERE "companyId" = $1 AND slug = 'canape-2-3-places'`, [cleanyzerId]))
+      .toEqual({ basePriceCents: 9000 })
     expect(await snapshotOther(otherId)).toBe(before)
   })
 
   it("idempotence : 2e passage sans modification => 0 création, 0 modification, 0 doublon", async () => {
-    await runCleanyzerImport(db, { apply: true })
+    await run(true)
     const snapshotAll = async () => JSON.stringify([await snapshotOther(cleanyzerId), await snapshotOther(otherId)])
     const before = await snapshotAll()
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(true)
     expect(r.totalRows).toBe(0)
     expect(r.servicePricesToCreate).toBe(0)
@@ -171,16 +184,27 @@ describe("import Cleanyzer", () => {
   })
 
   it("prestation supprimée par Tom : seule la ligne manquante est recréée, le reste est préservé", async () => {
-    await runCleanyzerImport(db, { apply: true })
+    await run(true)
     await db.query(`DELETE FROM options WHERE "companyId" = $1 AND slug = 'vitres'`, [cleanyzerId])
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.options.toCreate).toEqual(["Vitres"])
     expect(r.protections.overwritten).toBe(0)
   })
 
+  it("durée manquante => NO, rien d'écrit, aucune durée inventée", async () => {
+    const { ["canape-2-3-places"]: _omit, ...partial } = DURATIONS
+    const r = await run(true, partial)
+    expect(r.safe).toBe(false)
+    expect(r.committed).toBe(false)
+    expect(r.blockers.join(" ")).toContain("canape-2-3-places")
+    expect((await one<{ n: number }>(`SELECT count(*)::int AS n FROM services WHERE "companyId" = $1`, [cleanyzerId])).n).toBe(0)
+    const none = await run(true, {})
+    expect(none.safe).toBe(false)
+  })
+
   it("tenant introuvable => SAFE TO APPLY NO, aucun tenant créé", async () => {
     await db.query(`UPDATE companies SET slug = 'cleanyzer-old' WHERE id = $1`, [cleanyzerId])
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(false)
     expect(r.committed).toBe(false)
     expect((await one<{ n: number }>(`SELECT count(*)::int AS n FROM companies`)).n).toBe(2)
@@ -189,20 +213,20 @@ describe("import Cleanyzer", () => {
 
   it("plusieurs entreprises correspondantes => NO", async () => {
     await db.query(`INSERT INTO companies (name, slug) VALUES ('Clone', 'CLEANYZER')`)
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(false)
   })
 
   it("gabarits incohérents => NO, rien d'écrit", async () => {
     await db.query(`UPDATE vehicle_types SET active = false WHERE "companyId" = $1 AND name = 'SUV'`, [cleanyzerId])
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(false)
     expect((await one<{ n: number }>(`SELECT count(*)::int AS n FROM services WHERE "companyId" = $1`, [cleanyzerId])).n).toBe(0)
   })
 
   it("doublon ambigu (même nom, autre slug) => NO, rien d'écrit", async () => {
     await db.query(`INSERT INTO options ("companyId", name, slug, "priceCents") VALUES ($1, 'Ozone', 'ozone-tom', 4500)`, [cleanyzerId])
-    const r = await runCleanyzerImport(db, { apply: true })
+    const r = await run(true)
     expect(r.safe).toBe(false)
     expect(r.committed).toBe(false)
     expect((await one<{ n: number }>(`SELECT count(*)::int AS n FROM services WHERE "companyId" = $1`, [cleanyzerId])).n).toBe(0)
