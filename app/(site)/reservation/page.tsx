@@ -114,7 +114,16 @@ export default async function ReservationPage({
             <EmbedFrameSync />
           </>
         )}
-        <section className={isEmbed ? "bg-background py-6" : "bg-background pb-6 pt-8 md:pt-12"}>
+        {/* Cleanyzer only: the standard Navbar is `fixed` (h-16), so BookingV2 must start below it. */}
+        <section
+          className={
+            isEmbed
+              ? "bg-background py-6"
+              : requestTenant?.customSiteKey?.trim() === "cleanyzer"
+                ? "bg-background pb-16 pt-24 md:pb-20 md:pt-28"
+                : "bg-background pb-6 pt-8 md:pt-12"
+          }
+        >
           <BookingV2
             services={services}
             vehicleTypes={vehicleTypes}
