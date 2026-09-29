@@ -34,6 +34,19 @@ export function bookingLinkPath(slug: string): string {
   return `/book/${encodeURIComponent(slug)}`
 }
 
+/** URL absolue du lien /book/{slug} sur `origin` (ex. https://www.detailflow.fr). */
+export function bookingLinkUrl(slug: string, origin: string): string {
+  return `${origin.replace(/\/+$/, "")}${bookingLinkPath(slug)}`
+}
+
+/**
+ * Section « Réservation en ligne » de Page publique pour un site personnalisé.
+ * Indépendante de customSitePublished. Spirit ACS exclu (parcours devis dédié).
+ */
+export function showsCustomSiteBookingAdmin(customSiteKey: string | null | undefined): boolean {
+  return Boolean(customSiteKey) && customSiteKey !== "spirit-acs"
+}
+
 /** Normalise une ligne SQL brute ; toute valeur non booléenne => défaut. */
 export function toPublicationFlags(row: Record<string, unknown> | undefined | null): PublicationFlags {
   if (!row) return { ...DEFAULT_PUBLICATION_FLAGS }
