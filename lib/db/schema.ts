@@ -1653,3 +1653,20 @@ export const refunds = pgTable(
     currencyIso: check("refunds_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   }),
 )
+
+/**
+ * Idempotence du webhook Stripe BILLING (abonnements) — voir
+ * scripts/billing-events-migration.sql. Une ligne n'est écrite qu'après le
+ * traitement RÉUSSI de l'événement. Les événements Lifetime n'y passent pas.
+ */
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    eventId: text("eventId").primaryKey(),
+    eventType: text("eventType").notNull(),
+    processedAt: timestamp("processedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byProcessedAt: index("billing_events_processedAt_idx").on(t.processedAt),
+  }),
+)

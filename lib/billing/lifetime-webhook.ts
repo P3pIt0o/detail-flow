@@ -32,6 +32,12 @@ import {
   releaseLifetimeReservation,
   type LifetimeDeps,
 } from "./lifetime-server"
+import { isSubscriptionCheckoutSession } from "./subscription-core"
+import {
+  handleSubscriptionWebhookEvent,
+  isSubscriptionWebhookEventType,
+  type SubscriptionWebhookDeps,
+} from "./subscription-webhook"
 
 export interface BillingWebhookDeps extends LifetimeDeps {
   secret: string | undefined
@@ -39,6 +45,8 @@ export interface BillingWebhookDeps extends LifetimeDeps {
     webhooks: { constructEvent(payload: string, header: string, secret: string): Stripe.Event }
   }
   env?: Record<string, string | undefined>
+  /** Moteur d'abonnements (même endpoint, même secret). */
+  subscriptions?: SubscriptionWebhookDeps
 }
 
 export interface BillingWebhookResponse {
@@ -129,7 +137,12 @@ export async function handleBillingWebhook(
     case "checkout.session.expired":
     case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session
-      if (!isLifetimeCheckoutSession(session)) return ok({ ignored: "not_lifetime" })
+      if (!isLifetimeCheckoutSession(session)) {
+        if (event.type === "checkout.session.completed" && isSubscriptionCheckoutSession(session)) {
+          return routeSubscriptionEvent(event, deps)
+        }
+        return ok({ ignored: "not_lifetime" })
+      }
       try {
         if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
           return await handlePaid(session, deps)
@@ -141,6 +154,16 @@ export async function handleBillingWebhook(
       }
     }
     default:
+      if (isSubscriptionWebhookEventType(event.type)) return routeSubscriptionEvent(event, deps)
       return ok({ ignored: event.type })
   }
+}
+
+/** Routage explicite vers le moteur d'abonnements (Lifetime inchangé ci-dessus). */
+async function routeSubscriptionEvent(event: Stripe.Event, deps: BillingWebhookDeps): Promise<BillingWebhookResponse> {
+  if (!deps.subscriptions) {
+    console.error("[billing-webhook] moteur d'abonnements non configuré:", event.type)
+    return { status: 500, body: { error: "Abonnements non configurés" } }
+  }
+  return handleSubscriptionWebhookEvent(event, deps.subscriptions)
 }

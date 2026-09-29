@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/payments/stripe-client"
 import { handleBillingWebhook, type BillingWebhookDeps } from "@/lib/billing/lifetime-webhook"
+import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
+import type { SubscriptionWebhookDeps } from "@/lib/billing/subscription-webhook"
 
 /**
  * WEBHOOK STRIPE BILLING — compte PLATEFORME DetailFlow (LOT S3A).
@@ -21,7 +23,14 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const result = await handleBillingWebhook(
     { rawBody, signature: req.headers.get("stripe-signature") },
-    { secret, stripe: getStripe() as unknown as BillingWebhookDeps["stripe"] },
+    {
+      secret,
+      stripe: getStripe() as unknown as BillingWebhookDeps["stripe"],
+      subscriptions: {
+        stripe: getStripe() as unknown as SubscriptionWebhookDeps["stripe"],
+        store: createPgSubscriptionStore(),
+      },
+    },
   )
   return NextResponse.json(result.body, { status: result.status })
 }
