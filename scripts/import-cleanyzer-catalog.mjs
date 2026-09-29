@@ -2,16 +2,22 @@
  * Initialisation du catalogue Cleanyzer (tenant EXISTANT `cleanyzer`).
  *
  *   Dry-run (aucune écriture) :
- *     node --env-file=.env.production.local scripts/import-cleanyzer-catalog.mjs
+ *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs
  *   Application (uniquement si le dry-run affiche SAFE TO APPLY: YES) :
- *     node --env-file=.env.production.local scripts/import-cleanyzer-catalog.mjs --apply
+ *     DATABASE_URL=<url branche> node scripts/import-cleanyzer-catalog.mjs --apply
+ *
+ *   Durées initiales intégrées au catalogue ; --durations=fichier.json reste possible pour les surcharger.
  *
  * Logique : scripts/cleanyzer-catalog-import.mjs (create if missing, preserve if existing).
  */
+import { readFileSync } from "node:fs"
 import pg from "pg"
 import { formatReport, runCleanyzerImport } from "./cleanyzer-catalog-import.mjs"
 
 const apply = process.argv.includes("--apply")
+// Durées (minutes) par slug de prestation, fournies par Cleanyzer : jamais inventées par le script.
+const durationsArg = process.argv.find((a) => a.startsWith("--durations="))
+const durations = durationsArg ? JSON.parse(readFileSync(durationsArg.slice("--durations=".length), "utf8")) : {}
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) {
   console.error("DATABASE_URL manquant.")
@@ -27,7 +33,7 @@ try {
 const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } })
 await client.connect()
 try {
-  const result = await runCleanyzerImport(client, { apply })
+  const result = await runCleanyzerImport(client, { apply, durations })
   console.log(formatReport(result, { target }))
   if (!result.safe) process.exitCode = 1
 } finally {

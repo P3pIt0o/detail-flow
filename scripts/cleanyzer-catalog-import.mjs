@@ -16,18 +16,32 @@ export const TENANT_SLUG = "cleanyzer"
 export const CATEGORIES = [
   { slug: "nettoyage-interieur", name: "Nettoyage intérieur", sortOrder: 1 },
   { slug: "nettoyage-exterieur", name: "Nettoyage extérieur", sortOrder: 2 },
+  {
+    slug: "nettoyage-textile",
+    name: "Nettoyage textile",
+    sortOrder: 3,
+    description: "Aspiration, shampoing, désinfection et traitement des odeurs.",
+  },
 ]
 
+export const TEXTILE_DESCRIPTION = "Aspiration, shampoing, désinfection et traitement des odeurs."
+
 // prices = [gabarit 1, gabarit 2, gabarit 3] en euros ; null = aucun prix fixe.
+// flatPrice = prix unique (aucun tarif par gabarit : le prix de base s'applique à tout véhicule).
+// durationMin = durée INITIALE validée par Cleanyzer (modifiable ensuite dans l'admin).
+// Diamond volontairement absent : ni prix ni durée fournis (à ajouter avec le futur mode « sur devis »).
 export const SERVICES = [
-  { category: "nettoyage-interieur", slug: "interieur-eco", name: "Intérieur — Formule Éco", prices: [50, 60, 75] },
-  { category: "nettoyage-interieur", slug: "interieur-premium", name: "Intérieur — Formule Premium", prices: [80, 95, 120] },
-  { category: "nettoyage-interieur", slug: "interieur-excellence", name: "Intérieur — Formule Excellence", prices: [115, 135, 160] },
-  { category: "nettoyage-interieur", slug: "interieur-diamond", name: "Intérieur — Formule Diamond", prices: null },
-  { category: "nettoyage-exterieur", slug: "exterieur-eco", name: "Extérieur — Formule Éco", prices: [30, 40, 50] },
-  { category: "nettoyage-exterieur", slug: "exterieur-excellence", name: "Extérieur — Formule Excellence", prices: [50, 65, 80] },
-  { category: "nettoyage-exterieur", slug: "exterieur-diamond", name: "Extérieur — Formule Diamond", prices: null },
+  { category: "nettoyage-interieur", slug: "interieur-eco", name: "Intérieur — Formule Éco", prices: [50, 60, 75], durationMin: 90 },
+  { category: "nettoyage-interieur", slug: "interieur-premium", name: "Intérieur — Formule Premium", prices: [80, 95, 120], durationMin: 120 },
+  { category: "nettoyage-interieur", slug: "interieur-excellence", name: "Intérieur — Formule Excellence", prices: [115, 135, 160], durationMin: 180 },
+  { category: "nettoyage-exterieur", slug: "exterieur-eco", name: "Extérieur — Formule Éco", prices: [30, 40, 50], durationMin: 60 },
+  { category: "nettoyage-exterieur", slug: "exterieur-excellence", name: "Extérieur — Formule Excellence", prices: [50, 65, 80], durationMin: 90 },
+  { category: "nettoyage-textile", slug: "canape-2-3-places", name: "Canapé 2/3 places", flatPrice: 80, description: TEXTILE_DESCRIPTION, durationMin: 90 },
+  { category: "nettoyage-textile", slug: "canape-3-4-places", name: "Canapé 3/4 places", flatPrice: 110, description: TEXTILE_DESCRIPTION, durationMin: 120 },
+  { category: "nettoyage-textile", slug: "canape-5-places-et-plus", name: "Canapé 5 places et +", flatPrice: 150, description: TEXTILE_DESCRIPTION, durationMin: 150 },
 ]
+
+export const DEFAULT_DURATIONS = Object.fromEntries(SERVICES.map((s) => [s.slug, s.durationMin]))
 
 // price = euros fixes · unit = tarif à l'unité (quantité non supportée) · quote = pas de prix fixe.
 export const OPTIONS = [
@@ -39,21 +53,26 @@ export const OPTIONS = [
   { slug: "shampoing-moquettes", name: "Shampoing moquettes", price: 49 },
   { slug: "tapis", name: "Tapis", price: 5, unit: "tapis" },
   { slug: "coffre", name: "Coffre", price: 10 },
-  { slug: "sieges", name: "Sièges", price: 15, unit: "siège" },
-  { slug: "complete", name: "Complète", price: 85 },
+  { slug: "sieges", name: "Siège", price: 15, unit: "siège" },
+  { slug: "complete", name: "Nettoyage complet", price: 85 },
   { slug: "vomi", name: "Vomi", price: 69 },
   { slug: "rails-regraissage", name: "Rails / regraissage", price: 35 },
-  { slug: "demontage-sieges", name: "Démontage des sièges", price: 25 },
-  { slug: "vehicule-sale", name: "Véhicule sale", price: 39 },
-  { slug: "vehicule-tres-sale", name: "Véhicule très sale", price: 79 },
-  { slug: "incruste", name: "Incrusté", price: 35 },
-  { slug: "capote", name: "Capote", quote: "75 € ou 100 € selon la capote — sur devis" },
-  { slug: "duo-capote", name: "Duo capote", price: 150, description: "150 € au lieu de 175 €" },
-  { slug: "ceramique-hybride", name: "Céramique hybride", price: 65 },
-  { slug: "plastiques", name: "Plastiques", quote: "De 30 à 70 € — sur devis" },
-  { slug: "optiques", name: "Optiques", price: 65 },
-  { slug: "revernissage", name: "Revernissage", quote: "De 50 à 200 € — sur devis" },
+  { slug: "textile-cuir", name: "Cuir (textile)", price: 15, unit: "place" },
+  { slug: "textile-impermeabilisation", name: "Imperméabilisation (textile)", price: 10, unit: "place" },
 ]
+
+/**
+ * Valide les durées fournies à l'exécution : un entier > 0 par prestation À CRÉER.
+ * Aucune valeur par défaut : une durée manquante bloque l'import (SAFE TO APPLY = NO).
+ */
+export function missingDurations(servicesToCreate, durations) {
+  return servicesToCreate
+    .filter((s) => {
+      const d = durations?.[s.slug]
+      return !(Number.isInteger(d) && d > 0)
+    })
+    .map((s) => s.slug)
+}
 
 export const TEXTILE_REQUEST_TYPE = {
   key: "textile",
@@ -148,7 +167,8 @@ export function planTextile(siteContent) {
   }
 }
 
-export async function runCleanyzerImport(client, { apply = false } = {}) {
+export async function runCleanyzerImport(client, { apply = false, durations: durationOverrides = {} } = {}) {
+  const durations = { ...DEFAULT_DURATIONS, ...durationOverrides }
   const result = {
     apply,
     tenant: null,
@@ -237,6 +257,11 @@ export async function runCleanyzerImport(client, { apply = false } = {}) {
     result.options.hiddenPerUnit = opt.toCreate.filter((o) => o.unit).map((o) => o.name)
     result.options.hiddenQuote = opt.toCreate.filter((o) => !o.unit && typeof o.price !== "number").map((o) => o.name)
 
+    const missing = missingDurations(svc.toCreate, durations)
+    if (missing.length > 0) {
+      result.blockers.push(`Durée non fournie (aucune valeur inventée) pour : ${missing.join(", ")}.`)
+    }
+
     if (result.blockers.length > 0) return await finish(client, result)
 
     const beforeOthers = await hashesByCompany(client, cid)
@@ -257,31 +282,42 @@ export async function runCleanyzerImport(client, { apply = false } = {}) {
     }
 
     for (const s of svc.toCreate) {
-      const unpriced = s.prices === null
+      const flat = typeof s.flatPrice === "number"
+      const unpriced = !flat && s.prices === null
       const sortOrder = SERVICES.indexOf(s) + 1
-      // Durée non fournie : colonne omise => défaut de la base (identique à une saisie manuelle dans l'admin).
+      const durationMin = durations[s.slug]
       // Aucun prix : basePriceCents omis (défaut de la base) et prestation masquée du booking.
+      // Prix unique (textile) : aucune ligne service_prices, le prix de base s'applique à tout gabarit.
       const { rows } = unpriced
         ? await client.query(
-            `INSERT INTO services ("companyId", "categoryId", name, slug, description, "sortOrder", visible)
-             VALUES ($1, $2, $3, $4, $5, $6, false)
+            `INSERT INTO services ("companyId", "categoryId", name, slug, description, "durationMin", "sortOrder", visible)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, false)
              ON CONFLICT ("companyId", slug) DO NOTHING RETURNING id, "companyId"`,
-            [cid, categoryIds[s.category] ?? null, s.name, s.slug, UNPRICED_SERVICE_DESCRIPTION, sortOrder],
+            [cid, categoryIds[s.category] ?? null, s.name, s.slug, UNPRICED_SERVICE_DESCRIPTION, durationMin, sortOrder],
           )
         : await client.query(
-            `INSERT INTO services ("companyId", "categoryId", name, slug, "basePriceCents", "sortOrder", visible)
-             VALUES ($1, $2, $3, $4, $5, $6, true)
+            `INSERT INTO services ("companyId", "categoryId", name, slug, description, "basePriceCents", "durationMin", "sortOrder", visible)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
              ON CONFLICT ("companyId", slug) DO NOTHING RETURNING id, "companyId"`,
-            [cid, categoryIds[s.category] ?? null, s.name, s.slug, s.prices[0] * 100, sortOrder],
+            [
+              cid,
+              categoryIds[s.category] ?? null,
+              s.name,
+              s.slug,
+              s.description ?? null,
+              (flat ? s.flatPrice : s.prices[0]) * 100,
+              durationMin,
+              sortOrder,
+            ],
           )
       if (rows.length !== 1 || rows[0].companyId !== cid) throw new Error(`Création prestation ${s.slug} inattendue.`)
       rowsWritten += 1
-      if (unpriced) continue
+      if (unpriced || flat) continue
       for (const [i, vt] of vehicleTypes.entries()) {
         if (vt.companyId !== cid) throw new Error("Gabarit hors tenant détecté.")
         await client.query(
-          `INSERT INTO service_prices ("serviceId", "vehicleTypeId", "priceCents") VALUES ($1, $2, $3)`,
-          [rows[0].id, vt.id, s.prices[i] * 100],
+          `INSERT INTO service_prices ("serviceId", "vehicleTypeId", "priceCents", "durationMin") VALUES ($1, $2, $3, $4)`,
+          [rows[0].id, vt.id, s.prices[i] * 100, durationMin],
         )
         rowsWritten += 1
         result.servicePricesToCreate += 1
@@ -309,16 +345,7 @@ export async function runCleanyzerImport(client, { apply = false } = {}) {
       rowsWritten += 1
     }
 
-    const textile = planTextile(company.siteContent)
-    result.textile = textile.status
-    if (textile.warning) result.warnings.push(textile.warning)
-    if (textile.next) {
-      await client.query(`UPDATE companies SET "siteContent" = $2::jsonb, "updatedAt" = now() WHERE id = $1`, [
-        cid,
-        JSON.stringify(textile.next),
-      ])
-      rowsWritten += 1
-    }
+    result.textile = "prestations BookingV2 (catégorie Nettoyage textile) — companies non modifié"
     result.totalRows = rowsWritten
 
     const afterOthers = await hashesByCompany(client, cid)
