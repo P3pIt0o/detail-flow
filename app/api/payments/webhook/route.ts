@@ -10,6 +10,7 @@ import {
 } from "@/lib/payments/queries"
 import { sendPaymentReceivedEmails, sendRefundConfirmationEmail } from "@/lib/email/notifications"
 import { applyStripeRefundEvent } from "@/lib/payments/refunds"
+import { consumePlatformFeeReservation, releasePlatformFeeByExternalId } from "@/lib/payments/platform-fee-ledger"
 
 /**
  * ============================================================================
@@ -119,6 +120,9 @@ export async function POST(req: NextRequest) {
             bookingId,
             paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
           })
+          // Commission déjà réservée AVANT Stripe : on la fige, sans second
+          // incrément du compteur mensuel (idempotent en cas de rejeu).
+          await consumePlatformFeeReservation({ externalPaymentId: session.id, companyId })
 
           // Emails de paiement : on APPELLE TOUJOURS le dispatch après une résa
           // payée. L'idempotence ne repose plus sur `justPaid` (fragile : un
@@ -132,8 +136,21 @@ export async function POST(req: NextRequest) {
       }
 
       case "checkout.session.expired": {
-        const session = event.data.object as { id: string }
+        const session = event.data.object as { id: string; metadata?: Record<string, string> | null }
         await settlePaymentCancelled(session.id)
+        // Rien encaissé → libère la commission réservée sur son mois ORIGINAL
+        // (idempotent). Même défense multi-tenant que pour le paiement.
+        const expiredCompanyId = Number.parseInt(session.metadata?.companyId ?? "", 10)
+        if (Number.isInteger(expiredCompanyId)) {
+          const tenantAccountId = await getStripeAccountIdForCompany(expiredCompanyId)
+          if (tenantAccountId && (!eventAccount || eventAccount === tenantAccountId)) {
+            await releasePlatformFeeByExternalId({
+              externalPaymentId: session.id,
+              companyId: expiredCompanyId,
+              reason: "checkout_expired",
+            })
+          }
+        }
         break
       }
 

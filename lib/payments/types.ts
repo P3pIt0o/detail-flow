@@ -47,6 +47,8 @@ export type CreatePaymentInput = {
   metadata: Record<string, string>
   /** Redirection après paiement (la vérité vient toujours du webhook). */
   returnUrl: string
+  /** Clé STABLE : un double clic partageant la réservation obtient la même session. */
+  idempotencyKey?: string
 }
 
 /** Résultat de création d'un encaissement (checkout). */
