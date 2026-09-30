@@ -223,7 +223,10 @@ export function isCompanyTrialEligible(company: Pick<CompanyBillingState, "subsc
 }
 
 export function buildSubscriptionCheckoutParams(input: SubscriptionCheckoutParamsInput): Stripe.Checkout.SessionCreateParams {
-  const metadata = buildSubscriptionMetadata(input.companyId, input.plan)
+  const metadata = {
+    ...buildSubscriptionMetadata(input.companyId, input.plan),
+    trial_eligible: input.trialEligible ? "true" : "false",
+  }
   const base = {
     mode: "subscription" as const,
     customer: input.customerId,

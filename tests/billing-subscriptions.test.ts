@@ -277,7 +277,9 @@ describe("Checkout abonnement", () => {
     expect(params.allow_promotion_codes).toBe(false)
     expect(params.subscription_data?.trial_period_days).toBe(30)
     expect(params.subscription_data?.trial_settings).toEqual({ end_behavior: { missing_payment_method: "pause" } })
-    expect(params.metadata).toEqual({ app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan })
+    expect(params.metadata).toEqual({
+      app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan, trial_eligible: "true",
+    })
   })
 
   it("aucun paiement immédiat : pas de ligne unique, pas de mode payment, pas de setup forcé", () => {
@@ -361,7 +363,9 @@ describe("Checkout abonnement", () => {
     expect(params.subscription_data).not.toHaveProperty("trial_settings")
     // Collecte du moyen de paiement par défaut Stripe (« always ») : pas de if_required.
     expect(params).not.toHaveProperty("payment_method_collection")
-    expect(params.metadata).toEqual({ app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan })
+    expect(params.metadata).toEqual({
+      app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan, trial_eligible: "false",
+    })
     expect(params.subscription_data?.metadata).toEqual(params.metadata)
   })
 
@@ -434,13 +438,105 @@ describe("Checkout abonnement", () => {
           id: "cs_open",
           url: "https://checkout.stripe.test/open",
           mode: "subscription",
-          metadata: { app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: "PRO" },
+          metadata: { app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: "PRO", trial_eligible: "true" },
         },
       ],
     } as never)
     const result = await createSubscriptionCheckout(checkoutInput("PRO"), { stripe, store, env: ENV })
     expect(result).toMatchObject({ reused: true, sessionId: "cs_open" })
     expect(raw.checkout.sessions.create).not.toHaveBeenCalled()
+  })
+
+  describe("réutilisation d'un Checkout ouvert selon l'éligibilité à l'essai", () => {
+    const openSession = (id: string, extra: Record<string, string>) => ({
+      id,
+      url: `https://checkout.stripe.test/${id}`,
+      mode: "subscription",
+      metadata: { app: "detailflow", billing_type: "subscription", company_id: "7", ...extra },
+    })
+    const eligibleCompany = () => company({ stripeCustomerId: "cus_7", subscriptionStartedAt: null })
+    const usedTrialCompany = () =>
+      company({
+        stripeCustomerId: "cus_7",
+        subscriptionStartedAt: new Date("2026-06-01T00:00:00Z"),
+        stripeSubscriptionId: null,
+        subscriptionStatus: "canceled",
+      })
+
+    async function run(state: CompanyBillingState, sessions: ReturnType<typeof openSession>[]) {
+      const { store } = memoryStore([state])
+      const { stripe, raw, created } = checkoutStripe(priceFor("PRO"))
+      raw.checkout.sessions.list.mockResolvedValueOnce({ data: sessions } as never)
+      const result = await createSubscriptionCheckout(checkoutInput("PRO"), { stripe, store, env: ENV })
+      return { result, raw, created }
+    }
+
+    it("ancien Checkout trial + entreprise plus éligible => expiré + nouveau Checkout sans trial", async () => {
+      const { result, raw, created } = await run(usedTrialCompany(), [
+        openSession("cs_old_trial", { license_plan: "PRO", trial_eligible: "true" }),
+      ])
+      expect(raw.checkout.sessions.expire).toHaveBeenCalledWith("cs_old_trial")
+      expect(result).toMatchObject({ reused: false, sessionId: "cs_1" })
+      expect(created).toHaveLength(1)
+      expect(created[0].subscription_data).not.toHaveProperty("trial_period_days")
+      expect(created[0].subscription_data).not.toHaveProperty("trial_settings")
+      expect(created[0]).not.toHaveProperty("payment_method_collection")
+      expect(created[0].metadata?.trial_eligible).toBe("false")
+    })
+
+    it("Checkout historique sans metadata trial_eligible => jamais réutilisé si non éligible", async () => {
+      const { result, raw, created } = await run(usedTrialCompany(), [openSession("cs_legacy", { license_plan: "PRO" })])
+      expect(raw.checkout.sessions.expire).toHaveBeenCalledWith("cs_legacy")
+      expect(result.reused).toBe(false)
+      expect(created[0].subscription_data).not.toHaveProperty("trial_period_days")
+    })
+
+    it("Checkout historique sans metadata => non réutilisé non plus pour une entreprise éligible", async () => {
+      const { result, raw, created } = await run(eligibleCompany(), [openSession("cs_legacy", { license_plan: "PRO" })])
+      expect(raw.checkout.sessions.expire).toHaveBeenCalledWith("cs_legacy")
+      expect(result.reused).toBe(false)
+      expect(created[0].subscription_data?.trial_period_days).toBe(30)
+    })
+
+    it("Checkout trial compatible (éligible + trial_eligible=true) => réutilisé", async () => {
+      const { result, raw } = await run(eligibleCompany(), [
+        openSession("cs_trial", { license_plan: "PRO", trial_eligible: "true" }),
+      ])
+      expect(result).toMatchObject({ reused: true, sessionId: "cs_trial" })
+      expect(raw.checkout.sessions.expire).not.toHaveBeenCalled()
+      expect(raw.checkout.sessions.create).not.toHaveBeenCalled()
+    })
+
+    it("Checkout payant compatible (non éligible + trial_eligible=false) => réutilisé", async () => {
+      const { result, raw } = await run(usedTrialCompany(), [
+        openSession("cs_paid", { license_plan: "PRO", trial_eligible: "false" }),
+      ])
+      expect(result).toMatchObject({ reused: true, sessionId: "cs_paid" })
+      expect(raw.checkout.sessions.expire).not.toHaveBeenCalled()
+      expect(raw.checkout.sessions.create).not.toHaveBeenCalled()
+    })
+
+    it("Checkout payant ouvert + entreprise redevenue éligible => expiré, nouveau Checkout trial", async () => {
+      const { result, raw, created } = await run(eligibleCompany(), [
+        openSession("cs_paid", { license_plan: "PRO", trial_eligible: "false" }),
+      ])
+      expect(raw.checkout.sessions.expire).toHaveBeenCalledWith("cs_paid")
+      expect(result.reused).toBe(false)
+      expect(created[0].subscription_data?.trial_period_days).toBe(30)
+    })
+
+    it.each([
+      ["éligible", eligibleCompany, "true"],
+      ["non éligible", usedTrialCompany, "false"],
+    ] as const)("autre plan (%s) => expiration existante conservée", async (_label, state, flag) => {
+      const { result, raw, created } = await run(state(), [
+        openSession("cs_business", { license_plan: "BUSINESS", trial_eligible: flag }),
+      ])
+      expect(raw.checkout.sessions.expire).toHaveBeenCalledWith("cs_business")
+      expect(result.reused).toBe(false)
+      expect(created).toHaveLength(1)
+      expect(created[0].metadata?.license_plan).toBe("PRO")
+    })
   })
 })
 
