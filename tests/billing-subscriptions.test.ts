@@ -616,6 +616,27 @@ describe("Synchronisation abonnement ↔ licence", () => {
     expect(t.companies.get(7)).toMatchObject({ licensePlan: "PRO", cancelAtPeriodEnd: true, continuousSubscriptionStartedAt: started })
   })
 
+  it("cancel_at futur sans cancel_at_period_end => résiliation programmée, PRO actif", async () => {
+    const t = setup({ stripeSubscriptionId: "sub_1" })
+    t.set(subscription({ status: "active", cancel_at_period_end: false, cancel_at: 1796071860 }))
+    await t.send("customer.subscription.updated")
+    expect(t.companies.get(7)).toMatchObject({ licensePlan: "PRO", subscriptionStatus: "active", cancelAtPeriodEnd: true })
+  })
+
+  it("active sans cancel_at ni cancel_at_period_end => aucune résiliation programmée", async () => {
+    const t = setup({ stripeSubscriptionId: "sub_1", cancelAtPeriodEnd: true })
+    t.set(subscription({ status: "active", cancel_at_period_end: false, cancel_at: null }))
+    await t.send("customer.subscription.updated")
+    expect(t.companies.get(7)).toMatchObject({ licensePlan: "PRO", subscriptionStatus: "active", cancelAtPeriodEnd: false })
+  })
+
+  it("cancel_at_period_end=true (cancel_at renseigné par Stripe) => résiliation programmée", async () => {
+    const t = setup({ stripeSubscriptionId: "sub_1" })
+    t.set(subscription({ status: "active", cancel_at_period_end: true, cancel_at: unix("2026-11-01T00:00:00Z") }))
+    await t.send("customer.subscription.updated")
+    expect(t.companies.get(7)).toMatchObject({ licensePlan: "PRO", subscriptionStatus: "active", cancelAtPeriodEnd: true })
+  })
+
   it("upgrade PRO => BUSINESS : plan changé, ancienneté inchangée", async () => {
     const started = new Date("2025-01-10T10:00:00Z")
     const t = setup({ stripeSubscriptionId: "sub_1", continuousSubscriptionStartedAt: started, licensePlan: "PRO" })

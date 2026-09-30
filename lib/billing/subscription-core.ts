@@ -340,7 +340,9 @@ export function buildSubscriptionStatePatch(
     subscriptionStatus: status,
     subscriptionPriceId: priceId,
     currentPeriodEnd: unixToDate(item.current_period_end),
-    cancelAtPeriodEnd: subscription.cancel_at_period_end === true,
+    // Drapeau générique « résiliation programmée » : Stripe peut la programmer via
+    // cancel_at (date précise) sans cancel_at_period_end.
+    cancelAtPeriodEnd: subscription.cancel_at_period_end === true || unixToDate(subscription.cancel_at) !== null,
     endedAt: null,
   }
 }
