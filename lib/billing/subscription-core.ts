@@ -64,6 +64,7 @@ export type SubscriptionErrorCode =
   | "UNKNOWN_DISCOUNT"
   | "INVOICE_NOT_DRAFT"
   | "DISCOUNT_NOT_VISIBLE"
+  | "HOLD_NOT_RELEASED"
   | "CHECKOUT_URL_MISSING"
 
 /**

@@ -239,10 +239,32 @@ async function handleInvoiceCreated(eventInvoice: Stripe.Invoice, deps: Subscrip
   }
 
   const discountBps = getInvoiceLoyaltyDiscountBps(company.continuousSubscriptionStartedAt, eventInvoice)
-  const targetCouponId = resolveLoyaltyCouponId(discountBps, env)
-  if (!targetCouponId) return { loyalty: "none", discountBps: 0 }
+  if (discountBps === 0) return { loyalty: "none", discountBps: 0 }
 
   const invoice = await deps.stripe.invoices.retrieve(eventInvoice.id, { expand: ["discounts"] })
+  if (invoice.status !== "draft") {
+    // Rejeu après succès complet (markEventProcessed échoué) : la remise est déjà correcte.
+    const expected = resolveLoyaltyCouponId(discountBps, env)
+    const existing = extractInvoiceDiscountCouponIds(invoice)
+    if (expected && existing.length === 1 && existing[0] === expected) {
+      return { loyalty: "already_applied", discountBps, couponId: expected }
+    }
+    throw new SubscriptionError(
+      "INVOICE_NOT_DRAFT",
+      `CRITIQUE — facture ${invoice.id} au statut « ${invoice.status ?? "inconnu"} » : remise fidélité due mais non appliquée.`,
+      true,
+    )
+  }
+
+  // HOLD : empêche Stripe de finaliser au plein tarif pendant la suite du traitement.
+  // En cas d'erreur après ce point, la facture reste en hold (auto_advance=false).
+  if (invoice.auto_advance !== false) {
+    await deps.stripe.invoices.update(invoice.id, { auto_advance: false })
+  }
+
+  const targetCouponId = resolveLoyaltyCouponId(discountBps, env)
+  if (!targetCouponId) throw new SubscriptionError("COUPON_MISSING", `Facture ${invoice.id} : coupon fidélité non résolu.`, true)
+
   const decision = decideInvoiceLoyaltyDiscount({
     invoiceStatus: invoice.status,
     existingCouponIds: extractInvoiceDiscountCouponIds(invoice),
@@ -251,24 +273,36 @@ async function handleInvoiceCreated(eventInvoice: Stripe.Invoice, deps: Subscrip
   })
   switch (decision.kind) {
     case "none":
-      return { loyalty: "none", discountBps: 0 }
-    case "already_applied":
+      throw new SubscriptionError("COUPON_MISSING", `Facture ${invoice.id} : aucune décision de remise.`, true)
+    case "already_applied": {
+      await releaseInvoiceHold(invoice.id, deps)
       return { loyalty: "already_applied", discountBps, couponId: targetCouponId }
+    }
     case "fail":
-      throw new SubscriptionError(decision.code, `Facture ${invoice.id} : ${decision.message}`, decision.retryable)
+      throw new SubscriptionError(decision.code, `Facture ${invoice.id} : ${decision.message}`, true)
     case "apply": {
       const spec = getLoyaltyCouponSpec(discountBps)
       if (!spec) throw new SubscriptionError("COUPON_INVALID", "Palier fidélité incohérent.", true)
       assertLoyaltyCouponValid(await deps.stripe.coupons.retrieve(decision.couponId), spec)
       const updated = await deps.stripe.invoices.update(
         invoice.id,
-        { discounts: [{ coupon: decision.couponId }], expand: ["discounts"] },
-        { idempotencyKey: `detailflow-loyalty-${invoice.id}-${decision.couponId}` },
+        { discounts: [{ coupon: decision.couponId }], auto_advance: true, expand: ["discounts"] },
+        { idempotencyKey: `detailflow-loyalty-release-${invoice.id}-${decision.couponId}` },
       )
       if (!extractInvoiceDiscountCouponIds(updated).includes(decision.couponId)) {
         throw new SubscriptionError("DISCOUNT_NOT_VISIBLE", `Remise absente de la facture ${invoice.id} après mise à jour.`, true)
       }
+      if (updated.auto_advance !== true) {
+        throw new SubscriptionError("HOLD_NOT_RELEASED", `Facture ${invoice.id} toujours en hold après application.`, true)
+      }
       return { loyalty: "applied", discountBps, couponId: decision.couponId }
     }
+  }
+}
+
+async function releaseInvoiceHold(invoiceId: string, deps: SubscriptionWebhookDeps): Promise<void> {
+  const updated = await deps.stripe.invoices.update(invoiceId, { auto_advance: true })
+  if (updated.auto_advance !== true) {
+    throw new SubscriptionError("HOLD_NOT_RELEASED", `Facture ${invoiceId} toujours en hold.`, true)
   }
 }

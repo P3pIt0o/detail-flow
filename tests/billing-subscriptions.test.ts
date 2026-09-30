@@ -164,6 +164,7 @@ function invoice(overrides: Partial<Record<string, unknown>> = {}): Stripe.Invoi
     object: "invoice",
     customer: "cus_7",
     status: "draft",
+    auto_advance: true,
     amount_paid: 0,
     discounts: [],
     period_end: unix("2026-10-01T00:00:00Z"),
@@ -197,8 +198,12 @@ function webhookStripe(sub: () => Stripe.Subscription, inv?: () => Stripe.Invoic
       retrieve: vi.fn(async () => current!()),
       update: vi.fn(async (id: string, params: Stripe.InvoiceUpdateParams) => {
         updates.push({ id, params })
-        const couponId = (params.discounts as Array<{ coupon: string }>)[0].coupon
-        const updated = { ...current!(), discounts: [{ id: "di_1", source: { coupon: { id: couponId } } }] }
+        const updated: Record<string, unknown> = { ...current!() }
+        if ("auto_advance" in params) updated.auto_advance = params.auto_advance
+        if (params.discounts) {
+          const couponId = (params.discounts as Array<{ coupon: string }>)[0].coupon
+          updated.discounts = [{ id: "di_1", source: { coupon: { id: couponId } } }]
+        }
         current = () => updated as unknown as Stripe.Invoice
         return updated as unknown as Stripe.Invoice
       }),
@@ -709,13 +714,110 @@ describe("Fidélité automatique (invoice.created)", () => {
     const inv = invoice({ lines: { data: [{ period: { start: periodStart } }] }, period_end: periodStart, ...invoiceOverrides })
     const ws = webhookStripe(() => subscription(), () => inv)
     const deps: SubscriptionWebhookDeps = { stripe: ws.stripe, store: mem.store, env }
-    return { ws, deps, inv, send: () => handleSubscriptionWebhookEvent(evt("invoice.created", inv), deps) }
+    const current = async () => t0.ws.stripe.invoices.retrieve("in_1")
+    const t0 = {
+      ws,
+      deps,
+      inv,
+      mem,
+      current,
+      send: () => handleSubscriptionWebhookEvent(evt("invoice.created", inv), deps),
+      sendTracked: async () => {
+        const e = evt("invoice.created", inv)
+        const res = await handleSubscriptionWebhookEvent(e, deps)
+        return { res, processed: await deps.store.isEventProcessed(e.id) }
+      },
+    }
+    return t0
   }
 
-  it("5 mois => aucune remise", async () => {
+  it("5 mois (0 %) => aucune remise, auto_advance jamais touché", async () => {
     const t = setup(5)
     const res = await t.send()
     expect(res.body).toMatchObject({ loyalty: "none" })
+    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
+    expect(t.ws.raw.invoices.retrieve).not.toHaveBeenCalled()
+  })
+
+  it("5 % => hold auto_advance=false AVANT coupon, puis coupon + auto_advance=true", async () => {
+    const t = setup(6)
+    const res = await t.send()
+    expect(res.status).toBe(200)
+    expect(t.ws.updates[0].params).toEqual({ auto_advance: false })
+    expect(t.ws.raw.invoices.update.mock.invocationCallOrder[0]).toBeLessThan(
+      t.ws.raw.coupons.retrieve.mock.invocationCallOrder[0],
+    )
+    expect(t.ws.updates[1].params).toMatchObject({ discounts: [{ coupon: "detailflow_loyalty_5" }], auto_advance: true })
+    expect((await t.current()).auto_advance).toBe(true)
+  })
+
+  it("coupon env absent => reste en hold, 500, event non traité", async () => {
+    const env = { ...ENV }
+    delete env.STRIPE_COUPON_LOYALTY_10
+    const t = setup(12, {}, env)
+    const { res, processed } = await t.sendTracked()
+    expect(res.status).toBe(500)
+    expect(processed).toBe(false)
+    expect((await t.current()).auto_advance).toBe(false)
+    expect(t.ws.updates).toHaveLength(1)
+  })
+
+  it("coupon Stripe invalide => reste en hold, 500, event non traité", async () => {
+    const t = setup(12)
+    t.ws.raw.coupons.retrieve.mockResolvedValueOnce({ id: "detailflow_loyalty_10", percent_off: 50, duration: "once", metadata: {} } as never)
+    const { res, processed } = await t.sendTracked()
+    expect(res.status).toBe(500)
+    expect(processed).toBe(false)
+    expect((await t.current()).auto_advance).toBe(false)
+    expect(t.ws.updates.some((u) => u.params.discounts)).toBe(false)
+  })
+
+  it("remise inconnue => jamais écrasée, reste en hold, 500", async () => {
+    const t = setup(12, { discounts: [{ id: "di_x", source: { coupon: { id: "PROMO_NOEL" } } }] })
+    const { res, processed } = await t.sendTracked()
+    expect(res.status).toBe(500)
+    expect(processed).toBe(false)
+    const after = await t.current()
+    expect(after.auto_advance).toBe(false)
+    expect((after.discounts[0] as Stripe.Discount).source?.coupon).toMatchObject({ id: "PROMO_NOEL" })
+    expect(t.ws.updates.some((u) => u.params.discounts)).toBe(false)
+  })
+
+  it("retry sur facture déjà en hold => pas de 2e hold, coupon appliqué et hold levé", async () => {
+    const t = setup(12, { auto_advance: false })
+    const res = await t.send()
+    expect(res.body).toMatchObject({ loyalty: "applied", couponId: "detailflow_loyalty_10" })
+    expect(t.ws.updates).toHaveLength(1)
+    expect(t.ws.updates[0].params).toMatchObject({ auto_advance: true })
+    expect((await t.current()).auto_advance).toBe(true)
+  })
+
+  it("coupon déjà présent + hold (retry) => réactive simplement auto_advance", async () => {
+    const t = setup(12, {
+      auto_advance: false,
+      discounts: [{ id: "di_1", source: { coupon: { id: "detailflow_loyalty_10" } } }],
+    })
+    const { res, processed } = await t.sendTracked()
+    expect(res.body).toMatchObject({ loyalty: "already_applied" })
+    expect(processed).toBe(true)
+    expect(t.ws.updates).toEqual([{ id: "in_1", params: { auto_advance: true } }])
+    expect(t.ws.raw.coupons.retrieve).not.toHaveBeenCalled()
+  })
+
+  it("facture déjà finalisée avec remise due => CRITIQUE 500, event non traité, aucune modification", async () => {
+    const t = setup(12, { status: "open" })
+    const { res, processed } = await t.sendTracked()
+    expect(res.status).toBe(500)
+    expect(res.body).not.toHaveProperty("rejected")
+    expect(processed).toBe(false)
+    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
+  })
+
+  it("facture hors abonnement (Lifetime) => ignorée, aucun appel Stripe", async () => {
+    const t = setup(12, { parent: null })
+    const res = await t.send()
+    expect(res.body).toMatchObject({ ignored: "not_subscription_invoice" })
+    expect(t.ws.raw.invoices.retrieve).not.toHaveBeenCalled()
     expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
   })
 
@@ -730,48 +832,18 @@ describe("Fidélité automatique (invoice.created)", () => {
     const t = setup(months)
     const res = await t.send()
     expect(res.body).toMatchObject({ loyalty: "applied", couponId })
-    expect(t.ws.updates[0].params.discounts).toEqual([{ coupon: couponId }])
+    expect(t.ws.updates[1].params.discounts).toEqual([{ coupon: couponId }])
     const after = await t.ws.stripe.invoices.retrieve("in_1")
     expect((after.discounts[0] as Stripe.Discount).source?.coupon).toMatchObject({ id: couponId })
   })
 
-  it("retry invoice.created => idempotent (already_applied, pas de 2e update)", async () => {
+  it("retry après succès (event non marqué) => already_applied, hold ré-appliqué puis levé", async () => {
     const t = setup(12)
     await t.send()
     const res = await t.send()
     expect(res.body).toMatchObject({ loyalty: "already_applied" })
-    expect(t.ws.raw.invoices.update).toHaveBeenCalledTimes(1)
-  })
-
-  it("coupon env manquant => fail closed (500, retry)", async () => {
-    const env = { ...ENV }
-    delete env.STRIPE_COUPON_LOYALTY_10
-    const t = setup(12, {}, env)
-    const res = await t.send()
-    expect(res.status).toBe(500)
-    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
-  })
-
-  it("coupon Stripe invalide => fail closed", async () => {
-    const t = setup(12)
-    t.ws.raw.coupons.retrieve.mockResolvedValueOnce({ id: "detailflow_loyalty_10", percent_off: 50, duration: "once", metadata: {} } as never)
-    const res = await t.send()
-    expect(res.status).toBe(500)
-    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
-  })
-
-  it("remise inconnue déjà présente => jamais écrasée (fail closed)", async () => {
-    const t = setup(12, { discounts: [{ id: "di_x", source: { coupon: { id: "PROMO_NOEL" } } }] })
-    const res = await t.send()
-    expect(res.status).toBe(500)
-    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
-  })
-
-  it("facture déjà finalisée => rejet journalisé, aucune modification", async () => {
-    const t = setup(12, { status: "open" })
-    const res = await t.send()
-    expect(res.body).toMatchObject({ rejected: "INVOICE_NOT_DRAFT" })
-    expect(t.ws.raw.invoices.update).not.toHaveBeenCalled()
+    expect(t.ws.updates.filter((u) => u.params.discounts)).toHaveLength(1)
+    expect((await t.current()).auto_advance).toBe(true)
   })
 
   it("facture d'un abonnement inconnu (non DetailFlow) => ignorée sans remise", async () => {
