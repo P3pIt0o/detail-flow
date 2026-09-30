@@ -119,12 +119,16 @@ export async function createSubscriptionCheckout(
 
   const customerId = await ensureSubscriptionCustomer(company, deps)
 
-  // Double clic / onglets : une session ouverte du même plan est réutilisée,
-  // celles d'un autre plan sont expirées (un seul Checkout abonnement ouvert).
+  const trialEligible = isCompanyTrialEligible(company)
+  const expectedTrialFlag = trialEligible ? "true" : "false"
+
+  // Double clic / onglets : une session ouverte du même plan ET de même type
+  // d'essai est réutilisée ; toutes les autres (autre plan, trial_eligible absent
+  // ou différent) sont expirées (un seul Checkout abonnement ouvert).
   const open = await deps.stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 10 })
   for (const session of open.data) {
     if (!isSubscriptionCheckoutSession(session)) continue
-    if (session.metadata?.license_plan === plan && session.url) {
+    if (session.metadata?.license_plan === plan && session.metadata?.trial_eligible === expectedTrialFlag && session.url) {
       return { url: session.url, sessionId: session.id, reused: true }
     }
     await deps.stripe.checkout.sessions.expire(session.id)
@@ -137,7 +141,7 @@ export async function createSubscriptionCheckout(
     priceId,
     successUrl: input.successUrl,
     cancelUrl: input.cancelUrl,
-    trialEligible: isCompanyTrialEligible(company),
+    trialEligible,
   })
   const minuteBucket = Math.floor(now.getTime() / 60_000)
   const session = await deps.stripe.checkout.sessions.create(params, {
