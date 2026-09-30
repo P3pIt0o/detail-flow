@@ -262,18 +262,34 @@ const checkoutInput = (plan: string) => ({
 })
 
 describe("Checkout abonnement", () => {
-  it.each(["PRO", "BUSINESS"] as const)("%s : Checkout subscription + trial 30 j + moyen de paiement", async (plan) => {
+  it.each(["PRO", "BUSINESS"] as const)("%s : Checkout subscription + trial 30 j sans carte", async (plan) => {
     const { store } = memoryStore([company()])
     const { stripe, created } = checkoutStripe(priceFor(plan))
     const result = await createSubscriptionCheckout(checkoutInput(plan), { stripe, store, env: ENV })
     expect(result.url).toContain("checkout.stripe.test")
+    expect(created).toHaveLength(1)
     const params = created[0]
     expect(params.mode).toBe("subscription")
     expect(params.line_items).toEqual([{ price: PRICE_IDS[plan], quantity: 1 }])
-    expect(params.payment_method_collection).toBe("always")
+    expect(PRICE_IDS[plan]).toMatch(/^price_/)
+    expect(params.payment_method_collection).toBe("if_required")
     expect(params.allow_promotion_codes).toBe(false)
     expect(params.subscription_data?.trial_period_days).toBe(30)
+    expect(params.subscription_data?.trial_settings).toEqual({ end_behavior: { missing_payment_method: "pause" } })
     expect(params.metadata).toEqual({ app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan })
+  })
+
+  it("aucun paiement immédiat : pas de ligne unique, pas de mode payment, pas de setup forcé", () => {
+    const params = buildSubscriptionCheckoutParams({
+      companyId: 1, plan: "BUSINESS", customerId: "cus", priceId: "price_x", successUrl: "s", cancelUrl: "c",
+    })
+    expect(params.mode).toBe("subscription")
+    expect(params.payment_method_collection).not.toBe("always")
+    expect(params.line_items).toHaveLength(1)
+    expect(params.subscription_data?.trial_period_days).toBeGreaterThan(0)
+    expect(params.subscription_data?.trial_settings?.end_behavior?.missing_payment_method).not.toBe("cancel")
+    expect(params.payment_intent_data).toBeUndefined()
+    expect(params.invoice_creation).toBeUndefined()
   })
 
   it("trial = 30 jours", () => {

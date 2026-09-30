@@ -220,14 +220,15 @@ export function buildSubscriptionCheckoutParams(input: SubscriptionCheckoutParam
     customer: input.customerId,
     client_reference_id: String(input.companyId),
     line_items: [{ price: input.priceId, quantity: 1 }],
-    // Moyen de paiement TOUJOURS collecté : utilisé à la fin du mois offert.
-    payment_method_collection: "always",
+    // Essai sans carte : Stripe ne demande un moyen de paiement que si un montant
+    // est dû immédiatement (jamais le cas pendant le trial).
+    payment_method_collection: "if_required",
     allow_promotion_codes: false,
     locale: "fr",
     metadata,
     subscription_data: {
       trial_period_days: SUBSCRIPTION_TRIAL_DAYS,
-      trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+      trial_settings: { end_behavior: { missing_payment_method: "pause" } },
       metadata,
     },
     success_url: input.successUrl,

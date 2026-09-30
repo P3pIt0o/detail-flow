@@ -34,7 +34,7 @@ export default async function SubscriptionPreviewTestPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-balance text-2xl font-semibold text-foreground">Test Abonnements — Preview</h1>
         <p className="text-pretty leading-relaxed text-muted-foreground">
-          Stripe TEST et base Preview isolée. Premier mois offert, moyen de paiement demandé.
+          Stripe TEST et base Preview isolée. 30 jours gratuits, sans carte bancaire. Vous pourrez ajouter votre moyen de paiement avant la fin de l&apos;essai.
         </p>
       </div>
 
