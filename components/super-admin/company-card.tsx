@@ -6,6 +6,7 @@ import { resetOwnerPasswordAction } from "@/app/super-admin/actions"
 import { AccessRecap, type AccessInfo } from "@/components/super-admin/access-recap"
 import { CompanyRowActions } from "@/components/super-admin/company-row-actions"
 import { LicensePanel } from "@/components/super-admin/license-panel"
+import { PublicationControls } from "@/components/super-admin/publication-controls"
 import { tenantAdminUrl } from "@/lib/tenant-shared"
 import { listRegisteredCustomSites } from "@/lib/custom-sites/meta"
 import { resolveTenantPublicPresentation } from "@/lib/super-admin/public-presentation"
@@ -24,6 +25,8 @@ export type CompanyCardData = {
   licensePlan: string | null
   licenseGeneration: string | null
   customSiteKey: string | null
+  customSitePublished: boolean
+  bookingLinkEnabled: boolean
   /** Parcours persisté (source de vérité du produit) ou null (legacy). */
   onboardingIntent: string | null
 }
@@ -162,6 +165,15 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
           {error}
         </p>
       )}
+
+      <PublicationControls
+        companyId={company.id}
+        slug={company.slug}
+        hasCustomSite={company.customSiteKey != null}
+        customSitePublished={company.customSitePublished}
+        bookingLinkEnabled={company.bookingLinkEnabled}
+        rootDomain={rootDomain ?? undefined}
+      />
 
       {/* Licence & droits (chargé à la demande) */}
       <LicensePanel

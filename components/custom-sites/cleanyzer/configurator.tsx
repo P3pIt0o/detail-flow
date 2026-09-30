@@ -32,7 +32,7 @@ import {
 } from "lucide-react"
 import { CleanyzerShell } from "./site-shell"
 import { CLZ_NAV_ITEMS } from "./nav"
-import { CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 import {
   VEHICLES,
   formulasFor,
@@ -249,7 +249,7 @@ export function CleanyzerConfigurator() {
                             <p className="font-medium text-[var(--clz-fg)]">
                               La formule Diamond est entièrement personnalisée : aucun prix automatique.
                             </p>
-                            <Link href={`${CLZ_PREVIEW_BASE}/demande`} className="clz-btn clz-btn-primary mt-3 !py-2 !text-sm">
+                            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary mt-3 !py-2 !text-sm">
                               Faire une demande sur mesure
                             </Link>
                           </div>

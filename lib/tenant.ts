@@ -74,6 +74,19 @@ export async function resolveRequestTenant(): Promise<Tenant | null> {
 }
 
 /**
+ * Tenant d'un flux PUBLIC de réservation. Si le middleware a posé un slug
+ * (`x-tenant-slug`, toujours réécrit côté serveur, jamais celui du navigateur),
+ * seul ce slug fait foi : un slug inconnu renvoie null (→ 404) au lieu de
+ * retomber sur l'entreprise de l'utilisateur connecté. Sans slug (domaine
+ * racine), comportement historique de `resolveRequestTenant()`.
+ */
+export async function resolvePublicRequestTenant(): Promise<Tenant | null> {
+  const slug = (await headers()).get("x-tenant-slug")?.trim()
+  if (slug) return getCurrentTenant()
+  return resolveRequestTenant()
+}
+
+/**
  * APERÇU AUTHENTIFIÉ : la requête courante appartient-elle à quelqu'un
  * autorisé à PRÉVISUALISER la page publique de CE tenant ?
  *

@@ -10,7 +10,7 @@ import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
 import { CleanyzerZoneMap } from "./zone-map"
 import { BRAND, TRAVEL, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
-import { CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 
 function SectionHead({
   eyebrow,
@@ -59,7 +59,7 @@ export function UniversSection() {
       title: "Demandez un devis textile",
       text: "Canapé, matelas, tapis, moquette. Aspiration, shampoing, désinfection et traitement des odeurs.",
       img: "/custom-sites/cleanyzer/service-textile.png",
-      href: `${CLZ_PREVIEW_BASE}/demande`,
+      href: CLZ_BOOKING_HREF,
       cta: "Faire une demande",
     },
   ]
@@ -317,7 +317,7 @@ export function AProposSection() {
           </ul>
 
           <Link
-            href={`${CLZ_PREVIEW_BASE}/demande`}
+            href={CLZ_BOOKING_HREF}
             className="mt-9 inline-flex items-center gap-1.5 text-base font-medium text-[var(--clz-blue)] transition hover:opacity-80"
           >
             Parler de mon projet
@@ -400,7 +400,7 @@ export function FinalCta() {
             Réserver un nettoyage auto
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href={`${CLZ_PREVIEW_BASE}/demande`} className="clz-btn clz-btn-ghost !px-7 !py-4 !text-base">
+          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost !px-7 !py-4 !text-base">
             Faire une demande personnalisée
           </Link>
         </div>

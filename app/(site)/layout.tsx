@@ -188,7 +188,11 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           contact={contact}
           socialLinks={(tenant?.socialLinks as Record<string, string> | null) ?? null}
           footerText={footerContent.text || undefined}
-          footerTagline={footerContent.tagline || undefined}
+          footerTagline={
+            footerContent.tagline ||
+            (tenant?.customSiteKey?.trim() === "cleanyzer" ? "Nettoyage et detailing automobile" : undefined)
+          }
+          showPoweredBy={tenant?.customSiteKey?.trim() === "cleanyzer"}
         />
       </div>
       <div data-df-chrome data-df-whatsapp className="contents">

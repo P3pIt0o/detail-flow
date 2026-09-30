@@ -143,6 +143,10 @@ export const companies = pgTable("companies", {
   // standard inchangé. Persisté au provisioning ; source de vérité du parcours
   // affiché après reconnexion (voir lib/onboarding/intent.ts).
   onboardingIntent: text("onboardingIntent"),
+  // Distribution du module de réservation : "link" | "widget" (CHECK côté DB).
+  // Nullable SANS default : NULL = comportement historique du tenant. Migration :
+  // scripts/booking-distribution-mode-migration.sql (à appliquer AVANT déploiement).
+  bookingDistributionMode: text("bookingDistributionMode"),
   /* -------------------------- Paiements en ligne --------------------------- */
   // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
   // Null = aucun provider connecté. Seul Stripe est implémenté en V1.
@@ -226,6 +230,10 @@ export const companies = pgTable("companies", {
     .where(sql`${t.stripeSubscriptionId} IS NOT NULL`),
   bySubscriptionStatus: index("companies_subscriptionStatus_idx").on(t.subscriptionStatus),
   byBillingMode: index("companies_billingMode_idx").on(t.billingMode),
+  bookingDistributionModeCheck: check(
+    "companies_booking_distribution_mode_check",
+    sql`${t.bookingDistributionMode} IN ('link', 'widget')`,
+  ),
 }))
 
 /**

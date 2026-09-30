@@ -10,7 +10,7 @@ import { Check, ArrowRight } from "lucide-react"
 import { CleanyzerShell } from "./site-shell"
 import { PageHero, DirectAnswer } from "./page-primitives"
 import { CLZ_NAV_ITEMS } from "./nav"
-import { CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 import {
   VEHICLES,
   formulasFor,
@@ -48,7 +48,7 @@ function FormulaCard({ f }: { f: Formula }) {
       </dl>
 
       <Link
-        href={isCustom ? `${CLZ_PREVIEW_BASE}/demande` : `${CLZ_PREVIEW_BASE}/reservation`}
+        href={isCustom ? CLZ_BOOKING_HREF : `${CLZ_PREVIEW_BASE}/reservation`}
         className={`clz-btn mt-6 w-full ${isCustom ? "clz-btn-ghost" : "clz-btn-primary"}`}
       >
         {isCustom ? "Demander un devis sur mesure" : "Réserver cette formule"}
@@ -168,7 +168,7 @@ export function TextilePrestationView() {
               ))}
             </div>
 
-            <Link href={`${CLZ_PREVIEW_BASE}/demande`} className="clz-btn clz-btn-primary mt-7">
+            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary mt-7">
               Obtenir mon devis textile
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -198,7 +198,7 @@ function CrossCta({ textile }: { textile?: boolean }) {
           </p>
         </div>
         <Link
-          href={textile ? `${CLZ_PREVIEW_BASE}/reservation` : `${CLZ_PREVIEW_BASE}/demande`}
+          href={textile ? `${CLZ_PREVIEW_BASE}/reservation` : CLZ_BOOKING_HREF}
           className="clz-btn clz-btn-primary"
         >
           {textile ? "Réserver un nettoyage auto" : "Demander un devis textile"}

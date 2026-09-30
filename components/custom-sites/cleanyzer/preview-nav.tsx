@@ -16,7 +16,6 @@ const LINKS = [
   { href: "/cleanyzer-preview/prestations/textile", label: "Textile" },
   { href: "/cleanyzer-preview/tarifs", label: "Tarifs" },
   { href: "/cleanyzer-preview/reservation", label: "Réservation" },
-  { href: "/cleanyzer-preview/demande", label: "Devis textile" },
   { href: "/cleanyzer-preview/realisations", label: "Réalisations" },
   { href: "/cleanyzer-preview/a-propos", label: "À propos" },
   { href: "/cleanyzer-preview/faq", label: "FAQ" },

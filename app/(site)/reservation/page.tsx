@@ -1,4 +1,7 @@
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import { getPublicationFlags } from "@/lib/company/publication"
+import { isEmbedBlocked, usesLegacyBookingWizard } from "@/lib/company/publication-shared"
 import { PageHeader } from "@/components/layout/page-header"
 import { BookingWizard } from "@/components/booking/booking-wizard"
 import { EmbedFrameSync } from "@/components/booking/embed-frame-sync"
@@ -11,8 +14,10 @@ import {
   getSettings,
 } from "@/lib/booking/queries"
 import { BookingV2 } from "@/components/booking-v2/booking-v2"
-import { resolveCustomSite } from "@/lib/custom-sites/server"
-import { resolveRequestTenant } from "@/lib/tenant"
+import { headers } from "next/headers"
+import { resolvePublicRequestTenant, resolveRequestTenant } from "@/lib/tenant"
+import { isOnlineBookingOpen } from "@/lib/booking/online-booking-access"
+import { BookingUnavailable } from "@/components/booking/booking-unavailable"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
@@ -54,14 +59,35 @@ export default async function ReservationPage({
   const { embed } = await searchParams
   const isEmbed = embed === "1"
 
-  const [services, categories, vehicleTypes, options, prices, settings, customSite] = await Promise.all([
+  const requestTenant = await resolvePublicRequestTenant()
+  if (!requestTenant && (await headers()).get("x-tenant-slug")?.trim()) notFound()
+
+  // Contrôle serveur AVANT tout chargement de BookingV2 : tenant désactivé
+  // (bookingMode DISABLED, suspendu, licence sans online_booking) → aucun
+  // tunnel servi. Les tunnels historiques (Spirit ACS, Rozan) sont exclus.
+  if (
+    requestTenant &&
+    !usesLegacyBookingWizard(requestTenant.customSiteKey) &&
+    !isOnlineBookingOpen(requestTenant, await canUseFeature(requestTenant.id, "online_booking"))
+  ) {
+    return <BookingUnavailable embed={isEmbed} />
+  }
+
+  if (
+    isEmbed &&
+    requestTenant &&
+    isEmbedBlocked(requestTenant.customSiteKey, requestTenant.status, await getPublicationFlags(requestTenant.id))
+  ) {
+    notFound()
+  }
+
+  const [services, categories, vehicleTypes, options, prices, settings] = await Promise.all([
     getServices(),
     getCategories(),
     getVehicleTypes(),
     getOptions(),
     getServicePrices(),
     getSettings(),
-    resolveCustomSite(),
   ])
 
   // Table de correspondance tarifaire pour l'aperçu client (recalcul serveur à la validation).
@@ -70,9 +96,10 @@ export default async function ReservationPage({
     priceMap[`${p.serviceId}-${p.vehicleTypeId}`] = { priceCents: p.priceCents, durationMin: p.durationMin }
   }
 
-  // Booking V2 = tunnel STANDARD (site + widget). Les sites personnalisés
-  // (customSiteKey enregistré, dont Spirit ACS) conservent le tunnel historique.
-  if (!customSite && !settings.vacationMode) {
+  // Booking V2 = tunnel STANDARD (site + widget). Seuls Spirit ACS et Rozan
+  // conservent le tunnel historique, choisi par customSiteKey (jamais par
+  // l'état de publication du site).
+  if (!usesLegacyBookingWizard(requestTenant?.customSiteKey) && !settings.vacationMode) {
     // Même configuration de lieu pour le site standard ET le widget (?embed=1).
     const tenant = await resolveRequestTenant()
     const location = toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG)
@@ -87,7 +114,16 @@ export default async function ReservationPage({
             <EmbedFrameSync />
           </>
         )}
-        <section className={isEmbed ? "bg-background py-6" : "bg-background pb-6 pt-8 md:pt-12"}>
+        {/* Cleanyzer only: the standard Navbar is `fixed` (h-16), so BookingV2 must start below it. */}
+        <section
+          className={
+            isEmbed
+              ? "bg-background py-6"
+              : requestTenant?.customSiteKey?.trim() === "cleanyzer"
+                ? "bg-background pb-16 pt-24 md:pb-20 md:pt-28"
+                : "bg-background pb-6 pt-8 md:pt-12"
+          }
+        >
           <BookingV2
             services={services}
             vehicleTypes={vehicleTypes}

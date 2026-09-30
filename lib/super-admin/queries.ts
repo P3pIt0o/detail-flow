@@ -10,6 +10,8 @@ import {
   smsRechargeRequests,
 } from "@/lib/db/schema"
 import { and, count, desc, eq, sql } from "drizzle-orm"
+import { getPublicationFlagsMap } from "@/lib/company/publication"
+import { DEFAULT_PUBLICATION_FLAGS } from "@/lib/company/publication-shared"
 
 /* -------------------------------------------------------------------------- */
 /*  Lectures de super-administration (plateforme DetailFlow).                  */
@@ -36,6 +38,10 @@ export type CompanyRow = {
   licenseGeneration: string | null
   /** Clé de site public personnalisé (null = site standard DetailFlow). */
   customSiteKey: string | null
+  /** Site personnalisé visible publiquement (false = brouillon). */
+  customSitePublished: boolean
+  /** Lien de réservation autonome /book/{slug} actif. */
+  bookingLinkEnabled: boolean
   /**
    * Parcours d'onboarding persisté (SOURCE DE VÉRITÉ du produit choisi) :
    * "booking_only" | "public_page" | "custom_website" | null (legacy).
@@ -79,8 +85,11 @@ export async function listCompanies(): Promise<CompanyRow[]> {
     .from(companies)
     .orderBy(desc(companies.createdAt))
 
+  const flags = await getPublicationFlagsMap(rows.map((r) => r.id))
+
   return rows.map((r) => ({
     ...r,
+    ...(flags.get(r.id) ?? DEFAULT_PUBLICATION_FLAGS),
     memberCount: Number(r.memberCount),
     bookingCount: Number(r.bookingCount),
     ownerActivated: Boolean(r.ownerActivated),

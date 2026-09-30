@@ -68,6 +68,12 @@ export async function createWorkspace(
   const intentRaw = String(formData.get("intent") ?? "").trim()
   const intent = ["booking", "page", "website"].includes(intentRaw) ? intentRaw : ""
   const canonicalIntent = toCanonicalIntent(intent || null)
+  // Distribution explicite (parcours « booking » uniquement) ; toute autre valeur ignorée.
+  const distributionRaw = String(formData.get("distribution") ?? "").trim()
+  const distribution =
+    canonicalIntent === "booking_only" && (distributionRaw === "link" || distributionRaw === "widget")
+      ? distributionRaw
+      : undefined
 
   if (!name) return { error: "Le nom de votre entreprise est requis." }
 
@@ -94,6 +100,7 @@ export async function createWorkspace(
       phone: phone || undefined,
       websiteUrl: websiteUrl || undefined,
       onboardingIntent: canonicalIntent ?? undefined,
+      bookingDistributionMode: distribution,
     })
     createdSlug = res.slug
   } catch (err) {
