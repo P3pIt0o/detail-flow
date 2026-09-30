@@ -15,6 +15,7 @@ import {
   assertSubscriptionOwner,
   assertValidSubscriptionCompanyId,
   buildSubscriptionCheckoutParams,
+  isCompanyTrialEligible,
   isSubscriptionCheckoutSession,
   isSubscriptionPlan,
   validateSubscriptionPrice,
@@ -136,6 +137,7 @@ export async function createSubscriptionCheckout(
     priceId,
     successUrl: input.successUrl,
     cancelUrl: input.cancelUrl,
+    trialEligible: isCompanyTrialEligible(company),
   })
   const minuteBucket = Math.floor(now.getTime() / 60_000)
   const session = await deps.stripe.checkout.sessions.create(params, {

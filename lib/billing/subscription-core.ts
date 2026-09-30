@@ -97,6 +97,8 @@ export interface CompanyBillingState {
   cancelAtPeriodEnd: boolean
   continuousSubscriptionStartedAt: Date | null
   subscriptionCanceledAt: Date | null
+  /** Première souscription (trial inclus) ; jamais remise à NULL à la résiliation. */
+  subscriptionStartedAt: Date | null
 }
 
 /** Patch appliqué aux colonnes Billing du tenant (jamais aux colonnes Connect). */
@@ -211,28 +213,43 @@ export interface SubscriptionCheckoutParamsInput {
   priceId: string
   successUrl: string
   cancelUrl: string
+  /** Essai offert une seule fois par entreprise (subscriptionStartedAt NULL). */
+  trialEligible: boolean
+}
+
+/** L'essai n'est offert qu'aux entreprises n'ayant jamais démarré de souscription. */
+export function isCompanyTrialEligible(company: Pick<CompanyBillingState, "subscriptionStartedAt">): boolean {
+  return company.subscriptionStartedAt === null
 }
 
 export function buildSubscriptionCheckoutParams(input: SubscriptionCheckoutParamsInput): Stripe.Checkout.SessionCreateParams {
   const metadata = buildSubscriptionMetadata(input.companyId, input.plan)
-  return {
-    mode: "subscription",
+  const base = {
+    mode: "subscription" as const,
     customer: input.customerId,
     client_reference_id: String(input.companyId),
     line_items: [{ price: input.priceId, quantity: 1 }],
+    allow_promotion_codes: false,
+    locale: "fr" as const,
+    metadata,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+  }
+  if (!input.trialEligible) {
+    // Réabonnement : pas de nouveau trial, premier mois dû immédiatement ;
+    // collecte du moyen de paiement par défaut de Stripe.
+    return { ...base, subscription_data: { metadata } }
+  }
+  return {
+    ...base,
     // Essai sans carte : Stripe ne demande un moyen de paiement que si un montant
     // est dû immédiatement (jamais le cas pendant le trial).
     payment_method_collection: "if_required",
-    allow_promotion_codes: false,
-    locale: "fr",
-    metadata,
     subscription_data: {
       trial_period_days: SUBSCRIPTION_TRIAL_DAYS,
       trial_settings: { end_behavior: { missing_payment_method: "pause" } },
       metadata,
     },
-    success_url: input.successUrl,
-    cancel_url: input.cancelUrl,
   }
 }
 

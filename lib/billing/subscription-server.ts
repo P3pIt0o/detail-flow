@@ -13,7 +13,7 @@ import type { CompanyBillingState, SubscriptionStatePatch, SubscriptionStore } f
 
 const COMPANY_COLUMNS = `"id", "billingMode", "licensePlan", "stripeCustomerId", "stripeSubscriptionId",
   "subscriptionStatus", "subscriptionPriceId", "currentPeriodEnd", "cancelAtPeriodEnd",
-  "continuousSubscriptionStartedAt", "subscriptionCanceledAt"`
+  "continuousSubscriptionStartedAt", "subscriptionCanceledAt", "subscriptionStartedAt"`
 
 type Queryable = Pick<Pool, "query"> | PoolClient
 
