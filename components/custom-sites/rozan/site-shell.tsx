@@ -8,7 +8,7 @@
  */
 
 import type { ReactNode } from "react"
-import { Sora } from "next/font/google"
+import localFont from "next/font/local"
 import { RozanNavigation } from "./rozan-navigation"
 import { RozanFooter } from "./rozan-footer"
 import { RozanStickyCta } from "./rozan-sticky-cta"
@@ -16,10 +16,13 @@ import type { RozanNavItem } from "./tokens"
 import "./rozan.css"
 
 // Police d'affichage premium (géométrique moderne), exposée via une variable
-// CSS scopée au conteneur Rozan uniquement.
-const rozanDisplay = Sora({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+// CSS scopée au conteneur Rozan uniquement. Sora (variable 500–700, latin) est
+// embarquée dans le dépôt : le chargement via next/font/google faisait échouer
+// le build Vercel (module-not-found sur le CSS Sora généré).
+const rozanDisplay = localFont({
+  src: "./fonts/sora-latin-variable.woff2",
+  weight: "500 700",
+  style: "normal",
   variable: "--font-rozan-display",
   display: "swap",
 })
