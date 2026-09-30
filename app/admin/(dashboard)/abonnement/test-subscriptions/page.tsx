@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/subscription-core"
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 import { SubscriptionTestCheckoutButton, SubscriptionTestPortalButton } from "./test-subscription-buttons"
+import { describeTestPageTrialCopy, isTestPageTrialEligible } from "./trial-copy"
 
 export const metadata: Metadata = { title: "Test Abonnements — Preview", robots: { index: false, follow: false } }
 export const dynamic = "force-dynamic"
@@ -22,6 +23,7 @@ export default async function SubscriptionPreviewTestPage() {
   const member = await requireCompanyMember(["OWNER"])
   const company = await createPgSubscriptionStore().getCompany(member.tenant.id)
   const hasSubscription = Boolean(company?.stripeSubscriptionId)
+  const trialCopy = describeTestPageTrialCopy(isTestPageTrialEligible(company))
 
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-12">
@@ -34,7 +36,7 @@ export default async function SubscriptionPreviewTestPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-balance text-2xl font-semibold text-foreground">Test Abonnements — Preview</h1>
         <p className="text-pretty leading-relaxed text-muted-foreground">
-          Stripe TEST et base Preview isolée. 30 jours gratuits, sans carte bancaire. Vous pourrez ajouter votre moyen de paiement avant la fin de l&apos;essai.
+          {trialCopy.intro}
         </p>
       </div>
 
@@ -68,7 +70,7 @@ export default async function SubscriptionPreviewTestPage() {
             return (
               <div key={plan} className="flex flex-col gap-1">
                 <SubscriptionTestCheckoutButton plan={plan} label={label} />
-                <span className="text-sm text-muted-foreground">1er mois offert</span>
+                <span className="text-sm text-muted-foreground">{trialCopy.planNote}</span>
               </div>
             )
           })}
