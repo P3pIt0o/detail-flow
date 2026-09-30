@@ -3,6 +3,8 @@ import { db } from "@/lib/db"
 import { platformSettings, companies, payments } from "@/lib/db/schema"
 import { eq, sql, desc } from "drizzle-orm"
 import { normalizePaymentMode, type PaymentMode } from "./mode"
+import { resolveCommercialCommission, type ResolvedCommission } from "@/lib/billing/commercial-rules"
+import { getMonthlyPlatformFeeUsage } from "./platform-fee-ledger"
 
 /**
  * Commission plateforme DetailFlow.
@@ -51,6 +53,11 @@ export type TenantPaymentConfig = {
   feeBps: number
   /** Commission en pourcentage lisible (ex. "3" ou "2.5"). */
   feePercent: string
+  /** Plafond mensuel de l'offre (null = fallback historique sans plafond). */
+  monthlyFeeCapCents: number | null
+  feeSource: ResolvedCommission["source"]
+  /** « Commission ce mois : X € / Y € » — null si le registre est indisponible. */
+  monthlyFeeUsage: { monthKey: string; consumedCents: number } | null
 }
 
 /**
@@ -68,13 +75,30 @@ export async function getTenantPaymentConfig(companyId: number): Promise<TenantP
         paymentsEnabled: companies.paymentsEnabled,
         paymentMode: companies.paymentMode,
         platformFeeBps: companies.platformFeeBps,
+        billingMode: companies.billingMode,
+        licensePlan: companies.licensePlan,
+        timezone: companies.timezone,
       })
       .from(companies)
       .where(eq(companies.id, companyId))
       .limit(1),
   ])
 
-  const feeBps = resolvePlatformFeeBps({ platformFeeBps: row?.platformFeeBps ?? null }, defaultBps)
+  const commission = resolveCommercialCommission(
+    {
+      billingMode: row?.billingMode ?? null,
+      licensePlan: row?.licensePlan ?? null,
+      platformFeeBps: row?.platformFeeBps ?? null,
+    },
+    defaultBps,
+  )
+  const feeBps = commission.feeBps
+  let monthlyFeeUsage: TenantPaymentConfig["monthlyFeeUsage"] = null
+  try {
+    monthlyFeeUsage = await getMonthlyPlatformFeeUsage({ companyId, timezone: row?.timezone ?? null })
+  } catch {
+    // Registre non migré / indisponible : l'écran reste affichable.
+  }
   const mode = normalizePaymentMode(row?.paymentMode)
   return {
     connected: Boolean(row?.stripeAccountId),
@@ -84,6 +108,9 @@ export async function getTenantPaymentConfig(companyId: number): Promise<TenantP
     paymentMode: mode,
     feeBps,
     feePercent: formatBpsPercent(feeBps),
+    monthlyFeeCapCents: commission.monthlyFeeCapCents,
+    feeSource: commission.source,
+    monthlyFeeUsage,
   }
 }
 
@@ -128,6 +155,8 @@ export async function getPlatformPaymentsOverview(): Promise<PlatformPaymentsOve
       stripeChargesEnabled: companies.stripeChargesEnabled,
       paymentsEnabled: companies.paymentsEnabled,
       platformFeeBps: companies.platformFeeBps,
+      billingMode: companies.billingMode,
+      licensePlan: companies.licensePlan,
       paidCount: sql<number>`count(${payments.id}) filter (where ${payments.status} = 'paid')`,
       grossCents: sql<number>`coalesce(sum(${payments.grossAmountCents}) filter (where ${payments.status} = 'paid'), 0)`,
       commissionCents: sql<number>`coalesce(sum(${payments.platformFeeAmountCents}) filter (where ${payments.status} = 'paid'), 0)`,
@@ -142,6 +171,8 @@ export async function getPlatformPaymentsOverview(): Promise<PlatformPaymentsOve
       companies.stripeChargesEnabled,
       companies.paymentsEnabled,
       companies.platformFeeBps,
+      companies.billingMode,
+      companies.licensePlan,
     )
     .orderBy(desc(sql`coalesce(sum(${payments.platformFeeAmountCents}) filter (where ${payments.status} = 'paid'), 0)`))
 
@@ -152,7 +183,10 @@ export async function getPlatformPaymentsOverview(): Promise<PlatformPaymentsOve
     connected: Boolean(r.stripeAccountId),
     chargesEnabled: Boolean(r.stripeChargesEnabled),
     paymentsEnabled: Boolean(r.paymentsEnabled),
-    feeBps: resolvePlatformFeeBps({ platformFeeBps: r.platformFeeBps ?? null }, defaultFeeBps),
+    feeBps: resolveCommercialCommission(
+      { billingMode: r.billingMode, licensePlan: r.licensePlan, platformFeeBps: r.platformFeeBps ?? null },
+      defaultFeeBps,
+    ).feeBps,
     paidCount: Number(r.paidCount ?? 0),
     grossCents: Number(r.grossCents ?? 0),
     commissionCents: Number(r.commissionCents ?? 0),

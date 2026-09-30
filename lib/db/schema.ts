@@ -1540,6 +1540,73 @@ export const paymentEvents = pgTable("payment_events", {
  * Montants en centimes entiers. Persistance requise via
  * `scripts/refunds-table-migration.sql` (migration additive, non exécutée ici).
  */
+/**
+ * Plafond mensuel des commissions Stripe Connect (aligné sur
+ * scripts/platform-fee-ledger-migration.sql). Accès via
+ * lib/payments/platform-fee-ledger.ts uniquement (verrou FOR UPDATE).
+ */
+export const platformFeeMonthlyCounters = pgTable(
+  "platform_fee_monthly_counters",
+  {
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    monthKey: text("monthKey").notNull(),
+    consumedCents: integer("consumedCents").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: uniqueIndex("platform_fee_monthly_counters_pkey").on(t.companyId, t.monthKey),
+    monthKeyFormat: check(
+      "platform_fee_counters_month_key_format",
+      sql`${t.monthKey} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    consumedNonNegative: check("platform_fee_counters_consumed_non_negative", sql`${t.consumedCents} >= 0`),
+  }),
+)
+
+export const platformFeeReservations = pgTable(
+  "platform_fee_reservations",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    bookingId: integer("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+    monthKey: text("monthKey").notNull(),
+    attemptKey: text("attemptKey").notNull(),
+    externalPaymentId: text("externalPaymentId"),
+    grossAmountCents: integer("grossAmountCents").notNull(),
+    feeBps: integer("feeBps").notNull(),
+    monthlyCapCents: integer("monthlyCapCents"),
+    feeSource: text("feeSource").notNull(),
+    reservedCents: integer("reservedCents").notNull(),
+    refundReleasedCents: integer("refundReleasedCents").notNull().default(0),
+    // reserved | consumed | released
+    status: text("status").notNull().default("reserved"),
+    releaseReason: text("releaseReason"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    consumedAt: timestamp("consumedAt"),
+    releasedAt: timestamp("releasedAt"),
+  },
+  (t) => ({
+    activeAttempt: uniqueIndex("platform_fee_res_active_attempt_key")
+      .on(t.attemptKey)
+      .where(sql`${t.status} in ('reserved', 'consumed')`),
+    externalKey: uniqueIndex("platform_fee_res_external_key")
+      .on(t.externalPaymentId)
+      .where(sql`${t.externalPaymentId} is not null`),
+    byCompanyMonth: index("platform_fee_res_company_month_idx").on(t.companyId, t.monthKey),
+    statusValid: check("platform_fee_res_status_valid", sql`${t.status} in ('reserved', 'consumed', 'released')`),
+    refundBounds: check(
+      "platform_fee_res_refund_bounds",
+      sql`${t.refundReleasedCents} between 0 and ${t.reservedCents}`,
+    ),
+  }),
+)
+
 export const refunds = pgTable(
   "refunds",
   {
@@ -1592,5 +1659,22 @@ export const refunds = pgTable(
       sql`${t.status} in ('requested', 'pending', 'succeeded', 'failed', 'canceled')`,
     ),
     currencyIso: check("refunds_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  }),
+)
+
+/**
+ * Idempotence du webhook Stripe BILLING (abonnements) — voir
+ * scripts/billing-events-migration.sql. Une ligne n'est écrite qu'après le
+ * traitement RÉUSSI de l'événement. Les événements Lifetime n'y passent pas.
+ */
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    eventId: text("eventId").primaryKey(),
+    eventType: text("eventType").notNull(),
+    processedAt: timestamp("processedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byProcessedAt: index("billing_events_processedAt_idx").on(t.processedAt),
   }),
 )

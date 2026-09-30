@@ -3,8 +3,16 @@ import { db } from "@/lib/db"
 import { payments, paymentEvents, companies, bookings } from "@/lib/db/schema"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { getPaymentProvider } from "./providers"
-import { getDefaultPlatformFeeBps, resolvePlatformFeeBps } from "./config"
-import { computePlatformFeeCents, type PaymentType } from "./types"
+import { getDefaultPlatformFeeBps } from "./config"
+import { type PaymentType } from "./types"
+import { resolveCommercialCommission } from "@/lib/billing/commercial-rules"
+import {
+  attachExternalPaymentId,
+  releasePlatformFeeReservation,
+  reservePlatformFee,
+  type PlatformFeeReservation,
+} from "./platform-fee-ledger"
+import { buildCheckoutIdempotencyKey } from "./platform-fee-ledger-logic"
 import { normalizePaymentMode, resolveCheckoutType, type PaymentMode } from "./mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { safeSyncLeadFromBooking } from "@/lib/leads/server"
@@ -41,6 +49,8 @@ export async function getCompanyPaymentConfig(companyId: number): Promise<Compan
       paymentsEnabled: companies.paymentsEnabled,
       paymentMode: companies.paymentMode,
       platformFeeBps: companies.platformFeeBps,
+      billingMode: companies.billingMode,
+      licensePlan: companies.licensePlan,
     })
     .from(companies)
     .where(eq(companies.id, companyId))
@@ -48,7 +58,7 @@ export async function getCompanyPaymentConfig(companyId: number): Promise<Compan
   if (!c) return null
 
   const defaultBps = await getDefaultPlatformFeeBps()
-  const feeBps = resolvePlatformFeeBps({ platformFeeBps: c.platformFeeBps }, defaultBps)
+  const feeBps = resolveCommercialCommission(c, defaultBps).feeBps
   const mode = normalizePaymentMode(c.paymentMode)
   const canCollect =
     c.paymentsEnabled &&
@@ -213,41 +223,87 @@ export async function createBookingCheckout(input: {
   const provider = getPaymentProvider("stripe")
   if (!provider) return { ok: false, error: "Fournisseur de paiement indisponible." }
 
-  const feeBps = cfg.platformFeeBps
-  const feeAmountCents = computePlatformFeeCents(amountCents, feeBps)
-
   // Nettoie les tentatives non payées précédentes (aucun argent déplacé) pour
-  // n'avoir qu'une seule ligne "pending" par réservation.
+  // n'avoir qu'une seule ligne "pending" par réservation. Les réservations de
+  // commission de ces sessions restent tracées (platform_fee_reservations) et
+  // sont libérées à leur expiration Stripe.
   await db
     .delete(payments)
     .where(and(eq(payments.bookingId, bookingId), eq(payments.companyId, companyId), eq(payments.status, "pending")))
 
-  const created = await provider.createPayment({
-    connectedAccountId: cfg.stripeAccountId,
-    amountCents,
-    currency,
-    applicationFeeCents: feeAmountCents,
-    description: `Réservation ${booking.reference}`,
-    metadata: {
-      bookingId: String(bookingId),
-      companyId: String(companyId),
+  // Commission plafonnée par mois civil : réservée ATOMIQUEMENT (verrou du
+  // compteur mensuel) AVANT Stripe. Fail closed si la réservation échoue.
+  let reservation: PlatformFeeReservation
+  try {
+    reservation = await reservePlatformFee({
+      companyId,
+      bookingId,
       type,
-    },
-    returnUrl,
-  })
+      grossAmountCents: amountCents,
+      fallbackFeeBps: await getDefaultPlatformFeeBps(),
+    })
+  } catch (e) {
+    console.log("[v0] createBookingCheckout: réservation commission impossible:", (e as Error).message)
+    return { ok: false, error: "Les paiements en ligne sont momentanément indisponibles." }
+  }
 
-  await db.insert(payments).values({
-    companyId,
-    bookingId,
-    provider: "stripe",
-    externalPaymentId: created.externalId,
-    type,
-    status: "pending",
-    currency,
-    grossAmountCents: amountCents,
-    platformFeeBps: feeBps,
-    platformFeeAmountCents: feeAmountCents,
-  })
+  let created: { externalId: string; clientSecret: string }
+  try {
+    created = await provider.createPayment({
+      connectedAccountId: cfg.stripeAccountId,
+      amountCents,
+      currency,
+      // Montant EXACT réservé : jamais recalculé après la réservation.
+      applicationFeeCents: reservation.feeCents,
+      description: `Réservation ${booking.reference}`,
+      metadata: {
+        bookingId: String(bookingId),
+        companyId: String(companyId),
+        type,
+      },
+      returnUrl,
+      idempotencyKey: buildCheckoutIdempotencyKey(reservation.reservationId),
+    })
+  } catch (e) {
+    // Seul le créateur de la réservation la libère (un double clic qui l'a
+    // réutilisée ne libère jamais la réservation d'une autre requête).
+    if (reservation.created) {
+      await releasePlatformFeeReservation({
+        reservationId: reservation.reservationId,
+        companyId,
+        reason: "stripe_create_failed",
+      }).catch((releaseError) =>
+        console.log("[v0] createBookingCheckout: libération commission échouée:", (releaseError as Error).message),
+      )
+    }
+    console.log("[v0] createBookingCheckout: échec création Stripe:", (e as Error).message)
+    return { ok: false, error: "Impossible de préparer le paiement. Veuillez réessayer." }
+  }
+
+  try {
+    await attachExternalPaymentId({ reservationId: reservation.reservationId, companyId, externalPaymentId: created.externalId })
+  } catch (e) {
+    // Réservation libérée entre-temps : la session n'est PAS transmise au client
+    // (elle ne peut donc pas être payée et expirera).
+    console.log("[v0] createBookingCheckout: rattachement session refusé:", (e as Error).message)
+    return { ok: false, error: "Impossible de préparer le paiement. Veuillez réessayer." }
+  }
+
+  await db
+    .insert(payments)
+    .values({
+      companyId,
+      bookingId,
+      provider: "stripe",
+      externalPaymentId: created.externalId,
+      type,
+      status: "pending",
+      currency,
+      grossAmountCents: amountCents,
+      platformFeeBps: reservation.feeBps,
+      platformFeeAmountCents: reservation.feeCents,
+    })
+    .onConflictDoNothing({ target: [payments.provider, payments.externalPaymentId] })
 
   return { ok: true, clientSecret: created.clientSecret, amountCents, type }
 }

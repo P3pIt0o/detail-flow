@@ -59,7 +59,10 @@ const stripeProvider: PaymentProvider = {
         // Le caller fournit déjà l'URL complète (avec le placeholder session_id).
         return_url: input.returnUrl,
       },
-      { stripeAccount: input.connectedAccountId },
+      {
+        stripeAccount: input.connectedAccountId,
+        ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+      },
     )
     if (!session.client_secret) throw new Error("Stripe : client_secret manquant")
     return { externalId: session.id, clientSecret: session.client_secret }
