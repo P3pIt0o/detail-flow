@@ -76,6 +76,7 @@ function company(overrides: Partial<CompanyBillingState> = {}): CompanyBillingSt
     cancelAtPeriodEnd: false,
     continuousSubscriptionStartedAt: null,
     subscriptionCanceledAt: null,
+    subscriptionStartedAt: null,
     ...overrides,
   }
 }
@@ -281,7 +282,7 @@ describe("Checkout abonnement", () => {
 
   it("aucun paiement immédiat : pas de ligne unique, pas de mode payment, pas de setup forcé", () => {
     const params = buildSubscriptionCheckoutParams({
-      companyId: 1, plan: "BUSINESS", customerId: "cus", priceId: "price_x", successUrl: "s", cancelUrl: "c",
+      companyId: 1, plan: "BUSINESS", customerId: "cus", priceId: "price_x", successUrl: "s", cancelUrl: "c", trialEligible: true,
     })
     expect(params.mode).toBe("subscription")
     expect(params.payment_method_collection).not.toBe("always")
@@ -295,7 +296,7 @@ describe("Checkout abonnement", () => {
   it("trial = 30 jours", () => {
     expect(SUBSCRIPTION_TRIAL_DAYS).toBe(30)
     const params = buildSubscriptionCheckoutParams({
-      companyId: 1, plan: "PRO", customerId: "cus", priceId: "p", successUrl: "s", cancelUrl: "c",
+      companyId: 1, plan: "PRO", customerId: "cus", priceId: "p", successUrl: "s", cancelUrl: "c", trialEligible: true,
     })
     expect(params.subscription_data?.trial_period_days).toBe(30)
   })
@@ -328,6 +329,62 @@ describe("Checkout abonnement", () => {
       code: "PRICE_INVALID",
     })
     expect(raw.checkout.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it.each(["PRO", "BUSINESS"] as const)("A. %s jamais abonnée (subscriptionStartedAt NULL) => 30 jours gratuits", async (plan) => {
+    const { store } = memoryStore([company({ subscriptionStartedAt: null })])
+    const { stripe, created } = checkoutStripe(priceFor(plan))
+    await createSubscriptionCheckout(checkoutInput(plan), { stripe, store, env: ENV })
+    expect(created[0].subscription_data?.trial_period_days).toBe(30)
+    expect(created[0].subscription_data?.trial_settings).toEqual({ end_behavior: { missing_payment_method: "pause" } })
+    expect(created[0].payment_method_collection).toBe("if_required")
+  })
+
+  it.each(["PRO", "BUSINESS"] as const)("B. %s déjà eu un trial puis résiliée => sans trial, paiement immédiat", async (plan) => {
+    const { store } = memoryStore([
+      company({
+        subscriptionStartedAt: new Date("2026-06-01T00:00:00Z"),
+        subscriptionCanceledAt: new Date("2026-09-01T00:00:00Z"),
+        stripeCustomerId: "cus_7",
+        stripeSubscriptionId: null,
+        subscriptionStatus: "canceled",
+      }),
+    ])
+    const { stripe, created } = checkoutStripe(priceFor(plan))
+    await createSubscriptionCheckout(checkoutInput(plan), { stripe, store, env: ENV })
+    expect(created).toHaveLength(1)
+    const params = created[0]
+    expect(params.mode).toBe("subscription")
+    expect(params.line_items).toEqual([{ price: PRICE_IDS[plan], quantity: 1 }])
+    expect(params.subscription_data).not.toHaveProperty("trial_period_days")
+    expect(params.subscription_data).not.toHaveProperty("trial_end")
+    expect(params.subscription_data).not.toHaveProperty("trial_settings")
+    // Collecte du moyen de paiement par défaut Stripe (« always ») : pas de if_required.
+    expect(params).not.toHaveProperty("payment_method_collection")
+    expect(params.metadata).toEqual({ app: "detailflow", billing_type: "subscription", company_id: "7", license_plan: plan })
+    expect(params.subscription_data?.metadata).toEqual(params.metadata)
+  })
+
+  it.each([
+    ["C. abonnement actif", company({ subscriptionStartedAt: new Date("2026-06-01"), stripeSubscriptionId: "sub_x", subscriptionStatus: "active" }), [], "ALREADY_SUBSCRIBED"],
+    ["C. essai en cours", company({ subscriptionStartedAt: new Date("2026-06-01"), stripeSubscriptionId: "sub_x", subscriptionStatus: "trialing" }), [], "ALREADY_SUBSCRIBED"],
+    ["D. Lifetime historique", company({ subscriptionStartedAt: new Date("2026-06-01"), billingMode: "lifetime", licensePlan: "BUSINESS" }), [], "LIFETIME_TENANT"],
+    ["D. licence Lifetime", company({ subscriptionStartedAt: new Date("2026-06-01") }), [7], "LIFETIME_TENANT"],
+    ["D. Founder", company({ subscriptionStartedAt: new Date("2026-06-01"), licensePlan: "FOUNDER" }), [], "FOUNDER_TENANT"],
+  ])("%s avec historique d'essai => protections inchangées", async (_label, state, lifetime, code) => {
+    const { store } = memoryStore([state as CompanyBillingState], lifetime as number[])
+    const { stripe, raw } = checkoutStripe(priceFor("PRO"))
+    await expect(createSubscriptionCheckout(checkoutInput("PRO"), { stripe, store, env: ENV })).rejects.toMatchObject({ code })
+    expect(raw.checkout.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it("E. la résiliation effective (UPDATE terminal) ne remet jamais subscriptionStartedAt à NULL", () => {
+    const src = readFileSync(join(process.cwd(), "lib/billing/subscription-server.ts"), "utf8")
+    const terminal = src.slice(src.indexOf("if (patch.terminal)"), src.indexOf("return\n  }"))
+    expect(terminal).toContain(`"stripeSubscriptionId" = NULL`)
+    expect(terminal).not.toContain(`"subscriptionStartedAt"`)
+    expect(src).not.toMatch(/"subscriptionStartedAt"\s*=\s*NULL/)
+    expect(src).toMatch(/COMPANY_COLUMNS = [^;]*"subscriptionStartedAt"/)
   })
 
   it.each([
