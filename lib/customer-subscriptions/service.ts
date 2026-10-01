@@ -4,6 +4,7 @@
  * Mutations : OWNER / ADMIN (super-admin : comportement existant conservé).
  * Retour sérialisable { ok, value } | { ok: false, code } ; l'UI traduit les codes.
  */
+import "server-only"
 import { requireCompanyMember, type MemberContext } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { toErrorResult, type Result } from "./errors"
@@ -56,6 +57,9 @@ export const revokeRenewalOptOutForCurrentTenant = (subscriptionId: number) =>
 
 export const scheduleCancellationForCurrentTenant = (subscriptionId: number, requestedCancelAt?: Date | null) =>
   run(MUTATORS, (companyId, actor) => engine.scheduleCancellation(db, companyId, actor, subscriptionId, { requestedCancelAt }))
+
+export const rotateManageTokenForCurrentTenant = (subscriptionId: number) =>
+  run(MUTATORS, (companyId, actor) => engine.rotateManageToken(db, companyId, actor, subscriptionId))
 
 export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, reason: string) =>
   run(MUTATORS, (companyId, actor) => engine.forceEndSubscription(db, companyId, actor, subscriptionId, reason))

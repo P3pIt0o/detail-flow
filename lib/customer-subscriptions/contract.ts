@@ -180,6 +180,14 @@ export type UsabilityCheck = { allowed: true } | { allowed: false; reason: Custo
 /**
  * Un NOUVEAU droit est-il utilisable maintenant ? Ne touche jamais aux
  * réservations déjà existantes (un past_due n'annule aucun booking).
+ *
+ * CONTRAT BOOKING : un maintenance_cycle existant (ou des maintenance_uses
+ * disponibles) n'est PAS une autorisation. Le futur booking DOIT appeler
+ * canUseEntitlement() avant de réserver un maintenance_use.
+ *  - past_due / suspended : consomment une place, AUCUNE nouvelle utilisation ;
+ *  - active / cancel_scheduled : utilisables uniquement avant cancelAt /
+ *    fin effective (prépayé compris) ;
+ *  - statuts terminaux / pending_* : jamais.
  */
 export function canUseEntitlement(sub: SubscriptionTimeline, now: Date): UsabilityCheck {
   if (sub.status === "past_due") return { allowed: false, reason: "PAST_DUE" }

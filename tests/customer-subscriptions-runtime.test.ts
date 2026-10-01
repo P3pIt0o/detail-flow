@@ -313,7 +313,10 @@ describe("moteur transactionnel (PGlite)", () => {
     expect((await engine.createSubscription(db, biz.companyId, owner, subInput(bizPlan), NOW)).replayed).toBe(false)
   })
 
-  it("C. concurrence : deux créations simultanées au dernier slot → une seule gagne", async () => {
+  // Test LOGIQUE : PGlite = une seule connexion, les transactions sont exécutées
+  // à la suite. Ne prouve PAS une race PostgreSQL réelle → voir
+  // tests/customer-subscriptions-concurrency.integration.test.ts.
+  it("C. concurrence (logique, PGlite sérialisé) : dernier slot → une seule création", async () => {
     const c = await seedCompany("FREE")
     const planId = await seedPlan(c.companyId, c.includedServiceId)
     await engine.createSubscription(db, c.companyId, owner, subInput(planId), NOW)
@@ -340,6 +343,33 @@ describe("moteur transactionnel (PGlite)", () => {
     expect([r1.replayed, r2.replayed].sort()).toEqual([false, true])
     expect([r1.manageToken, r2.manageToken].filter(Boolean)).toHaveLength(1)
     expect((await engine.getCustomerSubscriptionCapacity(db, c.companyId)).activeCount).toBe(1)
+  })
+
+  it("token perdu : rotateManageToken invalide l'ancien, rend le brut une fois, n'en journalise rien", async () => {
+    const c = await seedCompany("PRO")
+    const other = await seedCompany("PRO")
+    const planId = await seedPlan(c.companyId, c.includedServiceId)
+    const input = subInput(planId)
+    const first = await engine.createSubscription(db, c.companyId, owner, input, NOW)
+    const replay = await engine.createSubscription(db, c.companyId, owner, input, NOW)
+    expect(replay.manageToken).toBeNull()
+
+    await expectCode(engine.rotateManageToken(db, c.companyId, employee, first.subscriptionId), "FORBIDDEN")
+    await expectCode(engine.rotateManageToken(db, other.companyId, owner, first.subscriptionId), "SUBSCRIPTION_NOT_FOUND")
+
+    const rotated = await engine.rotateManageToken(db, c.companyId, owner, first.subscriptionId)
+    expect(Buffer.from(rotated.manageToken, "base64url").length).toBeGreaterThanOrEqual(32)
+    const [row] = await db.select().from(schema.maintenanceSubscriptions).where(eq(schema.maintenanceSubscriptions.id, first.subscriptionId))
+    expect(row.manageTokenHash).toBe(hashManageToken(rotated.manageToken))
+    expect(verifyManageToken(first.manageToken!, row.manageTokenHash!)).toBe(false)
+    expect(verifyManageToken(rotated.manageToken, row.manageTokenHash!)).toBe(true)
+
+    const dump = JSON.stringify((await pg.query(`SELECT * FROM maintenance_subscriptions WHERE id=$1`, [first.subscriptionId])).rows)
+      + JSON.stringify((await pg.query(`SELECT * FROM maintenance_audit_log WHERE "subscriptionId"=$1`, [first.subscriptionId])).rows)
+    expect(dump).not.toContain(rotated.manageToken)
+    expect(dump).not.toContain(first.manageToken!)
+    const audit = await pg.query<{ action: string }>(`SELECT action FROM maintenance_audit_log WHERE "subscriptionId"=$1`, [first.subscriptionId])
+    expect(audit.rows.map((r) => r.action)).toContain("manage_token_rotated")
   })
 
   it("D. downgrade BUSINESS 25 → FREE : 25 restent, création refusée, overLimit exposé", async () => {

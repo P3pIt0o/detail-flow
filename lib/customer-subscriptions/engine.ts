@@ -8,6 +8,7 @@
  * Isolation : toute lecture filtre `companyId = tenant` ; un ID d'un autre
  * tenant répond NOT_FOUND (existence jamais révélée).
  */
+import "server-only"
 import { and, count, eq, inArray, isNull, lt, ne } from "drizzle-orm"
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core"
 import {
@@ -76,6 +77,7 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "subscription_force_ended",
   "subscription_suspended",
   "subscription_resumed",
+  "manage_token_rotated",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -310,7 +312,10 @@ export type CreateSubscriptionInput = {
 export type CreateSubscriptionResult = {
   subscriptionId: number
   status: "pending_initial_cleaning" | "pending_payment"
-  /** Token brut (futur email) — rendu UNE fois ; null lors d'un rejeu idempotent. */
+  /**
+   * Token brut (futur email) — rendu UNE fois ; null lors d'un rejeu idempotent
+   * (le brut n'est jamais stocké). Réponse perdue → rotateManageToken().
+   */
   manageToken: string | null
   replayed: boolean
 }
@@ -441,6 +446,32 @@ function intervalOf(sub: SubscriptionRow): BillingInterval {
 }
 function commitmentOf(sub: SubscriptionRow): Commitment {
   return { unit: sub.commitmentUnitSnapshot as Commitment["unit"], count: sub.commitmentCountSnapshot }
+}
+
+/**
+ * Régénère le token de gestion client (ex. réponse de création perdue → rejeu
+ * idempotent sans token). Remplace UNIQUEMENT manageTokenHash : l'ancien token
+ * est invalide dès le commit. Le brut est rendu une seule fois, jamais stocké
+ * ni journalisé. Aucun email envoyé ici.
+ */
+export async function rotateManageToken(
+  db: Executor,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  now: Date = new Date(),
+): Promise<{ subscriptionId: number; manageToken: string }> {
+  assertCanMutate(actor)
+  return db.transaction(async (tx) => {
+    const sub = await lockSubscription(tx, companyId, subscriptionId)
+    const token = generateManageToken()
+    await tx
+      .update(maintenanceSubscriptions)
+      .set({ manageTokenHash: token.hash, updatedAt: now })
+      .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
+    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "manage_token_rotated", actorType: "user", actorUserId: actor.userId })
+    return { subscriptionId: sub.id, manageToken: token.token }
+  })
 }
 
 /** Nettoyage initial validé : passe au paiement. Aucune ancre de facturation ici. */
