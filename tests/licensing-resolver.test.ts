@@ -19,13 +19,16 @@ function feature(view: ReturnType<typeof resolveEntitlements>, key: string) {
 }
 
 describe("matrice des plans", () => {
-  it("FREE : aucune feature premium + limites strictes", () => {
-    for (const k of FEATURE_KEYS) expect(planFeature("FREE", k)).toBe(false)
+  it("FREE : aucune feature premium (seule la feature de base customer_subscriptions) + limites strictes", () => {
+    for (const k of FEATURE_KEYS) {
+      expect(planFeature("FREE", k), k).toBe(k === "customer_subscriptions")
+    }
     expect(PLAN_MATRIX.FREE.limits).toEqual({
       maxCustomers: 10,
       maxVehicles: 10,
       maxQuotesPerMonth: 3,
       maxInvoicesPerMonth: 3,
+      maxActiveCustomerSubscriptions: 2,
     })
   })
 

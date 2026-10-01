@@ -37,12 +37,22 @@ export const FEATURE_KEYS = [
   // LOT 2 — CRM prospects (leads). Accordé à BUSINESS/ENTERPRISE/FOUNDER.
   "leads_crm",
   "early_access",
+  // Abonnements d'entretien vendus par le tenant à SES clients (Stripe Connect).
+  // Fonctionnalité de BASE (tous les plans) : capacité différenciée par
+  // `maxActiveCustomerSubscriptions` + commission (lib/customer-subscriptions).
+  "customer_subscriptions",
 ] as const
 export type FeatureKey = (typeof FEATURE_KEYS)[number]
 
 /* -------------------------------- Limites -------------------------------- */
 
-export const LIMIT_KEYS = ["maxCustomers", "maxVehicles", "maxQuotesPerMonth", "maxInvoicesPerMonth"] as const
+export const LIMIT_KEYS = [
+  "maxCustomers",
+  "maxVehicles",
+  "maxQuotesPerMonth",
+  "maxInvoicesPerMonth",
+  "maxActiveCustomerSubscriptions",
+] as const
 export type LimitKey = (typeof LIMIT_KEYS)[number]
 
 /** `null` = illimité (convention explicite, aucune valeur magique type 999999). */
