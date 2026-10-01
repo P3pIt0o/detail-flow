@@ -1705,16 +1705,30 @@ export const maintenancePlans = pgTable(
       .references(() => companies.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     description: text("description"),
-    // Prix COURANT de la formule ; les contrats conservent leur propre snapshot.
+    // Prix COURANT PAR PÉRIODE DE FACTURATION (jamais implicitement « mensuel ») ;
+    // les contrats conservent leur propre snapshot.
     priceCents: integer("priceCents").notNull(),
     currency: text("currency").notNull().default("EUR"),
+    // Période de facturation : week | month × count (ex. month/1, week/4).
+    // V1 : un cycle de droits = une période de facturation.
+    billingIntervalUnit: text("billingIntervalUnit").notNull().default("month"),
+    billingIntervalCount: integer("billingIntervalCount").notNull().default(1),
+    // Prestations incluses par période de facturation (non reportables).
     includedUsesPerCycle: integer("includedUsesPerCycle").notNull().default(1),
-    minimumCommitmentMonths: integer("minimumCommitmentMonths").notNull().default(0),
+    // Engagement : none/0 | month/N (mois calendaires) | billing_cycle/N (N échéances).
+    // N mois ≠ N paiements (week/4 sur 6 mois ≈ 7 échéances) : dates calculées par le service.
+    commitmentUnit: text("commitmentUnit").notNull().default("none"),
+    commitmentCount: integer("commitmentCount").notNull().default(0),
+    // Fin de terme : none (arrêt) | same_term (nouveau terme identique) | open_ended (sans engagement).
+    renewalMode: text("renewalMode").notNull().default("open_ended"),
+    // Préavis/rappel configurable avant renouvellement (aucune durée légale codée en dur).
+    renewalNoticeDays: integer("renewalNoticeDays"),
     initialServiceId: integer("initialServiceId").references(() => services.id, { onDelete: "set null" }),
     initialCleaningRequired: boolean("initialCleaningRequired").notNull().default(false),
-    allowMonthlyPayment: boolean("allowMonthlyPayment").notNull().default(true),
+    allowRecurringPayment: boolean("allowRecurringPayment").notNull().default(true),
     allowPrepaidPayment: boolean("allowPrepaidPayment").notNull().default(false),
-    prepaidMonths: integer("prepaidMonths"),
+    // Prépaiement = N périodes de facturation (pas N mois).
+    prepaidBillingCycles: integer("prepaidBillingCycles"),
     // public | unlisted | private
     visibility: text("visibility").notNull().default("public"),
     // draft | active | archived
@@ -1729,17 +1743,29 @@ export const maintenancePlans = pgTable(
     byCompanyStatus: index("maintenance_plans_company_status_idx").on(t.companyId, t.status),
     priceNonNegative: check("maintenance_plans_price_non_negative", sql`${t.priceCents} >= 0`),
     usesPositive: check("maintenance_plans_uses_positive", sql`${t.includedUsesPerCycle} > 0`),
-    commitmentNonNegative: check(
-      "maintenance_plans_commitment_non_negative",
-      sql`${t.minimumCommitmentMonths} >= 0`,
+    billingIntervalValid: check(
+      "maintenance_plans_billing_interval_valid",
+      sql`${t.billingIntervalUnit} in ('week', 'month') and ${t.billingIntervalCount} > 0`,
     ),
-    prepaidMonthsValid: check(
-      "maintenance_plans_prepaid_months_valid",
-      sql`(${t.prepaidMonths} is null or ${t.prepaidMonths} > 0) and (not ${t.allowPrepaidPayment} or ${t.prepaidMonths} is not null)`,
+    commitmentValid: check(
+      "maintenance_plans_commitment_valid",
+      sql`${t.commitmentUnit} in ('none', 'month', 'billing_cycle') and ((${t.commitmentUnit} = 'none' and ${t.commitmentCount} = 0) or (${t.commitmentUnit} <> 'none' and ${t.commitmentCount} > 0))`,
+    ),
+    renewalModeValid: check(
+      "maintenance_plans_renewal_mode_valid",
+      sql`${t.renewalMode} in ('none', 'same_term', 'open_ended') and (${t.renewalMode} <> 'same_term' or ${t.commitmentUnit} <> 'none')`,
+    ),
+    renewalNoticeDaysValid: check(
+      "maintenance_plans_renewal_notice_days_valid",
+      sql`${t.renewalNoticeDays} is null or ${t.renewalNoticeDays} >= 0`,
+    ),
+    prepaidCyclesValid: check(
+      "maintenance_plans_prepaid_cycles_valid",
+      sql`(${t.prepaidBillingCycles} is null or ${t.prepaidBillingCycles} > 0) and (not ${t.allowPrepaidPayment} or ${t.prepaidBillingCycles} is not null)`,
     ),
     paymentModeAllowed: check(
       "maintenance_plans_payment_mode_allowed",
-      sql`${t.allowMonthlyPayment} or ${t.allowPrepaidPayment}`,
+      sql`${t.allowRecurringPayment} or ${t.allowPrepaidPayment}`,
     ),
     visibilityValid: check(
       "maintenance_plans_visibility_valid",
@@ -1764,17 +1790,24 @@ export const maintenanceSubscriptions = pgTable(
     // Statut MÉTIER DetailFlow, jamais un statut Stripe brut. Seuls les statuts
     // « actifs » (définis par le service) consomment une place de la limite.
     status: text("status").notNull().default("pending_payment"),
-    // monthly | prepaid
+    // recurring | prepaid
     paymentMode: text("paymentMode").notNull(),
     currency: text("currency").notNull().default("EUR"),
     customerName: text("customerName").notNull(),
     customerEmail: text("customerEmail").notNull(),
     customerPhone: text("customerPhone"),
+    // Conditions contractuelles figées : une modification de la formule ne change jamais un contrat existant.
     planNameSnapshot: text("planNameSnapshot").notNull(),
+    // Prix par période de facturation.
     priceCentsSnapshot: integer("priceCentsSnapshot").notNull(),
+    billingIntervalUnitSnapshot: text("billingIntervalUnitSnapshot").notNull(),
+    billingIntervalCountSnapshot: integer("billingIntervalCountSnapshot").notNull(),
     includedUsesPerCycleSnapshot: integer("includedUsesPerCycleSnapshot").notNull(),
-    minimumCommitmentMonthsSnapshot: integer("minimumCommitmentMonthsSnapshot").notNull().default(0),
-    prepaidMonthsSnapshot: integer("prepaidMonthsSnapshot"),
+    commitmentUnitSnapshot: text("commitmentUnitSnapshot").notNull(),
+    commitmentCountSnapshot: integer("commitmentCountSnapshot").notNull(),
+    renewalModeSnapshot: text("renewalModeSnapshot").notNull(),
+    renewalNoticeDaysSnapshot: integer("renewalNoticeDaysSnapshot"),
+    prepaidBillingCyclesSnapshot: integer("prepaidBillingCyclesSnapshot"),
     // Nettoyage initial figé à la souscription (indépendant du prix courant de services).
     initialCleaningRequiredSnapshot: boolean("initialCleaningRequiredSnapshot").notNull().default(false),
     initialServiceNameSnapshot: text("initialServiceNameSnapshot"),
@@ -1785,7 +1818,16 @@ export const maintenanceSubscriptions = pgTable(
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
     startedAt: timestamp("startedAt"),
     activatedAt: timestamp("activatedAt"),
-    minimumCommitmentEndsAt: timestamp("minimumCommitmentEndsAt"),
+    // Référence stable des futurs cycles (anchor + billingInterval*Snapshot).
+    billingAnchorAt: timestamp("billingAnchorAt"),
+    // Terme d'engagement en cours ; avance à chaque renouvellement same_term
+    // (historique des termes dans maintenance_audit_log).
+    currentTermStartedAt: timestamp("currentTermStartedAt"),
+    currentTermEndsAt: timestamp("currentTermEndsAt"),
+    renewalNoticeSentAt: timestamp("renewalNoticeSentAt"),
+    // Non-renouvellement du PROCHAIN terme : le contrat court jusqu'à son
+    // échéance. Distinct d'une résiliation (cancel*).
+    renewalOptOutAt: timestamp("renewalOptOutAt"),
     // Fin de la période prépayée (pas de renouvellement automatique).
     prepaidUntil: timestamp("prepaidUntil"),
     // Annulation en 3 temps : demande → date prévue → effective. Révocable tant
@@ -1846,12 +1888,37 @@ export const maintenanceSubscriptions = pgTable(
     ),
     paymentModeValid: check(
       "maintenance_subscriptions_payment_mode_valid",
-      sql`${t.paymentMode} in ('monthly', 'prepaid')`,
+      sql`${t.paymentMode} in ('recurring', 'prepaid')`,
     ),
-    prepaidMonthsValid: check(
-      "maintenance_subscriptions_prepaid_months_valid",
-      sql`(${t.paymentMode} = 'prepaid') = (${t.prepaidMonthsSnapshot} is not null) and (${t.prepaidMonthsSnapshot} is null or ${t.prepaidMonthsSnapshot} > 0)`,
+    // V1 : un contrat prépayé expire proprement, sans renouvellement automatique.
+    prepaidCyclesValid: check(
+      "maintenance_subscriptions_prepaid_cycles_valid",
+      sql`(${t.paymentMode} = 'prepaid') = (${t.prepaidBillingCyclesSnapshot} is not null) and (${t.prepaidBillingCyclesSnapshot} is null or ${t.prepaidBillingCyclesSnapshot} > 0) and (${t.paymentMode} <> 'prepaid' or ${t.renewalModeSnapshot} = 'none')`,
     ),
+    billingIntervalValid: check(
+      "maintenance_subscriptions_billing_interval_valid",
+      sql`${t.billingIntervalUnitSnapshot} in ('week', 'month') and ${t.billingIntervalCountSnapshot} > 0`,
+    ),
+    commitmentValid: check(
+      "maintenance_subscriptions_commitment_valid",
+      sql`${t.commitmentUnitSnapshot} in ('none', 'month', 'billing_cycle') and ((${t.commitmentUnitSnapshot} = 'none' and ${t.commitmentCountSnapshot} = 0) or (${t.commitmentUnitSnapshot} <> 'none' and ${t.commitmentCountSnapshot} > 0))`,
+    ),
+    renewalModeValid: check(
+      "maintenance_subscriptions_renewal_mode_valid",
+      sql`${t.renewalModeSnapshot} in ('none', 'same_term', 'open_ended') and (${t.renewalModeSnapshot} <> 'same_term' or ${t.commitmentUnitSnapshot} <> 'none')`,
+    ),
+    renewalNoticeDaysValid: check(
+      "maintenance_subscriptions_renewal_notice_days_valid",
+      sql`${t.renewalNoticeDaysSnapshot} is null or ${t.renewalNoticeDaysSnapshot} >= 0`,
+    ),
+    currentTermValid: check(
+      "maintenance_subscriptions_current_term_valid",
+      sql`${t.currentTermStartedAt} is null or ${t.currentTermEndsAt} is null or ${t.currentTermEndsAt} > ${t.currentTermStartedAt}`,
+    ),
+    // Scheduler (cross-tenant) : fins de terme, rappels non envoyés, non-renouvellements.
+    byStatusTermEnd: index("maintenance_subscriptions_status_term_end_idx")
+      .on(t.status, t.currentTermEndsAt)
+      .where(sql`${t.currentTermEndsAt} is not null`),
     priceNonNegative: check(
       "maintenance_subscriptions_price_non_negative",
       sql`${t.priceCentsSnapshot} >= 0`,
@@ -1859,10 +1926,6 @@ export const maintenanceSubscriptions = pgTable(
     usesPositive: check(
       "maintenance_subscriptions_uses_positive",
       sql`${t.includedUsesPerCycleSnapshot} > 0`,
-    ),
-    commitmentNonNegative: check(
-      "maintenance_subscriptions_commitment_non_negative",
-      sql`${t.minimumCommitmentMonthsSnapshot} >= 0`,
     ),
     currencyIso: check("maintenance_subscriptions_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   }),
@@ -1915,6 +1978,7 @@ export const maintenanceCycles = pgTable(
     subscriptionId: integer("subscriptionId").notNull(),
     cycleStart: timestamp("cycleStart").notNull(),
     cycleEnd: timestamp("cycleEnd").notNull(),
+    // Une période de facturation, générée depuis billingAnchorAt + billingInterval*Snapshot.
     // Droits du cycle, non reportables au cycle suivant.
     includedUses: integer("includedUses").notNull(),
     // open | closed | void
