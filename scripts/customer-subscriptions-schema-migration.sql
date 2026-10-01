@@ -87,6 +87,12 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
   "includedUsesPerCycleSnapshot"    integer NOT NULL,
   "minimumCommitmentMonthsSnapshot" integer NOT NULL DEFAULT 0,
   "prepaidMonthsSnapshot"           integer,
+  -- Nettoyage initial figé à la souscription (indépendant du prix courant de services).
+  "initialCleaningRequiredSnapshot" boolean NOT NULL DEFAULT false,
+  "initialServiceNameSnapshot"      text,
+  "initialServicePriceCentsSnapshot" integer,
+  "termsAcceptedAt"                 timestamp,
+  "termsVersion"                    text,
   "createdAt"                       timestamp NOT NULL DEFAULT now(),
   "updatedAt"                       timestamp NOT NULL DEFAULT now(),
   "startedAt"                       timestamp,
@@ -100,6 +106,8 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
   "suspendedAt"                     timestamp,
   "endedAt"                         timestamp,
   provider                          text    NOT NULL DEFAULT 'stripe',
+  -- Snapshot du compte provider utilisé (ex. acct_…), indépendant de companies.stripeAccountId.
+  "providerAccountId"               text,
   "externalCustomerId"              text,
   "externalSubscriptionId"          text,
   "externalCheckoutSessionId"       text,
@@ -121,15 +129,28 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
   CONSTRAINT maintenance_subscriptions_price_non_negative CHECK ("priceCentsSnapshot" >= 0),
   CONSTRAINT maintenance_subscriptions_uses_positive CHECK ("includedUsesPerCycleSnapshot" > 0),
   CONSTRAINT maintenance_subscriptions_commitment_non_negative CHECK ("minimumCommitmentMonthsSnapshot" >= 0),
-  CONSTRAINT maintenance_subscriptions_currency_iso CHECK (currency ~ '^[A-Z]{3}$')
+  CONSTRAINT maintenance_subscriptions_currency_iso CHECK (currency ~ '^[A-Z]{3}$'),
+  CONSTRAINT maintenance_subscriptions_external_ids_need_account CHECK (
+    "providerAccountId" IS NOT NULL
+    OR ("externalCustomerId" IS NULL AND "externalSubscriptionId" IS NULL AND "externalCheckoutSessionId" IS NULL)
+  ),
+  CONSTRAINT maintenance_subscriptions_initial_service_price_non_negative CHECK (
+    "initialServicePriceCentsSnapshot" IS NULL OR "initialServicePriceCentsSnapshot" >= 0
+  ),
+  CONSTRAINT maintenance_subscriptions_terms_version_required CHECK (
+    "termsAcceptedAt" IS NULL OR "termsVersion" IS NOT NULL
+  )
 );
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_company_status_idx ON maintenance_subscriptions ("companyId", status);
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_planId_idx ON maintenance_subscriptions ("planId");
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_customerId_idx ON maintenance_subscriptions ("customerId");
+-- IDs externes uniques au sein d'un compte provider uniquement.
 CREATE UNIQUE INDEX IF NOT EXISTS maintenance_subscriptions_external_subscription_key
-  ON maintenance_subscriptions (provider, "externalSubscriptionId") WHERE "externalSubscriptionId" IS NOT NULL;
+  ON maintenance_subscriptions (provider, "providerAccountId", "externalSubscriptionId") WHERE "externalSubscriptionId" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS maintenance_subscriptions_checkout_session_key
-  ON maintenance_subscriptions (provider, "externalCheckoutSessionId") WHERE "externalCheckoutSessionId" IS NOT NULL;
+  ON maintenance_subscriptions (provider, "providerAccountId", "externalCheckoutSessionId") WHERE "externalCheckoutSessionId" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS maintenance_subscriptions_external_customer_idx
+  ON maintenance_subscriptions ("providerAccountId", "externalCustomerId") WHERE "externalCustomerId" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS maintenance_subscriptions_manage_token_key
   ON maintenance_subscriptions ("manageTokenHash") WHERE "manageTokenHash" IS NOT NULL;
 
@@ -214,6 +235,8 @@ CREATE TABLE IF NOT EXISTS maintenance_payments (
   "subscriptionId"         integer NOT NULL,
   "cycleId"                integer,
   provider                 text    NOT NULL DEFAULT 'stripe',
+  -- Snapshot du compte provider sur lequel le paiement a été créé.
+  "providerAccountId"      text,
   "externalPaymentId"      text,
   "externalInvoiceId"      text,
   type                     text    NOT NULL,
@@ -245,15 +268,18 @@ CREATE TABLE IF NOT EXISTS maintenance_payments (
   CONSTRAINT maintenance_payments_fee_amount_bounds CHECK ("platformFeeAmountCents" BETWEEN 0 AND "grossAmountCents"),
   CONSTRAINT maintenance_payments_provider_fee_non_negative CHECK ("providerFeeAmountCents" IS NULL OR "providerFeeAmountCents" >= 0),
   CONSTRAINT maintenance_payments_refund_bounds CHECK ("refundedAmountCents" BETWEEN 0 AND "grossAmountCents"),
-  CONSTRAINT maintenance_payments_currency_iso CHECK (currency ~ '^[A-Z]{3}$')
+  CONSTRAINT maintenance_payments_currency_iso CHECK (currency ~ '^[A-Z]{3}$'),
+  CONSTRAINT maintenance_payments_external_ids_need_account CHECK (
+    "providerAccountId" IS NOT NULL OR ("externalPaymentId" IS NULL AND "externalInvoiceId" IS NULL)
+  )
 );
 CREATE INDEX IF NOT EXISTS maintenance_payments_company_subscription_idx ON maintenance_payments ("companyId", "subscriptionId");
 CREATE INDEX IF NOT EXISTS maintenance_payments_company_status_idx ON maintenance_payments ("companyId", status);
 CREATE INDEX IF NOT EXISTS maintenance_payments_external_invoice_idx
   ON maintenance_payments ("externalInvoiceId") WHERE "externalInvoiceId" IS NOT NULL;
--- Idempotence webhook Connect.
+-- Idempotence webhook Connect, scopée par compte provider.
 CREATE UNIQUE INDEX IF NOT EXISTS maintenance_payments_external_payment_key
-  ON maintenance_payments (provider, "externalPaymentId") WHERE "externalPaymentId" IS NOT NULL;
+  ON maintenance_payments (provider, "providerAccountId", "externalPaymentId") WHERE "externalPaymentId" IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- 7. Journal d'audit (append-only côté applicatif)

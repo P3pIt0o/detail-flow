@@ -1775,6 +1775,12 @@ export const maintenanceSubscriptions = pgTable(
     includedUsesPerCycleSnapshot: integer("includedUsesPerCycleSnapshot").notNull(),
     minimumCommitmentMonthsSnapshot: integer("minimumCommitmentMonthsSnapshot").notNull().default(0),
     prepaidMonthsSnapshot: integer("prepaidMonthsSnapshot"),
+    // Nettoyage initial figé à la souscription (indépendant du prix courant de services).
+    initialCleaningRequiredSnapshot: boolean("initialCleaningRequiredSnapshot").notNull().default(false),
+    initialServiceNameSnapshot: text("initialServiceNameSnapshot"),
+    initialServicePriceCentsSnapshot: integer("initialServicePriceCentsSnapshot"),
+    termsAcceptedAt: timestamp("termsAcceptedAt"),
+    termsVersion: text("termsVersion"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
     startedAt: timestamp("startedAt"),
@@ -1790,6 +1796,9 @@ export const maintenanceSubscriptions = pgTable(
     suspendedAt: timestamp("suspendedAt"),
     endedAt: timestamp("endedAt"),
     provider: text("provider").notNull().default("stripe"),
+    // Snapshot du compte provider réellement utilisé (ex. acct_…), indépendant
+    // de la valeur courante de companies.stripeAccountId.
+    providerAccountId: text("providerAccountId"),
     externalCustomerId: text("externalCustomerId"),
     externalSubscriptionId: text("externalSubscriptionId"),
     externalCheckoutSessionId: text("externalCheckoutSessionId"),
@@ -1806,12 +1815,28 @@ export const maintenanceSubscriptions = pgTable(
     byCompanyStatus: index("maintenance_subscriptions_company_status_idx").on(t.companyId, t.status),
     byPlan: index("maintenance_subscriptions_planId_idx").on(t.planId),
     byCustomer: index("maintenance_subscriptions_customerId_idx").on(t.customerId),
+    // Les IDs externes ne sont uniques qu'au sein d'un compte provider.
     uniqExternalSubscription: uniqueIndex("maintenance_subscriptions_external_subscription_key")
-      .on(t.provider, t.externalSubscriptionId)
+      .on(t.provider, t.providerAccountId, t.externalSubscriptionId)
       .where(sql`${t.externalSubscriptionId} is not null`),
     uniqCheckoutSession: uniqueIndex("maintenance_subscriptions_checkout_session_key")
-      .on(t.provider, t.externalCheckoutSessionId)
+      .on(t.provider, t.providerAccountId, t.externalCheckoutSessionId)
       .where(sql`${t.externalCheckoutSessionId} is not null`),
+    byExternalCustomer: index("maintenance_subscriptions_external_customer_idx")
+      .on(t.providerAccountId, t.externalCustomerId)
+      .where(sql`${t.externalCustomerId} is not null`),
+    externalIdsNeedAccount: check(
+      "maintenance_subscriptions_external_ids_need_account",
+      sql`${t.providerAccountId} is not null or (${t.externalCustomerId} is null and ${t.externalSubscriptionId} is null and ${t.externalCheckoutSessionId} is null)`,
+    ),
+    initialServicePriceNonNegative: check(
+      "maintenance_subscriptions_initial_service_price_non_negative",
+      sql`${t.initialServicePriceCentsSnapshot} is null or ${t.initialServicePriceCentsSnapshot} >= 0`,
+    ),
+    termsVersionRequired: check(
+      "maintenance_subscriptions_terms_version_required",
+      sql`${t.termsAcceptedAt} is null or ${t.termsVersion} is not null`,
+    ),
     uniqManageToken: uniqueIndex("maintenance_subscriptions_manage_token_key")
       .on(t.manageTokenHash)
       .where(sql`${t.manageTokenHash} is not null`),
@@ -1962,6 +1987,8 @@ export const maintenancePayments = pgTable(
     subscriptionId: integer("subscriptionId").notNull(),
     cycleId: integer("cycleId"),
     provider: text("provider").notNull().default("stripe"),
+    // Snapshot du compte provider sur lequel le paiement a été créé.
+    providerAccountId: text("providerAccountId"),
     externalPaymentId: text("externalPaymentId"),
     externalInvoiceId: text("externalInvoiceId"),
     // recurring | prepaid | initial_cleaning | adjustment
@@ -2002,10 +2029,14 @@ export const maintenancePayments = pgTable(
     byExternalInvoice: index("maintenance_payments_external_invoice_idx")
       .on(t.externalInvoiceId)
       .where(sql`${t.externalInvoiceId} is not null`),
-    // Idempotence webhook Connect.
+    // Idempotence webhook Connect, scopée par compte provider.
     uniqExternalPayment: uniqueIndex("maintenance_payments_external_payment_key")
-      .on(t.provider, t.externalPaymentId)
+      .on(t.provider, t.providerAccountId, t.externalPaymentId)
       .where(sql`${t.externalPaymentId} is not null`),
+    externalIdsNeedAccount: check(
+      "maintenance_payments_external_ids_need_account",
+      sql`${t.providerAccountId} is not null or (${t.externalPaymentId} is null and ${t.externalInvoiceId} is null)`,
+    ),
     typeValid: check(
       "maintenance_payments_type_valid",
       sql`${t.type} in ('recurring', 'prepaid', 'initial_cleaning', 'adjustment')`,

@@ -86,6 +86,68 @@ describe("schéma Drizzle : module abonnements clients", () => {
     expect(columnNames(schema.maintenancePayments)).not.toContain("bookingId")
   })
 
+  it("providerAccountId (snapshot du compte provider) sur contrats et paiements", () => {
+    for (const t of [schema.maintenanceSubscriptions, schema.maintenancePayments]) {
+      const cols = columnNames(t)
+      expect(cols).toContain("providerAccountId")
+      expect(cols).not.toContain("stripeAccountId")
+    }
+  })
+
+  it("IDs externes uniques scopés par (provider, providerAccountId)", () => {
+    const idxCols = (t: PgTable, name: string) => {
+      const idx = configOf(t).indexes.find((i) => i.config.name === name)
+      expect(idx?.config.unique).toBe(true)
+      expect(idx?.config.where).toBeDefined()
+      return idx!.config.columns.map((c) => ("name" in c ? c.name : ""))
+    }
+    expect(idxCols(schema.maintenanceSubscriptions, "maintenance_subscriptions_external_subscription_key")).toEqual([
+      "provider", "providerAccountId", "externalSubscriptionId",
+    ])
+    expect(idxCols(schema.maintenanceSubscriptions, "maintenance_subscriptions_checkout_session_key")).toEqual([
+      "provider", "providerAccountId", "externalCheckoutSessionId",
+    ])
+    expect(idxCols(schema.maintenancePayments, "maintenance_payments_external_payment_key")).toEqual([
+      "provider", "providerAccountId", "externalPaymentId",
+    ])
+    const customerIdx = configOf(schema.maintenanceSubscriptions).indexes.find(
+      (i) => i.config.name === "maintenance_subscriptions_external_customer_idx",
+    )
+    expect(customerIdx?.config.unique).toBe(false)
+    for (const [cols, sqlCols] of [
+      ['provider, "providerAccountId", "externalSubscriptionId"', "subscriptions"],
+      ['provider, "providerAccountId", "externalCheckoutSessionId"', "subscriptions"],
+      ['provider, "providerAccountId", "externalPaymentId"', "payments"],
+      ['"providerAccountId", "externalCustomerId"', "subscriptions"],
+    ]) expect(migrationCode, sqlCols).toContain(cols)
+  })
+
+  it("ID externe interdit sans providerAccountId (checks)", () => {
+    const checkNames = (t: PgTable) => configOf(t).checks.map((c) => c.name)
+    expect(checkNames(schema.maintenanceSubscriptions)).toContain("maintenance_subscriptions_external_ids_need_account")
+    expect(checkNames(schema.maintenancePayments)).toContain("maintenance_payments_external_ids_need_account")
+    expect(migrationCode).toMatch(
+      /"providerAccountId" IS NOT NULL\s+OR \("externalCustomerId" IS NULL AND "externalSubscriptionId" IS NULL AND "externalCheckoutSessionId" IS NULL\)/,
+    )
+    expect(migrationCode).toMatch(/"providerAccountId" IS NOT NULL OR \("externalPaymentId" IS NULL AND "externalInvoiceId" IS NULL\)/)
+  })
+
+  it("snapshots du nettoyage initial et preuve d'acceptation des conditions", () => {
+    const cfg = configOf(schema.maintenanceSubscriptions)
+    const col = (n: string) => cfg.columns.find((c) => c.name === n)
+    expect(col("initialCleaningRequiredSnapshot")?.getSQLType()).toBe("boolean")
+    expect(col("initialCleaningRequiredSnapshot")?.notNull).toBe(true)
+    expect(col("initialCleaningRequiredSnapshot")?.default).toBe(false)
+    expect(col("initialServiceNameSnapshot")?.notNull).toBe(false)
+    expect(col("initialServicePriceCentsSnapshot")?.getSQLType()).toBe("integer")
+    expect(col("initialServicePriceCentsSnapshot")?.notNull).toBe(false)
+    expect(col("termsAcceptedAt")?.notNull).toBe(false)
+    expect(col("termsVersion")?.notNull).toBe(false)
+    expect(migrationCode).toMatch(/"initialServicePriceCentsSnapshot" IS NULL OR "initialServicePriceCentsSnapshot" >= 0/)
+    expect(migrationCode).toMatch(/"termsAcceptedAt" IS NULL OR "termsVersion" IS NOT NULL/)
+    expect(migrationCode).toMatch(/"initialCleaningRequiredSnapshot" boolean NOT NULL DEFAULT false/)
+  })
+
   it("aucun type flottant/numeric dans le module", () => {
     for (const table of Object.values(moduleTables)) {
       for (const col of configOf(table).columns) expect(col.getSQLType()).not.toMatch(/numeric|real|double|float/)
