@@ -38,15 +38,25 @@ CREATE TABLE IF NOT EXISTS maintenance_plans (
   "companyId"               integer NOT NULL REFERENCES companies(id) ON DELETE RESTRICT,
   name                      text    NOT NULL,
   description               text,
+  -- Prix PAR PÉRIODE DE FACTURATION (jamais implicitement mensuel).
   "priceCents"              integer NOT NULL,
   currency                  text    NOT NULL DEFAULT 'EUR',
+  -- Période de facturation (ex. month/1, week/4). V1 : 1 cycle de droits = 1 période.
+  "billingIntervalUnit"     text    NOT NULL DEFAULT 'month',
+  "billingIntervalCount"    integer NOT NULL DEFAULT 1,
   "includedUsesPerCycle"    integer NOT NULL DEFAULT 1,
-  "minimumCommitmentMonths" integer NOT NULL DEFAULT 0,
+  -- Engagement : none/0 | month/N (mois calendaires) | billing_cycle/N (N échéances).
+  -- N mois ≠ N paiements : les échéances sont calculées par le service.
+  "commitmentUnit"          text    NOT NULL DEFAULT 'none',
+  "commitmentCount"         integer NOT NULL DEFAULT 0,
+  "renewalMode"             text    NOT NULL DEFAULT 'open_ended',
+  "renewalNoticeDays"       integer,
   "initialServiceId"        integer REFERENCES services(id) ON DELETE SET NULL,
   "initialCleaningRequired" boolean NOT NULL DEFAULT false,
-  "allowMonthlyPayment"     boolean NOT NULL DEFAULT true,
+  "allowRecurringPayment"   boolean NOT NULL DEFAULT true,
   "allowPrepaidPayment"     boolean NOT NULL DEFAULT false,
-  "prepaidMonths"           integer,
+  -- Prépaiement = N périodes de facturation.
+  "prepaidBillingCycles"    integer,
   visibility                text    NOT NULL DEFAULT 'public',
   status                    text    NOT NULL DEFAULT 'draft',
   "createdAt"               timestamp NOT NULL DEFAULT now(),
@@ -55,12 +65,24 @@ CREATE TABLE IF NOT EXISTS maintenance_plans (
   CONSTRAINT maintenance_plans_company_id_key UNIQUE ("companyId", id),
   CONSTRAINT maintenance_plans_price_non_negative CHECK ("priceCents" >= 0),
   CONSTRAINT maintenance_plans_uses_positive CHECK ("includedUsesPerCycle" > 0),
-  CONSTRAINT maintenance_plans_commitment_non_negative CHECK ("minimumCommitmentMonths" >= 0),
-  CONSTRAINT maintenance_plans_prepaid_months_valid CHECK (
-    ("prepaidMonths" IS NULL OR "prepaidMonths" > 0)
-    AND (NOT "allowPrepaidPayment" OR "prepaidMonths" IS NOT NULL)
+  CONSTRAINT maintenance_plans_billing_interval_valid CHECK (
+    "billingIntervalUnit" IN ('week', 'month') AND "billingIntervalCount" > 0
   ),
-  CONSTRAINT maintenance_plans_payment_mode_allowed CHECK ("allowMonthlyPayment" OR "allowPrepaidPayment"),
+  CONSTRAINT maintenance_plans_commitment_valid CHECK (
+    "commitmentUnit" IN ('none', 'month', 'billing_cycle')
+    AND (("commitmentUnit" = 'none' AND "commitmentCount" = 0)
+      OR ("commitmentUnit" <> 'none' AND "commitmentCount" > 0))
+  ),
+  CONSTRAINT maintenance_plans_renewal_mode_valid CHECK (
+    "renewalMode" IN ('none', 'same_term', 'open_ended')
+    AND ("renewalMode" <> 'same_term' OR "commitmentUnit" <> 'none')
+  ),
+  CONSTRAINT maintenance_plans_renewal_notice_days_valid CHECK ("renewalNoticeDays" IS NULL OR "renewalNoticeDays" >= 0),
+  CONSTRAINT maintenance_plans_prepaid_cycles_valid CHECK (
+    ("prepaidBillingCycles" IS NULL OR "prepaidBillingCycles" > 0)
+    AND (NOT "allowPrepaidPayment" OR "prepaidBillingCycles" IS NOT NULL)
+  ),
+  CONSTRAINT maintenance_plans_payment_mode_allowed CHECK ("allowRecurringPayment" OR "allowPrepaidPayment"),
   CONSTRAINT maintenance_plans_visibility_valid CHECK (visibility IN ('public', 'unlisted', 'private')),
   CONSTRAINT maintenance_plans_status_valid CHECK (status IN ('draft', 'active', 'archived')),
   CONSTRAINT maintenance_plans_currency_iso CHECK (currency ~ '^[A-Z]{3}$')
@@ -82,11 +104,17 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
   "customerName"                    text    NOT NULL,
   "customerEmail"                   text    NOT NULL,
   "customerPhone"                   text,
+  -- Conditions contractuelles figées (indépendantes de la formule courante).
   "planNameSnapshot"                text    NOT NULL,
   "priceCentsSnapshot"              integer NOT NULL,
+  "billingIntervalUnitSnapshot"     text    NOT NULL,
+  "billingIntervalCountSnapshot"    integer NOT NULL,
   "includedUsesPerCycleSnapshot"    integer NOT NULL,
-  "minimumCommitmentMonthsSnapshot" integer NOT NULL DEFAULT 0,
-  "prepaidMonthsSnapshot"           integer,
+  "commitmentUnitSnapshot"          text    NOT NULL,
+  "commitmentCountSnapshot"         integer NOT NULL,
+  "renewalModeSnapshot"             text    NOT NULL,
+  "renewalNoticeDaysSnapshot"       integer,
+  "prepaidBillingCyclesSnapshot"    integer,
   -- Nettoyage initial figé à la souscription (indépendant du prix courant de services).
   "initialCleaningRequiredSnapshot" boolean NOT NULL DEFAULT false,
   "initialServiceNameSnapshot"      text,
@@ -97,7 +125,14 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
   "updatedAt"                       timestamp NOT NULL DEFAULT now(),
   "startedAt"                       timestamp,
   "activatedAt"                     timestamp,
-  "minimumCommitmentEndsAt"         timestamp,
+  -- Référence stable des futurs cycles (anchor + billingInterval*Snapshot).
+  "billingAnchorAt"                 timestamp,
+  -- Terme d'engagement en cours (avance à chaque renouvellement same_term).
+  "currentTermStartedAt"            timestamp,
+  "currentTermEndsAt"               timestamp,
+  "renewalNoticeSentAt"             timestamp,
+  -- Non-renouvellement du prochain terme ≠ résiliation (cancel*).
+  "renewalOptOutAt"                 timestamp,
   "prepaidUntil"                    timestamp,
   -- Annulation : demande -> date prévue -> effective (révocable tant que cancelledAt IS NULL).
   "cancelRequestedAt"               timestamp,
@@ -121,14 +156,33 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
     'pending_initial_cleaning', 'pending_payment', 'active', 'past_due',
     'cancel_scheduled', 'suspended', 'cancelled', 'expired', 'ended'
   )),
-  CONSTRAINT maintenance_subscriptions_payment_mode_valid CHECK ("paymentMode" IN ('monthly', 'prepaid')),
-  CONSTRAINT maintenance_subscriptions_prepaid_months_valid CHECK (
-    ("paymentMode" = 'prepaid') = ("prepaidMonthsSnapshot" IS NOT NULL)
-    AND ("prepaidMonthsSnapshot" IS NULL OR "prepaidMonthsSnapshot" > 0)
+  CONSTRAINT maintenance_subscriptions_payment_mode_valid CHECK ("paymentMode" IN ('recurring', 'prepaid')),
+  -- V1 : un contrat prépayé expire proprement (renewalModeSnapshot = 'none').
+  CONSTRAINT maintenance_subscriptions_prepaid_cycles_valid CHECK (
+    ("paymentMode" = 'prepaid') = ("prepaidBillingCyclesSnapshot" IS NOT NULL)
+    AND ("prepaidBillingCyclesSnapshot" IS NULL OR "prepaidBillingCyclesSnapshot" > 0)
+    AND ("paymentMode" <> 'prepaid' OR "renewalModeSnapshot" = 'none')
+  ),
+  CONSTRAINT maintenance_subscriptions_billing_interval_valid CHECK (
+    "billingIntervalUnitSnapshot" IN ('week', 'month') AND "billingIntervalCountSnapshot" > 0
+  ),
+  CONSTRAINT maintenance_subscriptions_commitment_valid CHECK (
+    "commitmentUnitSnapshot" IN ('none', 'month', 'billing_cycle')
+    AND (("commitmentUnitSnapshot" = 'none' AND "commitmentCountSnapshot" = 0)
+      OR ("commitmentUnitSnapshot" <> 'none' AND "commitmentCountSnapshot" > 0))
+  ),
+  CONSTRAINT maintenance_subscriptions_renewal_mode_valid CHECK (
+    "renewalModeSnapshot" IN ('none', 'same_term', 'open_ended')
+    AND ("renewalModeSnapshot" <> 'same_term' OR "commitmentUnitSnapshot" <> 'none')
+  ),
+  CONSTRAINT maintenance_subscriptions_renewal_notice_days_valid CHECK (
+    "renewalNoticeDaysSnapshot" IS NULL OR "renewalNoticeDaysSnapshot" >= 0
+  ),
+  CONSTRAINT maintenance_subscriptions_current_term_valid CHECK (
+    "currentTermStartedAt" IS NULL OR "currentTermEndsAt" IS NULL OR "currentTermEndsAt" > "currentTermStartedAt"
   ),
   CONSTRAINT maintenance_subscriptions_price_non_negative CHECK ("priceCentsSnapshot" >= 0),
   CONSTRAINT maintenance_subscriptions_uses_positive CHECK ("includedUsesPerCycleSnapshot" > 0),
-  CONSTRAINT maintenance_subscriptions_commitment_non_negative CHECK ("minimumCommitmentMonthsSnapshot" >= 0),
   CONSTRAINT maintenance_subscriptions_currency_iso CHECK (currency ~ '^[A-Z]{3}$'),
   CONSTRAINT maintenance_subscriptions_external_ids_need_account CHECK (
     "providerAccountId" IS NOT NULL
@@ -144,6 +198,9 @@ CREATE TABLE IF NOT EXISTS maintenance_subscriptions (
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_company_status_idx ON maintenance_subscriptions ("companyId", status);
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_planId_idx ON maintenance_subscriptions ("planId");
 CREATE INDEX IF NOT EXISTS maintenance_subscriptions_customerId_idx ON maintenance_subscriptions ("customerId");
+-- Scheduler (cross-tenant) : fins de terme, rappels non envoyés, non-renouvellements.
+CREATE INDEX IF NOT EXISTS maintenance_subscriptions_status_term_end_idx
+  ON maintenance_subscriptions (status, "currentTermEndsAt") WHERE "currentTermEndsAt" IS NOT NULL;
 -- IDs externes uniques au sein d'un compte provider uniquement.
 CREATE UNIQUE INDEX IF NOT EXISTS maintenance_subscriptions_external_subscription_key
   ON maintenance_subscriptions (provider, "providerAccountId", "externalSubscriptionId") WHERE "externalSubscriptionId" IS NOT NULL;
@@ -178,7 +235,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS maintenance_subscription_vehicles_one_active_k
   ON maintenance_subscription_vehicles ("subscriptionId") WHERE "activeUntil" IS NULL;
 
 -- ---------------------------------------------------------------------------
--- 4. Cycles de droits (non reportables)
+-- 4. Cycles de droits (non reportables) : 1 cycle = 1 période de facturation,
+--    générée depuis "billingAnchorAt" + billingInterval*Snapshot du contrat.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS maintenance_cycles (
   id               serial PRIMARY KEY,

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { PGlite } from "@electric-sql/pglite"
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core"
 import * as schema from "@/lib/db/schema"
 
@@ -71,8 +72,12 @@ describe("schéma Drizzle : module abonnements clients", () => {
     const cols = columnNames(schema.maintenanceSubscriptions)
     for (const c of [
       "customerName", "customerEmail", "customerPhone",
-      "planNameSnapshot", "priceCentsSnapshot", "includedUsesPerCycleSnapshot", "minimumCommitmentMonthsSnapshot",
-      "cancelRequestedAt", "cancelAt", "cancelledAt", "minimumCommitmentEndsAt", "manageTokenHash",
+      "planNameSnapshot", "priceCentsSnapshot", "includedUsesPerCycleSnapshot",
+      "billingIntervalUnitSnapshot", "billingIntervalCountSnapshot",
+      "commitmentUnitSnapshot", "commitmentCountSnapshot",
+      "renewalModeSnapshot", "renewalNoticeDaysSnapshot", "prepaidBillingCyclesSnapshot",
+      "billingAnchorAt", "currentTermStartedAt", "currentTermEndsAt", "renewalNoticeSentAt", "renewalOptOutAt",
+      "cancelRequestedAt", "cancelAt", "cancelledAt", "manageTokenHash",
     ]) expect(cols).toContain(c)
     expect(cols).not.toContain("manageToken")
     expect(cols).not.toContain("isCancelled")
@@ -174,6 +179,133 @@ describe("schéma ↔ migration : mêmes noms d'index et de contraintes", () => 
       "pending_initial_cleaning", "pending_payment", "active", "past_due",
       "cancel_scheduled", "suspended", "cancelled", "expired", "ended",
     ]) expect(migration).toContain(`'${s}'`)
+  })
+})
+
+describe("facturation flexible : anciens concepts « mensuels » absents", () => {
+  const legacy = [
+    "minimumCommitmentMonths", "minimumCommitmentMonthsSnapshot", "minimumCommitmentEndsAt",
+    "allowMonthlyPayment", "prepaidMonths", "prepaidMonthsSnapshot",
+  ]
+
+  it("ni dans Drizzle ni dans la migration", () => {
+    const cols = [...columnNames(schema.maintenancePlans), ...columnNames(schema.maintenanceSubscriptions)]
+    for (const c of legacy) {
+      expect(cols).not.toContain(c)
+      expect(migrationCode).not.toContain(`"${c}"`)
+    }
+    expect(migrationCode).not.toContain("'monthly'")
+  })
+
+  it("nouveaux champs de formule présents, prix toujours en centimes entiers", () => {
+    const cfg = configOf(schema.maintenancePlans)
+    for (const c of [
+      "billingIntervalUnit", "billingIntervalCount", "commitmentUnit", "commitmentCount",
+      "renewalMode", "renewalNoticeDays", "allowRecurringPayment", "allowPrepaidPayment", "prepaidBillingCycles",
+    ]) expect(cfg.columns.map((col) => col.name)).toContain(c)
+    for (const t of [schema.maintenancePlans, schema.maintenanceSubscriptions]) {
+      const price = configOf(t).columns.find((c) => c.name === "priceCents" || c.name === "priceCentsSnapshot")
+      expect(price?.getSQLType()).toBe("integer")
+    }
+  })
+
+  it("index scheduler sur (status, currentTermEndsAt)", () => {
+    const idx = configOf(schema.maintenanceSubscriptions).indexes.find(
+      (i) => i.config.name === "maintenance_subscriptions_status_term_end_idx",
+    )
+    expect(idx?.config.columns.map((c) => ("name" in c ? c.name : ""))).toEqual(["status", "currentTermEndsAt"])
+    expect(migrationCode).toContain('(status, "currentTermEndsAt") WHERE "currentTermEndsAt" IS NOT NULL')
+  })
+})
+
+describe("CHECK exécutés sur Postgres en mémoire (PGlite, aucune base distante)", () => {
+  let db: PGlite
+
+  beforeAll(async () => {
+    db = new PGlite()
+    await db.exec(`
+      CREATE TABLE companies (id serial PRIMARY KEY);
+      CREATE TABLE clients (id serial PRIMARY KEY);
+      CREATE TABLE services (id serial PRIMARY KEY);
+      CREATE TABLE bookings (id serial PRIMARY KEY);
+      INSERT INTO companies DEFAULT VALUES;
+    `)
+    await db.exec(migration)
+  })
+  afterAll(async () => {
+    await db.close()
+  })
+
+  type Row = Record<string, string | number | boolean | null>
+  const insert = async (table: string, row: Row) => {
+    const keys = Object.keys(row)
+    await db.query(
+      `INSERT INTO ${table} (${keys.map((k) => `"${k}"`).join(", ")}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(", ")})`,
+      Object.values(row),
+    )
+  }
+  const plan = (overrides: Row): Row => ({ companyId: 1, name: "Entretien", priceCents: 3490, ...overrides })
+  const subscription = (overrides: Row): Row => ({
+    companyId: 1,
+    paymentMode: "recurring",
+    customerName: "Client",
+    customerEmail: "client@example.com",
+    planNameSnapshot: "Entretien",
+    priceCentsSnapshot: 3490,
+    billingIntervalUnitSnapshot: "week",
+    billingIntervalCountSnapshot: 4,
+    includedUsesPerCycleSnapshot: 1,
+    commitmentUnitSnapshot: "month",
+    commitmentCountSnapshot: 6,
+    renewalModeSnapshot: "same_term",
+    ...overrides,
+  })
+
+  it.each([
+    ["mensuel sans engagement (month/1, none/0)", { billingIntervalUnit: "month", billingIntervalCount: 1 }],
+    ["toutes les 4 semaines (week/4)", { billingIntervalUnit: "week", billingIntervalCount: 4 }],
+    ["6 mois calendaires renouvelés", { commitmentUnit: "month", commitmentCount: 6, renewalMode: "same_term", renewalNoticeDays: 30 }],
+    ["12 mois sans renouvellement", { commitmentUnit: "month", commitmentCount: 12, renewalMode: "none" }],
+    ["6 échéances exactes", { commitmentUnit: "billing_cycle", commitmentCount: 6, renewalMode: "open_ended" }],
+    ["prépayé 3 périodes", { allowPrepaidPayment: true, prepaidBillingCycles: 3 }],
+  ])("formule acceptée : %s", async (_label, row) => {
+    await expect(insert("maintenance_plans", plan(row))).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ["billingIntervalCount = 0", { billingIntervalCount: 0 }, "maintenance_plans_billing_interval_valid"],
+    ["billingIntervalCount < 0", { billingIntervalCount: -1 }, "maintenance_plans_billing_interval_valid"],
+    ["unité 'day'", { billingIntervalUnit: "day" }, "maintenance_plans_billing_interval_valid"],
+    ["none / 6", { commitmentUnit: "none", commitmentCount: 6 }, "maintenance_plans_commitment_valid"],
+    ["month / 0", { commitmentUnit: "month", commitmentCount: 0 }, "maintenance_plans_commitment_valid"],
+    ["same_term sans engagement", { renewalMode: "same_term" }, "maintenance_plans_renewal_mode_valid"],
+    ["préavis négatif", { renewalNoticeDays: -1 }, "maintenance_plans_renewal_notice_days_valid"],
+    ["prépayé sans nombre de périodes", { allowPrepaidPayment: true }, "maintenance_plans_prepaid_cycles_valid"],
+    ["aucun mode de paiement", { allowRecurringPayment: false }, "maintenance_plans_payment_mode_allowed"],
+  ])("formule rejetée : %s", async (_label, row, constraint) => {
+    await expect(insert("maintenance_plans", plan(row))).rejects.toThrow(constraint)
+  })
+
+  it.each([
+    ["récurrent 4 semaines, 6 mois renouvelable", {}],
+    ["récurrent sans engagement", { commitmentUnitSnapshot: "none", commitmentCountSnapshot: 0, renewalModeSnapshot: "open_ended" }],
+    ["prépayé expirant", { paymentMode: "prepaid", prepaidBillingCyclesSnapshot: 3, renewalModeSnapshot: "none" }],
+    ["non-renouvellement demandé sans résiliation", { renewalOptOutAt: "2026-03-01", currentTermStartedAt: "2026-01-01", currentTermEndsAt: "2026-07-01" }],
+  ])("contrat accepté : %s", async (_label, row) => {
+    await expect(insert("maintenance_subscriptions", subscription(row))).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ["paymentMode 'monthly'", { paymentMode: "monthly" }, "maintenance_subscriptions_payment_mode_valid"],
+    ["intervalle snapshot = 0", { billingIntervalCountSnapshot: 0 }, "maintenance_subscriptions_billing_interval_valid"],
+    ["none / 6", { commitmentUnitSnapshot: "none", commitmentCountSnapshot: 6, renewalModeSnapshot: "open_ended" }, "maintenance_subscriptions_commitment_valid"],
+    ["month / 0", { commitmentCountSnapshot: 0 }, "maintenance_subscriptions_commitment_valid"],
+    ["same_term sans engagement", { commitmentUnitSnapshot: "none", commitmentCountSnapshot: 0 }, "maintenance_subscriptions_renewal_mode_valid"],
+    ["prépayé auto-renouvelé", { paymentMode: "prepaid", prepaidBillingCyclesSnapshot: 3 }, "maintenance_subscriptions_prepaid_cycles_valid"],
+    ["prépayé sans périodes", { paymentMode: "prepaid", renewalModeSnapshot: "none" }, "maintenance_subscriptions_prepaid_cycles_valid"],
+    ["terme incohérent", { currentTermStartedAt: "2026-07-01", currentTermEndsAt: "2026-01-01" }, "maintenance_subscriptions_current_term_valid"],
+  ])("contrat rejeté : %s", async (_label, row, constraint) => {
+    await expect(insert("maintenance_subscriptions", subscription(row))).rejects.toThrow(constraint)
   })
 })
 
