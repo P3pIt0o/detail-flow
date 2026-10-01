@@ -13,6 +13,7 @@ import {
   index,
   uniqueIndex,
   check,
+  foreignKey,
 } from "drizzle-orm/pg-core"
 
 /* -------------------------------------------------------------------------- */
@@ -1676,5 +1677,393 @@ export const billingEvents = pgTable(
   },
   (t) => ({
     byProcessedAt: index("billing_events_processedAt_idx").on(t.processedAt),
+  }),
+)
+
+/* -------------------------------------------------------------------------- */
+/*  Abonnements clients (entretien) — vendus PAR un tenant À ses clients.     */
+/*  Stripe CONNECT uniquement (compte companies.stripeAccountId). Ne jamais   */
+/*  mélanger avec le Billing SaaS DetailFlow. Aligné sur                      */
+/*  scripts/customer-subscriptions-schema-migration.sql (non exécutée).       */
+/*                                                                            */
+/*  Isolation tenant : les FK internes au module sont COMPOSITES              */
+/*  (companyId, …) → une ligne du tenant A ne peut pas référencer une ligne   */
+/*  du tenant B. Les FK vers tables existantes (clients, services, bookings)  */
+/*  sont simples : le service serveur DOIT vérifier leur companyId.           */
+/*  Historique : aucun ON DELETE CASCADE ; on archive / annule, on ne         */
+/*  supprime pas. Opérations critiques (capacité max actifs, réservation du   */
+/*  dernier droit, véhicule actif, génération de cycle) : transactionnelles   */
+/*  côté serveur, jamais garanties par l'UI.                                  */
+/* -------------------------------------------------------------------------- */
+
+export const maintenancePlans = pgTable(
+  "maintenance_plans",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Prix COURANT de la formule ; les contrats conservent leur propre snapshot.
+    priceCents: integer("priceCents").notNull(),
+    currency: text("currency").notNull().default("EUR"),
+    includedUsesPerCycle: integer("includedUsesPerCycle").notNull().default(1),
+    minimumCommitmentMonths: integer("minimumCommitmentMonths").notNull().default(0),
+    initialServiceId: integer("initialServiceId").references(() => services.id, { onDelete: "set null" }),
+    initialCleaningRequired: boolean("initialCleaningRequired").notNull().default(false),
+    allowMonthlyPayment: boolean("allowMonthlyPayment").notNull().default(true),
+    allowPrepaidPayment: boolean("allowPrepaidPayment").notNull().default(false),
+    prepaidMonths: integer("prepaidMonths"),
+    // public | unlisted | private
+    visibility: text("visibility").notNull().default("public"),
+    // draft | active | archived
+    status: text("status").notNull().default("draft"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    archivedAt: timestamp("archivedAt"),
+  },
+  (t) => ({
+    // Cible des FK composites ; couvre aussi les recherches par companyId.
+    tenantKey: unique("maintenance_plans_company_id_key").on(t.companyId, t.id),
+    byCompanyStatus: index("maintenance_plans_company_status_idx").on(t.companyId, t.status),
+    priceNonNegative: check("maintenance_plans_price_non_negative", sql`${t.priceCents} >= 0`),
+    usesPositive: check("maintenance_plans_uses_positive", sql`${t.includedUsesPerCycle} > 0`),
+    commitmentNonNegative: check(
+      "maintenance_plans_commitment_non_negative",
+      sql`${t.minimumCommitmentMonths} >= 0`,
+    ),
+    prepaidMonthsValid: check(
+      "maintenance_plans_prepaid_months_valid",
+      sql`(${t.prepaidMonths} is null or ${t.prepaidMonths} > 0) and (not ${t.allowPrepaidPayment} or ${t.prepaidMonths} is not null)`,
+    ),
+    paymentModeAllowed: check(
+      "maintenance_plans_payment_mode_allowed",
+      sql`${t.allowMonthlyPayment} or ${t.allowPrepaidPayment}`,
+    ),
+    visibilityValid: check(
+      "maintenance_plans_visibility_valid",
+      sql`${t.visibility} in ('public', 'unlisted', 'private')`,
+    ),
+    statusValid: check("maintenance_plans_status_valid", sql`${t.status} in ('draft', 'active', 'archived')`),
+    currencyIso: check("maintenance_plans_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  }),
+)
+
+export const maintenanceSubscriptions = pgTable(
+  "maintenance_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    // Lien vers la formule d'origine ; les conditions contractuelles vivent dans les snapshots.
+    planId: integer("planId"),
+    // Fiche client CRM si connue ; le snapshot ci-dessous fait foi historiquement.
+    customerId: integer("customerId").references(() => clients.id, { onDelete: "set null" }),
+    // Statut MÉTIER DetailFlow, jamais un statut Stripe brut. Seuls les statuts
+    // « actifs » (définis par le service) consomment une place de la limite.
+    status: text("status").notNull().default("pending_payment"),
+    // monthly | prepaid
+    paymentMode: text("paymentMode").notNull(),
+    currency: text("currency").notNull().default("EUR"),
+    customerName: text("customerName").notNull(),
+    customerEmail: text("customerEmail").notNull(),
+    customerPhone: text("customerPhone"),
+    planNameSnapshot: text("planNameSnapshot").notNull(),
+    priceCentsSnapshot: integer("priceCentsSnapshot").notNull(),
+    includedUsesPerCycleSnapshot: integer("includedUsesPerCycleSnapshot").notNull(),
+    minimumCommitmentMonthsSnapshot: integer("minimumCommitmentMonthsSnapshot").notNull().default(0),
+    prepaidMonthsSnapshot: integer("prepaidMonthsSnapshot"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    startedAt: timestamp("startedAt"),
+    activatedAt: timestamp("activatedAt"),
+    minimumCommitmentEndsAt: timestamp("minimumCommitmentEndsAt"),
+    // Fin de la période prépayée (pas de renouvellement automatique).
+    prepaidUntil: timestamp("prepaidUntil"),
+    // Annulation en 3 temps : demande → date prévue → effective. Révocable tant
+    // que cancelledAt est null. Annulation ≠ remboursement.
+    cancelRequestedAt: timestamp("cancelRequestedAt"),
+    cancelAt: timestamp("cancelAt"),
+    cancelledAt: timestamp("cancelledAt"),
+    suspendedAt: timestamp("suspendedAt"),
+    endedAt: timestamp("endedAt"),
+    provider: text("provider").notNull().default("stripe"),
+    externalCustomerId: text("externalCustomerId"),
+    externalSubscriptionId: text("externalSubscriptionId"),
+    externalCheckoutSessionId: text("externalCheckoutSessionId"),
+    // Hash (jamais le token en clair) du futur lien de gestion client.
+    manageTokenHash: text("manageTokenHash"),
+  },
+  (t) => ({
+    tenantKey: unique("maintenance_subscriptions_company_id_key").on(t.companyId, t.id),
+    planFk: foreignKey({
+      name: "maintenance_subscriptions_plan_fk",
+      columns: [t.companyId, t.planId],
+      foreignColumns: [maintenancePlans.companyId, maintenancePlans.id],
+    }).onDelete("restrict"),
+    byCompanyStatus: index("maintenance_subscriptions_company_status_idx").on(t.companyId, t.status),
+    byPlan: index("maintenance_subscriptions_planId_idx").on(t.planId),
+    byCustomer: index("maintenance_subscriptions_customerId_idx").on(t.customerId),
+    uniqExternalSubscription: uniqueIndex("maintenance_subscriptions_external_subscription_key")
+      .on(t.provider, t.externalSubscriptionId)
+      .where(sql`${t.externalSubscriptionId} is not null`),
+    uniqCheckoutSession: uniqueIndex("maintenance_subscriptions_checkout_session_key")
+      .on(t.provider, t.externalCheckoutSessionId)
+      .where(sql`${t.externalCheckoutSessionId} is not null`),
+    uniqManageToken: uniqueIndex("maintenance_subscriptions_manage_token_key")
+      .on(t.manageTokenHash)
+      .where(sql`${t.manageTokenHash} is not null`),
+    statusValid: check(
+      "maintenance_subscriptions_status_valid",
+      sql`${t.status} in ('pending_initial_cleaning', 'pending_payment', 'active', 'past_due', 'cancel_scheduled', 'suspended', 'cancelled', 'expired', 'ended')`,
+    ),
+    paymentModeValid: check(
+      "maintenance_subscriptions_payment_mode_valid",
+      sql`${t.paymentMode} in ('monthly', 'prepaid')`,
+    ),
+    prepaidMonthsValid: check(
+      "maintenance_subscriptions_prepaid_months_valid",
+      sql`(${t.paymentMode} = 'prepaid') = (${t.prepaidMonthsSnapshot} is not null) and (${t.prepaidMonthsSnapshot} is null or ${t.prepaidMonthsSnapshot} > 0)`,
+    ),
+    priceNonNegative: check(
+      "maintenance_subscriptions_price_non_negative",
+      sql`${t.priceCentsSnapshot} >= 0`,
+    ),
+    usesPositive: check(
+      "maintenance_subscriptions_uses_positive",
+      sql`${t.includedUsesPerCycleSnapshot} > 0`,
+    ),
+    commitmentNonNegative: check(
+      "maintenance_subscriptions_commitment_non_negative",
+      sql`${t.minimumCommitmentMonthsSnapshot} >= 0`,
+    ),
+    currencyIso: check("maintenance_subscriptions_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  }),
+)
+
+export const maintenanceSubscriptionVehicles = pgTable(
+  "maintenance_subscription_vehicles",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    vehicleBrand: text("vehicleBrand").notNull(),
+    vehicleModel: text("vehicleModel").notNull(),
+    vehiclePlate: text("vehiclePlate"),
+    vehicleTypeName: text("vehicleTypeName"),
+    // Changement de véhicule = clôture (activeUntil) + nouvelle ligne, jamais un écrasement.
+    activeFrom: timestamp("activeFrom").notNull().defaultNow(),
+    activeUntil: timestamp("activeUntil"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    subscriptionFk: foreignKey({
+      name: "maintenance_subscription_vehicles_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    byCompanySubscription: index("maintenance_subscription_vehicles_company_subscription_idx").on(
+      t.companyId,
+      t.subscriptionId,
+    ),
+    oneActiveVehicle: uniqueIndex("maintenance_subscription_vehicles_one_active_key")
+      .on(t.subscriptionId)
+      .where(sql`${t.activeUntil} is null`),
+    periodValid: check(
+      "maintenance_subscription_vehicles_period_valid",
+      sql`${t.activeUntil} is null or ${t.activeUntil} >= ${t.activeFrom}`,
+    ),
+  }),
+)
+
+export const maintenanceCycles = pgTable(
+  "maintenance_cycles",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    cycleStart: timestamp("cycleStart").notNull(),
+    cycleEnd: timestamp("cycleEnd").notNull(),
+    // Droits du cycle, non reportables au cycle suivant.
+    includedUses: integer("includedUses").notNull(),
+    // open | closed | void
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    // Cible des FK composites (garantit cycle ∈ même abonnement ∈ même tenant).
+    tenantKey: unique("maintenance_cycles_company_subscription_id_key").on(t.companyId, t.subscriptionId, t.id),
+    subscriptionFk: foreignKey({
+      name: "maintenance_cycles_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    uniqStart: unique("maintenance_cycles_subscription_start_key").on(t.subscriptionId, t.cycleStart),
+    byCompanyStart: index("maintenance_cycles_company_start_idx").on(t.companyId, t.cycleStart),
+    periodValid: check("maintenance_cycles_period_valid", sql`${t.cycleEnd} > ${t.cycleStart}`),
+    usesNonNegative: check("maintenance_cycles_uses_non_negative", sql`${t.includedUses} >= 0`),
+    statusValid: check("maintenance_cycles_status_valid", sql`${t.status} in ('open', 'closed', 'void')`),
+  }),
+)
+
+export const maintenanceUses = pgTable(
+  "maintenance_uses",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    cycleId: integer("cycleId").notNull(),
+    bookingId: integer("bookingId").references(() => bookings.id, { onDelete: "set null" }),
+    // available | reserved | completed | released | expired. La réservation du
+    // dernier droit disponible devra être atomique (verrou/transaction serveur).
+    status: text("status").notNull().default("available"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    reservedAt: timestamp("reservedAt"),
+    completedAt: timestamp("completedAt"),
+    releasedAt: timestamp("releasedAt"),
+    expiredAt: timestamp("expiredAt"),
+  },
+  (t) => ({
+    cycleFk: foreignKey({
+      name: "maintenance_uses_cycle_fk",
+      columns: [t.companyId, t.subscriptionId, t.cycleId],
+      foreignColumns: [maintenanceCycles.companyId, maintenanceCycles.subscriptionId, maintenanceCycles.id],
+    }).onDelete("restrict"),
+    byCompanySubscription: index("maintenance_uses_company_subscription_idx").on(t.companyId, t.subscriptionId),
+    byCycleStatus: index("maintenance_uses_cycle_status_idx").on(t.cycleId, t.status),
+    byBooking: index("maintenance_uses_bookingId_idx").on(t.bookingId),
+    // Une réservation ne consomme au plus qu'un droit en cours.
+    uniqActiveBooking: uniqueIndex("maintenance_uses_active_booking_key")
+      .on(t.bookingId)
+      .where(sql`${t.bookingId} is not null and ${t.status} in ('reserved', 'completed')`),
+    statusValid: check(
+      "maintenance_uses_status_valid",
+      sql`${t.status} in ('available', 'reserved', 'completed', 'released', 'expired')`,
+    ),
+  }),
+)
+
+export const maintenancePayments = pgTable(
+  "maintenance_payments",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    cycleId: integer("cycleId"),
+    provider: text("provider").notNull().default("stripe"),
+    externalPaymentId: text("externalPaymentId"),
+    externalInvoiceId: text("externalInvoiceId"),
+    // recurring | prepaid | initial_cleaning | adjustment
+    type: text("type").notNull(),
+    // pending | processing | paid | failed | cancelled | refunded | partially_refunded
+    status: text("status").notNull().default("pending"),
+    currency: text("currency").notNull().default("EUR"),
+    grossAmountCents: integer("grossAmountCents").notNull(),
+    // Commission DetailFlow FIGÉE au paiement (snapshot), distincte des frais Stripe.
+    platformFeeBps: integer("platformFeeBps").notNull(),
+    platformFeeAmountCents: integer("platformFeeAmountCents").notNull(),
+    providerFeeAmountCents: integer("providerFeeAmountCents"),
+    netAmountCents: integer("netAmountCents"),
+    refundedAmountCents: integer("refundedAmountCents").notNull().default(0),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    paidAt: timestamp("paidAt"),
+    failedAt: timestamp("failedAt"),
+    refundedAt: timestamp("refundedAt"),
+    meta: jsonb("meta"),
+  },
+  (t) => ({
+    subscriptionFk: foreignKey({
+      name: "maintenance_payments_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    // MATCH SIMPLE : non vérifiée si cycleId est null (paiement hors cycle).
+    cycleFk: foreignKey({
+      name: "maintenance_payments_cycle_fk",
+      columns: [t.companyId, t.subscriptionId, t.cycleId],
+      foreignColumns: [maintenanceCycles.companyId, maintenanceCycles.subscriptionId, maintenanceCycles.id],
+    }).onDelete("restrict"),
+    byCompanySubscription: index("maintenance_payments_company_subscription_idx").on(
+      t.companyId,
+      t.subscriptionId,
+    ),
+    byCompanyStatus: index("maintenance_payments_company_status_idx").on(t.companyId, t.status),
+    byExternalInvoice: index("maintenance_payments_external_invoice_idx")
+      .on(t.externalInvoiceId)
+      .where(sql`${t.externalInvoiceId} is not null`),
+    // Idempotence webhook Connect.
+    uniqExternalPayment: uniqueIndex("maintenance_payments_external_payment_key")
+      .on(t.provider, t.externalPaymentId)
+      .where(sql`${t.externalPaymentId} is not null`),
+    typeValid: check(
+      "maintenance_payments_type_valid",
+      sql`${t.type} in ('recurring', 'prepaid', 'initial_cleaning', 'adjustment')`,
+    ),
+    statusValid: check(
+      "maintenance_payments_status_valid",
+      sql`${t.status} in ('pending', 'processing', 'paid', 'failed', 'cancelled', 'refunded', 'partially_refunded')`,
+    ),
+    grossNonNegative: check("maintenance_payments_gross_non_negative", sql`${t.grossAmountCents} >= 0`),
+    feeBpsRange: check("maintenance_payments_fee_bps_range", sql`${t.platformFeeBps} between 0 and 10000`),
+    feeAmountBounds: check(
+      "maintenance_payments_fee_amount_bounds",
+      sql`${t.platformFeeAmountCents} between 0 and ${t.grossAmountCents}`,
+    ),
+    providerFeeNonNegative: check(
+      "maintenance_payments_provider_fee_non_negative",
+      sql`${t.providerFeeAmountCents} is null or ${t.providerFeeAmountCents} >= 0`,
+    ),
+    refundBounds: check(
+      "maintenance_payments_refund_bounds",
+      sql`${t.refundedAmountCents} between 0 and ${t.grossAmountCents}`,
+    ),
+    currencyIso: check("maintenance_payments_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  }),
+)
+
+/** Journal append-only : insertion uniquement, jamais d'UPDATE/DELETE applicatif. */
+export const maintenanceAuditLog = pgTable(
+  "maintenance_audit_log",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId"),
+    // Liste ouverte (subscription_created, payment_failed, use_reserved, …).
+    action: text("action").notNull(),
+    // user | customer | system | provider
+    actorType: text("actorType").notNull(),
+    actorUserId: text("actorUserId"),
+    meta: jsonb("meta").notNull().default({}),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    subscriptionFk: foreignKey({
+      name: "maintenance_audit_log_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    byCompanyCreated: index("maintenance_audit_log_company_created_idx").on(t.companyId, t.createdAt),
+    byCompanySubscription: index("maintenance_audit_log_company_subscription_idx").on(
+      t.companyId,
+      t.subscriptionId,
+    ),
+    actionFormat: check("maintenance_audit_log_action_format", sql`${t.action} ~ '^[a-z][a-z0-9_]{0,63}$'`),
+    actorTypeValid: check(
+      "maintenance_audit_log_actor_type_valid",
+      sql`${t.actorType} in ('user', 'customer', 'system', 'provider')`,
+    ),
   }),
 )
