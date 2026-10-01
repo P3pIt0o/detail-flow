@@ -43,8 +43,16 @@ export const CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS: Readonly<Record<LicensePlan
   FOUNDER: 0,
 }
 
-export function getCustomerSubscriptionPlatformFeeBps(plan: LicensePlan): number {
-  return CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS[plan]
+/**
+ * LEGACY (`plan === null`) — tenant historique sans licence explicite. Même
+ * convention que resolveEntitlements() : feature accessible, limite illimitée,
+ * et 0 % de commission. Temporaire jusqu'à l'attribution d'un vrai plan.
+ * Ne JAMAIS assimiler null à FREE (régression : limite 2 + 7 %).
+ */
+const LEGACY_PLATFORM_FEE_BPS = 0
+
+export function getCustomerSubscriptionPlatformFeeBps(plan: LicensePlan | null): number {
+  return plan === null ? LEGACY_PLATFORM_FEE_BPS : CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS[plan]
 }
 
 export type CustomerSubscriptionEntitlements = {
@@ -54,7 +62,10 @@ export type CustomerSubscriptionEntitlements = {
   platformFeeBps: number
 }
 
-export function getCustomerSubscriptionEntitlements(plan: LicensePlan): CustomerSubscriptionEntitlements {
+export function getCustomerSubscriptionEntitlements(plan: LicensePlan | null): CustomerSubscriptionEntitlements {
+  if (plan === null) {
+    return { enabled: true, maxActive: null, platformFeeBps: getCustomerSubscriptionPlatformFeeBps(null) }
+  }
   return {
     enabled: planFeature(plan, "customer_subscriptions"),
     maxActive: planLimit(plan, "maxActiveCustomerSubscriptions"),
@@ -63,7 +74,8 @@ export function getCustomerSubscriptionEntitlements(plan: LicensePlan): Customer
 }
 
 export type CustomerSubscriptionCapacityInput = {
-  plan: LicensePlan
+  /** `null` = LEGACY (voir LEGACY_PLATFORM_FEE_BPS). */
+  plan: LicensePlan | null
   activeCount: number
 }
 

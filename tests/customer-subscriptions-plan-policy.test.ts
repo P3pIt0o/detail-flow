@@ -127,3 +127,36 @@ describe("getCustomerSubscriptionUsage", () => {
     }
   })
 })
+
+describe("customer_subscriptions — tenant LEGACY (plan null)", () => {
+  it("entitlements legacy : enabled, illimité, 0 % (jamais assimilé à FREE)", () => {
+    const e = getCustomerSubscriptionEntitlements(null)
+    expect(e.enabled).toBe(true)
+    expect(e.maxActive).toBeNull()
+    expect(e.platformFeeBps).toBe(0)
+    expect(getCustomerSubscriptionPlatformFeeBps(null)).toBe(0)
+  })
+
+  it("création autorisée avec 0 et 1000 actifs", () => {
+    for (const activeCount of [0, 1000]) {
+      expect(canCreateCustomerSubscription({ plan: null, activeCount })).toMatchObject({
+        allowed: true,
+        maxActive: null,
+        remaining: null,
+        reason: null,
+      })
+    }
+  })
+
+  it("usage legacy : unlimited true", () => {
+    expect(getCustomerSubscriptionUsage({ plan: null, activeCount: 1000 })).toMatchObject({
+      activeCount: 1000,
+      maxActive: null,
+      unlimited: true,
+      remaining: null,
+      limitReached: false,
+      overLimit: false,
+      platformFeeBps: 0,
+    })
+  })
+})
