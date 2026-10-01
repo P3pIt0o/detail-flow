@@ -75,6 +75,11 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   // LOT 2 — CRM prospects (leads).
   leads_crm: { key: "leads_crm", label: "CRM prospects", generation: "LIFETIME_V1" },
   early_access: { key: "early_access", label: "Accès anticipé", generation: "LIFETIME_V1" },
+  customer_subscriptions: {
+    key: "customer_subscriptions",
+    label: "Abonnements clients",
+    generation: "LIFETIME_V1",
+  },
 }
 
 /* -------------------------- Registre des limites ------------------------- */
@@ -86,6 +91,7 @@ export const LIMIT_REGISTRY: Record<LimitKey, LimitDefinition> = {
   maxVehicles: { key: "maxVehicles", label: "Véhicules" },
   maxQuotesPerMonth: { key: "maxQuotesPerMonth", label: "Devis / mois" },
   maxInvoicesPerMonth: { key: "maxInvoicesPerMonth", label: "Factures / mois" },
+  maxActiveCustomerSubscriptions: { key: "maxActiveCustomerSubscriptions", label: "Abonnements clients actifs" },
 }
 
 /* ----------------------------- Métadonnées plan -------------------------- */
@@ -170,6 +176,8 @@ export const BUSINESS_FEATURES: readonly FeatureKey[] = [
   "marketing",
   // LOT 2 — CRM prospects : fonctionnalité de l'offre « Ultime » (BUSINESS).
   "leads_crm",
+  // Fonctionnalité de base (tous plans) — capacité illimitée pour BUSINESS.
+  "customer_subscriptions",
 ]
 
 /**
@@ -215,16 +223,32 @@ function founderFeatures(): Record<FeatureKey, boolean> {
 
 export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
   FREE: {
-    features: { ...noFeatures() },
-    limits: { maxCustomers: 10, maxVehicles: 10, maxQuotesPerMonth: 3, maxInvoicesPerMonth: 3 },
+    // Aucune feature PREMIUM ; seule la feature de base `customer_subscriptions`
+    // est ouverte, avec une capacité réduite (maxActiveCustomerSubscriptions).
+    features: { ...noFeatures(), customer_subscriptions: true },
+    limits: {
+      maxCustomers: 10,
+      maxVehicles: 10,
+      maxQuotesPerMonth: 3,
+      maxInvoicesPerMonth: 3,
+      maxActiveCustomerSubscriptions: 2,
+    },
   },
   ESSENTIAL: {
+    // Plan legacy : même politique que FREE pour les abonnements clients.
     features: {
       ...noFeatures(),
       business_stats: true,
       expense_management: true,
+      customer_subscriptions: true,
     },
-    limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
+    limits: {
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: null,
+      maxInvoicesPerMonth: null,
+      maxActiveCustomerSubscriptions: 2,
+    },
   },
   PRO: {
     features: {
@@ -239,23 +263,48 @@ export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
       // (founderFeatures) les obtiennent automatiquement ; Essential/Free non.
       email_reminders: true,
       review_requests: true,
+      customer_subscriptions: true,
     },
-    limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
+    limits: {
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: null,
+      maxInvoicesPerMonth: null,
+      maxActiveCustomerSubscriptions: 10,
+    },
   },
   BUSINESS: {
     // Composition EXPLICITE (plus de allFeatures) : droits actuels préservés,
     // aucune future FeatureKey accordée automatiquement.
     features: businessFeatures(),
-    limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
+    limits: {
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: null,
+      maxInvoicesPerMonth: null,
+      maxActiveCustomerSubscriptions: null,
+    },
   },
   ENTERPRISE: {
     // BUSINESS + futures features équipe (composition explicite, extensible).
     features: enterpriseFeatures(),
-    limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
+    limits: {
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: null,
+      maxInvoicesPerMonth: null,
+      maxActiveCustomerSubscriptions: null,
+    },
   },
   FOUNDER: {
     features: founderFeatures(),
-    limits: { maxCustomers: null, maxVehicles: null, maxQuotesPerMonth: null, maxInvoicesPerMonth: null },
+    limits: {
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: null,
+      maxInvoicesPerMonth: null,
+      maxActiveCustomerSubscriptions: null,
+    },
   },
 }
 

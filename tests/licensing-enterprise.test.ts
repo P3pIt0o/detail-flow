@@ -50,9 +50,11 @@ function effectiveFeatures(plan: LicensePlan): Record<FeatureKey, boolean> {
 /* ------------------------------------------------------------------ */
 
 const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]> = {
-  FREE: [],
-  ESSENTIAL: ["business_stats", "expense_management"],
+  // `customer_subscriptions` = feature de BASE (tous plans), pas premium.
+  FREE: ["customer_subscriptions"],
+  ESSENTIAL: ["business_stats", "expense_management", "customer_subscriptions"],
   PRO: [
+    "customer_subscriptions",
     "website",
     "online_booking",
     "online_payments",
@@ -76,6 +78,7 @@ const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]
     "advanced_reporting",
     "marketing",
     "leads_crm",
+    "customer_subscriptions",
   ],
   // FOUNDER = toutes les features de sa génération (aujourd'hui : toutes).
   FOUNDER: [...FEATURE_KEYS],
@@ -158,9 +161,11 @@ describe("LOT 0 — moteur de licences : plan ENTERPRISE", () => {
     }
   })
 
-  it("limites : tous les plans payants/premium restent illimités", () => {
+  it("limites : tous les plans payants/premium restent illimités (hors capacité abonnements clients)", () => {
     for (const plan of LIMITED_PLANS) {
       for (const key of LIMIT_KEYS) {
+        // Capacité différenciée par plan, couverte par customer-subscriptions-plan-policy.test.ts.
+        if (key === "maxActiveCustomerSubscriptions") continue
         expect(planLimit(plan, key), `${plan}.${key}`).toBeNull()
       }
     }
