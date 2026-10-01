@@ -1724,6 +1724,9 @@ export const maintenancePlans = pgTable(
     // Préavis/rappel configurable avant renouvellement (aucune durée légale codée en dur).
     renewalNoticeDays: integer("renewalNoticeDays"),
     initialServiceId: integer("initialServiceId").references(() => services.id, { onDelete: "set null" }),
+    // Prestation RÉCURRENTE incluse (V1 : une seule). Distincte de initialServiceId
+    // (nettoyage initial). Même tenant vérifié côté serveur ; requise pour une formule active.
+    includedServiceId: integer("includedServiceId").references(() => services.id, { onDelete: "set null" }),
     initialCleaningRequired: boolean("initialCleaningRequired").notNull().default(false),
     allowRecurringPayment: boolean("allowRecurringPayment").notNull().default(true),
     allowPrepaidPayment: boolean("allowPrepaidPayment").notNull().default(false),
@@ -1808,6 +1811,11 @@ export const maintenanceSubscriptions = pgTable(
     renewalModeSnapshot: text("renewalModeSnapshot").notNull(),
     renewalNoticeDaysSnapshot: integer("renewalNoticeDaysSnapshot"),
     prepaidBillingCyclesSnapshot: integer("prepaidBillingCyclesSnapshot"),
+    // Prestation récurrente incluse : le nom accepté par le client fait foi.
+    includedServiceId: integer("includedServiceId").references(() => services.id, { onDelete: "set null" }),
+    includedServiceNameSnapshot: text("includedServiceNameSnapshot"),
+    // Clé d'idempotence DÉRIVÉE serveur (sha256 companyId + opération + clé caller).
+    creationIdempotencyKey: text("creationIdempotencyKey"),
     // Nettoyage initial figé à la souscription (indépendant du prix courant de services).
     initialCleaningRequiredSnapshot: boolean("initialCleaningRequiredSnapshot").notNull().default(false),
     initialServiceNameSnapshot: text("initialServiceNameSnapshot"),
@@ -1879,6 +1887,9 @@ export const maintenanceSubscriptions = pgTable(
       "maintenance_subscriptions_terms_version_required",
       sql`${t.termsAcceptedAt} is null or ${t.termsVersion} is not null`,
     ),
+    uniqCreationIdempotency: uniqueIndex("maintenance_subscriptions_creation_idempotency_key")
+      .on(t.companyId, t.creationIdempotencyKey)
+      .where(sql`${t.creationIdempotencyKey} is not null`),
     uniqManageToken: uniqueIndex("maintenance_subscriptions_manage_token_key")
       .on(t.manageTokenHash)
       .where(sql`${t.manageTokenHash} is not null`),
@@ -2097,6 +2108,10 @@ export const maintenancePayments = pgTable(
     uniqExternalPayment: uniqueIndex("maintenance_payments_external_payment_key")
       .on(t.provider, t.providerAccountId, t.externalPaymentId)
       .where(sql`${t.externalPaymentId} is not null`),
+    // Une même facture provider ne produit jamais deux paiements DetailFlow.
+    uniqExternalInvoice: uniqueIndex("maintenance_payments_external_invoice_key")
+      .on(t.provider, t.providerAccountId, t.externalInvoiceId)
+      .where(sql`${t.externalInvoiceId} is not null`),
     externalIdsNeedAccount: check(
       "maintenance_payments_external_ids_need_account",
       sql`${t.providerAccountId} is not null or (${t.externalPaymentId} is null and ${t.externalInvoiceId} is null)`,
