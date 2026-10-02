@@ -11,6 +11,10 @@ import {
 import { sendPaymentReceivedEmails, sendRefundConfirmationEmail } from "@/lib/email/notifications"
 import { applyStripeRefundEvent } from "@/lib/payments/refunds"
 import { consumePlatformFeeReservation, releasePlatformFeeByExternalId } from "@/lib/payments/platform-fee-ledger"
+import {
+  syncStripePaymentFinancials,
+  syncStripePaymentFinancialsByPaymentIntent,
+} from "@/lib/payments/financials"
 
 /**
  * ============================================================================
@@ -124,6 +128,19 @@ export async function POST(req: NextRequest) {
           // incrément du compteur mensuel (idempotent en cas de rejeu).
           await consumePlatformFeeReservation({ externalPaymentId: session.id, companyId })
 
+          // Frais Stripe réels + net initial (BalanceTransaction du compte connecté).
+          // Donnée secondaire : ne lève jamais, idempotente, rejouable.
+          // Si la balance_transaction n'existe pas encore (capture asynchrone),
+          // la finalisation est faite automatiquement par `charge.updated` :
+          // l'événement checkout est donc marqué traité normalement.
+          await syncStripePaymentFinancials({
+            externalPaymentId: session.id,
+            companyId,
+            bookingId,
+            connectedAccountId: tenantAccountId,
+            paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
+          })
+
           // Emails de paiement : on APPELLE TOUJOURS le dispatch après une résa
           // payée. L'idempotence ne repose plus sur `justPaid` (fragile : un
           // échec Resend suivi d'un rejeu ne serait jamais retenté) mais sur un
@@ -201,6 +218,28 @@ export async function POST(req: NextRequest) {
             await sendRefundConfirmationEmail(applied.refundId, applied.companyId)
           }
         }
+        break
+      }
+
+      case "charge.updated": {
+        // Finalisation financière automatique (balance_transaction devenue
+        // disponible). Ne touche ni statut, ni brut, ni commission, ni emails.
+        const charge = event.data.object as {
+          id: string
+          payment_intent?: string | { id?: string } | null
+          balance_transaction?: string | { id?: string } | null
+        }
+        const paymentIntentId =
+          typeof charge.payment_intent === "string" ? charge.payment_intent : (charge.payment_intent?.id ?? null)
+        // event.account obligatoire ; sans balance_transaction, rien à finaliser.
+        if (!eventAccount || !paymentIntentId || !charge.balance_transaction) break
+        const financials = await syncStripePaymentFinancialsByPaymentIntent({
+          paymentIntentId,
+          connectedAccountId: eventAccount,
+        })
+        // Erreur transitoire (réseau/DB) : 500 non marqué → retry Stripe
+        // automatique, sans effet de bord (synchro idempotente).
+        if (financials.status === "error") throw new Error("financials_sync_failed")
         break
       }
 
