@@ -11,6 +11,9 @@ import {
 import { sendPaymentReceivedEmails, sendRefundConfirmationEmail } from "@/lib/email/notifications"
 import { applyStripeRefundEvent } from "@/lib/payments/refunds"
 import { consumePlatformFeeReservation, releasePlatformFeeByExternalId } from "@/lib/payments/platform-fee-ledger"
+import { db } from "@/lib/db"
+import { handleCustomerSubscriptionWebhook } from "@/lib/customer-subscriptions/payments"
+import { createCustomerSubscriptionStripePort } from "@/lib/customer-subscriptions/stripe"
 
 /**
  * ============================================================================
@@ -21,6 +24,8 @@ import { consumePlatformFeeReservation, releasePlatformFeeByExternalId } from "@
  *    - checkout.session.completed
  *    - checkout.session.async_payment_succeeded
  *    - checkout.session.expired
+ *    - invoice.created / invoice.paid / invoice.payment_failed      (abonnements clients)
+ *    - customer.subscription.updated / customer.subscription.deleted (abonnements clients)
  *
  *  - Signature vérifiée (STRIPE_WEBHOOK_SECRET) : rejet si invalide.
  *  - `event.account` identifie le compte connecté propriétaire de l'événement ;
@@ -67,7 +72,12 @@ export async function POST(req: NextRequest) {
   const eventAccount = (event as { account?: string }).account ?? null
 
   try {
-    switch (event.type) {
+    // Abonnements clients (detailflowModule = customer_subscription) : routés
+    // vers leur moteur dédié. `handled: false` → flux booking inchangé ci-dessous.
+    const customerSubscription = await handleCustomerSubscriptionWebhook(db, createCustomerSubscriptionStripePort(stripe), event)
+    if (customerSubscription.handled) {
+      console.log("[v0] webhook customer_subscription:", event.type, customerSubscription.outcome)
+    } else switch (event.type) {
       case "account.updated": {
         // Synchronise l'état du compte connecté du tenant.
         const account = event.data.object as {

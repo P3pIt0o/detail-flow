@@ -9,6 +9,8 @@ import { requireCompanyMember, type MemberContext } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { toErrorResult, type Result } from "./errors"
 import * as engine from "./engine"
+import * as payments from "./payments"
+import { createCustomerSubscriptionStripePort } from "./stripe"
 import type { PlanConfigInput } from "./plan-validation"
 import type { VehicleInput } from "./vehicle"
 
@@ -63,3 +65,15 @@ export const rotateManageTokenForCurrentTenant = (subscriptionId: number) =>
 
 export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, reason: string) =>
   run(MUTATORS, (companyId, actor) => engine.forceEndSubscription(db, companyId, actor, subscriptionId, reason))
+
+/** `returnUrl` doit être construite SERVEUR (domaine du tenant), placeholder {CHECKOUT_SESSION_ID} inclus. */
+export const startCheckoutForCurrentTenant = (subscriptionId: number, returnUrl: string) =>
+  run(MUTATORS, (companyId, actor) =>
+    payments.startSubscriptionCheckout(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, { returnUrl }),
+  )
+
+/** À appeler après scheduleCancellation / forceEnd : reporte la décision métier sur Stripe (aucun remboursement). */
+export const applyCancellationToProviderForCurrentTenant = (subscriptionId: number) =>
+  run(MUTATORS, (companyId, actor) =>
+    payments.applyCancellationToProvider(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId),
+  )
