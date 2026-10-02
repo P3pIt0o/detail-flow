@@ -32,7 +32,11 @@ import {
   activateSubscription,
   assertCanMutate,
   createCycleIfMissing,
+  forceEndSubscription,
+  requestRenewalOptOut,
   resolveCurrentCustomerSubscriptionFee,
+  revokeRenewalOptOut,
+  scheduleCancellation,
   type Actor,
   type Executor,
 } from "./engine"
@@ -323,11 +327,84 @@ export async function startSubscriptionCheckout(
 const readTenantSubscription = (db: Executor, companyId: number, subscriptionId: number) =>
   db.transaction((tx) => lockTenantSubscription(tx, companyId, subscriptionId))
 
+type SyncActor = { actorType: "user" | "system"; actorUserId?: string | null }
+const userSyncActor = (actor: Actor): SyncActor => ({ actorType: "user", actorUserId: actor.userId })
+const SYSTEM_SYNC: SyncActor = { actorType: "system", actorUserId: null }
+
+type CancelAtSync = { applied: boolean; cancelAt?: number | null; reason?: string }
+
 /**
- * Synchronise le `cancel_at` Stripe avec la règle contractuelle DetailFlow
- * (annulation programmée > non-renouvellement / mode none). Révocation →
- * retrait du cancel_at. Aucun remboursement. Appel Stripe hors transaction.
+ * Cœur idempotent : aligne le `cancel_at` Stripe sur la règle DetailFlow
+ * (annulation programmée > non-renouvellement / mode none ; null = retrait).
+ * Lecture DB courte, appel Stripe hors transaction. `scheduleOnly` : n'efface
+ * jamais un cancel_at (utilisé après invoice.paid).
  */
+async function syncProviderCancelAtInternal(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  subscriptionId: number,
+  now: Date,
+  who: SyncActor,
+  scheduleOnly = false,
+): Promise<CancelAtSync> {
+  const sub = await readTenantSubscription(db, companyId, subscriptionId)
+  if (!sub.externalSubscriptionId || !sub.providerAccountId) return { applied: false, reason: "no_provider_subscription" }
+  if (isTerminalStatus(sub.status)) return { applied: false, reason: "terminal" }
+  const ext = sub.externalSubscriptionId
+  const opts = { stripeAccount: sub.providerAccountId }
+  const desired = desiredProviderCancelAt(sub)
+  if (desired == null && scheduleOnly) return { applied: false, cancelAt: null, reason: "nothing_to_schedule" }
+  if (desired != null && desired * 1000 <= now.getTime()) return { applied: false, reason: "date_passed" }
+  const current = await providerCall(() => port.retrieveSubscription(ext, opts))
+  if (current.status === "canceled") return { applied: false, reason: "provider_canceled" }
+  if ((current.cancel_at ?? null) === desired) return { applied: false, cancelAt: desired, reason: "in_sync" }
+  // updatedAt du contrat en nonce : une clé par décision locale ; un retry après panne réutilise la même clé.
+  const key = `df-cancel-at:${ext}:${desired ?? "clear"}:${sub.updatedAt.getTime()}`
+  await providerCall(() => port.updateSubscription(ext, { cancel_at: desired ?? "", proration_behavior: "none" }, { ...opts, idempotencyKey: key }))
+  await appendMaintenanceAudit(db, {
+    companyId,
+    subscriptionId: sub.id,
+    action: "provider_cancellation_applied",
+    actorType: who.actorType,
+    actorUserId: who.actorUserId ?? null,
+    meta: { mode: desired == null ? "cleared" : "scheduled", cancelAt: desired == null ? null : new Date(desired * 1000).toISOString(), refund: "none" },
+  })
+  return { applied: true, cancelAt: desired }
+}
+
+export type ProviderSyncResult = { applied: boolean; mode?: "scheduled" | "cleared" | "immediate"; reason?: string }
+
+/**
+ * Reporte sur Stripe l'état DÉJÀ décidé en DB (source de vérité) :
+ * contrat terminé → annulation immédiate ; sinon cancel_at aligné.
+ * Rejouable à volonté (idempotent, aucun remboursement).
+ */
+async function syncProviderStateInternal(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  subscriptionId: number,
+  now: Date,
+  who: SyncActor,
+): Promise<ProviderSyncResult> {
+  const sub = await readTenantSubscription(db, companyId, subscriptionId)
+  if (!sub.externalSubscriptionId || !sub.providerAccountId) return { applied: false, reason: "no_provider_subscription" }
+  if (isTerminalStatus(sub.status)) {
+    const ext = sub.externalSubscriptionId
+    const opts = { stripeAccount: sub.providerAccountId }
+    const current = await providerCall(() => port.retrieveSubscription(ext, opts))
+    if (current.status === "canceled") return { applied: true, mode: "immediate", reason: "already_canceled" }
+    await providerCall(() => port.cancelSubscription(ext, { ...opts, idempotencyKey: `df-cancel:${ext}` }))
+    await appendMaintenanceAudit(db, { companyId, subscriptionId: sub.id, action: "provider_cancellation_applied", actorType: who.actorType, actorUserId: who.actorUserId ?? null, meta: { mode: "immediate", refund: "none" } })
+    return { applied: true, mode: "immediate" }
+  }
+  const r = await syncProviderCancelAtInternal(db, port, companyId, subscriptionId, now, who)
+  if (r.applied || r.reason === "in_sync") return { applied: true, mode: r.cancelAt == null ? "cleared" : "scheduled", reason: r.reason }
+  return { applied: false, reason: r.reason }
+}
+
+/** Synchronise le `cancel_at` Stripe (appel manuel / retry). */
 export async function syncProviderCancelAt(
   db: Executor,
   port: CustomerSubscriptionStripePort,
@@ -335,37 +412,25 @@ export async function syncProviderCancelAt(
   actor: Actor,
   subscriptionId: number,
   now: Date = new Date(),
-): Promise<{ applied: boolean; cancelAt?: number | null; reason?: string }> {
+): Promise<CancelAtSync> {
   assertCanMutate(actor)
-  const sub = await readTenantSubscription(db, companyId, subscriptionId)
-  if (!sub.externalSubscriptionId || !sub.providerAccountId) return { applied: false, reason: "no_provider_subscription" }
-  if (isTerminalStatus(sub.status)) return { applied: false, reason: "terminal" }
-  const ext = sub.externalSubscriptionId
-  const opts = { stripeAccount: sub.providerAccountId }
-  const desired = desiredProviderCancelAt(sub)
-  if (desired != null && desired * 1000 <= now.getTime()) return { applied: false, reason: "date_passed" }
-  const current = await providerCall(() => port.retrieveSubscription(ext, opts))
-  if (current.status === "canceled") return { applied: false, reason: "provider_canceled" }
-  if ((current.cancel_at ?? null) === desired) return { applied: false, cancelAt: desired, reason: "in_sync" }
-  // updatedAt du contrat en nonce : chaque décision locale (opt-out / révocation) a sa propre clé.
-  const key = `df-cancel-at:${ext}:${desired ?? "clear"}:${sub.updatedAt.getTime()}`
-  await providerCall(() => port.updateSubscription(ext, { cancel_at: desired ?? "", proration_behavior: "none" }, { ...opts, idempotencyKey: key }))
-  await appendMaintenanceAudit(db, {
-    companyId,
-    subscriptionId: sub.id,
-    action: "provider_cancellation_applied",
-    actorType: "user",
-    actorUserId: actor.userId,
-    meta: { mode: desired == null ? "cleared" : "scheduled", cancelAt: desired == null ? null : new Date(desired * 1000).toISOString(), refund: "none" },
-  })
-  return { applied: true, cancelAt: desired }
+  return syncProviderCancelAtInternal(db, port, companyId, subscriptionId, now, userSyncActor(actor))
 }
 
-/**
- * Applique à Stripe une annulation DÉJÀ calculée par le moteur métier
- * (scheduleCancellation / forceEndSubscription). Stripe ne décide jamais de
- * la date d'engagement. Aucun remboursement.
- */
+/** Rejoue la synchronisation Stripe de l'état DB courant (retry après panne provider). */
+export async function syncProviderState(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  now: Date = new Date(),
+): Promise<ProviderSyncResult> {
+  assertCanMutate(actor)
+  return syncProviderStateInternal(db, port, companyId, subscriptionId, now, userSyncActor(actor))
+}
+
+/** Compat : applique l'annulation déjà décidée par le moteur métier. */
 export async function applyCancellationToProvider(
   db: Executor,
   port: CustomerSubscriptionStripePort,
@@ -374,24 +439,87 @@ export async function applyCancellationToProvider(
   subscriptionId: number,
   now: Date = new Date(),
 ): Promise<{ applied: boolean; mode?: "scheduled" | "immediate"; reason?: string }> {
-  assertCanMutate(actor)
-  const sub = await readTenantSubscription(db, companyId, subscriptionId)
-  if (!sub.externalSubscriptionId || !sub.providerAccountId) return { applied: false, reason: "no_provider_subscription" }
-  const ext = sub.externalSubscriptionId
-  const opts = { stripeAccount: sub.providerAccountId }
-  const immediate = (sub.status === "cancelled" || sub.status === "ended") && (!sub.cancelAt || sub.cancelAt <= now)
-  if (immediate) {
-    const current = await providerCall(() => port.retrieveSubscription(ext, opts))
-    if (current.status !== "canceled") await providerCall(() => port.cancelSubscription(ext, { ...opts, idempotencyKey: `df-cancel:${ext}` }))
-    await appendMaintenanceAudit(db, { companyId, subscriptionId: sub.id, action: "provider_cancellation_applied", actorType: "user", actorUserId: actor.userId, meta: { mode: "immediate", refund: "none" } })
-    return { applied: true, mode: "immediate" }
-  }
-  if (sub.cancelAt && sub.cancelAt > now) {
-    const r = await syncProviderCancelAt(db, port, companyId, actor, subscriptionId, now)
-    return r.applied || r.reason === "in_sync" ? { applied: true, mode: "scheduled" } : { applied: false, reason: r.reason }
-  }
-  return { applied: false, reason: "nothing_to_apply" }
+  const r = await syncProviderState(db, port, companyId, actor, subscriptionId, now)
+  if (r.applied && r.mode === "immediate") return { applied: true, mode: "immediate" }
+  if (r.applied && r.mode === "scheduled") return { applied: true, mode: "scheduled" }
+  return { applied: false, reason: r.reason ?? "nothing_to_apply" }
 }
+
+/* ---------------- Orchestration décision DB → sync Stripe ---------------- */
+
+export type ProviderSyncOutcome =
+  | { status: "synced" | "noop"; mode?: ProviderSyncResult["mode"]; reason?: string }
+  | { status: "pending_retry"; code: string }
+
+/**
+ * La DB a déjà commité la décision : une panne Stripe ne l'annule pas et ne
+ * bloque pas le retry. L'échec est journalisé, renvoyé `pending_retry`, et un
+ * nouvel appel (même action ou syncProviderState) resynchronise.
+ */
+async function syncAfterDecision(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  now: Date,
+): Promise<ProviderSyncOutcome> {
+  try {
+    const r = await syncProviderStateInternal(db, port, companyId, subscriptionId, now, userSyncActor(actor))
+    return r.applied ? { status: "synced", mode: r.mode, reason: r.reason } : { status: "noop", reason: r.reason }
+  } catch (e) {
+    const code = e instanceof CustomerSubscriptionError ? e.code : "PROVIDER_ERROR"
+    await appendMaintenanceAudit(db, { companyId, subscriptionId, action: "provider_sync_failed", actorType: "user", actorUserId: actor.userId, meta: { code } })
+    return { status: "pending_retry", code }
+  }
+}
+
+/**
+ * Exécute la décision locale puis synchronise Stripe hors transaction.
+ * `retryWhenTerminal` : décision déjà appliquée (ALREADY_CANCELLED) → on
+ * retente uniquement la synchronisation provider, sans toucher la DB.
+ */
+async function decideThenSync<T extends object>(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  now: Date,
+  decide: () => Promise<T>,
+  retryWhenTerminal = false,
+): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
+  assertCanMutate(actor)
+  let local: T & { alreadyApplied?: boolean }
+  try {
+    local = await decide()
+  } catch (e) {
+    if (!(retryWhenTerminal && e instanceof CustomerSubscriptionError && e.code === "ALREADY_CANCELLED")) throw e
+    const sub = await readTenantSubscription(db, companyId, subscriptionId)
+    local = { status: sub.status, alreadyApplied: true } as unknown as T & { alreadyApplied?: boolean }
+  }
+  const provider = await syncAfterDecision(db, port, companyId, actor, subscriptionId, now)
+  return { ...local, provider }
+}
+
+export const requestRenewalOptOutAndSync = (db: Executor, port: CustomerSubscriptionStripePort, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) =>
+  decideThenSync(db, port, companyId, actor, subscriptionId, now, () => requestRenewalOptOut(db, companyId, actor, subscriptionId, now))
+
+export const revokeRenewalOptOutAndSync = (db: Executor, port: CustomerSubscriptionStripePort, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) =>
+  decideThenSync(db, port, companyId, actor, subscriptionId, now, () => revokeRenewalOptOut(db, companyId, actor, subscriptionId, now))
+
+export const scheduleCancellationAndSync = (
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  options: { requestedCancelAt?: Date | null } = {},
+  now: Date = new Date(),
+) => decideThenSync(db, port, companyId, actor, subscriptionId, now, () => scheduleCancellation(db, companyId, actor, subscriptionId, options, now), true)
+
+export const forceEndSubscriptionAndSync = (db: Executor, port: CustomerSubscriptionStripePort, companyId: number, actor: Actor, subscriptionId: number, reason: unknown, now: Date = new Date()) =>
+  decideThenSync(db, port, companyId, actor, subscriptionId, now, () => forceEndSubscription(db, companyId, actor, subscriptionId, reason, now), true)
 
 /* -------------------------------- Webhook -------------------------------- */
 
@@ -542,6 +670,27 @@ async function ensureCycle(tx: Executor, row: { id: number; companyId: number },
  * Facture finalisée (ou finalisée pendant l'update) : jamais réécrite, on
  * relit ce que Stripe a réellement appliqué.
  */
+/**
+ * Commission réellement appliquée = `PaymentIntent.application_fee_amount`
+ * lu dans le contexte du compte connecté (source de vérité Dahlia).
+ * `null` = donnée indisponible (jamais estimée).
+ */
+async function realPaymentIntentFee(port: CustomerSubscriptionStripePort, account: string, paymentIntentId: string | null, grossCents: number): Promise<number | null> {
+  if (!paymentIntentId) return null
+  const pi = await providerCall(() => port.retrievePaymentIntent(paymentIntentId, { stripeAccount: account }))
+  if (!pi || (pi.id && pi.id !== paymentIntentId)) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
+  if (pi.application_fee_amount === undefined) return null
+  return Math.min(grossCents, Math.max(0, pi.application_fee_amount ?? 0))
+}
+
+async function hasInvoicePayment(db: Executor, target: { id: number; companyId: number }, invoiceId: string) {
+  const [p] = await db
+    .select({ id: maintenancePayments.id })
+    .from(maintenancePayments)
+    .where(and(eq(maintenancePayments.companyId, target.companyId), eq(maintenancePayments.subscriptionId, target.id), eq(maintenancePayments.provider, "stripe"), eq(maintenancePayments.externalInvoiceId, invoiceId)))
+  return Boolean(p)
+}
+
 async function onInvoiceCreated({ db, port, event, account, target }: Ctx): Promise<WebhookOutcome> {
   let inv = event.data.object as InvoiceLike
   const gross = Math.max(0, inv.amount_due ?? inv.total ?? 0)
@@ -569,8 +718,11 @@ async function onInvoiceCreated({ db, port, event, account, target }: Ctx): Prom
       console.log("[v0] customer-subscriptions: facture finalisée avant mise à jour de la commission", { invoiceId: inv.id })
     }
   }
-  const feeAmount = synced ? computePlatformFeeAmountCents(gross, platformFeeBps) : invoiceChargedFeeCents(inv, gross, platformFeeBps)
-  const feeBps = synced ? platformFeeBps : feeBpsForCharged(gross, feeAmount, [parseFeeBpsMetadata(invoiceMetadata(inv)), platformFeeBps])
+  // Facture déjà finalisée : montant réel (Invoice legacy ou PaymentIntent), jamais estimé.
+  const feeAmount = synced
+    ? computePlatformFeeAmountCents(gross, platformFeeBps)
+    : (invoiceChargedFeeCents(inv, gross) ?? (await realPaymentIntentFee(port, account, invoicePaymentIntentId(inv), gross)))
+  const feeBps = feeAmount == null ? null : synced ? platformFeeBps : feeBpsForCharged(gross, feeAmount, [parseFeeBpsMetadata(invoiceMetadata(inv))])
   if (ext && !terminal) {
     const percent = feePercentFromBps(platformFeeBps)
     // "" = suppression du pourcentage (taux 0). Clé par facture : rejouable.
@@ -581,7 +733,9 @@ async function onInvoiceCreated({ db, port, event, account, target }: Ctx): Prom
     const row = await lockTenantSubscription(tx, target.companyId, target.id)
     await linkProviderIds(tx, row, { externalSubscriptionId: ext })
     const existing = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
-    if (!existing) {
+    // Commission réelle pas encore lisible : aucun snapshot inventé ; invoice.paid / failed l'écriront.
+    if (!existing && (feeAmount == null || feeBps == null)) return { handled: true as const, outcome: "invoice_created_fee_pending" }
+    if (!existing && feeAmount != null && feeBps != null) {
       await tx.insert(maintenancePayments).values({
         companyId: row.companyId,
         subscriptionId: row.id,
@@ -644,6 +798,10 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
   const probe = periodProbe(period)
   const realPeriod = period
 
+  // Pas de maintenance_payment (invoice.paid avant invoice.created) : commission RÉELLE
+  // lue sur le PaymentIntent ; jamais le plan courant. Indisponible → retriable.
+  const realFee = (await hasInvoicePayment(db, target, inv.id)) ? null : (invoiceChargedFeeCents(inv, gross) ?? (await realPaymentIntentFee(port, account, paymentIntentId, gross)))
+
   const result = await db.transaction(async (tx) => {
     let row = await lockTenantSubscription(tx, target.companyId, target.id)
     if (row.externalSubscriptionId && row.externalSubscriptionId !== ext) return { handled: true as const, outcome: "rejected_subscription_conflict" }
@@ -651,8 +809,8 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
 
     let payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
     if (!payment) {
-      const { platformFeeBps } = await resolveCurrentCustomerSubscriptionFee(tx, row.companyId)
-      const fee = invoiceChargedFeeCents(inv, gross, platformFeeBps)
+      if (realFee == null) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
+      const fee = realFee
       ;[payment] = await tx
         .insert(maintenancePayments)
         .values({
@@ -666,7 +824,7 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
           status: "paid",
           currency: (inv.currency ?? row.currency).toUpperCase(),
           grossAmountCents: gross,
-          platformFeeBps: feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(invoiceMetadata(inv)), platformFeeBps]),
+          platformFeeBps: feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(invoiceMetadata(inv))]),
           platformFeeAmountCents: fee,
           paidAt,
         })
@@ -724,21 +882,26 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
     return { handled: true as const, outcome: "invoice_paid" }
   })
 
+  // Après commit, hors transaction : renewalMode none / opt-out déjà présent →
+  // cancel_at = currentTermEndsAt. Idempotent ; échec → webhook rejoué.
+  if (result.outcome === "invoice_paid") {
+    await syncProviderCancelAtInternal(db, port, target.companyId, target.id, paidAt > new Date() ? paidAt : new Date(), SYSTEM_SYNC, true)
+  }
   if (paymentIntentId) await syncFinancialsBestEffort(db, port, account, target, paymentIntentId)
   return result
 }
 
-async function recordInvoiceFailure({ db, event, target }: Ctx, kind: "failed" | "action_required"): Promise<WebhookOutcome> {
+async function recordInvoiceFailure({ db, port, event, account, target }: Ctx, kind: "failed" | "action_required"): Promise<WebhookOutcome> {
   const inv = event.data.object as InvoiceLike
   const failedAt = eventDate(event)
   const gross = Math.max(0, inv.amount_due ?? inv.total ?? 0)
+  // Commission réelle uniquement ; inconnue → pas de ligne (invoice.paid l'écrira depuis le PaymentIntent).
+  const fee = (await hasInvoicePayment(db, target, inv.id)) ? null : (invoiceChargedFeeCents(inv, gross) ?? (await realPaymentIntentFee(port, account, invoicePaymentIntentId(inv), gross)))
   return db.transaction(async (tx) => {
     const row = await lockTenantSubscription(tx, target.companyId, target.id)
     await linkProviderIds(tx, row, { externalSubscriptionId: invoiceSubscriptionId(inv) })
     const payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
-    if (!payment) {
-      const { platformFeeBps } = await resolveCurrentCustomerSubscriptionFee(tx, row.companyId)
-      const fee = invoiceChargedFeeCents(inv, gross, platformFeeBps)
+    if (!payment && fee != null) {
       await tx.insert(maintenancePayments).values({
         companyId: row.companyId,
         subscriptionId: row.id,
@@ -749,11 +912,11 @@ async function recordInvoiceFailure({ db, event, target }: Ctx, kind: "failed" |
         status: "failed",
         currency: (inv.currency ?? row.currency).toUpperCase(),
         grossAmountCents: gross,
-        platformFeeBps: feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(invoiceMetadata(inv)), platformFeeBps]),
+        platformFeeBps: feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(invoiceMetadata(inv))]),
         platformFeeAmountCents: fee,
         failedAt,
       })
-    } else if (payment.status === "pending") {
+    } else if (payment?.status === "pending") {
       await tx.update(maintenancePayments).set({ status: "failed", failedAt }).where(and(eq(maintenancePayments.id, payment.id), eq(maintenancePayments.companyId, row.companyId)))
     }
 
@@ -952,10 +1115,12 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
     const refunded = Math.min(p.grossAmountCents, Number(total))
     const refundable = isSettledPaymentStatus(p.status)
     const nextStatus = refundable ? paymentStatusAfterRefunds(p.grossAmountCents, refunded) : p.status
-    if (refunded !== p.refundedAmountCents || nextStatus !== p.status) {
+    // refundedAt : premier passage > 0, jamais réécrit ensuite ; netAmountCents (snapshot initial) intouché.
+    const refundedAt = refunded > 0 ? (p.refundedAt ?? at) : p.refundedAt
+    if (refunded !== p.refundedAmountCents || nextStatus !== p.status || refundedAt !== p.refundedAt) {
       await tx
         .update(maintenancePayments)
-        .set({ refundedAmountCents: refunded, status: nextStatus })
+        .set({ refundedAmountCents: refunded, status: nextStatus, refundedAt })
         .where(and(eq(maintenancePayments.id, p.id), eq(maintenancePayments.companyId, p.companyId)))
       changed = true
     }

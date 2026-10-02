@@ -185,7 +185,8 @@ describe.skipIf(!configured)("Stripe Connect TEST — réseau réel", () => {
     expect(period).not.toBeNull()
     // Forme observée consignée (clés seulement, aucune donnée client).
     console.log("[customer-subscriptions:network] invoice keys:", Object.keys(full).sort().join(","))
-    expect(invoiceChargedFeeCents(like, full.amount_paid, 700)).toBe(computePlatformFeeAmountCents(8900, 700))
+    const piFee = invoiceChargedFeeCents(like, full.amount_paid)
+    if (piFee != null) expect(piFee).toBe(computePlatformFeeAmountCents(8900, 700))
     const subNow = await stripe.subscriptions.retrieve(sub.id, {}, opts)
     expect(subNow.application_fee_percent).toBe(7)
   })

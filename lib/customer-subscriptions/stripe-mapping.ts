@@ -235,11 +235,14 @@ export function parseFeeBpsMetadata(meta: Record<string, string> | null | undefi
  * on recalcule alors depuis le taux écrit en metadata au stade draft
  * (`detailflowPlatformFeeBps`), puis le taux courant. Forme legacy conservée.
  */
-export function invoiceChargedFeeCents(inv: InvoiceLike, grossCents: number, fallbackBps: number): number {
+/**
+ * Commission RÉELLE exposée directement par l'objet Invoice (API legacy).
+ * Dahlia : absent → `null` ; l'appelant doit lire le PaymentIntent réel.
+ * Jamais d'estimation (ni metadata, ni plan courant).
+ */
+export function invoiceChargedFeeCents(inv: InvoiceLike, grossCents: number): number | null {
   if (typeof inv.application_fee_amount === "number") return Math.min(grossCents, Math.max(0, inv.application_fee_amount))
-  // Metadata écrite par invoice.created sur la facture elle-même, puis celle de l'abonnement.
-  const bps = parseFeeBpsMetadata(inv.metadata) ?? parseFeeBpsMetadata(invoiceMetadata(inv)) ?? fallbackBps
-  return computePlatformFeeAmountCents(grossCents, bps)
+  return null
 }
 
 export function feeBpsForCharged(grossCents: number, feeCents: number, candidates: Array<number | null>): number {

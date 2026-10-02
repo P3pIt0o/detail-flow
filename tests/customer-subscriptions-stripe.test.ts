@@ -91,7 +91,13 @@ function fakePort(
       return (init.balances?.[id] ?? { id, latest_charge: null }) as any
     },
   }
-  return { port, calls, sessions }
+  // Registre PI accessible aux helpers (forme Dahlia : fee réel sur le PaymentIntent).
+  Object.assign(port, { __pis: pis })
+  return { port, calls, sessions, pis }
+}
+
+function registerPaymentIntent(port: payments.CustomerSubscriptionStripePort, pi: payments.PaymentIntentLike) {
+  ;(port as unknown as { __pis?: Map<string, payments.PaymentIntentLike> }).__pis?.set(pi.id, pi)
 }
 
 async function seedCompany(plan: string | null) {
@@ -159,7 +165,9 @@ const PERIOD_START = new Date("2026-01-16T00:00:00.000Z")
 const periodLines = (start: Date) => ({ lines: { data: [{ period: { start: sec(start), end: sec(new Date(start.getTime() + 28 * 86_400_000)) } }] } })
 
 async function payFirstInvoice(port: payments.CustomerSubscriptionStripePort, c: { companyId: number; acct: string }, subId: number, ext = uid("sub_test")) {
-  const inv = { id: uid("in_test"), subscription: ext, status: "paid", amount_paid: 8900, amount_due: 8900, application_fee_amount: 267, metadata: moduleMeta(c.companyId, subId), ...periodLines(PERIOD_START) }
+  const pi = uid("pi_first")
+  registerPaymentIntent(port, { id: pi, application_fee_amount: 267 })
+  const inv = { id: uid("in_test"), subscription: ext, status: "paid", amount_paid: 8900, amount_due: 8900, payment_intent: pi, metadata: moduleMeta(c.companyId, subId), ...periodLines(PERIOD_START) }
   const r = await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, inv, PERIOD_START))
   return { r, ext, inv }
 }
@@ -201,11 +209,10 @@ describe("commission customer_subscriptions (plan-policy, pas commercial-rules)"
     expect(platformFeeBpsForPaymentType("prepaid", bps)).toBe(bps)
   })
 
-  it("commission facture : forme legacy (application_fee_amount) et forme dahlia (absent → metadata, puis taux courant)", () => {
-    expect(invoiceChargedFeeCents({ id: "in_l", application_fee_amount: 623 }, 8900, 300)).toBe(623)
-    expect(invoiceChargedFeeCents({ id: "in_d", metadata: { detailflowPlatformFeeBps: "700" } }, 8900, 300)).toBe(623)
-    expect(invoiceChargedFeeCents({ id: "in_d2" }, 8900, 300)).toBe(267)
-    expect(invoiceChargedFeeCents({ id: "in_d3" }, 8900, 0)).toBe(0)
+  it("commission facture : legacy lue telle quelle ; dahlia (absent) → null, jamais estimée (ni metadata ni plan)", () => {
+    expect(invoiceChargedFeeCents({ id: "in_l", application_fee_amount: 623 }, 8900)).toBe(623)
+    expect(invoiceChargedFeeCents({ id: "in_d", metadata: { detailflowPlatformFeeBps: "700" } }, 8900)).toBeNull()
+    expect(invoiceChargedFeeCents({ id: "in_d2" }, 8900)).toBeNull()
   })
 
   it("bps → application_fee_percent ; 0 → paramètre omis", () => {
@@ -424,7 +431,7 @@ describe("invoices", () => {
     const c = await seedCompany("PRO")
     const id = await seedSub(c)
     const { port, calls } = fakePort({ subscriptions: { sub_meta: { id: "sub_meta", status: "active", metadata: moduleMeta(c.companyId, id) } } })
-    const r = await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: "sub_meta", status: "paid", amount_paid: 8900, ...periodLines(PERIOD_START) }))
+    const r = await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: "sub_meta", status: "paid", payment_intent: uid("pi"), amount_paid: 8900, ...periodLines(PERIOD_START) }))
     expect(r).toEqual({ handled: true, outcome: "invoice_paid" })
     expect(calls.find((x) => x.method === "retrieveSubscription")?.opts.stripeAccount).toBe(c.acct)
   })
@@ -487,7 +494,7 @@ describe("invoices", () => {
     const { port } = fakePort()
     const { ext } = await payFirstInvoice(port, c, id)
     const p2 = new Date(PERIOD_START.getTime() + 28 * 86_400_000)
-    const inv = { id: uid("in_f"), subscription: ext, amount_due: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(p2) }
+    const inv = { id: uid("in_f"), subscription: ext, amount_due: 8900, payment_intent: uid("pi_f"), metadata: moduleMeta(c.companyId, id), ...periodLines(p2) }
     await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.payment_failed", c.acct, { ...inv, status: "open" }, p2))
     expect((await getSub(id)).status).toBe("past_due")
     expect((await getPayments(id)).find((p) => p.externalInvoiceId === inv.id)).toMatchObject({ status: "failed" })
@@ -500,7 +507,7 @@ describe("invoices", () => {
 
     await pg.query(`UPDATE maintenance_subscriptions SET status='suspended' WHERE id=$1`, [id])
     const p3 = new Date(p2.getTime() + 28 * 86_400_000)
-    const inv3 = { ...inv, id: uid("in_s"), ...periodLines(p3) }
+    const inv3 = { ...inv, id: uid("in_s"), payment_intent: uid("pi_s"), ...periodLines(p3) }
     await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.payment_failed", c.acct, { ...inv3, status: "open" }, p3))
     expect((await getSub(id)).status).toBe("suspended")
     await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { ...inv3, status: "paid", amount_paid: 8900 }, p3))
@@ -511,7 +518,7 @@ describe("invoices", () => {
     const c = await seedCompany("PRO")
     const id = await seedSub(c)
     const { port } = fakePort()
-    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.payment_failed", c.acct, { id: uid("in"), subscription: uid("sub"), status: "open", amount_due: 8900, metadata: moduleMeta(c.companyId, id) }))
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.payment_failed", c.acct, { id: uid("in"), subscription: uid("sub"), status: "open", payment_intent: uid("pi"), amount_due: 8900, metadata: moduleMeta(c.companyId, id) }))
     expect((await getSub(id)).status).toBe("pending_payment")
   })
 })
@@ -649,7 +656,7 @@ describe("V2 : SCA / payment_action_required", () => {
     const { port } = fakePort()
     const { ext } = await payFirstInvoice(port, c, id)
     const p2 = shift(PERIOD_START, 28)
-    const inv = { id: uid("in_sca"), subscription: ext, amount_due: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(p2) }
+    const inv = { id: uid("in_sca"), subscription: ext, amount_due: 8900, payment_intent: uid("pi_sca"), metadata: moduleMeta(c.companyId, id), ...periodLines(p2) }
     const sca = invoiceEvent("invoice.payment_action_required", c.acct, { ...inv, status: "open" }, p2)
     expect((await payments.handleCustomerSubscriptionWebhook(db, port, sca)).handled).toBe(true)
     await payments.handleCustomerSubscriptionWebhook(db, port, { ...sca, id: uid("evt") })
@@ -671,7 +678,7 @@ describe("V2 : SCA / payment_action_required", () => {
     const id = await seedSub(c)
     const ext = uid("sub_inc")
     const { port } = fakePort({ subscriptions: { [ext]: { id: ext, status: "incomplete", metadata: moduleMeta(c.companyId, id) } } })
-    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: ext, status: "paid", amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(PERIOD_START) })
+    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: ext, status: "paid", payment_intent: uid("pi"), amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(PERIOD_START) })
     await expect(payments.handleCustomerSubscriptionWebhook(db, port, evt)).rejects.toSatisfy((e) => payments.isRetryableWebhookError(e))
     expect((await getSub(id)).status).toBe("pending_payment")
     expect(await getCycles(id)).toHaveLength(0)
@@ -681,7 +688,7 @@ describe("V2 : SCA / payment_action_required", () => {
     const c = await seedCompany("PRO")
     const id = await seedSub(c)
     const { port, calls } = fakePort()
-    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: uid("sub"), status: "paid", amount_paid: 8900, metadata: moduleMeta(c.companyId, id) })
+    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: uid("sub"), status: "paid", payment_intent: uid("pi"), amount_paid: 8900, metadata: moduleMeta(c.companyId, id) })
     await expect(payments.handleCustomerSubscriptionWebhook(db, port, evt)).rejects.toSatisfy((e) => payments.isRetryableWebhookError(e))
     expect(calls.some((x) => x.method === "retrieveInvoice")).toBe(true)
     expect(await getPayments(id)).toHaveLength(0)
@@ -701,7 +708,7 @@ describe("V2 : renouvellement contractuel", () => {
     expect(before.currentTermEndsAt).not.toBeNull()
     await pg.query(`UPDATE maintenance_subscriptions SET "renewalNoticeSentAt"=$1 WHERE id=$2`, [shift(before.currentTermEndsAt!, -10), id])
     const pNext = shift(before.currentTermEndsAt!, 1)
-    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in_term"), subscription: ext, status: "paid", amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(pNext) }, pNext)
+    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in_term"), subscription: ext, status: "paid", payment_intent: uid("pi"), amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(pNext) }, pNext)
     await payments.handleCustomerSubscriptionWebhook(db, port, evt)
     const after = await getSub(id)
     expect(after.currentTermStartedAt?.getTime()).toBe(before.currentTermEndsAt!.getTime())
@@ -719,7 +726,7 @@ describe("V2 : renouvellement contractuel", () => {
     const { ext } = await payFirstInvoice(port, c, id)
     const before = await getSub(id)
     const pNext = shift(before.currentTermEndsAt!, 1)
-    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: ext, status: "paid", amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(pNext) }, pNext))
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: ext, status: "paid", payment_intent: uid("pi"), amount_paid: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(pNext) }, pNext))
     const after = await getSub(id)
     expect(after.currentTermEndsAt?.getTime()).toBe(before.currentTermEndsAt!.getTime())
     expect(await audits(id, "term_renewed")).toHaveLength(0)
@@ -952,5 +959,168 @@ describe("V2 : sécurité / journaux", () => {
       spy.mockRestore()
     }
     expect(logs.join("\n")).not.toMatch(/jean@example\.com|secret_|sk_(test|live)|whsec_|iban/i)
+  })
+})
+
+describe("Correction : consentement fixé côté serveur", () => {
+  it("le caller ne peut pas injecter termsAcceptedAt / termsVersion", async () => {
+    const c = await seedCompany("PRO")
+    const { planId } = await engine.createPlan(db, c.companyId, owner, {
+      name: "Entretien", priceCents: 8900, currency: "EUR", billingIntervalUnit: "week", billingIntervalCount: 4, includedUsesPerCycle: 1,
+      includedServiceId: c.includedServiceId, commitmentUnit: "none", commitmentCount: 0, renewalMode: "open_ended", status: "active",
+    })
+    const forged = {
+      planId, customer: { name: "Jean", email: "jean@example.com" }, vehicle: { brand: "Peugeot", model: "308" }, paymentMode: "recurring",
+      idempotencyKey: uid("idem-key-xxxxxxxx"), termsAcceptedAt: new Date("2020-01-01T00:00:00Z"), termsVersion: "forged-v999",
+    }
+    const { subscriptionId } = await engine.createSubscription(db, c.companyId, owner, forged as any, NOW)
+    expect(await getSub(subscriptionId)).toMatchObject({ termsAcceptedAt: null, termsVersion: null })
+    expect(() => engine.buildServerTermsConsent("true", NOW)).toThrow()
+    expect(engine.buildServerTermsConsent(true, NOW)).toEqual({ acceptedAt: NOW, version: engine.CUSTOMER_SUBSCRIPTION_TERMS_VERSION })
+  })
+})
+
+describe("Correction : orchestration décision DB → Stripe", () => {
+  const termPlan = { billingIntervalUnit: "month" as const, billingIntervalCount: 1, commitmentUnit: "month" as const, commitmentCount: 2, renewalMode: "same_term" as const }
+  const lastUpdate = (calls: Call[], ext: string) => calls.filter((x) => x.method === "updateSubscription" && x.id === ext).at(-1)
+
+  it("opt-out puis révocation via service : cancel_at Stripe posé puis retiré automatiquement", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c, termPlan)
+    const { port, calls } = fakePort()
+    const { ext } = await payFirstInvoice(port, c, id)
+    const termEnd = (await getSub(id)).currentTermEndsAt!
+    const r1 = await payments.requestRenewalOptOutAndSync(db, port, c.companyId, owner, id, NOW)
+    expect(r1.provider).toMatchObject({ status: "synced", mode: "scheduled" })
+    expect(lastUpdate(calls, ext)).toMatchObject({ params: { cancel_at: sec(termEnd) }, opts: { stripeAccount: c.acct } })
+    expect((await getSub(id)).renewalOptOutAt).not.toBeNull()
+
+    const r2 = await payments.revokeRenewalOptOutAndSync(db, port, c.companyId, owner, id, NOW)
+    expect(r2.provider).toMatchObject({ status: "synced", mode: "cleared" })
+    expect(lastUpdate(calls, ext)!.params?.cancel_at).toBe("")
+    expect((await getSub(id)).renewalOptOutAt).toBeNull()
+    expect(calls.some((x) => /refund/i.test(x.method))).toBe(false)
+  })
+
+  it("scheduleCancellation via service : cancel_at Stripe = cancelAt DB", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const { port, calls } = fakePort()
+    const { ext } = await payFirstInvoice(port, c, id)
+    const r = await payments.scheduleCancellationAndSync(db, port, c.companyId, owner, id, {}, NOW)
+    expect(r.provider.status).toBe("synced")
+    const cancelAt = (await getSub(id)).cancelAt!
+    expect(lastUpdate(calls, ext)).toMatchObject({ params: { cancel_at: sec(cancelAt) }, opts: { stripeAccount: c.acct } })
+  })
+
+  it("panne Stripe après décision DB : pending_retry, puis retry resynchronise sans toucher l'état DB", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c, termPlan)
+    const { port, calls } = fakePort()
+    const { ext } = await payFirstInvoice(port, c, id)
+    const realUpdate = port.updateSubscription
+    port.updateSubscription = async () => { throw new Error("stripe_down") }
+    const r1 = await payments.requestRenewalOptOutAndSync(db, port, c.companyId, owner, id, NOW)
+    expect(r1.provider.status).toBe("pending_retry")
+    const decided = await getSub(id)
+    expect(decided.renewalOptOutAt).not.toBeNull()
+    expect(await audits(id, "provider_sync_failed")).toHaveLength(1)
+
+    port.updateSubscription = realUpdate
+    const r2 = await payments.syncProviderState(db, port, c.companyId, owner, id, NOW)
+    expect(r2).toMatchObject({ applied: true, mode: "scheduled" })
+    expect(lastUpdate(calls, ext)!.params?.cancel_at).toBe(sec(decided.currentTermEndsAt!))
+    const after = await getSub(id)
+    expect(after.renewalOptOutAt?.getTime()).toBe(decided.renewalOptOutAt!.getTime())
+    expect(after.status).toBe(decided.status)
+
+    // forceEnd : DB ended, Stripe en panne → le retry n'est pas bloqué par ALREADY_CANCELLED.
+    port.cancelSubscription = async () => { throw new Error("stripe_down") }
+    const f1 = await payments.forceEndSubscriptionAndSync(db, port, c.companyId, owner, id, "test", NOW)
+    expect(f1.provider.status).toBe("pending_retry")
+    expect((await getSub(id)).status).toBe("ended")
+    let cancelled = 0
+    port.cancelSubscription = async (sid) => { cancelled++; return { id: sid, status: "canceled" } }
+    const f2 = await payments.forceEndSubscriptionAndSync(db, port, c.companyId, owner, id, "test", NOW)
+    expect(f2).toMatchObject({ alreadyApplied: true, provider: { status: "synced", mode: "immediate" } })
+    expect(cancelled).toBe(1)
+    expect((await getSub(id)).status).toBe("ended")
+  })
+
+  it("renewalMode none : le premier invoice.paid programme automatiquement cancel_at = currentTermEndsAt", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c, { ...termPlan, renewalMode: "none" })
+    const { port, calls, pis } = fakePort()
+    // Période réelle future (horloge murale) : Stripe refuse un cancel_at passé.
+    const start = new Date(Date.now() + 2 * DAY)
+    const ext = uid("sub_none")
+    const pi = uid("pi_none")
+    pis.set(pi, { id: pi, application_fee_amount: 267 })
+    const evt = invoiceEvent("invoice.paid", c.acct, { id: uid("in_none"), subscription: ext, status: "paid", amount_paid: 8900, payment_intent: pi, metadata: moduleMeta(c.companyId, id), ...periodLines(start) }, start)
+    await payments.handleCustomerSubscriptionWebhook(db, port, evt)
+    const sub = await getSub(id)
+    expect(sub.status).toBe("active")
+    expect(sub.currentTermEndsAt).not.toBeNull()
+    const cancelSets = () => calls.filter((x) => x.method === "updateSubscription" && x.id === ext && "cancel_at" in (x.params ?? {}))
+    expect(cancelSets()).toHaveLength(1)
+    expect(cancelSets()[0]).toMatchObject({ params: { cancel_at: sec(sub.currentTermEndsAt!) }, opts: { stripeAccount: c.acct } })
+    // Webhook dupliqué : Stripe déjà aligné → aucun second appel.
+    await payments.handleCustomerSubscriptionWebhook(db, port, { ...evt, id: uid("evt") })
+    expect(cancelSets()).toHaveLength(1)
+  })
+})
+
+describe("Correction : commission réelle (PaymentIntent Dahlia)", () => {
+  it("invoice.paid avant invoice.created + plan changé : fee réel du PaymentIntent, jamais le nouveau plan", async () => {
+    const c = await seedCompany("FREE")
+    const id = await seedSub(c)
+    const pi = uid("pi_real")
+    const { port, pis } = fakePort()
+    pis.set(pi, { id: pi, application_fee_amount: 623 })
+    await setPlan(c.companyId, "BUSINESS")
+    const inv = { id: uid("in_early"), subscription: uid("sub"), status: "paid", amount_paid: 8900, payment_intent: pi, metadata: moduleMeta(c.companyId, id), ...periodLines(PERIOD_START) }
+    expect(inv).not.toHaveProperty("application_fee_amount")
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, inv, PERIOD_START))
+    const row = (await getPayments(id)).find((p) => p.externalInvoiceId === inv.id)!
+    expect(row).toMatchObject({ platformFeeAmountCents: 623, platformFeeBps: 700, status: "paid" })
+
+    // invoice.created tardif : le snapshot réel n'est jamais réécrit par le plan courant (BUSINESS 0 %).
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.created", c.acct, { ...inv, status: "paid" }))
+    expect((await getPayments(id)).find((p) => p.externalInvoiceId === inv.id)).toMatchObject({ platformFeeAmountCents: 623, platformFeeBps: 700 })
+  })
+
+  it("fee PaymentIntent indisponible : retriable, aucun snapshot financier inventé", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const pi = uid("pi_nofee")
+    const { port, pis } = fakePort()
+    pis.set(pi, { id: pi } as payments.PaymentIntentLike)
+    const inv = { id: uid("in"), subscription: uid("sub"), status: "paid", amount_paid: 8900, payment_intent: pi, metadata: moduleMeta(c.companyId, id), ...periodLines(PERIOD_START) }
+    await expect(payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, inv, PERIOD_START))).rejects.toSatisfy((e) => payments.isRetryableWebhookError(e))
+    expect(await getPayments(id)).toHaveLength(0)
+    expect(await getCycles(id)).toHaveLength(0)
+  })
+})
+
+describe("Correction : refundedAt", () => {
+  it("partiel renseigne refundedAt ; total le conserve ; net initial intact ; idempotent", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const pi = uid("pi_rat")
+    const { port } = fakePort({ balances: { [pi]: balanceFor(pi) } })
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in"), subscription: uid("sub"), status: "paid", amount_paid: 8900, metadata: moduleMeta(c.companyId, id), payment_intent: pi, ...periodLines(PERIOD_START) }, PERIOD_START))
+    const evt = (type: string, refund: Record<string, unknown>, at: Date) => ({ id: uid("evt"), type, account: c.acct, created: sec(at), data: { object: { payment_intent: pi, currency: "eur", charge: `ch_${pi}`, ...refund } } })
+    const p0 = (await getPayments(id))[0]
+    expect(p0.refundedAt).toBeNull()
+    const t1 = new Date("2026-02-01T10:00:00Z")
+    await payments.handleCustomerSubscriptionWebhook(db, port, evt("refund.updated", { id: "re_a", amount: 2000, status: "succeeded" }, t1))
+    const p1 = (await getPayments(id))[0]
+    expect(p1).toMatchObject({ refundedAmountCents: 2000, status: "partially_refunded", netAmountCents: p0.netAmountCents })
+    expect(p1.refundedAt).not.toBeNull()
+    await payments.handleCustomerSubscriptionWebhook(db, port, evt("refund.updated", { id: "re_a", amount: 2000, status: "succeeded" }, t1))
+    await payments.handleCustomerSubscriptionWebhook(db, port, evt("refund.updated", { id: "re_b", amount: 6900, status: "succeeded" }, new Date("2026-02-05T10:00:00Z")))
+    const p2 = (await getPayments(id))[0]
+    expect(p2).toMatchObject({ refundedAmountCents: 8900, status: "refunded", netAmountCents: p0.netAmountCents })
+    expect(p2.refundedAt?.getTime()).toBe(p1.refundedAt!.getTime())
   })
 })

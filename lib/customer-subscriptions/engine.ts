@@ -90,6 +90,7 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "provider_ids_linked",
   "provider_subscription_updated",
   "provider_cancellation_applied",
+  "provider_sync_failed",
   "provider_account_mismatch",
   "platform_fee_synced",
   "payment_action_required",
@@ -326,8 +327,23 @@ export type CreateSubscriptionInput = {
   paymentMode: unknown
   /** Clé client (16–128 car.) ; dérivée côté serveur avec tenant + opération + formule. */
   idempotencyKey: string
-  termsAcceptedAt?: Date | null
-  termsVersion?: string | null
+}
+
+/** Version courante des conditions d'abonnement — config SERVEUR uniquement. */
+export const CUSTOMER_SUBSCRIPTION_TERMS_VERSION = "cs-terms-2026-01"
+
+declare const serverConsentBrand: unique symbol
+/** Consentement construit côté serveur (date + version jamais fournies par le caller). */
+export type ServerTermsConsent = { readonly acceptedAt: Date; readonly version: string; readonly [serverConsentBrand]: true }
+
+/**
+ * Primitive pour le futur flux public : seule une case explicitement cochée
+ * (`true` strict) produit un consentement ; date = horloge serveur, version =
+ * constante serveur. Aucune autre source acceptée.
+ */
+export function buildServerTermsConsent(explicitlyAccepted: unknown, now: Date = new Date()): ServerTermsConsent {
+  if (explicitlyAccepted !== true) throw new CustomerSubscriptionError("INVALID_PLAN", [{ field: "termsAccepted", code: "INVALID_PLAN" }])
+  return { acceptedAt: now, version: CUSTOMER_SUBSCRIPTION_TERMS_VERSION } as ServerTermsConsent
 }
 
 export type CreateSubscriptionResult = {
@@ -353,14 +369,15 @@ export async function createSubscription(
   actor: Actor,
   input: CreateSubscriptionInput,
   now: Date = new Date(),
+  options: { consent?: ServerTermsConsent | null } = {},
 ): Promise<CreateSubscriptionResult> {
   assertCanMutate(actor)
   if (!Number.isInteger(input.planId) || input.planId <= 0) throw new CustomerSubscriptionError("INVALID_PLAN")
   const idempotencyKey = deriveIdempotencyKey({ companyId, operation: "subscription.create", subjectId: input.planId, clientKey: input.idempotencyKey })
   const customer = normalizeCustomer(input.customer)
   const vehicle = normalizeVehicle(input.vehicle)
-  const termsVersion = typeof input.termsVersion === "string" && input.termsVersion.trim() ? input.termsVersion.trim().slice(0, 64) : null
-  if (input.termsAcceptedAt && !termsVersion) throw new CustomerSubscriptionError("INVALID_PLAN", [{ field: "termsVersion", code: "INVALID_PLAN" }])
+  // Jamais lu depuis `input` : création admin sans consentement public recueilli → NULL.
+  const consent = options.consent ?? null
 
   return db.transaction(async (tx) => {
     const company = await readCompany(tx, companyId, true)
@@ -419,8 +436,8 @@ export async function createSubscription(
         ...customer,
         ...snapshot,
         creationIdempotencyKey: idempotencyKey,
-        termsAcceptedAt: input.termsAcceptedAt ?? null,
-        termsVersion,
+        termsAcceptedAt: consent?.acceptedAt ?? null,
+        termsVersion: consent?.version ?? null,
         provider: "stripe",
         providerAccountId,
         manageTokenHash: token.hash,
