@@ -93,12 +93,22 @@ export type CheckoutSessionParams = Record<string, any>
  * Paramètres Checkout depuis les snapshots. `platformFeeBps` = plan EFFECTIF
  * résolu à l'instant (resolveCurrentCustomerSubscriptionFee).
  */
+/**
+ * Décision commerciale : le nettoyage initial n'est PAS soumis à la commission
+ * customer_subscriptions (0 %, aucun application_fee_amount). recurring et
+ * prepaid suivent le plan effectif (plan-policy.ts, inchangé).
+ */
+export function platformFeeBpsForPaymentType(kind: CheckoutKind, planFeeBps: number): number {
+  return kind === "initial_cleaning" ? 0 : planFeeBps
+}
+
 export function buildCheckoutSessionParams(
   sub: ContractForCheckout,
   kind: CheckoutKind,
-  platformFeeBps: number,
+  planFeeBps: number,
   returnUrl: string,
-): { params: CheckoutSessionParams; grossAmountCents: number; platformFeeAmountCents: number } {
+): { params: CheckoutSessionParams; grossAmountCents: number; platformFeeAmountCents: number; platformFeeBps: number } {
+  const platformFeeBps = platformFeeBpsForPaymentType(kind, planFeeBps)
   const currency = sub.currency.toLowerCase()
   const metadata = buildCheckoutMetadata(sub, kind, platformFeeBps)
   const customer = sub.externalCustomerId ? { customer: sub.externalCustomerId } : { customer_email: sub.customerEmail }
@@ -110,6 +120,7 @@ export function buildCheckoutSessionParams(
     if (!Number.isInteger(sub.billingIntervalCountSnapshot) || sub.billingIntervalCountSnapshot <= 0) throw new CustomerSubscriptionError("INVALID_INTERVAL")
     const percent = feePercentFromBps(platformFeeBps)
     return {
+      platformFeeBps,
       grossAmountCents: sub.priceCentsSnapshot,
       platformFeeAmountCents: computePlatformFeeAmountCents(sub.priceCentsSnapshot, platformFeeBps),
       params: {
@@ -145,6 +156,7 @@ export function buildCheckoutSessionParams(
   }
   const fee = computePlatformFeeAmountCents(gross, platformFeeBps)
   return {
+    platformFeeBps,
     grossAmountCents: gross,
     platformFeeAmountCents: fee,
     params: {
@@ -169,6 +181,7 @@ export type InvoiceLike = {
   amount_paid?: number | null
   total?: number | null
   application_fee_amount?: number | null
+  metadata?: Record<string, string> | null
   created?: number | null
   status_transitions?: { paid_at?: number | null } | null
   parent?: { subscription_details?: { subscription?: string | { id: string } | null; metadata?: Record<string, string> | null } | null } | null
@@ -224,6 +237,19 @@ export function parseFeeBpsMetadata(meta: Record<string, string> | null | undefi
  * Snapshot du taux réellement appliqué par Stripe : le premier taux candidat
  * qui redonne exactement le montant prélevé, sinon le taux arrondi déduit.
  */
+/**
+ * Commission réellement prélevée sur une facture. L'objet Invoice de l'API
+ * installée (stripe@22, 2026-07-29.dahlia) n'expose plus `application_fee_amount` :
+ * on recalcule alors depuis le taux écrit en metadata au stade draft
+ * (`detailflowPlatformFeeBps`), puis le taux courant. Forme legacy conservée.
+ */
+export function invoiceChargedFeeCents(inv: InvoiceLike, grossCents: number, fallbackBps: number): number {
+  if (typeof inv.application_fee_amount === "number") return Math.min(grossCents, Math.max(0, inv.application_fee_amount))
+  // Metadata écrite par invoice.created sur la facture elle-même, puis celle de l'abonnement.
+  const bps = parseFeeBpsMetadata(inv.metadata) ?? parseFeeBpsMetadata(invoiceMetadata(inv)) ?? fallbackBps
+  return computePlatformFeeAmountCents(grossCents, bps)
+}
+
 export function feeBpsForCharged(grossCents: number, feeCents: number, candidates: Array<number | null>): number {
   for (const c of candidates) {
     if (c != null && computePlatformFeeAmountCents(grossCents, c) === feeCents) return c

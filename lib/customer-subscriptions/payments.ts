@@ -38,6 +38,7 @@ import {
   checkoutIdempotencyKey,
   decideProviderDeletion,
   feeBpsForCharged,
+  invoiceChargedFeeCents,
   feePercentFromBps,
   invoiceMetadata,
   invoicePaymentIntentId,
@@ -248,7 +249,7 @@ export async function startSubscriptionCheckout(
       action: "checkout_started",
       actorType: "user",
       actorUserId: actor.userId,
-      meta: { kind, platformFeeBps, grossAmountCents: built.grossAmountCents, retryOf: previousSessionId },
+      meta: { kind, platformFeeBps: built.platformFeeBps, grossAmountCents: built.grossAmountCents, retryOf: previousSessionId },
     })
     return { checkoutSessionId: session.id, clientSecret: session.client_secret, status: "open" as const, paymentMode, kind, reused: false }
   })
@@ -461,7 +462,7 @@ async function onInvoiceCreated({ db, port, event, account, target }: Ctx): Prom
     synced = true
   } else {
     // Facture déjà finalisée : jamais modifiée, on fige ce que Stripe prélève réellement.
-    feeAmount = Math.min(gross, Math.max(0, inv.application_fee_amount ?? 0))
+    feeAmount = invoiceChargedFeeCents(inv, gross, platformFeeBps)
     feeBps = feeBpsForCharged(gross, feeAmount, [parseFeeBpsMetadata(invoiceMetadata(inv)), platformFeeBps])
   }
   if (ext && !terminal) {
@@ -510,8 +511,8 @@ async function onInvoicePaid({ db, event, target }: Ctx): Promise<WebhookOutcome
 
     let payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
     if (!payment) {
-      const fee = Math.min(gross, Math.max(0, inv.application_fee_amount ?? 0))
       const { platformFeeBps } = await resolveCurrentCustomerSubscriptionFee(tx, row.companyId)
+      const fee = invoiceChargedFeeCents(inv, gross, platformFeeBps)
       ;[payment] = await tx
         .insert(maintenancePayments)
         .values({
@@ -568,8 +569,8 @@ async function onInvoicePaymentFailed({ db, event, target }: Ctx): Promise<Webho
     await linkProviderIds(tx, row, { externalSubscriptionId: invoiceSubscriptionId(inv) })
     const payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
     if (!payment) {
-      const fee = Math.min(gross, Math.max(0, inv.application_fee_amount ?? 0))
       const { platformFeeBps } = await resolveCurrentCustomerSubscriptionFee(tx, row.companyId)
+      const fee = invoiceChargedFeeCents(inv, gross, platformFeeBps)
       await tx.insert(maintenancePayments).values({
         companyId: row.companyId,
         subscriptionId: row.id,
@@ -631,7 +632,9 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
     const existing = await findPaymentBy(tx, row, "externalPaymentId", externalPaymentId)
     if (!existing) {
       const gross = Math.max(0, session.amount_total ?? 0)
-      const fee = Math.min(gross, Math.max(0, pi?.application_fee_amount ?? 0))
+      // initial_cleaning : 0 % par décision commerciale, quel que soit le PaymentIntent.
+      const fee = kind === "initial_cleaning" ? 0 : Math.min(gross, Math.max(0, pi?.application_fee_amount ?? 0))
+      const feeBps = kind === "initial_cleaning" ? 0 : feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(meta)])
       await tx.insert(maintenancePayments).values({
         companyId: row.companyId,
         subscriptionId: row.id,
@@ -642,7 +645,7 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
         status: "paid",
         currency: (session.currency ?? row.currency).toUpperCase(),
         grossAmountCents: gross,
-        platformFeeBps: feeBpsForCharged(gross, fee, [parseFeeBpsMetadata(meta)]),
+        platformFeeBps: feeBps,
         platformFeeAmountCents: fee,
         paidAt,
         meta: { checkoutSessionId: session.id },

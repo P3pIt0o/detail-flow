@@ -11,7 +11,7 @@ import * as schema from "@/lib/db/schema"
 import * as engine from "@/lib/customer-subscriptions/engine"
 import * as payments from "@/lib/customer-subscriptions/payments"
 import { CustomerSubscriptionError } from "@/lib/customer-subscriptions/errors"
-import { buildCheckoutSessionParams, checkoutIdempotencyKey, feePercentFromBps } from "@/lib/customer-subscriptions/stripe-mapping"
+import { buildCheckoutSessionParams, checkoutIdempotencyKey, feePercentFromBps, invoiceChargedFeeCents, platformFeeBpsForPaymentType } from "@/lib/customer-subscriptions/stripe-mapping"
 import type { PlanConfigInput } from "@/lib/customer-subscriptions/plan-validation"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
@@ -172,6 +172,19 @@ describe("commission customer_subscriptions (plan-policy, pas commercial-rules)"
     expect((await engine.resolveCurrentCustomerSubscriptionFee(db, c.companyId)).platformFeeBps).toBe(bps)
   })
 
+  it.each([700, 300, 0])("initial_cleaning = 0 %% quel que soit le plan (%d bps) ; recurring/prepaid inchangés", (bps) => {
+    expect(platformFeeBpsForPaymentType("initial_cleaning", bps)).toBe(0)
+    expect(platformFeeBpsForPaymentType("recurring", bps)).toBe(bps)
+    expect(platformFeeBpsForPaymentType("prepaid", bps)).toBe(bps)
+  })
+
+  it("commission facture : forme legacy (application_fee_amount) et forme dahlia (absent → metadata, puis taux courant)", () => {
+    expect(invoiceChargedFeeCents({ id: "in_l", application_fee_amount: 623 }, 8900, 300)).toBe(623)
+    expect(invoiceChargedFeeCents({ id: "in_d", metadata: { detailflowPlatformFeeBps: "700" } }, 8900, 300)).toBe(623)
+    expect(invoiceChargedFeeCents({ id: "in_d2" }, 8900, 300)).toBe(267)
+    expect(invoiceChargedFeeCents({ id: "in_d3" }, 8900, 0)).toBe(0)
+  })
+
   it("bps → application_fee_percent ; 0 → paramètre omis", () => {
     expect(feePercentFromBps(700)).toBe(7)
     expect(feePercentFromBps(300)).toBe(3)
@@ -323,13 +336,17 @@ describe("nettoyage initial", () => {
     await expect(engine.completeInitialCleaning(db, c.companyId, owner, id, NOW)).rejects.toMatchObject({ code: "INITIAL_CLEANING_PAYMENT_REQUIRED" })
 
     await pg.query(`UPDATE services SET "basePriceCents"=1, name='Renommé' WHERE id=$1`, [c.initialServiceId])
-    const { port, calls } = fakePort({ paymentIntents: { pi_init: { id: "pi_init", application_fee_amount: 360 } } })
+    const { port, calls } = fakePort({ paymentIntents: { pi_init: { id: "pi_init", application_fee_amount: null } } })
     const r = await payments.startSubscriptionCheckout(db, port, c.companyId, owner, id, { returnUrl: RETURN })
     expect(r.kind).toBe("initial_cleaning")
-    const p = calls[0].params as any
+    const call = calls[0]
+    expect(call.opts.stripeAccount).toBe(c.acct) // Direct Charge sur le compte du detailer
+    const p = call.params as any
     expect(p.mode).toBe("payment")
     expect(p.line_items[0].price_data).toMatchObject({ unit_amount: 12000, product_data: { name: "Nettoyage initial" } })
-    expect(p.payment_intent_data.application_fee_amount).toBe(360)
+    // Tenant PRO, 120 € : commission DetailFlow = 0 €.
+    expect(p.payment_intent_data).not.toHaveProperty("application_fee_amount")
+    expect(p.metadata.detailflowPlatformFeeBps).toBe("0")
 
     await payments.handleCustomerSubscriptionWebhook(db, port, {
       id: uid("evt"),
@@ -341,7 +358,7 @@ describe("nettoyage initial", () => {
     const sub = await getSub(id)
     expect(sub.status).toBe("pending_initial_cleaning")
     expect(sub.externalCustomerId).toBe("cus_init")
-    expect((await getPayments(id))[0]).toMatchObject({ type: "initial_cleaning", status: "paid", platformFeeBps: 300 })
+    expect((await getPayments(id))[0]).toMatchObject({ type: "initial_cleaning", status: "paid", grossAmountCents: 12000, platformFeeBps: 0, platformFeeAmountCents: 0 })
     await expect(payments.startSubscriptionCheckout(db, port, c.companyId, owner, id, { returnUrl: RETURN })).rejects.toBeInstanceOf(CustomerSubscriptionError)
 
     await engine.completeInitialCleaning(db, c.companyId, owner, id, NOW)
