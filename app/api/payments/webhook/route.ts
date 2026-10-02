@@ -11,6 +11,7 @@ import {
 import { sendPaymentReceivedEmails, sendRefundConfirmationEmail } from "@/lib/email/notifications"
 import { applyStripeRefundEvent } from "@/lib/payments/refunds"
 import { consumePlatformFeeReservation, releasePlatformFeeByExternalId } from "@/lib/payments/platform-fee-ledger"
+import { syncStripePaymentFinancials } from "@/lib/payments/financials"
 import { db } from "@/lib/db"
 import { handleCustomerSubscriptionWebhook } from "@/lib/customer-subscriptions/payments"
 import { createCustomerSubscriptionStripePort } from "@/lib/customer-subscriptions/stripe"
@@ -133,6 +134,16 @@ export async function POST(req: NextRequest) {
           // Commission déjà réservée AVANT Stripe : on la fige, sans second
           // incrément du compteur mensuel (idempotent en cas de rejeu).
           await consumePlatformFeeReservation({ externalPaymentId: session.id, companyId })
+
+          // Frais Stripe réels + net initial (BalanceTransaction du compte connecté).
+          // Donnée secondaire : ne lève jamais, idempotente, rejouable.
+          await syncStripePaymentFinancials({
+            externalPaymentId: session.id,
+            companyId,
+            bookingId,
+            connectedAccountId: tenantAccountId,
+            paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
+          })
 
           // Emails de paiement : on APPELLE TOUJOURS le dispatch après une résa
           // payée. L'idempotence ne repose plus sur `justPaid` (fragile : un
