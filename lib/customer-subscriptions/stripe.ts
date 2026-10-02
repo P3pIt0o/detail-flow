@@ -22,5 +22,8 @@ export function createCustomerSubscriptionStripePort(client?: Stripe): CustomerS
     cancelSubscription: (id, o) => stripe().subscriptions.cancel(id, {}, req(o)),
     retrievePaymentIntent: (id, o) => stripe().paymentIntents.retrieve(id, {}, req(o)),
     updateInvoice: (id, params, o) => stripe().invoices.update(id, params as Stripe.InvoiceUpdateParams, req(o)),
+    retrieveInvoice: (id, o) => stripe().invoices.retrieve(id, { expand: ["payments"] }, req(o)),
+    retrievePaymentIntentWithBalance: (id, o) =>
+      stripe().paymentIntents.retrieve(id, { expand: ["latest_charge.balance_transaction"] }, req(o)),
   } as CustomerSubscriptionStripePort
 }

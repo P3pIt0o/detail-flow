@@ -300,8 +300,10 @@ export function decideProviderDeletion(
  */
 export function providerAccessDecision(status: string | null | undefined): "grant" | "retry" | "deny" {
   if (status === "active" || status === "trialing") return "grant"
-  if (status === "canceled" || status === "incomplete_expired") return "deny"
-  return "retry"
+  // Transitoire (1re facture en cours de rattachement / donnée absente) : Stripe rejouera.
+  if (status === "incomplete" || !status) return "retry"
+  // past_due / unpaid / paused / canceled / incomplete_expired : paiement enregistré, aucun droit.
+  return "deny"
 }
 
 /* ------------------------- Renouvellement contractuel ------------------------ */

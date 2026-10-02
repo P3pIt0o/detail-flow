@@ -15,6 +15,14 @@ import {
   syncStripePaymentFinancials,
   syncStripePaymentFinancialsByPaymentIntent,
 } from "@/lib/payments/financials"
+import { db } from "@/lib/db"
+import {
+  handleCustomerSubscriptionWebhook,
+  isRetryableWebhookError,
+  type WebhookEventLike,
+} from "@/lib/customer-subscriptions/payments"
+import { createCustomerSubscriptionStripePort } from "@/lib/customer-subscriptions/stripe"
+import { CustomerSubscriptionError } from "@/lib/customer-subscriptions/errors"
 
 /**
  * ============================================================================
@@ -65,6 +73,30 @@ export async function POST(req: NextRequest) {
   // Doublon déjà traité avec succès → ACK 200 sans retraiter.
   if (await hasProcessedEvent(event.id)) {
     return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  // Abonnements d'entretien : intercepté UNIQUEMENT si l'objet est positivement
+  // identifié comme customer_subscription ; sinon le flux Booking ci-dessous
+  // s'applique strictement comme avant.
+  try {
+    const cs = await handleCustomerSubscriptionWebhook(
+      db,
+      createCustomerSubscriptionStripePort(stripe),
+      event as unknown as WebhookEventLike,
+    )
+    if (cs.handled) {
+      await markEventProcessed(event.id, "stripe", event.type)
+      return NextResponse.json({ received: true, module: "customer_subscription", outcome: cs.outcome })
+    }
+  } catch (e) {
+    if (isRetryableWebhookError(e)) {
+      console.log("[v0] webhook customer-subscriptions: erreur transitoire", { type: event.type, code: e instanceof CustomerSubscriptionError ? e.code : "unknown" })
+      return NextResponse.json({ error: "Erreur de traitement" }, { status: 500 })
+    }
+    // Erreur métier définitive : ACK contrôlé, aucune mutation.
+    console.log("[v0] webhook customer-subscriptions: rejet définitif", { type: event.type, code: (e as CustomerSubscriptionError).code })
+    await markEventProcessed(event.id, "stripe", event.type)
+    return NextResponse.json({ received: true, module: "customer_subscription", outcome: "rejected" })
   }
 
   // Compte connecté propriétaire de l'événement (présent pour les events Connect).

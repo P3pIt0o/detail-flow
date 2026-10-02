@@ -92,6 +92,13 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "provider_cancellation_applied",
   "provider_account_mismatch",
   "platform_fee_synced",
+  "payment_action_required",
+  "payment_succeeded_without_access",
+  "payment_beyond_final_term",
+  "payment_financials_synced",
+  "term_renewed",
+  "refund_recorded",
+  "refund_conflict",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 

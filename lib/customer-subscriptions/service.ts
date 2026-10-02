@@ -66,10 +66,10 @@ export const rotateManageTokenForCurrentTenant = (subscriptionId: number) =>
 export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, reason: string) =>
   run(MUTATORS, (companyId, actor) => engine.forceEndSubscription(db, companyId, actor, subscriptionId, reason))
 
-/** `returnUrl` doit être construite SERVEUR (domaine du tenant), placeholder {CHECKOUT_SESSION_ID} inclus. */
-export const startCheckoutForCurrentTenant = (subscriptionId: number, returnUrl: string) =>
+/** URL de retour construite côté serveur depuis le domaine du tenant (aucune URL navigateur acceptée). */
+export const startCheckoutForCurrentTenant = (subscriptionId: number) =>
   run(MUTATORS, (companyId, actor) =>
-    payments.startSubscriptionCheckout(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, { returnUrl }),
+    payments.startSubscriptionCheckout(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId),
   )
 
 /** À appeler après scheduleCancellation / forceEnd : reporte la décision métier sur Stripe (aucun remboursement). */
