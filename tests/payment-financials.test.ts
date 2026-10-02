@@ -37,7 +37,105 @@ vi.mock("@/lib/payments/queries", () => ({
   getStripeAccountIdForCompany: async () => state.tenantAccount,
 }))
 
-import { syncStripePaymentFinancials, type StripeFinancialsPort } from "@/lib/payments/financials"
+import {
+  syncStripePaymentFinancials,
+  syncStripePaymentFinancialsByPaymentIntent,
+  type StripeFinancialsPort,
+} from "@/lib/payments/financials"
+
+describe("charge.updated — finalisation financière asynchrone", () => {
+  const piRow = (over: Record<string, unknown> = {}) => ({
+    ...baseRow(),
+    companyId: 58,
+    bookingId: 120,
+    externalPaymentId: "cs_1",
+    ...over,
+  })
+  const byPi = { paymentIntentId: "pi_1", connectedAccountId: "acct_A" }
+
+  it("A — checkout sans balance_transaction : paid conservé, financials NULL, non bloquant", async () => {
+    state.row = piRow()
+    const { p } = port({ id: "pi_1", latest_charge: { id: "ch_1", balance_transaction: null } })
+    await expect(syncStripePaymentFinancials({ ...input, port: p })).resolves.toMatchObject({ status: "unavailable" })
+    expect(state.updates).toHaveLength(0)
+    expect(state.row).toMatchObject({ status: "paid", providerFeeAmountCents: null, netAmountCents: null })
+  })
+
+  it("B — charge.updated avec balance_transaction : providerFee + net + ids Stripe en meta", async () => {
+    state.row = piRow()
+    const { p, calls } = port(piWith(bt()))
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, port: p })).toEqual({ status: "synced" })
+    expect(state.updates).toHaveLength(1)
+    expect(state.updates[0]).toMatchObject({ providerFeeAmountCents: 57, netAmountCents: 2147 })
+    const chunks = (state.updates[0].meta as { queryChunks: unknown[] }).queryChunks
+    const metaSql = chunks
+      .map((c) => (c && typeof c === "object" && "value" in c ? (c as { value: unknown }).value : c))
+      .filter((v): v is string => typeof v === "string")
+      .join(" ")
+    expect(metaSql).toContain("ch_1")
+    expect(metaSql).toContain("txn_1")
+    for (const k of ["grossAmountCents", "platformFeeAmountCents", "refundedAmountCents", "status"]) {
+      expect(state.updates[0]).not.toHaveProperty(k)
+    }
+    expect(calls.every((c) => c.account === "acct_A")).toBe(true)
+  })
+
+  it("C — charge.updated rejoué : aucun appel Stripe, aucune écriture", async () => {
+    state.row = piRow()
+    const { p, calls } = port(piWith(bt()))
+    await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, port: p })
+    const before = { ...state.row }
+    calls.length = 0
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, port: p })).toEqual({ status: "already_synced" })
+    expect(calls).toHaveLength(0)
+    expect(state.updates).toHaveLength(1)
+    expect(state.row).toEqual(before)
+  })
+
+  it("D — mauvais compte connecté : refus, aucune écriture ni appel Stripe", async () => {
+    state.row = piRow()
+    const { p, calls } = port(piWith(bt()))
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, connectedAccountId: "acct_B", port: p })).toEqual({
+      status: "skipped",
+      reason: "account_mismatch",
+    })
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, connectedAccountId: null, port: p })).toMatchObject({
+      status: "skipped",
+    })
+    expect(calls).toHaveLength(0)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it("D — la recherche SQL est bornée au tenant de event.account", () => {
+    const src = readFileSync(join(process.cwd(), "lib/payments/financials.ts"), "utf8")
+    expect(src).toMatch(/->>'paymentIntentId' = \$\{paymentIntentId\}/)
+    expect(src).toMatch(/\$\{companies\.stripeAccountId\} = \$\{connectedAccountId\}/)
+  })
+
+  it("E — paiement inconnu : skip propre, aucune écriture", async () => {
+    state.row = null
+    const { p, calls } = port(piWith(bt()))
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, port: p })).toEqual({
+      status: "skipped",
+      reason: "payment_not_found",
+    })
+    expect(calls).toHaveLength(0)
+    expect(state.updates).toHaveLength(0)
+  })
+
+  it("F — déjà partiellement remboursé : financials complétées, brut/remboursé/statut intacts", async () => {
+    state.row = piRow({ status: "partially_refunded", refundedAmountCents: 200 })
+    const { p } = port(piWith(bt()))
+    expect(await syncStripePaymentFinancialsByPaymentIntent({ ...byPi, port: p })).toEqual({ status: "synced" })
+    expect(state.row).toMatchObject({
+      status: "partially_refunded",
+      grossAmountCents: 2204,
+      refundedAmountCents: 200,
+      providerFeeAmountCents: 57,
+      netAmountCents: 2147,
+    })
+  })
+})
 
 const bt = (over: Record<string, unknown> = {}) => ({
   id: "txn_1",
@@ -174,19 +272,14 @@ describe("D — BalanceTransaction indisponible", () => {
     expect(src).toContain("connectedAccountId: tenantAccountId")
   })
 
-  it("D — synchro unavailable/error : event NON marqué traité (rejeu possible), ACK 200", () => {
+  it("checkout : synchro indisponible n'empêche ni emails ni marquage traité (retry via charge.updated)", () => {
     const src = readFileSync(join(process.cwd(), "app/api/payments/webhook/route.ts"), "utf8")
-    expect(src).toMatch(/financials\.status === "unavailable" \|\| financials\.status === "error"/)
-    const pending = src.indexOf("if (financialsPendingRetry)")
-    const mark = src.indexOf("await markEventProcessed(")
-    expect(pending).toBeGreaterThan(0)
-    expect(mark).toBeGreaterThan(pending)
-    const pendingBlock = src.slice(pending, mark)
-    expect(pendingBlock).toContain("return NextResponse.json({ received: true, financialsPending: true })")
-    expect(pendingBlock).not.toContain("status: 500")
-    // Emails toujours dispatchés (idempotence durable), paiement non remis en cause.
+    expect(src).not.toContain("financialsPendingRetry")
+    expect(src).not.toContain("financialsPending: true")
     const sync = src.indexOf("await syncStripePaymentFinancials(")
     expect(src.indexOf("await sendPaymentReceivedEmails(", sync)).toBeGreaterThan(sync)
+    expect(src).toContain('case "charge.updated"')
+    expect(src).toContain("await markEventProcessed(")
   })
 })
 

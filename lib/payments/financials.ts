@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { payments } from "@/lib/db/schema"
+import { companies, payments } from "@/lib/db/schema"
 import { and, asc, eq, inArray, isNotNull, or, isNull, sql } from "drizzle-orm"
 import { getStripe } from "./stripe-client"
 import { getStripeAccountIdForCompany } from "./queries"
@@ -143,6 +143,62 @@ export async function syncStripePaymentFinancials(input: {
     console.log("[v0] payments financials: synchronisation différée", {
       companyId,
       bookingId,
+      error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+    })
+    return { status: "error" }
+  }
+}
+
+/**
+ * Retry automatique via `charge.updated` (capture asynchrone : la
+ * balance_transaction n'existe pas encore à checkout.session.completed).
+ * Le paiement est retrouvé par le PaymentIntent déjà persisté dans
+ * payments.meta, borné au tenant dont le compte connecté = event.account,
+ * puis délégué à syncStripePaymentFinancials (mêmes garanties d'idempotence,
+ * de non-écrasement et de vérification de compte).
+ */
+export async function syncStripePaymentFinancialsByPaymentIntent(input: {
+  paymentIntentId: string
+  /** event.account du webhook Connect. */
+  connectedAccountId: string | null
+  port?: StripeFinancialsPort
+}): Promise<SyncFinancialsResult> {
+  const { paymentIntentId, connectedAccountId } = input
+  if (!paymentIntentId || !connectedAccountId) return { status: "skipped", reason: "missing_identifiers" }
+  try {
+    const rows = await db
+      .select({
+        companyId: payments.companyId,
+        bookingId: payments.bookingId,
+        externalPaymentId: payments.externalPaymentId,
+      })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.provider, "stripe"),
+          sql`${payments.meta}->>'paymentIntentId' = ${paymentIntentId}`,
+          inArray(payments.status, [...SETTLED_PAYMENT_STATUSES]),
+          sql`${payments.companyId} IN (SELECT ${companies.id} FROM ${companies} WHERE ${companies.stripeAccountId} = ${connectedAccountId})`,
+        ),
+      )
+      .limit(2)
+    if (rows.length === 0) return { status: "skipped", reason: "payment_not_found" }
+    if (rows.length > 1) {
+      console.log("[v0] payments financials: PaymentIntent ambigu, aucune écriture")
+      return { status: "skipped", reason: "ambiguous" }
+    }
+    const row = rows[0]
+    if (!row.externalPaymentId) return { status: "skipped", reason: "payment_not_found" }
+    return await syncStripePaymentFinancials({
+      companyId: row.companyId,
+      bookingId: row.bookingId,
+      externalPaymentId: row.externalPaymentId,
+      connectedAccountId,
+      paymentIntentId,
+      port: input.port,
+    })
+  } catch (e) {
+    console.log("[v0] payments financials: synchro charge.updated différée", {
       error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
     })
     return { status: "error" }
