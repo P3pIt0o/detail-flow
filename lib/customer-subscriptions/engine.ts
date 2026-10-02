@@ -17,6 +17,7 @@ import {
   companyFeatureOverrides,
   maintenanceAuditLog,
   maintenanceCycles,
+  maintenancePayments,
   maintenancePlans,
   maintenanceSubscriptions,
   maintenanceSubscriptionVehicles,
@@ -54,7 +55,7 @@ export type Actor = { userId: string; role: "OWNER" | "ADMIN" | "EMPLOYEE"; isSu
 
 const MUTATING_ROLES = new Set(["OWNER", "ADMIN"])
 
-function assertCanMutate(actor: Actor): void {
+export function assertCanMutate(actor: Actor): void {
   if (!actor.isSuperAdmin && !MUTATING_ROLES.has(actor.role)) throw new CustomerSubscriptionError("FORBIDDEN")
 }
 
@@ -78,6 +79,19 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "subscription_suspended",
   "subscription_resumed",
   "manage_token_rotated",
+  "checkout_started",
+  "payment_pending",
+  "payment_succeeded",
+  "payment_failed",
+  "subscription_past_due",
+  "subscription_recovered",
+  "subscription_expired",
+  "subscription_ended_by_provider",
+  "provider_ids_linked",
+  "provider_subscription_updated",
+  "provider_cancellation_applied",
+  "provider_account_mismatch",
+  "platform_fee_synced",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -480,6 +494,23 @@ export async function completeInitialCleaning(db: Executor, companyId: number, a
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (sub.status !== "pending_initial_cleaning") throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    // Nettoyage initial PAYANT : un paiement initial_cleaning PAID est exigé.
+    // Aucun mécanisme de paiement hors ligne n'existe : rien n'est supposé payé.
+    if (sub.initialCleaningRequiredSnapshot && (sub.initialServicePriceCentsSnapshot ?? 0) > 0) {
+      const [paid] = await tx
+        .select({ id: maintenancePayments.id })
+        .from(maintenancePayments)
+        .where(
+          and(
+            eq(maintenancePayments.companyId, companyId),
+            eq(maintenancePayments.subscriptionId, sub.id),
+            eq(maintenancePayments.type, "initial_cleaning"),
+            eq(maintenancePayments.status, "paid"),
+          ),
+        )
+        .limit(1)
+      if (!paid) throw new CustomerSubscriptionError("INITIAL_CLEANING_PAYMENT_REQUIRED")
+    }
     await tx
       .update(maintenanceSubscriptions)
       .set({ status: "pending_payment", updatedAt: now })
