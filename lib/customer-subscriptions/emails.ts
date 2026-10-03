@@ -1,4 +1,23 @@
 import { escapeHtml, safeHref } from "./html"
+import { assertValidPlanConfig } from "./plan-validation"
+
+export function buildRequestPlanSummary(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object") throw new Error("INVALID_REQUEST_SNAPSHOT")
+  const plan = assertValidPlanConfig(snapshot)
+  const names = snapshot as Record<string, unknown>
+  return {
+    planName: plan.name,
+    serviceName: typeof names.includedServiceName === "string" ? names.includedServiceName : "—",
+    uses: plan.includedUsesPerCycle,
+    price: formatMoney(plan.priceCents, plan.currency),
+    frequency: formatIntervalFr({ unit: plan.billingIntervalUnit, count: plan.billingIntervalCount }),
+    initialCleaning: plan.initialCleaningRequired
+      ? (typeof names.initialServiceName === "string" ? names.initialServiceName : "Nettoyage initial requis") : null,
+  }
+}
+
+/** Aucune route de détail admin n'est encore implémentée. */
+export function requestAdminDestination(_requestId: number): string | null { return null }
 import {
   formatCommitmentFr,
   formatDateFr,
@@ -19,6 +38,8 @@ export type EmailContext = {
   customerName?: string | null
   vehicleLabel?: string | null
   summary?: SubscriptionContractSummary | null
+  requestSummary?: ReturnType<typeof buildRequestPlanSummary> | null
+  requestedAt?: Date | null
   manageUrl?: string | null
   ctaUrl?: string | null
   timeZone?: string
@@ -98,18 +119,25 @@ export function renderCustomerSubscriptionEmail(type: CustomerSubscriptionEmailT
   const base = { businessName: ctx.businessName }
   const contract = s ? contractRows(s, ctx) : []
 
+  const r = ctx.requestSummary
+  const requestRows: Row[] = r ? [
+    ["Formule", r.planName], ["Véhicule", ctx.vehicleLabel ?? "—"],
+    ["Prestation incluse", r.serviceName], ["Nombre d'utilisations", `${r.uses} par période`],
+    ["Prix au moment de la demande", r.price], ["Fréquence", r.frequency],
+    ...(r.initialCleaning ? [["Nettoyage initial", r.initialCleaning] as Row] : []),
+  ] : []
   switch (type) {
     case "request_received":
-      return { subject: "Votre demande d'abonnement est bien reçue", html: layout({ ...base, title: "Votre demande est bien reçue", intro: [`${ctx.businessName} va étudier votre demande. Aucun paiement n'est demandé à cette étape.`] }) }
+      return { subject: "Votre demande d'abonnement est bien reçue", html: layout({ ...base, title: "Votre demande est bien reçue", rows: requestRows, after: ["Aucun paiement n'a été effectué.", "Votre demande doit d'abord être validée par le professionnel.", "Cette demande n'est pas encore un contrat."] }) }
     case "request_received_pro":
-      return { subject: "Nouvelle demande d'abonnement", html: layout({ ...base, title: "Nouvelle demande d'abonnement", intro: ["Une nouvelle demande est à traiter dans votre espace."], cta: ctx.ctaUrl ? { label: "Voir la demande", url: ctx.ctaUrl } : null }) }
+      return { subject: "Nouvelle demande d'abonnement", html: layout({ ...base, title: "Nouvelle demande d'abonnement", rows: [["Client", ctx.customerName ?? "—"], ...requestRows, ["Date de demande", formatDateFr(ctx.requestedAt, tz)]], cta: ctx.ctaUrl ? { label: "Voir la demande", url: ctx.ctaUrl } : null }) }
     case "request_accepted":
       return {
         subject: "Votre demande a été acceptée",
         html: layout({
           ...base,
           title: "Votre demande a été acceptée",
-          intro: ["Voici les conditions de la formule que vous êtes sur le point d'activer."],
+          intro: [...(pl.planChangedSinceRequest === true ? ["Les conditions de cette formule ont été mises à jour depuis votre demande. Vérifiez attentivement le récapitulatif ci-dessous avant de continuer."] : []), "Voici les conditions de la formule que vous êtes sur le point d'activer."],
           rows: contract,
           cta: ctx.ctaUrl ? { label: "Finaliser mon abonnement", url: ctx.ctaUrl } : null,
           after: ["Vous pourrez vérifier une dernière fois ces informations avant le paiement."],

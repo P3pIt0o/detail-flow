@@ -263,14 +263,14 @@ describe("outbox + cron (PGlite)", () => {
     expect(await requeueFailedEmail(db, companyId + 999, again.id, NOW)).toBe(false)
   })
 
-  it("garde Preview : aucun email client réel ; email pro envoyé ; Resend fail => failed", async () => {
+  it("garde Preview : aucun email client/pro réel ; Resend fail => failed", async () => {
     await enqueueCustomerSubscriptionEmail(db, { companyId, type: "request_received", recipientRole: "client", dedupeKey: "test:client:1", payload: { requestEmail: "client@example.test" } }, NOW)
     await enqueueCustomerSubscriptionEmail(db, { companyId, type: "request_received_pro", recipientRole: "professional", dedupeKey: "test:pro:1" }, NOW)
     const send = okSender()
     const r = await drainCustomerSubscriptionOutbox(db, send, NOW, { emailsAllowed: false })
     expect(r.skipped).toBeGreaterThanOrEqual(1)
     const statuses = await pg.query<{ k: string; s: string }>(`SELECT "dedupeKey" k, status s FROM maintenance_subscription_email_outbox WHERE "dedupeKey" IN ('test:client:1','test:pro:1')`)
-    expect(Object.fromEntries(statuses.rows.map((x) => [x.k, x.s]))).toEqual({ "test:client:1": "skipped", "test:pro:1": "sent" })
+    expect(Object.fromEntries(statuses.rows.map((x) => [x.k, x.s]))).toEqual({ "test:client:1": "skipped", "test:pro:1": "skipped" })
 
     await enqueueCustomerSubscriptionEmail(db, { companyId, type: "request_received_pro", recipientRole: "professional", dedupeKey: "test:pro:fail" }, NOW)
     const failing: EmailSender = async () => ({ ok: false, error: "timeout" })

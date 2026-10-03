@@ -40,8 +40,8 @@ export const emailEvents = {
     await enqueueEmailSafely(tx, { companyId: r.companyId, requestId: r.requestId, type: "request_received", recipientRole: "client", dedupeKey: dedupeKeys.requestReceived(r.requestId, "client") }, now)
     await enqueueEmailSafely(tx, { companyId: r.companyId, requestId: r.requestId, type: "request_received_pro", recipientRole: "professional", dedupeKey: dedupeKeys.requestReceived(r.requestId, "professional") }, now)
   },
-  requestAccepted: (tx: Executor, r: { companyId: number; requestId: number; subscriptionId: number }, now: Date) =>
-    enqueueEmailSafely(tx, { companyId: r.companyId, requestId: r.requestId, subscriptionId: r.subscriptionId, type: "request_accepted", recipientRole: "client", dedupeKey: dedupeKeys.requestDecided(r.requestId, "accepted") }, now),
+  requestAccepted: (tx: Executor, r: { companyId: number; requestId: number; subscriptionId: number; planChangedSinceRequest?: boolean }, now: Date) =>
+    enqueueEmailSafely(tx, { companyId: r.companyId, requestId: r.requestId, subscriptionId: r.subscriptionId, type: "request_accepted", recipientRole: "client", dedupeKey: dedupeKeys.requestDecided(r.requestId, "accepted"), payload: { planChangedSinceRequest: r.planChangedSinceRequest === true } }, now),
   requestRejected: (tx: Executor, r: { companyId: number; requestId: number }, now: Date) =>
     enqueueEmailSafely(tx, { companyId: r.companyId, requestId: r.requestId, type: "request_rejected", recipientRole: "client", dedupeKey: dedupeKeys.requestDecided(r.requestId, "rejected") }, now),
 

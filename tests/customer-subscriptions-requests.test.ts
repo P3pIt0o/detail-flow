@@ -243,7 +243,13 @@ describe("décisions admin", () => {
     const a = await acceptSubscriptionRequest(db, companyA, owner, reqA, {}, NOW)
     const { requestId: reqB } = await createPublicSubscriptionRequest(db, companyA, validInput(planActive, 31), NOW)
     await q(`UPDATE maintenance_plans SET "priceCents"=4900 WHERE id=$1`, [planActive])
-    const b = await acceptSubscriptionRequest(db, companyA, owner, reqB, {}, NOW)
+    await expect(acceptSubscriptionRequest(db, companyA, owner, reqB, {}, NOW)).rejects.toMatchObject({ code: "PLAN_CHANGED_REQUIRES_CONFIRMATION", planChangedSinceRequest: true })
+    expect((await q(`SELECT status,"convertedSubscriptionId" FROM maintenance_subscription_requests WHERE id=$1`, [reqB]))[0]).toEqual({ status: "pending", convertedSubscriptionId: null })
+    expect((await q<{ n: number }>(`SELECT count(*)::int n FROM maintenance_subscription_email_outbox WHERE "requestId"=$1 AND type='request_accepted'`, [reqB]))[0].n).toBe(0)
+    expect((await q<{ n: number }>(`SELECT count(*)::int n FROM maintenance_subscriptions WHERE "customerEmail"='client31@example.test'`))[0].n).toBe(0)
+    const b = await acceptSubscriptionRequest(db, companyA, owner, reqB, { confirmPlanChange: true }, NOW)
+    expect((await q<{ n: number }>(`SELECT count(*)::int n FROM maintenance_subscriptions WHERE "customerEmail"='client31@example.test'`))[0].n).toBe(1)
+    expect((await q(`SELECT status FROM maintenance_subscription_requests WHERE id=$1`, [reqB]))[0].status).toBe("accepted")
     expect(b.planChangedSinceRequest).toBe(true)
     const rows = await q<{ id: number; p: number }>(`SELECT id,"priceCentsSnapshot" p FROM maintenance_subscriptions WHERE id IN ($1,$2)`, [a.subscriptionId, b.subscriptionId])
     const byId = Object.fromEntries(rows.map((r) => [r.id, r.p]))
@@ -262,6 +268,10 @@ describe("décisions admin", () => {
     const all = [...htmlBySub.values()].join("\n---\n")
     expect(all).toContain("39,00")
     expect(all).toContain("49,00")
+    const changedEmail = [...htmlBySub.values()].find(html => html.includes("49,00"))!
+    expect(changedEmail).toContain("Les conditions de cette formule ont été mises à jour depuis votre demande.")
+    expect(changedEmail).not.toContain("39,00")
+    expect([...htmlBySub.values()].find(html => html.includes("39,00"))).not.toContain("mises à jour")
     expect(all).toContain("Finaliser mon abonnement")
     expect(all).toContain("Vous pourrez vérifier une dernière fois ces informations avant le paiement.")
     await q(`UPDATE maintenance_plans SET "priceCents"=3900 WHERE id=$1`, [planActive])
@@ -272,6 +282,63 @@ describe("décisions admin", () => {
     const later = new Date(NOW.getTime() + 31 * 24 * 3600 * 1000)
     expect(await expireStaleSubscriptionRequests(db, later)).toBeGreaterThanOrEqual(1)
     expect(await codeOf(acceptSubscriptionRequest(db, companyA, owner, requestId, {}, later))).toBe("REQUEST_NOT_PENDING")
+  })
+})
+
+describe("corrections ciblées lot 2", () => {
+  it("demande reçue client/pro : ancien prix, modalités, date et HTML échappé depuis le snapshot", async () => {
+    await q(`UPDATE maintenance_subscription_email_outbox SET status='sent'`)
+    const planId = (await engine.createPlan(db, companyA, owner, planInput(serviceA, { name: 'Formule <script>hostile</script>', initialCleaningRequired: true, initialServiceId: serviceA }))).planId
+    await createPublicSubscriptionRequest(db, companyA, validInput(planId, 61), NOW)
+    await q(`UPDATE maintenance_plans SET "priceCents"=4900,name='Nouveau nom' WHERE id=$1`, [planId])
+    const sent: Parameters<EmailSender>[0][] = []
+    await drainCustomerSubscriptionOutbox(db, async msg => { sent.push(msg); return { ok: true } }, NOW, { emailsAllowed: true })
+    expect(sent).toHaveLength(2)
+    for (const msg of sent) {
+      expect(msg.html).toContain("Formule &lt;script&gt;hostile&lt;/script&gt;")
+      expect(msg.html).not.toContain("<script>")
+      expect(msg.html).toContain("Peugeot 208")
+      expect(msg.html).toContain("Lavage complet")
+      expect(msg.html).toContain("39,00")
+      expect(msg.html).not.toContain("49,00")
+      expect(msg.html).toContain("mois")
+      expect(msg.html).toContain("1 par période")
+      expect(msg.html).toContain("Nettoyage initial")
+      expect(msg.html).not.toContain("Nouveau nom")
+    }
+    const client = sent.find(msg => msg.to === 'client61@example.test')!
+    expect(client.html).toContain("Aucun paiement n&#39;a été effectué.")
+    expect(client.html).toContain("Votre demande doit d&#39;abord être validée par le professionnel.")
+    const pro = sent.find(msg => msg.to === 'pro@acme.test')!
+    expect(pro.html).toContain("Client 61")
+    expect(pro.html).toContain("Date de demande")
+    expect(pro.html).toContain("2026")
+    expect(pro.html).not.toContain("href=")
+  })
+
+  it.each([
+    ["preview", "", false],
+    ["preview", "1", true],
+    ["production", "", true],
+  ])("worker %s opt-in %s : même garde client/pro", async (env, optIn, allowed) => {
+    await q(`UPDATE maintenance_subscription_email_outbox SET status='sent'`)
+    const { requestId } = await createPublicSubscriptionRequest(db, companyA, validInput(planActive, `guard-${env}-${optIn || 'off'}`), NOW)
+    vi.stubEnv("VERCEL_ENV", env)
+    vi.stubEnv("CUSTOMER_SUBSCRIPTIONS_PREVIEW_EMAILS", optIn)
+    const send = vi.fn<EmailSender>(async () => ({ ok: true }))
+    try {
+      await drainCustomerSubscriptionOutbox(db, send, NOW)
+      expect(send).toHaveBeenCalledTimes(allowed ? 2 : 0)
+      const rows = await q<{ recipientRole: string; status: string; lastErrorCode: string | null }>(`SELECT "recipientRole",status,"lastErrorCode" FROM maintenance_subscription_email_outbox WHERE "requestId"=$1`, [requestId])
+      expect(rows.map(r => r.recipientRole).sort()).toEqual(["client", "professional"])
+      for (const row of rows) {
+        expect(row.status).toBe(allowed ? "sent" : "skipped")
+        if (!allowed) expect(row.lastErrorCode).toBe("preview_guard")
+      }
+    } finally {
+      vi.unstubAllEnvs()
+      vi.stubEnv("NEXT_PUBLIC_ROOT_DOMAIN", "detailflow.test")
+    }
   })
 })
 

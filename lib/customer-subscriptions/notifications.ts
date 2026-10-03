@@ -13,7 +13,7 @@ import {
   markEmailSkipped,
   type OutboxRow,
 } from "./email-outbox"
-import { renderCustomerSubscriptionEmail } from "./emails"
+import { buildRequestPlanSummary, requestAdminDestination, renderCustomerSubscriptionEmail } from "./emails"
 import { CUSTOMER_MANAGE_PATH, MANAGE_LINK_TTL_SECONDS, signCustomerAccess } from "./customer-access"
 import { addBillingInterval, type BillingInterval } from "./dates"
 
@@ -41,7 +41,7 @@ export type EmailSender = (args: {
 const EMAIL_RE = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/
 export const isValidEmail = (v: unknown): v is string => typeof v === "string" && v.length <= 254 && EMAIL_RE.test(v)
 
-/** Garde environnement : hors Production, aucun vrai email client sauf opt-in explicite. */
+/** Garde commune client/pro : hors Production, aucun vrai email sauf opt-in explicite. */
 export function customerEmailsAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.VERCEL_ENV === "production") return true
   return env.CUSTOMER_SUBSCRIPTIONS_PREVIEW_EMAILS === "1"
@@ -131,6 +131,8 @@ async function resolveRecipient(db: Executor, row: OutboxRow) {
     ? (
         await db
           .select({
+            planSnapshot: maintenanceSubscriptionRequests.planSnapshot,
+            createdAt: maintenanceSubscriptionRequests.createdAt,
             customerEmail: maintenanceSubscriptionRequests.customerEmail,
             customerName: maintenanceSubscriptionRequests.customerName,
             vehicleBrand: maintenanceSubscriptionRequests.vehicleBrand,
@@ -153,7 +155,9 @@ export type DrainResult = { sent: number; failed: number; skipped: number }
 
 export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailSender, now: Date, opts: { limit?: number; emailsAllowed?: boolean } = {}): Promise<DrainResult> {
   const out: DrainResult = { sent: 0, failed: 0, skipped: 0 }
-  const allowed = opts.emailsAllowed ?? customerEmailsAllowed()
+  const allowed = process.env.VERCEL_ENV === "preview"
+    ? customerEmailsAllowed() && opts.emailsAllowed !== false
+    : opts.emailsAllowed ?? customerEmailsAllowed()
   const claimed = await claimDueEmails(db, now, opts.limit ?? 50)
   for (const row of claimed) {
     try {
@@ -163,7 +167,7 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
         out.skipped++
         continue
       }
-      if (row.recipientRole === "client" && !allowed) {
+      if (!allowed) {
         await markEmailSkipped(db, row, "preview_guard", now)
         out.skipped++
         continue
@@ -179,11 +183,13 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
       const vehicleSource = r.vehicle ?? r.request
       const vehicleLabel = vehicleSource ? [vehicleSource.vehicleBrand, vehicleSource.vehicleModel].filter(Boolean).join(" ") : null
       // « Finaliser mon abonnement » = lien signé vers l'espace client (récapitulatif final avant paiement).
-      const ctaUrl = row.type === "request_accepted" ? manageUrl : null
+      const ctaUrl = row.type === "request_accepted" ? manageUrl : row.type === "request_received_pro" && row.requestId ? requestAdminDestination(row.requestId) : null
       const rendered = renderCustomerSubscriptionEmail(row.type as never, {
         businessName,
         customerName: r.sub?.customerName ?? r.request?.customerName ?? null,
         vehicleLabel,
+        requestSummary: r.request && (row.type === "request_received" || row.type === "request_received_pro") ? buildRequestPlanSummary(r.request.planSnapshot) : null,
+        requestedAt: r.request?.createdAt,
         summary,
         manageUrl,
         ctaUrl,

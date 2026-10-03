@@ -245,7 +245,7 @@ export async function acceptSubscriptionRequest(
   companyId: number,
   actor: Actor,
   requestId: number,
-  input: { customerMessage?: unknown; internalNote?: unknown } = {},
+  input: { customerMessage?: unknown; internalNote?: unknown; confirmPlanChange?: boolean } = {},
   now: Date = new Date(),
 ): Promise<AcceptRequestResult> {
   assertCanMutate(actor)
@@ -270,9 +270,20 @@ export async function acceptSubscriptionRequest(
       .select()
       .from(maintenancePlans)
       .where(and(eq(maintenancePlans.id, request.planId), eq(maintenancePlans.companyId, companyId)))
+      .for("update")
     if (!planRow) throw new CustomerSubscriptionError("INVALID_PLAN")
     if (planRow.status !== "active") throw new CustomerSubscriptionError("PLAN_NOT_ACTIVE")
     const currentPlan = assertValidPlanConfig(planRow)
+    const currentSnapshot: PlanRequestSnapshot = {
+      ...currentPlan,
+      planId: request.planId,
+      includedServiceName: await serviceName(tx, companyId, currentPlan.includedServiceId),
+      initialServiceName: currentPlan.initialCleaningRequired ? await serviceName(tx, companyId, currentPlan.initialServiceId) : null,
+    }
+    const planChangedSinceRequest = planSnapshotVersion(currentSnapshot) !== request.planSnapshotVersion
+    if (planChangedSinceRequest && input.confirmPlanChange !== true) {
+      throw new CustomerSubscriptionError("PLAN_CHANGED_REQUIRES_CONFIRMATION")
+    }
 
     const created = await createSubscription(
       tx,
@@ -288,14 +299,6 @@ export async function acceptSubscriptionRequest(
       },
       now,
     )
-
-    const currentSnapshot: PlanRequestSnapshot = {
-      ...currentPlan,
-      planId: request.planId,
-      includedServiceName: await serviceName(tx, companyId, currentPlan.includedServiceId),
-      initialServiceName: currentPlan.initialCleaningRequired ? await serviceName(tx, companyId, currentPlan.initialServiceId) : null,
-    }
-    const planChangedSinceRequest = planSnapshotVersion(currentSnapshot) !== request.planSnapshotVersion
 
     await tx
       .update(maintenanceSubscriptionRequests)
@@ -317,7 +320,7 @@ export async function acceptSubscriptionRequest(
       actorUserId: actor.userId,
       meta: { requestId, planChangedSinceRequest },
     })
-    await emailEvents.requestAccepted(tx, { companyId, requestId, subscriptionId: created.subscriptionId }, now)
+    await emailEvents.requestAccepted(tx, { companyId, requestId, subscriptionId: created.subscriptionId, planChangedSinceRequest }, now)
     return { requestId, subscriptionId: created.subscriptionId, replayed: false, planChangedSinceRequest }
   })
 }
