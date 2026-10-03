@@ -428,7 +428,7 @@ describe("moteur transactionnel (PGlite)", () => {
   it("I. snapshots figés + compte provider : modifier la formule / le service / Stripe ne change pas le contrat", async () => {
     const c = await seedCompany("PRO")
     const planId = await seedPlan(c.companyId, c.includedServiceId, { initialCleaningRequired: true, initialServiceId: c.initialServiceId })
-    const sub = await engine.createSubscription(db, c.companyId, owner, subInput(planId, { termsAcceptedAt: NOW, termsVersion: "v1" }), NOW)
+    const sub = await engine.createSubscription(db, c.companyId, owner, subInput(planId), NOW, { consent: engine.buildServerTermsConsent(true, NOW) })
     expect(sub.status).toBe("pending_initial_cleaning")
     const [before] = await db.select().from(schema.maintenanceSubscriptions).where(eq(schema.maintenanceSubscriptions.id, sub.subscriptionId))
 
@@ -442,7 +442,7 @@ describe("moteur transactionnel (PGlite)", () => {
     expect(after).toMatchObject({
       planNameSnapshot: "Entretien Premium", priceCentsSnapshot: 8900, billingIntervalUnitSnapshot: "week", billingIntervalCountSnapshot: 4,
       includedUsesPerCycleSnapshot: 2, includedServiceNameSnapshot: "Lavage complet", initialServiceNameSnapshot: "Nettoyage initial",
-      initialServicePriceCentsSnapshot: 12000, termsVersion: "v1",
+      initialServicePriceCentsSnapshot: 12000, termsVersion: engine.CUSTOMER_SUBSCRIPTION_TERMS_VERSION,
     })
     expect(after.providerAccountId).not.toBe("acct_new")
     expect(after.billingAnchorAt).toBeNull()

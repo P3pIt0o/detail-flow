@@ -9,6 +9,8 @@ import { requireCompanyMember, type MemberContext } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { toErrorResult, type Result } from "./errors"
 import * as engine from "./engine"
+import * as payments from "./payments"
+import { createCustomerSubscriptionStripePort } from "./stripe"
 import type { PlanConfigInput } from "./plan-validation"
 import type { VehicleInput } from "./vehicle"
 
@@ -49,17 +51,40 @@ export const completeInitialCleaningForCurrentTenant = (subscriptionId: number) 
 export const changeVehicleForCurrentTenant = (subscriptionId: number, vehicle: VehicleInput) =>
   run(MUTATORS, (companyId, actor) => engine.changeVehicle(db, companyId, actor, subscriptionId, vehicle))
 
+/* Décision DB (source de vérité) puis synchronisation Stripe hors transaction.
+ * Une panne Stripe renvoie provider.status = "pending_retry" ; rappeler la même
+ * action (ou syncProviderStateForCurrentTenant) resynchronise sans toucher la DB. */
 export const requestRenewalOptOutForCurrentTenant = (subscriptionId: number) =>
-  run(MUTATORS, (companyId, actor) => engine.requestRenewalOptOut(db, companyId, actor, subscriptionId))
+  run(MUTATORS, (companyId, actor) => payments.requestRenewalOptOutAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId))
 
 export const revokeRenewalOptOutForCurrentTenant = (subscriptionId: number) =>
-  run(MUTATORS, (companyId, actor) => engine.revokeRenewalOptOut(db, companyId, actor, subscriptionId))
+  run(MUTATORS, (companyId, actor) => payments.revokeRenewalOptOutAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId))
 
 export const scheduleCancellationForCurrentTenant = (subscriptionId: number, requestedCancelAt?: Date | null) =>
-  run(MUTATORS, (companyId, actor) => engine.scheduleCancellation(db, companyId, actor, subscriptionId, { requestedCancelAt }))
+  run(MUTATORS, (companyId, actor) =>
+    payments.scheduleCancellationAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, { requestedCancelAt }),
+  )
 
 export const rotateManageTokenForCurrentTenant = (subscriptionId: number) =>
   run(MUTATORS, (companyId, actor) => engine.rotateManageToken(db, companyId, actor, subscriptionId))
 
 export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, reason: string) =>
-  run(MUTATORS, (companyId, actor) => engine.forceEndSubscription(db, companyId, actor, subscriptionId, reason))
+  run(MUTATORS, (companyId, actor) =>
+    payments.forceEndSubscriptionAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, reason),
+  )
+
+/** Retry explicite de la synchronisation Stripe de l'état DB courant. */
+export const syncProviderStateForCurrentTenant = (subscriptionId: number) =>
+  run(MUTATORS, (companyId, actor) => payments.syncProviderState(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId))
+
+/** URL de retour construite côté serveur depuis le domaine du tenant (aucune URL navigateur acceptée). */
+export const startCheckoutForCurrentTenant = (subscriptionId: number) =>
+  run(MUTATORS, (companyId, actor) =>
+    payments.startSubscriptionCheckout(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId),
+  )
+
+/** À appeler après scheduleCancellation / forceEnd : reporte la décision métier sur Stripe (aucun remboursement). */
+export const applyCancellationToProviderForCurrentTenant = (subscriptionId: number) =>
+  run(MUTATORS, (companyId, actor) =>
+    payments.applyCancellationToProvider(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId),
+  )

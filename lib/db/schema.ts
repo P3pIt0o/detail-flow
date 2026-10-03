@@ -2139,6 +2139,57 @@ export const maintenancePayments = pgTable(
       sql`${t.refundedAmountCents} between 0 and ${t.grossAmountCents}`,
     ),
     currencyIso: check("maintenance_payments_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    // Cible des FK composites de maintenance_refunds.
+    tenantKey: uniqueIndex("maintenance_payments_company_subscription_id_key").on(t.companyId, t.subscriptionId, t.id),
+  }),
+)
+
+/**
+ * Remboursements des paiements d'abonnement (jamais la table `refunds` Booking).
+ * maintenance_payments.refundedAmountCents est recalculé depuis les lignes succeeded.
+ */
+export const maintenanceRefunds = pgTable(
+  "maintenance_refunds",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    maintenancePaymentId: integer("maintenancePaymentId").notNull(),
+    provider: text("provider").notNull().default("stripe"),
+    providerAccountId: text("providerAccountId").notNull(),
+    externalRefundId: text("externalRefundId").notNull(),
+    amountCents: integer("amountCents").notNull(),
+    currency: text("currency").notNull().default("EUR"),
+    reason: text("reason"),
+    // pending | requires_action | succeeded | failed | canceled
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    succeededAt: timestamp("succeededAt"),
+    failedAt: timestamp("failedAt"),
+    meta: jsonb("meta").notNull().default({}),
+  },
+  (t) => ({
+    paymentFk: foreignKey({
+      name: "maintenance_refunds_payment_fk",
+      columns: [t.companyId, t.subscriptionId, t.maintenancePaymentId],
+      foreignColumns: [maintenancePayments.companyId, maintenancePayments.subscriptionId, maintenancePayments.id],
+    }).onDelete("restrict"),
+    subscriptionFk: foreignKey({
+      name: "maintenance_refunds_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    uniqExternalRefund: uniqueIndex("maintenance_refunds_external_refund_key").on(t.provider, t.providerAccountId, t.externalRefundId),
+    byCompanyPayment: index("maintenance_refunds_company_payment_idx").on(t.companyId, t.maintenancePaymentId),
+    amountNonNegative: check("maintenance_refunds_amount_non_negative", sql`${t.amountCents} >= 0`),
+    statusValid: check(
+      "maintenance_refunds_status_valid",
+      sql`${t.status} in ('pending', 'requires_action', 'succeeded', 'failed', 'canceled')`,
+    ),
+    currencyIso: check("maintenance_refunds_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   }),
 )
 

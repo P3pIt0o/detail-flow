@@ -17,6 +17,7 @@ import {
   companyFeatureOverrides,
   maintenanceAuditLog,
   maintenanceCycles,
+  maintenancePayments,
   maintenancePlans,
   maintenanceSubscriptions,
   maintenanceSubscriptionVehicles,
@@ -54,7 +55,7 @@ export type Actor = { userId: string; role: "OWNER" | "ADMIN" | "EMPLOYEE"; isSu
 
 const MUTATING_ROLES = new Set(["OWNER", "ADMIN"])
 
-function assertCanMutate(actor: Actor): void {
+export function assertCanMutate(actor: Actor): void {
   if (!actor.isSuperAdmin && !MUTATING_ROLES.has(actor.role)) throw new CustomerSubscriptionError("FORBIDDEN")
 }
 
@@ -78,6 +79,27 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "subscription_suspended",
   "subscription_resumed",
   "manage_token_rotated",
+  "checkout_started",
+  "payment_pending",
+  "payment_succeeded",
+  "payment_failed",
+  "subscription_past_due",
+  "subscription_recovered",
+  "subscription_expired",
+  "subscription_ended_by_provider",
+  "provider_ids_linked",
+  "provider_subscription_updated",
+  "provider_cancellation_applied",
+  "provider_sync_failed",
+  "provider_account_mismatch",
+  "platform_fee_synced",
+  "payment_action_required",
+  "payment_succeeded_without_access",
+  "payment_beyond_final_term",
+  "payment_financials_synced",
+  "term_renewed",
+  "refund_recorded",
+  "refund_conflict",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -305,8 +327,23 @@ export type CreateSubscriptionInput = {
   paymentMode: unknown
   /** Clé client (16–128 car.) ; dérivée côté serveur avec tenant + opération + formule. */
   idempotencyKey: string
-  termsAcceptedAt?: Date | null
-  termsVersion?: string | null
+}
+
+/** Version courante des conditions d'abonnement — config SERVEUR uniquement. */
+export const CUSTOMER_SUBSCRIPTION_TERMS_VERSION = "cs-terms-2026-01"
+
+declare const serverConsentBrand: unique symbol
+/** Consentement construit côté serveur (date + version jamais fournies par le caller). */
+export type ServerTermsConsent = { readonly acceptedAt: Date; readonly version: string; readonly [serverConsentBrand]: true }
+
+/**
+ * Primitive pour le futur flux public : seule une case explicitement cochée
+ * (`true` strict) produit un consentement ; date = horloge serveur, version =
+ * constante serveur. Aucune autre source acceptée.
+ */
+export function buildServerTermsConsent(explicitlyAccepted: unknown, now: Date = new Date()): ServerTermsConsent {
+  if (explicitlyAccepted !== true) throw new CustomerSubscriptionError("INVALID_PLAN", [{ field: "termsAccepted", code: "INVALID_PLAN" }])
+  return { acceptedAt: now, version: CUSTOMER_SUBSCRIPTION_TERMS_VERSION } as ServerTermsConsent
 }
 
 export type CreateSubscriptionResult = {
@@ -332,14 +369,15 @@ export async function createSubscription(
   actor: Actor,
   input: CreateSubscriptionInput,
   now: Date = new Date(),
+  options: { consent?: ServerTermsConsent | null } = {},
 ): Promise<CreateSubscriptionResult> {
   assertCanMutate(actor)
   if (!Number.isInteger(input.planId) || input.planId <= 0) throw new CustomerSubscriptionError("INVALID_PLAN")
   const idempotencyKey = deriveIdempotencyKey({ companyId, operation: "subscription.create", subjectId: input.planId, clientKey: input.idempotencyKey })
   const customer = normalizeCustomer(input.customer)
   const vehicle = normalizeVehicle(input.vehicle)
-  const termsVersion = typeof input.termsVersion === "string" && input.termsVersion.trim() ? input.termsVersion.trim().slice(0, 64) : null
-  if (input.termsAcceptedAt && !termsVersion) throw new CustomerSubscriptionError("INVALID_PLAN", [{ field: "termsVersion", code: "INVALID_PLAN" }])
+  // Jamais lu depuis `input` : création admin sans consentement public recueilli → NULL.
+  const consent = options.consent ?? null
 
   return db.transaction(async (tx) => {
     const company = await readCompany(tx, companyId, true)
@@ -398,8 +436,8 @@ export async function createSubscription(
         ...customer,
         ...snapshot,
         creationIdempotencyKey: idempotencyKey,
-        termsAcceptedAt: input.termsAcceptedAt ?? null,
-        termsVersion,
+        termsAcceptedAt: consent?.acceptedAt ?? null,
+        termsVersion: consent?.version ?? null,
         provider: "stripe",
         providerAccountId,
         manageTokenHash: token.hash,
@@ -480,6 +518,23 @@ export async function completeInitialCleaning(db: Executor, companyId: number, a
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (sub.status !== "pending_initial_cleaning") throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    // Nettoyage initial PAYANT : un paiement initial_cleaning PAID est exigé.
+    // Aucun mécanisme de paiement hors ligne n'existe : rien n'est supposé payé.
+    if (sub.initialCleaningRequiredSnapshot && (sub.initialServicePriceCentsSnapshot ?? 0) > 0) {
+      const [paid] = await tx
+        .select({ id: maintenancePayments.id })
+        .from(maintenancePayments)
+        .where(
+          and(
+            eq(maintenancePayments.companyId, companyId),
+            eq(maintenancePayments.subscriptionId, sub.id),
+            eq(maintenancePayments.type, "initial_cleaning"),
+            eq(maintenancePayments.status, "paid"),
+          ),
+        )
+        .limit(1)
+      if (!paid) throw new CustomerSubscriptionError("INITIAL_CLEANING_PAYMENT_REQUIRED")
+    }
     await tx
       .update(maintenanceSubscriptions)
       .set({ status: "pending_payment", updatedAt: now })
