@@ -71,6 +71,7 @@ function fakePort(
     },
     async cancelSubscription(id, opts) {
       calls.push({ method: "cancelSubscription", id, opts })
+      subs.set(id, { ...(subs.get(id) ?? { id, metadata: {} }), status: "canceled" })
       return { id, status: "canceled" }
     },
     async retrievePaymentIntent(id, opts) {
@@ -454,10 +455,10 @@ describe("invoices", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ status: "pending", platformFeeBps: 300, platformFeeAmountCents: 267, grossAmountCents: 8900 })
 
-    // Downgrade BUSINESS : 0 % → pourcentage supprimé côté Stripe.
+    // Downgrade BUSINESS : 0 % → taux numérique 0 côté Stripe (jamais "").
     await setPlan(c.companyId, "BUSINESS")
     await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.created", c.acct, { ...inv, id: uid("in_biz") }))
-    expect(calls.filter((x) => x.method === "updateSubscription").at(-1)!.params).toEqual({ application_fee_percent: "" })
+    expect(calls.filter((x) => x.method === "updateSubscription").at(-1)!.params).toEqual({ application_fee_percent: 0 })
   })
 
   it("facture déjà finalisée : jamais modifiée", async () => {
@@ -1122,5 +1123,99 @@ describe("Correction : refundedAt", () => {
     const p2 = (await getPayments(id))[0]
     expect(p2).toMatchObject({ refundedAmountCents: 8900, status: "refunded", netAmountCents: p0.netAmountCents })
     expect(p2.refundedAt?.getTime()).toBe(p1.refundedAt!.getTime())
+  })
+})
+
+describe("Correction finale : commission 0 %", () => {
+  it("PRO 3 % → BUSINESS 0 % : facture courante 0, subscription 0 (numérique), maintenance_payment 0, aucun ancien fee", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const { port, calls } = fakePort()
+    const { ext } = await payFirstInvoice(port, c, id)
+    await setPlan(c.companyId, "BUSINESS")
+    const inv = { id: uid("in_zero"), subscription: ext, status: "draft", amount_due: 8900, metadata: moduleMeta(c.companyId, id), ...periodLines(shift(PERIOD_START, 28)) }
+    await payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.created", c.acct, inv))
+    const feeUpdates = calls.filter((x) => x.method === "updateSubscription" && x.id === ext && "application_fee_percent" in (x.params ?? {}))
+    expect(feeUpdates.at(-1)?.params?.application_fee_percent).toBe(0)
+    expect(feeUpdates.some((x) => x.params?.application_fee_percent === "")).toBe(false)
+    const invUpd = calls.filter((x) => x.method === "updateInvoice" && x.id === inv.id).at(-1)
+    expect(invUpd?.params?.application_fee_amount).toBe(0)
+    const row = (await getPayments(id)).find((p) => p.externalInvoiceId === inv.id)!
+    expect(row.platformFeeBps).toBe(0)
+    expect(row.platformFeeAmountCents).toBe(0)
+  })
+
+  it("application_fee_amount=0 refusé par Stripe sur draft : aucune boucle, aucun snapshot inventé, sub 0 %", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const invId = uid("in_zero_rej")
+    const { port, calls } = fakePort({ failInvoiceUpdate: true, invoices: { [invId]: { id: invId, status: "draft" } } })
+    const { ext } = await payFirstInvoice(port, c, id)
+    await setPlan(c.companyId, "BUSINESS")
+    const evt = invoiceEvent("invoice.created", c.acct, { id: invId, subscription: ext, status: "draft", amount_due: 8900, metadata: moduleMeta(c.companyId, id) })
+    expect(await payments.handleCustomerSubscriptionWebhook(db, port, evt)).toMatchObject({ handled: true })
+    expect(await payments.handleCustomerSubscriptionWebhook(db, port, { ...evt, id: uid("evt") })).toMatchObject({ handled: true })
+    expect(calls.filter((x) => x.method === "updateSubscription" && x.id === ext && "application_fee_percent" in (x.params ?? {})).at(-1)?.params?.application_fee_percent).toBe(0)
+    expect((await getPayments(id)).find((p) => p.externalInvoiceId === invId)).toBeUndefined()
+  })
+})
+
+describe("Correction finale : cancel_at dépassé après panne Stripe", () => {
+  const termPlanNone = { billingIntervalUnit: "month" as const, billingIntervalCount: 1, commitmentUnit: "month" as const, commitmentCount: 2, renewalMode: "none" as const }
+
+  it("renewalMode none : sync échoue, échéance passe, retry → cancelSubscription exactement une fois", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c, termPlanNone)
+    const { port, calls, pis } = fakePort()
+    const realUpdate = port.updateSubscription.bind(port)
+    let down = true
+    port.updateSubscription = async (sid, params, opts) => {
+      if (down && "cancel_at" in params) throw new Error("stripe_unavailable")
+      return realUpdate(sid, params, opts)
+    }
+    const start = new Date(Date.now() + 2 * DAY)
+    const ext = uid("sub_overdue")
+    const pi = uid("pi_overdue")
+    pis.set(pi, { id: pi, application_fee_amount: 267 })
+    // Panne Stripe après commit : webhook retriable (500), activation DB déjà conservée.
+    await expect(
+      payments.handleCustomerSubscriptionWebhook(db, port, invoiceEvent("invoice.paid", c.acct, { id: uid("in_overdue"), subscription: ext, status: "paid", amount_paid: 8900, payment_intent: pi, metadata: moduleMeta(c.companyId, id), ...periodLines(start) }, start)),
+    ).rejects.toMatchObject({ code: "PROVIDER_ERROR" })
+    const sub = await getSub(id)
+    expect(sub.status).toBe("active")
+    expect(calls.some((x) => x.method === "cancelSubscription")).toBe(false)
+    down = false
+    const after = shift(sub.currentTermEndsAt!, 1)
+    const r = await payments.syncProviderCancelAt(db, port, c.companyId, owner, id, after)
+    expect(r).toMatchObject({ applied: true, reason: "date_passed_cancelled" })
+    await payments.syncProviderCancelAt(db, port, c.companyId, owner, id, after)
+    const cancels = calls.filter((x) => x.method === "cancelSubscription" && x.id === ext)
+    expect(cancels).toHaveLength(1)
+    expect(cancels[0].opts.stripeAccount).toBe(c.acct)
+    expect(calls.some((x) => /refund/i.test(x.method))).toBe(false)
+    const trail = await db.select().from(schema.maintenanceAuditLog).where(eq(schema.maintenanceAuditLog.subscriptionId, id))
+    expect(trail.filter((a) => a.action === "provider_cancellation_applied")).toHaveLength(1)
+    expect((await getSub(id)).status).toBe("active") // customer.subscription.deleted réconciliera
+  })
+
+  it("annulation programmée dont cancelAt est passé : retry → annulation immédiate unique", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const { port, calls } = fakePort()
+    const { ext } = await payFirstInvoice(port, c, id)
+    await engine.scheduleCancellation(db, c.companyId, owner, id, {}, new Date("2026-01-20T00:00:00Z"))
+    const after = shift((await getSub(id)).cancelAt!, 2)
+    expect(await payments.syncProviderCancelAt(db, port, c.companyId, owner, id, after)).toMatchObject({ applied: true, reason: "date_passed_cancelled" })
+    await payments.syncProviderCancelAt(db, port, c.companyId, owner, id, after)
+    expect(calls.filter((x) => x.method === "cancelSubscription" && x.id === ext)).toHaveLength(1)
+  })
+})
+
+describe("Correction finale : liste canonique des webhooks", () => {
+  it("le moteur intercepte exactement les événements de la liste canonique", async () => {
+    const { CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS } = await import("@/lib/customer-subscriptions/stripe-events")
+    expect(CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS).toHaveLength(14)
+    expect(new Set(CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS).size).toBe(14)
+    expect(CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS).not.toContain("account.updated")
   })
 })

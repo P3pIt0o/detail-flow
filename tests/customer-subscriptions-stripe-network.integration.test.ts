@@ -12,10 +12,8 @@
  * (annulée en fin de test) afin d'observer la forme RÉELLE d'une Invoice.
  *
  * Webhook Connect TEST (endpoint unique /api/payments/webhook, event.account obligatoire
- * pour customer_subscription) — événements à écouter au minimum :
- *   checkout.session.completed, checkout.session.async_payment_succeeded,
- *   checkout.session.expired, invoice.created, invoice.paid, invoice.payment_failed,
- *   customer.subscription.updated, customer.subscription.deleted
+ * pour customer_subscription) — liste canonique : CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS
+ * (lib/customer-subscriptions/stripe-events.ts).
  */
 import { afterAll, describe, expect, it } from "vitest"
 import Stripe from "stripe"
@@ -30,16 +28,7 @@ import {
 } from "@/lib/customer-subscriptions/stripe-mapping"
 import { computePlatformFeeAmountCents } from "@/lib/customer-subscriptions/contract"
 
-export const CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS = [
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.expired",
-  "invoice.created",
-  "invoice.paid",
-  "invoice.payment_failed",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-] as const
+import { CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS } from "@/lib/customer-subscriptions/stripe-events"
 
 const KEY = process.env.CUSTOMER_SUBSCRIPTIONS_STRIPE_TEST_SECRET_KEY
 const ACCOUNT = process.env.CUSTOMER_SUBSCRIPTIONS_STRIPE_TEST_ACCOUNT_ID
@@ -72,8 +61,26 @@ describe("garde-fous config réseau (toujours exécuté)", () => {
     expect(() => assertSafeStripeNetworkConfig({ ...ok, key: undefined })).toThrow(/absentes/)
   })
 
-  it("événements webhook documentés", () => {
-    expect(CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS).toHaveLength(8)
+  it("événements webhook : liste canonique unique", () => {
+    expect([...CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS].sort()).toEqual(
+      [
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.expired",
+        "invoice.created",
+        "invoice.paid",
+        "invoice.payment_failed",
+        "invoice.payment_action_required",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "charge.updated",
+        "charge.refunded",
+        "refund.created",
+        "refund.updated",
+        "refund.failed",
+      ].sort(),
+    )
+    expect(CUSTOMER_SUBSCRIPTIONS_WEBHOOK_EVENTS).not.toContain("account.updated")
   })
 })
 
@@ -189,5 +196,27 @@ describe.skipIf(!configured)("Stripe Connect TEST — réseau réel", () => {
     if (piFee != null) expect(piFee).toBe(computePlatformFeeAmountCents(8900, 700))
     const subNow = await stripe.subscriptions.retrieve(sub.id, {}, opts)
     expect(subNow.application_fee_percent).toBe(7)
+  })
+
+  it("commission 0 % : subscription application_fee_percent=0 et invoice draft application_fee_amount=0 (comportement API réel)", async () => {
+    const customer = await stripe.customers.create({ email: `${run}+zero@example.com`, payment_method: "pm_card_visa", invoice_settings: { default_payment_method: "pm_card_visa" } }, opts)
+    const product = await stripe.products.create({ name: `${run} entretien zero` }, opts)
+    const sub = await stripe.subscriptions.create(
+      { customer: customer.id, items: [{ price_data: { currency: "eur", unit_amount: 8900, product: product.id, recurring: { interval: "month" } } }], application_fee_percent: 3 },
+      opts,
+    )
+    subscriptionsToCancel.push(sub.id)
+    const updated = await stripe.subscriptions.update(sub.id, { application_fee_percent: 0 }, opts)
+    expect(updated.application_fee_percent ?? 0).toBe(0)
+    const draft = await stripe.invoices.create({ customer: customer.id, subscription: sub.id, auto_advance: false }, opts)
+    let zeroAccepted = true
+    try {
+      await stripe.invoices.update(draft.id!, { application_fee_amount: 0 }, opts)
+    } catch (e) {
+      zeroAccepted = false
+      console.log("[customer-subscriptions:network] application_fee_amount=0 refusé:", e instanceof Error ? e.message : "unknown")
+    }
+    console.log("[customer-subscriptions:network] application_fee_amount=0 accepté:", zeroAccepted)
+    await stripe.invoices.del(draft.id!, opts).catch(() => undefined)
   })
 })
