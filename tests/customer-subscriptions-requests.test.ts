@@ -235,7 +235,7 @@ describe("décisions admin", () => {
 
   it("STAFF ne peut pas décider", async () => {
     const { requestId } = await createPublicSubscriptionRequest(db, companyA, validInput(planActive, 23), NOW)
-    expect(await codeOf(acceptSubscriptionRequest(db, companyA, { userId: "s", role: "STAFF" } as engine.Actor, requestId, {}, NOW))).not.toBe("OK")
+    expect(await codeOf(acceptSubscriptionRequest(db, companyA, { userId: "s", role: "STAFF" } as unknown as engine.Actor, requestId, {}, NOW))).not.toBe("OK")
   })
 
   it("snapshots : abonnement A créé à 39 € reste 39 € après passage de la formule à 49 € ; B = 49 €", async () => {

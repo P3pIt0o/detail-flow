@@ -54,7 +54,7 @@ export async function runSubmitSubscriptionRequest(body: unknown, deps: PublicRe
     return { ok: true, requestId: result.requestId }
   } catch (error) {
     const r = toErrorResult(error)
-    if (r.code === "INTERNAL") console.log("[customer-subscriptions] public request failed", { companyId })
+    if (r.code === "INTERNAL_ERROR") console.log("[customer-subscriptions] public request failed", { companyId })
     return r
   }
 }
