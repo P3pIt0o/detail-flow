@@ -31,13 +31,18 @@ import {
   appendMaintenanceAudit,
   activateSubscription,
   assertCanMutate,
+  buildServerTermsConsent,
   createCycleIfMissing,
   forceEndSubscription,
   requestRenewalOptOut,
+  requestRenewalOptOutAsCustomer,
   resolveCurrentCustomerSubscriptionFee,
   revokeRenewalOptOut,
+  revokeRenewalOptOutAsCustomer,
   scheduleCancellation,
+  scheduleCancellationAsCustomer,
   type Actor,
+  type CustomerSessionProof,
   type Executor,
 } from "./engine"
 import { isTerminalStatus } from "./statuses"
@@ -240,7 +245,17 @@ export async function startSubscriptionCheckout(
   input: { returnUrlContext?: ReturnUrlContext } = {},
 ): Promise<StartCheckoutResult> {
   assertCanMutate(actor)
+  return startSubscriptionCheckoutCore(db, port, companyId, userSyncActor(actor), subscriptionId, input)
+}
 
+async function startSubscriptionCheckoutCore(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  who: SyncActor,
+  subscriptionId: number,
+  input: { returnUrlContext?: ReturnUrlContext },
+): Promise<StartCheckoutResult> {
   const plan = await db.transaction(async (tx) => {
     const sub = await lockTenantSubscription(tx, companyId, subscriptionId)
     const kind = resolveCheckoutKind(sub)
@@ -318,8 +333,8 @@ export async function startSubscriptionCheckout(
       companyId,
       subscriptionId: sub.id,
       action: "checkout_started",
-      actorType: "user",
-      actorUserId: actor.userId,
+      actorType: who.actorType,
+      actorUserId: who.actorUserId ?? null,
       meta: { kind, platformFeeBps: built.platformFeeBps, grossAmountCents: built.grossAmountCents, retryOf: previousSessionId },
     })
     return { checkoutSessionId: session.id, clientSecret, status: "open" as const, paymentMode, kind, reused: false }
@@ -331,7 +346,7 @@ export async function startSubscriptionCheckout(
 const readTenantSubscription = (db: Executor, companyId: number, subscriptionId: number) =>
   db.transaction((tx) => lockTenantSubscription(tx, companyId, subscriptionId))
 
-type SyncActor = { actorType: "user" | "system"; actorUserId?: string | null }
+type SyncActor = { actorType: "user" | "system" | "customer"; actorUserId?: string | null }
 const userSyncActor = (actor: Actor): SyncActor => ({ actorType: "user", actorUserId: actor.userId })
 const SYSTEM_SYNC: SyncActor = { actorType: "system", actorUserId: null }
 
@@ -478,16 +493,16 @@ async function syncAfterDecision(
   db: Executor,
   port: CustomerSubscriptionStripePort,
   companyId: number,
-  actor: Actor,
+  who: SyncActor,
   subscriptionId: number,
   now: Date,
 ): Promise<ProviderSyncOutcome> {
   try {
-    const r = await syncProviderStateInternal(db, port, companyId, subscriptionId, now, userSyncActor(actor))
+    const r = await syncProviderStateInternal(db, port, companyId, subscriptionId, now, who)
     return r.applied ? { status: "synced", mode: r.mode, reason: r.reason } : { status: "noop", reason: r.reason }
   } catch (e) {
     const code = e instanceof CustomerSubscriptionError ? e.code : "PROVIDER_ERROR"
-    await appendMaintenanceAudit(db, { companyId, subscriptionId, action: "provider_sync_failed", actorType: "user", actorUserId: actor.userId, meta: { code } })
+    await appendMaintenanceAudit(db, { companyId, subscriptionId, action: "provider_sync_failed", actorType: who.actorType, actorUserId: who.actorUserId ?? null, meta: { code } })
     return { status: "pending_retry", code }
   }
 }
@@ -508,6 +523,20 @@ async function decideThenSync<T extends object>(
   retryWhenTerminal = false,
 ): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
   assertCanMutate(actor)
+  return decideThenSyncCore(db, port, companyId, userSyncActor(actor), subscriptionId, now, decide, retryWhenTerminal)
+}
+
+/** Cœur sans autorisation : chaque wrapper public applique la sienne AVANT d'appeler. */
+async function decideThenSyncCore<T extends object>(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  who: SyncActor,
+  subscriptionId: number,
+  now: Date,
+  decide: () => Promise<T>,
+  retryWhenTerminal: boolean,
+): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
   let local: T & { alreadyApplied?: boolean }
   try {
     local = await decide()
@@ -516,8 +545,48 @@ async function decideThenSync<T extends object>(
     const sub = await readTenantSubscription(db, companyId, subscriptionId)
     local = { status: sub.status, alreadyApplied: true } as unknown as T & { alreadyApplied?: boolean }
   }
-  const provider = await syncAfterDecision(db, port, companyId, actor, subscriptionId, now)
+  const provider = await syncAfterDecision(db, port, companyId, who, subscriptionId, now)
   return { ...local, provider }
+}
+
+/* ------------- Voies CLIENT (preuve de session signée, jamais un rôle simulé) ------------- */
+
+const CUSTOMER_SYNC: SyncActor = { actorType: "customer", actorUserId: null }
+
+export const requestRenewalOptOutAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
+  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => requestRenewalOptOutAsCustomer(db, session, now), false)
+
+export const revokeRenewalOptOutAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
+  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => revokeRenewalOptOutAsCustomer(db, session, now), false)
+
+export const scheduleCancellationAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
+  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => scheduleCancellationAsCustomer(db, session, now), false)
+
+/**
+ * Checkout client : seule `termsAccepted === true` vient du navigateur. Le
+ * consentement (date + version) est construit serveur et enregistré sur le
+ * contrat AVANT Stripe ; prix, fee, compte, URL de retour et IDs sont tous
+ * rechargés serveur par le moteur Checkout existant.
+ */
+export async function startSubscriptionCheckoutAsCustomer(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  session: CustomerSessionProof,
+  input: { termsAccepted: unknown },
+  ctx: { returnUrlContext?: ReturnUrlContext } = {},
+  now: Date = new Date(),
+): Promise<StartCheckoutResult> {
+  const consent = buildServerTermsConsent(input.termsAccepted, now)
+  await db.transaction(async (tx) => {
+    const sub = await lockTenantSubscription(tx, session.companyId, session.subscriptionId)
+    if (!resolveCheckoutKind(sub)) throw new CustomerSubscriptionError("CHECKOUT_NOT_ALLOWED")
+    await tx
+      .update(maintenanceSubscriptions)
+      .set({ termsAcceptedAt: consent.acceptedAt, termsVersion: consent.version, updatedAt: now })
+      .where(whereSub(sub))
+    await appendMaintenanceAudit(tx, { companyId: session.companyId, subscriptionId: sub.id, action: "terms_accepted", actorType: "customer", actorUserId: null, meta: { version: consent.version } })
+  })
+  return startSubscriptionCheckoutCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, ctx)
 }
 
 export const requestRenewalOptOutAndSync = (db: Executor, port: CustomerSubscriptionStripePort, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) =>

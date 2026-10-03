@@ -106,6 +106,20 @@ export const emailEvents = {
       now,
     )
   },
+  /** Message client relu au rendu depuis la demande (tenant strict), jamais copié dans l'outbox. */
+  earlyCancellationRequestedPro: (tx: Executor, sub: SubRef, cancellationRequestId: number, now: Date) =>
+    enqueueEmailSafely(
+      tx,
+      {
+        companyId: sub.companyId,
+        subscriptionId: sub.id,
+        type: "early_cancellation_requested_pro",
+        recipientRole: "professional",
+        dedupeKey: dedupeKeys.earlyCancellationRequested(cancellationRequestId),
+        payload: { cancellationRequestId },
+      },
+      now,
+    ),
   ended: (tx: Executor, sub: SubRef, endedAt: Date, now: Date) =>
     enqueueEmailSafely(tx, { companyId: sub.companyId, subscriptionId: sub.id, type: "subscription_ended", recipientRole: "client", dedupeKey: dedupeKeys.ended(sub.id), payload: { endedAt: iso(endedAt) } }, now),
 

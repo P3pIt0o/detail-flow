@@ -126,7 +126,11 @@ export function middleware(req: NextRequest) {
     // telle quelle. Validation DA/UX uniquement, aucun tenant impacté.
     !path.startsWith("/cleanyzer-preview") &&
     // Lien de réservation autonome /book/{slug} : servi hors vitrine marketing.
-    !path.startsWith("/book/")
+    !path.startsWith("/book/") &&
+    // Espace client abonnements : jamais réécrit vers la vitrine (sans tenant,
+    // la page répond par un message générique d'accès invalide).
+    !path.startsWith("/abonnements") &&
+    !path.startsWith("/abonnement-entretien")
   ) {
     const url = req.nextUrl.clone()
     url.pathname = `/marketing${path === "/" ? "" : path}`

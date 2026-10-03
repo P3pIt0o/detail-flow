@@ -16,6 +16,7 @@ import {
   companies,
   companyFeatureOverrides,
   maintenanceAuditLog,
+  maintenanceCancellationRequests,
   maintenanceCycles,
   maintenancePayments,
   maintenancePlans,
@@ -53,6 +54,15 @@ import { emailEvents } from "./email-events"
 export type Executor = PgDatabase<PgQueryResultHKT, any, any>
 
 export type Actor = { userId: string; role: "OWNER" | "ADMIN" | "EMPLOYEE"; isSuperAdmin?: boolean }
+
+declare const customerSessionBrand: unique symbol
+/**
+ * Preuve qu'une session client signée a été vérifiée (signature, expiration,
+ * purpose, tenant résolu serveur, capability courante). Fabriquée UNIQUEMENT
+ * par customer-service.ts : les wrappers *AsCustomer ne l'acceptent pas
+ * depuis un formulaire.
+ */
+export type CustomerSessionProof = { readonly companyId: number; readonly subscriptionId: number; readonly [customerSessionBrand]: true }
 
 const MUTATING_ROLES = new Set(["OWNER", "ADMIN"])
 
@@ -104,6 +114,13 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "request_created",
   "request_accepted",
   "request_rejected",
+  "customer_access_session_created",
+  "customer_renewal_opt_out_requested",
+  "customer_renewal_opt_out_revoked",
+  "customer_cancellation_scheduled",
+  "early_cancellation_requested",
+  "early_cancellation_withdrawn",
+  "terms_accepted",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -688,38 +705,92 @@ export async function createCycleIfMissing(db: Executor, companyId: number, subs
 
 /* -------------------- Non-renouvellement / annulation -------------------- */
 
-/** « Je ne renouvelle pas le prochain terme » : le service continue jusqu'à currentTermEndsAt. */
-export async function requestRenewalOptOut(db: Executor, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) {
-  assertCanMutate(actor)
+/**
+ * Origine d'une mutation de cycle de vie. Les cœurs métier ci-dessous ne
+ * vérifient AUCUNE autorisation : chaque wrapper public applique la sienne
+ * (assertCanMutate pour l'admin, preuve de session signée pour le client).
+ */
+type MutationOrigin = { kind: "admin"; actor: Actor } | { kind: "customer" }
+
+const auditActor = (o: MutationOrigin) =>
+  o.kind === "admin" ? { actorType: "user" as const, actorUserId: o.actor.userId } : { actorType: "customer" as const, actorUserId: null }
+
+/** Le client ne peut agir que sur un terme réellement en cours (contrat démarré, non terminé). */
+function assertCustomerTermInProgress(sub: { billingAnchorAt: Date | null; currentTermEndsAt: Date | null }, now: Date) {
+  if (!sub.billingAnchorAt || !sub.currentTermEndsAt || sub.currentTermEndsAt.getTime() <= now.getTime()) {
+    throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+  }
+}
+
+async function renewalOptOutCore(db: Executor, companyId: number, subscriptionId: number, origin: MutationOrigin, now: Date) {
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     const check = canOptOutOfRenewal(sub)
     if (!check.allowed) throw new CustomerSubscriptionError(check.reason)
-    if (sub.renewalOptOutAt) return { renewalOptOutAt: sub.renewalOptOutAt, serviceUntil: sub.currentTermEndsAt }
+    if (sub.renewalOptOutAt) return { renewalOptOutAt: sub.renewalOptOutAt, serviceUntil: sub.currentTermEndsAt, alreadyApplied: true }
+    if (origin.kind === "customer") {
+      assertCustomerTermInProgress(sub, now)
+      if (sub.cancelAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    }
     await tx
       .update(maintenanceSubscriptions)
       .set({ renewalOptOutAt: now, updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
-    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "renewal_opt_out_requested", actorType: "user", actorUserId: actor.userId, meta: { serviceUntil: sub.currentTermEndsAt } })
+    await appendMaintenanceAudit(tx, {
+      companyId,
+      subscriptionId: sub.id,
+      action: origin.kind === "customer" ? "customer_renewal_opt_out_requested" : "renewal_opt_out_requested",
+      ...auditActor(origin),
+      meta: { serviceUntil: sub.currentTermEndsAt },
+    })
     await emailEvents.renewalOptOut(tx, sub as never, now, now)
-    return { renewalOptOutAt: now, serviceUntil: sub.currentTermEndsAt }
+    return { renewalOptOutAt: now, serviceUntil: sub.currentTermEndsAt, alreadyApplied: false }
   })
 }
 
-export async function revokeRenewalOptOut(db: Executor, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) {
-  assertCanMutate(actor)
+async function revokeRenewalOptOutCore(db: Executor, companyId: number, subscriptionId: number, origin: MutationOrigin, now: Date) {
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (isTerminalStatus(sub.status)) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
     if (!sub.renewalOptOutAt) return { revoked: false }
+    // Révocation client : uniquement tant que le terme court et sans arrêt programmé distinct.
+    if (origin.kind === "customer") {
+      assertCustomerTermInProgress(sub, now)
+      if (sub.cancelAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    }
     await tx
       .update(maintenanceSubscriptions)
       .set({ renewalOptOutAt: null, updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
-    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "renewal_opt_out_revoked", actorType: "user", actorUserId: actor.userId })
+    await appendMaintenanceAudit(tx, {
+      companyId,
+      subscriptionId: sub.id,
+      action: origin.kind === "customer" ? "customer_renewal_opt_out_revoked" : "renewal_opt_out_revoked",
+      ...auditActor(origin),
+    })
     await emailEvents.renewalOptOutRevoked(tx, sub, now, now)
     return { revoked: true }
   })
+}
+
+/** « Je ne renouvelle pas le prochain terme » : le service continue jusqu'à currentTermEndsAt. */
+export async function requestRenewalOptOut(db: Executor, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) {
+  assertCanMutate(actor)
+  return renewalOptOutCore(db, companyId, subscriptionId, { kind: "admin", actor }, now)
+}
+
+export async function revokeRenewalOptOut(db: Executor, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) {
+  assertCanMutate(actor)
+  return revokeRenewalOptOutCore(db, companyId, subscriptionId, { kind: "admin", actor }, now)
+}
+
+/** Wrapper CLIENT : tenant + contrat proviennent exclusivement de la session signée vérifiée. */
+export async function requestRenewalOptOutAsCustomer(db: Executor, session: CustomerSessionProof, now: Date = new Date()) {
+  return renewalOptOutCore(db, session.companyId, session.subscriptionId, { kind: "customer" }, now)
+}
+
+export async function revokeRenewalOptOutAsCustomer(db: Executor, session: CustomerSessionProof, now: Date = new Date()) {
+  return revokeRenewalOptOutCore(db, session.companyId, session.subscriptionId, { kind: "customer" }, now)
 }
 
 /**
@@ -736,26 +807,134 @@ export async function scheduleCancellation(
   now: Date = new Date(),
 ) {
   assertCanMutate(actor)
+  return scheduleCancellationCore(db, companyId, subscriptionId, { kind: "admin", actor }, options.requestedCancelAt ?? null, now)
+}
+
+/**
+ * Wrapper CLIENT : arrêt à la date minimale calculée serveur (aucune date
+ * fournie par le navigateur). Réservé aux contrats récurrents démarrés ;
+ * engagement en cours → jamais avant currentTermEndsAt (computeEarliestCancellationAt).
+ * Double clic : un arrêt déjà programmé est renvoyé tel quel (même cancelAt).
+ */
+export async function scheduleCancellationAsCustomer(db: Executor, session: CustomerSessionProof, now: Date = new Date()) {
+  return scheduleCancellationCore(db, session.companyId, session.subscriptionId, { kind: "customer" }, null, now)
+}
+
+/* ------------------------- Demande de fin anticipée ------------------------- */
+
+export const EARLY_CANCELLATION_MESSAGE_MAX = 1000
+
+function normalizeCustomerMessage(raw: unknown): string | null {
+  if (raw == null) return null
+  if (typeof raw !== "string") throw new CustomerSubscriptionError("INVALID_MESSAGE")
+  const text = raw.replace(/\r\n/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim()
+  if (text.length > EARLY_CANCELLATION_MESSAGE_MAX) throw new CustomerSubscriptionError("INVALID_MESSAGE")
+  return text.length ? text : null
+}
+
+/**
+ * Le client DEMANDE une fin anticipée : simple ligne `pending`, examinée par
+ * le professionnel. Aucune modification du contrat, aucun appel Stripe,
+ * aucun remboursement. Verrou contrat → une seule demande pending (double clic).
+ */
+export async function requestEarlyCancellationAsCustomer(db: Executor, session: CustomerSessionProof, input: { message?: unknown }, now: Date = new Date()) {
+  const message = normalizeCustomerMessage(input.message)
+  return db.transaction(async (tx) => {
+    const sub = await lockSubscription(tx, session.companyId, session.subscriptionId)
+    if (isTerminalStatus(sub.status)) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
+    if (!sub.billingAnchorAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    const [existing] = await tx
+      .select({ id: maintenanceCancellationRequests.id })
+      .from(maintenanceCancellationRequests)
+      .where(
+        and(
+          eq(maintenanceCancellationRequests.companyId, session.companyId),
+          eq(maintenanceCancellationRequests.subscriptionId, sub.id),
+          eq(maintenanceCancellationRequests.status, "pending"),
+        ),
+      )
+      .limit(1)
+    if (existing) return { requestId: existing.id, created: false }
+    const [row] = await tx
+      .insert(maintenanceCancellationRequests)
+      .values({ companyId: session.companyId, subscriptionId: sub.id, status: "pending", customerMessage: message, createdAt: now, updatedAt: now })
+      .returning({ id: maintenanceCancellationRequests.id })
+    await appendMaintenanceAudit(tx, {
+      companyId: session.companyId,
+      subscriptionId: sub.id,
+      action: "early_cancellation_requested",
+      actorType: "customer",
+      meta: { cancellationRequestId: row.id, hasMessage: message != null },
+    })
+    await emailEvents.earlyCancellationRequestedPro(tx, { companyId: session.companyId, id: sub.id }, row.id, now)
+    return { requestId: row.id, created: true }
+  })
+}
+
+/** Retrait par le client d'une demande encore pending. Aucun effet Stripe ni contrat. */
+export async function withdrawEarlyCancellationAsCustomer(db: Executor, session: CustomerSessionProof, now: Date = new Date()) {
+  return db.transaction(async (tx) => {
+    const sub = await lockSubscription(tx, session.companyId, session.subscriptionId)
+    const rows = await tx
+      .update(maintenanceCancellationRequests)
+      .set({ status: "withdrawn", updatedAt: now, decidedAt: now })
+      .where(
+        and(
+          eq(maintenanceCancellationRequests.companyId, session.companyId),
+          eq(maintenanceCancellationRequests.subscriptionId, sub.id),
+          eq(maintenanceCancellationRequests.status, "pending"),
+        ),
+      )
+      .returning({ id: maintenanceCancellationRequests.id })
+    for (const r of rows) {
+      await appendMaintenanceAudit(tx, { companyId: session.companyId, subscriptionId: sub.id, action: "early_cancellation_withdrawn", actorType: "customer", meta: { cancellationRequestId: r.id } })
+    }
+    return { withdrawn: rows.length > 0 }
+  })
+}
+
+async function scheduleCancellationCore(
+  db: Executor,
+  companyId: number,
+  subscriptionId: number,
+  origin: MutationOrigin,
+  requestedCancelAt: Date | null,
+  now: Date,
+) {
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (isTerminalStatus(sub.status)) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
+    const who = auditActor(origin)
+    if (origin.kind === "customer") {
+      if (sub.paymentMode !== "recurring" || !sub.billingAnchorAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+      if (!["active", "past_due", "cancel_scheduled"].includes(sub.status)) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+      if (sub.cancelAt && sub.cancelAt.getTime() > now.getTime()) {
+        return { status: sub.status, cancelAt: sub.cancelAt, alreadyApplied: true }
+      }
+    }
     const where = and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId))
-    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "cancel_requested", actorType: "user", actorUserId: actor.userId })
+    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "cancel_requested", ...who })
 
     if (!sub.billingAnchorAt) {
       await tx.update(maintenanceSubscriptions).set({ status: "cancelled", cancelRequestedAt: now, cancelAt: now, cancelledAt: now, updatedAt: now }).where(where)
-      await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "subscription_cancelled", actorType: "user", actorUserId: actor.userId, meta: { immediate: true } })
+      await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "subscription_cancelled", ...who, meta: { immediate: true } })
       await emailEvents.ended(tx, sub, now, now)
-      return { status: "cancelled" as const, cancelAt: now }
+      return { status: "cancelled" as string, cancelAt: now, alreadyApplied: false }
     }
 
-    const cancelAt = resolveCancellationAt(sub, now, options.requestedCancelAt)
+    const cancelAt = resolveCancellationAt(sub, now, origin.kind === "customer" ? null : requestedCancelAt)
     // past_due / suspended conservent leur statut (blocage d'usage), seule la date est programmée.
     const status = sub.status === "active" ? "cancel_scheduled" : sub.status
     await tx.update(maintenanceSubscriptions).set({ status, cancelRequestedAt: sub.cancelRequestedAt ?? now, cancelAt, updatedAt: now }).where(where)
-    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "cancel_scheduled", actorType: "user", actorUserId: actor.userId, meta: { cancelAt } })
+    await appendMaintenanceAudit(tx, {
+      companyId,
+      subscriptionId: sub.id,
+      action: origin.kind === "customer" ? "customer_cancellation_scheduled" : "cancel_scheduled",
+      ...who,
+      meta: { cancelAt },
+    })
     await emailEvents.cancellationScheduled(tx, sub as never, cancelAt, now)
-    return { status, cancelAt }
+    return { status, cancelAt, alreadyApplied: false }
   })
 }
 
