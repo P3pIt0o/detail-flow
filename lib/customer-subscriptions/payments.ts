@@ -41,6 +41,7 @@ import {
   type Executor,
 } from "./engine"
 import { isTerminalStatus } from "./statuses"
+import { emailEvents } from "./email-events"
 import {
   CUSTOMER_SUBSCRIPTION_MODULE,
   bpsFromFeePercent,
@@ -826,6 +827,9 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
     await linkProviderIds(tx, row, { externalSubscriptionId: ext, externalCustomerId: idOf(inv.customer) })
 
     let payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
+    // Email « paiement reçu » uniquement sur transition réelle vers paid (rejeu = aucun email).
+    const newlyPaid = !payment || payment.status === "pending" || payment.status === "failed"
+    let activatedNow = false
     if (!payment) {
       if (realFee == null) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
       const fee = realFee
@@ -865,6 +869,7 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
       // Ancre = période Stripe réelle de la 1re facture.
       await activateSubscription(tx, row.companyId, row.id, realPeriod.start, "provider")
       row = await lockTenantSubscription(tx, row.companyId, row.id)
+      activatedNow = row.status === "active"
     } else if (row.status === "past_due") {
       const next = statusAfterRecovery(row, paidAt)
       await tx.update(maintenanceSubscriptions).set({ status: next, updatedAt: paidAt }).where(whereSub(row))
@@ -897,6 +902,12 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
       await tx.update(maintenancePayments).set({ cycleId }).where(and(eq(maintenancePayments.id, payment.id), eq(maintenancePayments.companyId, row.companyId)))
     }
     await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action: "payment_succeeded", actorType: "provider", meta: { invoiceId: inv.id, cycleId } })
+    // État métier persisté ci-dessus → enqueue (savepoint isolé, jamais bloquant).
+    if (activatedNow) {
+      await emailEvents.activated(tx, row, new Date())
+    } else if (newlyPaid) {
+      await emailEvents.paymentSucceeded(tx, row, { paymentId: payment.id, amountCents: payment.grossAmountCents, paidAt, periodStart: realPeriod.start, periodEnd: realPeriod.end }, new Date())
+    }
     return { handled: true as const, outcome: "invoice_paid" }
   })
 
@@ -952,6 +963,13 @@ async function recordInvoiceFailure({ db, port, event, account, target }: Ctx, k
       actorType: "provider",
       meta: { invoiceId: inv.id },
     })
+    // Facture déjà payée (événement en retard) : aucun email d'échec.
+    if (payment?.status !== "paid" && !isTerminalStatus(next)) {
+      const attempt = (inv as { attempt_count?: number }).attempt_count
+      const attemptKey = `${inv.id}#${Number.isInteger(attempt) ? attempt : 0}`
+      if (kind === "failed") await emailEvents.paymentFailed(tx, row, { attemptKey, amountCents: gross, failedAt }, new Date())
+      else await emailEvents.paymentActionRequired(tx, row, { attemptKey, amountCents: gross }, new Date())
+    }
     return { handled: true as const, outcome: kind === "failed" ? "invoice_payment_failed" : "invoice_payment_action_required" }
   })
 }
@@ -1093,8 +1111,9 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
       return "refund_conflict"
     }
     let changed = false
+    let succeededRefundId: number | null = null
     if (!existing) {
-      await tx.insert(maintenanceRefunds).values({
+      const [inserted] = await tx.insert(maintenanceRefunds).values({
         companyId: p.companyId,
         subscriptionId: p.subscriptionId,
         maintenancePaymentId: p.id,
@@ -1108,11 +1127,13 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
         succeededAt: incoming === "succeeded" ? at : null,
         failedAt: incoming === "failed" || incoming === "canceled" ? at : null,
         meta: { stripeChargeId: idOf(refund.charge) },
-      })
+      }).returning({ id: maintenanceRefunds.id })
       changed = true
+      if (incoming === "succeeded" && inserted) succeededRefundId = inserted.id
     } else {
       const next = nextRefundStatus(existing.status as RefundStatusValue, incoming)
       if (next !== existing.status) {
+        if (next === "succeeded") succeededRefundId = existing.id
         await tx
           .update(maintenanceRefunds)
           .set({
@@ -1144,6 +1165,10 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
     }
     if (changed) {
       await appendMaintenanceAudit(tx, { companyId: p.companyId, subscriptionId: p.subscriptionId, action: "refund_recorded", actorType: "provider", meta: { paymentId: p.id, refundStatus: incoming, amountCents: refund.amount, refundedAmountCents: refunded, paymentStatus: nextStatus } })
+    }
+    // Transition réelle vers succeeded (webhook) → enqueue ; rejeu → dedupe refund:{id}.
+    if (succeededRefundId != null) {
+      await emailEvents.refundSucceeded(tx, { companyId: p.companyId, id: p.subscriptionId }, { refundId: succeededRefundId, amountCents: refund.amount as number, refundedAt: at, full: refunded >= p.grossAmountCents }, new Date())
     }
     return changed ? `refund_${incoming}` : "refund_duplicate"
   })
@@ -1201,6 +1226,9 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
         meta: { checkoutSessionId: session.id },
       })
       await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action: "payment_succeeded", actorType: "provider", meta: { kind } })
+      if (kind === "initial_cleaning") {
+        await emailEvents.initialCleaningPaid(tx, row, { amountCents: gross, paidAt }, new Date())
+      }
     }
 
     // Nettoyage initial : paiement enregistré, contrat reste pending_initial_cleaning.
@@ -1208,6 +1236,7 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
       await activateSubscription(tx, row.companyId, row.id, paidAt, "provider")
       row = await lockTenantSubscription(tx, row.companyId, row.id)
       await ensureCycle(tx, row, paidAt)
+      if (row.status === "active") await emailEvents.activated(tx, row, new Date())
     }
     return { handled: true as const, outcome: existing ? "checkout_paid_duplicate" : "checkout_paid" }
   })
@@ -1253,6 +1282,7 @@ async function onSubscriptionDeleted({ db, event, target }: Ctx): Promise<Webhoo
     await tx.update(maintenanceSubscriptions).set({ ...patch, updatedAt: endedAt }).where(whereSub(row))
     const action = outcome === "cancelled" ? "subscription_cancelled" : outcome === "expired" ? "subscription_expired" : "subscription_ended_by_provider"
     await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action, actorType: "provider", meta: { previousStatus: row.status, refund: "none" } })
+    await emailEvents.ended(tx, row, endedAt, new Date())
     return { handled: true as const, outcome: `subscription_deleted_${outcome}` }
   })
 }

@@ -34,6 +34,15 @@ export const CUSTOMER_SUBSCRIPTION_ERROR_CODES = [
   "PROVIDER_ERROR",
   // Donnée Stripe indispensable momentanément indisponible : retriable (webhook → 500).
   "PROVIDER_DATA_UNAVAILABLE",
+  // Demandes d'abonnement (mode « request »).
+  "REQUESTS_DISABLED",
+  "PLAN_NOT_AVAILABLE",
+  "NOT_ACCEPTING_REQUESTS",
+  "INVALID_SUBMISSION",
+  "INVALID_MESSAGE",
+  "RATE_LIMITED",
+  "REQUEST_NOT_FOUND",
+  "REQUEST_NOT_PENDING",
   "INTERNAL_ERROR",
 ] as const
 

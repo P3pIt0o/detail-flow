@@ -47,6 +47,7 @@ import { CUSTOMER_SUBSCRIPTION_CAPACITY_STATUSES, isTerminalStatus } from "./sta
 import { normalizeVehicle, type VehicleInput } from "./vehicle"
 import { generateManageToken } from "./manage-token"
 import { deriveIdempotencyKey } from "./idempotency"
+import { emailEvents } from "./email-events"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepte node-postgres (app) et PGlite (tests)
 export type Executor = PgDatabase<PgQueryResultHKT, any, any>
@@ -100,6 +101,9 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "term_renewed",
   "refund_recorded",
   "refund_conflict",
+  "request_created",
+  "request_accepted",
+  "request_rejected",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -307,7 +311,7 @@ export async function archivePlan(db: Executor, companyId: number, actor: Actor,
 
 const EMAIL_PATTERN = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
 
-function normalizeCustomer(input: { name: unknown; email: unknown; phone?: unknown }) {
+export function normalizeCustomer(input: { name: unknown; email: unknown; phone?: unknown }) {
   const name = typeof input.name === "string" ? input.name.replace(/\s+/g, " ").trim() : ""
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : ""
   const phone = typeof input.phone === "string" ? input.phone.replace(/[^\d+]/g, "") : ""
@@ -540,6 +544,7 @@ export async function completeInitialCleaning(db: Executor, companyId: number, a
       .set({ status: "pending_payment", updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "initial_cleaning_completed", actorType: "user", actorUserId: actor.userId })
+    await emailEvents.initialCleaningDone(tx, sub, now)
     return { status: "pending_payment" as const }
   })
 }
@@ -696,6 +701,7 @@ export async function requestRenewalOptOut(db: Executor, companyId: number, acto
       .set({ renewalOptOutAt: now, updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "renewal_opt_out_requested", actorType: "user", actorUserId: actor.userId, meta: { serviceUntil: sub.currentTermEndsAt } })
+    await emailEvents.renewalOptOut(tx, sub as never, now, now)
     return { renewalOptOutAt: now, serviceUntil: sub.currentTermEndsAt }
   })
 }
@@ -711,6 +717,7 @@ export async function revokeRenewalOptOut(db: Executor, companyId: number, actor
       .set({ renewalOptOutAt: null, updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "renewal_opt_out_revoked", actorType: "user", actorUserId: actor.userId })
+    await emailEvents.renewalOptOutRevoked(tx, sub, now, now)
     return { revoked: true }
   })
 }
@@ -738,6 +745,7 @@ export async function scheduleCancellation(
     if (!sub.billingAnchorAt) {
       await tx.update(maintenanceSubscriptions).set({ status: "cancelled", cancelRequestedAt: now, cancelAt: now, cancelledAt: now, updatedAt: now }).where(where)
       await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "subscription_cancelled", actorType: "user", actorUserId: actor.userId, meta: { immediate: true } })
+      await emailEvents.ended(tx, sub, now, now)
       return { status: "cancelled" as const, cancelAt: now }
     }
 
@@ -746,6 +754,7 @@ export async function scheduleCancellation(
     const status = sub.status === "active" ? "cancel_scheduled" : sub.status
     await tx.update(maintenanceSubscriptions).set({ status, cancelRequestedAt: sub.cancelRequestedAt ?? now, cancelAt, updatedAt: now }).where(where)
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "cancel_scheduled", actorType: "user", actorUserId: actor.userId, meta: { cancelAt } })
+    await emailEvents.cancellationScheduled(tx, sub as never, cancelAt, now)
     return { status, cancelAt }
   })
 }
@@ -766,6 +775,7 @@ export async function forceEndSubscription(db: Executor, companyId: number, acto
       .set({ status: "ended", endedAt: now, cancelAt: sub.cancelAt ?? now, cancelRequestedAt: sub.cancelRequestedAt ?? now, updatedAt: now })
       .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "subscription_force_ended", actorType: "user", actorUserId: actor.userId, meta: { reason: motive, previousStatus: sub.status, refund: "none" } })
+    await emailEvents.ended(tx, sub, now, now)
     return { status: "ended" as const }
   })
 }

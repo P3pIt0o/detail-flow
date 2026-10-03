@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm"
-import { companies, maintenanceSubscriptions, maintenanceSubscriptionVehicles, settings } from "@/lib/db/schema"
+import { expireStaleSubscriptionRequests } from "./requests"
+import { companies, maintenanceSubscriptionRequests, maintenanceSubscriptions, maintenanceSubscriptionVehicles, settings } from "@/lib/db/schema"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import type { Executor } from "./engine"
 import { buildSubscriptionContractSummary, computeNextBillingAt, type ContractSubscriptionInput } from "./contract-summary"
@@ -125,9 +126,27 @@ async function resolveRecipient(db: Executor, row: OutboxRow) {
           .where(and(eq(maintenanceSubscriptionVehicles.subscriptionId, sub.id), eq(maintenanceSubscriptionVehicles.companyId, row.companyId), isNull(maintenanceSubscriptionVehicles.activeUntil)))
       )[0] ?? null
     : null
-  const payload = (row.payload ?? {}) as Record<string, unknown>
-  const to = row.recipientRole === "professional" ? set?.businessEmail : (sub?.customerEmail ?? (payload.requestEmail as string | undefined))
-  return { company, settings: set ?? null, sub, vehicle, to, payload }
+  // Emails de demande : destinataire et message relus depuis la demande (tenant strict), jamais stockés dans le payload outbox.
+  const request = row.requestId
+    ? (
+        await db
+          .select({
+            customerEmail: maintenanceSubscriptionRequests.customerEmail,
+            customerName: maintenanceSubscriptionRequests.customerName,
+            vehicleBrand: maintenanceSubscriptionRequests.vehicleBrand,
+            vehicleModel: maintenanceSubscriptionRequests.vehicleModel,
+            customerDecisionMessage: maintenanceSubscriptionRequests.customerDecisionMessage,
+          })
+          .from(maintenanceSubscriptionRequests)
+          .where(and(eq(maintenanceSubscriptionRequests.id, row.requestId), eq(maintenanceSubscriptionRequests.companyId, row.companyId)))
+      )[0] ?? null
+    : null
+  const payload = { ...((row.payload ?? {}) as Record<string, unknown>) }
+  if (row.type === "request_rejected" && request?.customerDecisionMessage) payload.customerMessage = request.customerDecisionMessage
+  const legacyEmail = typeof payload.requestEmail === "string" ? payload.requestEmail : undefined
+  delete payload.requestEmail
+  const to = row.recipientRole === "professional" ? set?.businessEmail : (sub?.customerEmail ?? request?.customerEmail ?? legacyEmail)
+  return { company, settings: set ?? null, sub, vehicle, request, to, payload }
 }
 
 export type DrainResult = { sent: number; failed: number; skipped: number }
@@ -154,11 +173,22 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
       let manageUrl: string | null = null
       if (r.sub?.manageTokenHash && r.company.slug && row.recipientRole === "client") {
         const token = signCustomerAccess({ companyId: row.companyId, subscriptionId: r.sub.id, purpose: "manage_link", manageTokenHash: r.sub.manageTokenHash, ttlSeconds: MANAGE_LINK_TTL_SECONDS }, now)
-        const url = tenantPublicPathUrl(`${CUSTOMER_MANAGE_PATH}/acces?t=${encodeURIComponent(token)}`, r.company.slug)
+        const url = tenantPublicPathUrl(`${CUSTOMER_MANAGE_PATH}/acces?t=${encodeURIComponent(token)}`, r.company.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
         manageUrl = url.startsWith("/") ? null : url
       }
-      const vehicleLabel = r.vehicle ? [r.vehicle.vehicleBrand, r.vehicle.vehicleModel].filter(Boolean).join(" ") : null
-      const rendered = renderCustomerSubscriptionEmail(row.type as never, { businessName, customerName: r.sub?.customerName ?? null, vehicleLabel, summary, manageUrl, payload: r.payload })
+      const vehicleSource = r.vehicle ?? r.request
+      const vehicleLabel = vehicleSource ? [vehicleSource.vehicleBrand, vehicleSource.vehicleModel].filter(Boolean).join(" ") : null
+      // « Finaliser mon abonnement » = lien signé vers l'espace client (récapitulatif final avant paiement).
+      const ctaUrl = row.type === "request_accepted" ? manageUrl : null
+      const rendered = renderCustomerSubscriptionEmail(row.type as never, {
+        businessName,
+        customerName: r.sub?.customerName ?? r.request?.customerName ?? null,
+        vehicleLabel,
+        summary,
+        manageUrl,
+        ctaUrl,
+        payload: r.payload,
+      })
       const replyTo = isValidEmail(r.settings?.businessEmail) ? r.settings!.businessEmail! : undefined
       const res = await send({ to: r.to, subject: rendered.subject, html: rendered.html, fromName: businessName, replyTo })
       if (res.ok) {
@@ -184,8 +214,9 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
 }
 
 export async function processCustomerSubscriptionNotifications(db: Executor, send: EmailSender, now: Date = new Date()) {
+  const expiredRequests = await expireStaleSubscriptionRequests(db, now)
   const scheduled = await scheduleUpcomingNotices(db, now)
   const drained = await drainCustomerSubscriptionOutbox(db, send, now)
-  console.log("[customer-subscriptions] notifications", { scheduled, ...drained })
-  return { scheduled, ...drained }
+  console.log("[customer-subscriptions] notifications", { scheduled, expiredRequests, ...drained })
+  return { scheduled, expiredRequests, ...drained }
 }
