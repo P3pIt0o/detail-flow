@@ -398,6 +398,34 @@ export async function createSubscription(
   options: { consent?: ServerTermsConsent | null } = {},
 ): Promise<CreateSubscriptionResult> {
   assertCanMutate(actor)
+  return createSubscriptionCore(db, companyId, { actorType: "user", actorUserId: actor.userId }, input, now, options)
+}
+
+/**
+ * Souscription publique DIRECTE (mode « direct ») : aucun utilisateur connecté,
+ * consentement serveur OBLIGATOIRE (typé, jamais lu du navigateur). Mêmes
+ * contrôles atomiques que la création admin (verrou tenant, licence, capacité,
+ * Stripe opérationnel, formule active du tenant, snapshot serveur).
+ */
+export async function createSubscriptionAsPublicCustomer(
+  db: Executor,
+  companyId: number,
+  input: CreateSubscriptionInput,
+  consent: ServerTermsConsent,
+  now: Date = new Date(),
+): Promise<CreateSubscriptionResult> {
+  if (!consent) throw new CustomerSubscriptionError("INVALID_PLAN", [{ field: "termsAccepted", code: "INVALID_PLAN" }])
+  return createSubscriptionCore(db, companyId, { actorType: "customer", actorUserId: null }, input, now, { consent })
+}
+
+async function createSubscriptionCore(
+  db: Executor,
+  companyId: number,
+  who: { actorType: "user" | "customer"; actorUserId: string | null },
+  input: CreateSubscriptionInput,
+  now: Date,
+  options: { consent?: ServerTermsConsent | null },
+): Promise<CreateSubscriptionResult> {
   if (!Number.isInteger(input.planId) || input.planId <= 0) throw new CustomerSubscriptionError("INVALID_PLAN")
   const idempotencyKey = deriveIdempotencyKey({ companyId, operation: "subscription.create", subjectId: input.planId, clientKey: input.idempotencyKey })
   const customer = normalizeCustomer(input.customer)
@@ -477,8 +505,8 @@ export async function createSubscription(
       companyId,
       subscriptionId: created.id,
       action: "subscription_created",
-      actorType: "user",
-      actorUserId: actor.userId,
+      actorType: who.actorType,
+      actorUserId: who.actorUserId,
       meta: { planId: planRow.id, status, paymentMode: snapshot.paymentMode },
     })
     return { subscriptionId: created.id, status, manageToken: token.token, replayed: false }
