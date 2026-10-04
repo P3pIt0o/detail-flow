@@ -10,6 +10,8 @@ import { db } from "@/lib/db"
 import { toErrorResult, type Result } from "./errors"
 import * as engine from "./engine"
 import * as payments from "./payments"
+import * as requests from "./requests"
+import { setCustomerSubscriptionPublicMode } from "./public-mode-admin"
 import { createCustomerSubscriptionStripePort } from "./stripe"
 import type { PlanConfigInput } from "./plan-validation"
 import type { VehicleInput } from "./vehicle"
@@ -72,6 +74,30 @@ export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, rea
   run(MUTATORS, (companyId, actor) =>
     payments.forceEndSubscriptionAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, reason),
   )
+
+/** Le navigateur ne transmet que l'id, les textes libres et confirmPlanChange (jamais prix, snapshot, tenant). */
+export const acceptRequestForCurrentTenant = (
+  requestId: number,
+  input: { customerMessage?: unknown; internalNote?: unknown; confirmPlanChange?: boolean },
+) =>
+  run(MUTATORS, (companyId, actor) =>
+    requests.acceptSubscriptionRequest(db, companyId, actor, requestId, {
+      customerMessage: input.customerMessage,
+      internalNote: input.internalNote,
+      confirmPlanChange: input.confirmPlanChange === true,
+    }),
+  )
+
+export const rejectRequestForCurrentTenant = (requestId: number, input: { customerMessage?: unknown; internalNote?: unknown }) =>
+  run(MUTATORS, (companyId, actor) =>
+    requests.rejectSubscriptionRequest(db, companyId, actor, requestId, {
+      customerMessage: input.customerMessage,
+      internalNote: input.internalNote,
+    }),
+  )
+
+export const setPublicModeForCurrentTenant = (mode: unknown) =>
+  run(MUTATORS, (companyId, actor) => setCustomerSubscriptionPublicMode(db, companyId, actor, mode))
 
 /** Retry explicite de la synchronisation Stripe de l'état DB courant. */
 export const syncProviderStateForCurrentTenant = (subscriptionId: number) =>

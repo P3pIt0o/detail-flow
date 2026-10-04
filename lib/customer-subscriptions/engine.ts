@@ -122,6 +122,7 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "early_cancellation_requested",
   "early_cancellation_withdrawn",
   "terms_accepted",
+  "public_mode_changed",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -373,7 +374,7 @@ export type CreateSubscriptionResult = {
   status: "pending_initial_cleaning" | "pending_payment"
   /**
    * Token brut (futur email) — rendu UNE fois ; null lors d'un rejeu idempotent
-   * (le brut n'est jamais stocké). Réponse perdue → rotateManageToken().
+   * (le brut n'est jamais stocké). Réponse perdue �� rotateManageToken().
    */
   manageToken: string | null
   replayed: boolean
