@@ -18,14 +18,18 @@ import { EarlyCancellationCard } from "@/components/admin/customer-subscriptions
 export const metadata: Metadata = { title: "Abonnements clients" }
 export const dynamic = "force-dynamic"
 
+/** 3 zones principales (tiennent sur 360 px) + 2 vues secondaires accessibles par lien. */
 const VIEWS = [
   { key: "a-traiter", label: "À traiter" },
   { key: "formules", label: "Formules" },
   { key: "abonnes", label: "Abonnés" },
-  { key: "paiements", label: "Paiements" },
-  { key: "emails", label: "Emails" },
 ] as const
-type ViewKey = (typeof VIEWS)[number]["key"]
+const SECONDARY_VIEWS = [
+  { key: "paiements", label: "Historique des paiements" },
+  { key: "emails", label: "Emails envoyés" },
+] as const
+type ViewKey = (typeof VIEWS)[number]["key"] | (typeof SECONDARY_VIEWS)[number]["key"]
+const ALL_VIEWS: readonly { key: ViewKey }[] = [...VIEWS, ...SECONDARY_VIEWS]
 
 const BASE = "/admin/abonnements-clients"
 
@@ -33,16 +37,20 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
   await requireAdmin()
   const companyId = await requireCompanyId()
   const [{ vue }, data] = await Promise.all([searchParams, getAdminOverview(companyId)])
-  const view: ViewKey = VIEWS.some((v) => v.key === vue) ? (vue as ViewKey) : "a-traiter"
+  const view: ViewKey = ALL_VIEWS.some((v) => v.key === vue) ? (vue as ViewKey) : "a-traiter"
 
-  const { company } = data
+  const { company, capacity } = data
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
   const hasActivePlan = data.plans.some((p) => p.status === "active")
   const checklist = buildChecklist({ paymentsReady, hasActivePlan, publicMode: company.publicMode })
-  const toProcess = data.requests.length + data.earlyCancellations.length
-  const liveSubs = data.subscriptions.filter((s) => LIVE_STATUSES.has(s.status))
-  const pastDue = data.subscriptions.filter((s) => s.status === "past_due").length
+  const work = toProcessGroups(data)
+  const toProcess = work.total
+  const pastDue = work.pastDue.length
   const counts: Partial<Record<ViewKey, number>> = { "a-traiter": toProcess }
+  const capacityLabel =
+    capacity.maxActive == null
+      ? `${capacity.activeCount} actif${capacity.activeCount > 1 ? "s" : ""} · illimité`
+      : `${capacity.activeCount} sur ${capacity.maxActive}`
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,42 +104,59 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
 
       <dl className="grid grid-cols-3 gap-3">
         {[
-          { label: "Abonnés en cours", value: liveSubs.length },
-          { label: "À traiter", value: toProcess },
-          { label: "Paiements à régulariser", value: pastDue },
+          { label: "Abonnements actifs", value: capacityLabel, help: capacity.limitReached ? "Limite atteinte" : null },
+          { label: "À traiter", value: String(toProcess), help: null },
+          { label: "Paiements à régulariser", value: String(pastDue), help: null },
         ].map((s) => (
-          <div key={s.label} className="flex flex-col gap-1 rounded-xl border border-border bg-card p-3 sm:p-4">
+          <div key={s.label} className="flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-card p-3 sm:p-4">
             <dt className="text-xs leading-snug text-muted-foreground">{s.label}</dt>
-            <dd className="text-2xl font-semibold text-foreground">{s.value}</dd>
+            <dd className="text-lg font-semibold leading-tight text-foreground sm:text-2xl">{s.value}</dd>
+            {s.help && <dd className="text-xs font-medium text-warning-foreground">{s.help}</dd>}
           </div>
         ))}
       </dl>
 
       <PublicModeCard mode={company.publicMode} canPublish={paymentsReady && hasActivePlan} />
 
-      <nav aria-label="Sections" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <ul className="flex min-w-max gap-1 border-b border-border">
+      <nav aria-label="Sections">
+        <ul className="grid grid-cols-3 border-b border-border">
           {VIEWS.map((v) => (
+            <li key={v.key} className="min-w-0">
+              <Link
+                href={`${BASE}?vue=${v.key}`}
+                aria-current={view === v.key ? "page" : undefined}
+                className={cn(
+                  "flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-1 text-sm font-medium transition-colors",
+                  view === v.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span className="truncate">{v.label}</span>
+                {!!counts[v.key] && (
+                  <span className="shrink-0 rounded-full bg-primary px-1.5 text-xs text-primary-foreground">{counts[v.key]}</span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {SECONDARY_VIEWS.map((v) => (
             <li key={v.key}>
               <Link
                 href={`${BASE}?vue=${v.key}`}
                 aria-current={view === v.key ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                  view === v.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                  "inline-flex min-h-11 items-center text-sm underline-offset-4 hover:underline",
+                  view === v.key ? "font-medium text-foreground underline" : "text-muted-foreground",
                 )}
               >
                 {v.label}
-                {!!counts[v.key] && (
-                  <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">{counts[v.key]}</span>
-                )}
               </Link>
             </li>
           ))}
         </ul>
       </nav>
 
-      {view === "a-traiter" && <ToProcessView data={data} />}
+      {view === "a-traiter" && <ToProcessView data={data} work={work} />}
       {view === "formules" && <PlansView plans={data.plans} />}
       {view === "abonnes" && <SubscribersView subscriptions={data.subscriptions} />}
       {view === "paiements" && <PaymentsView payments={data.payments} />}
@@ -141,9 +166,49 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
 }
 
 type Overview = Awaited<ReturnType<typeof getAdminOverview>>
+type Work = ReturnType<typeof toProcessGroups>
 
-function ToProcessView({ data }: { data: Overview }) {
-  if (!data.requests.length && !data.earlyCancellations.length) {
+/**
+ * Une situation = une ligne. Un contrat en défaut de paiement n'est PAS
+ * recompté en « synchronisation » (le paiement est l'action principale).
+ */
+function toProcessGroups(data: Overview) {
+  const pastDue = data.subscriptions.filter((s) => s.status === "past_due")
+  const pastDueIds = new Set(pastDue.map((s) => s.id))
+  const sync = data.subscriptions.filter((s) => s.providerSyncPending && !pastDueIds.has(s.id))
+  return {
+    pastDue,
+    sync,
+    total: data.requests.length + data.earlyCancellations.length + pastDue.length + sync.length,
+  }
+}
+
+function SubscriptionLineList({ items, action }: { items: Overview["subscriptions"]; action: string }) {
+  return (
+    <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
+      {items.map((s) => (
+        <li key={s.id}>
+          <Link
+            href={`${BASE}/abonnes/${s.id}`}
+            className="flex min-h-11 items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/40"
+          >
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-sm font-medium text-foreground">{s.customerName}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {s.planNameSnapshot}
+                {s.vehicle ? ` · ${s.vehicle}` : ""}
+              </span>
+            </span>
+            <span className="shrink-0 text-sm font-medium text-primary">{action}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ToProcessView({ data, work }: { data: Overview; work: Work }) {
+  if (!work.total) {
     return <EmptyState title="Rien à traiter pour le moment">Les nouvelles demandes de vos clients apparaîtront ici.</EmptyState>
   }
   const requests: RequestCardData[] = data.requests.map((r) => ({
@@ -199,6 +264,28 @@ function ToProcessView({ data }: { data: Overview }) {
               />
             )
           })}
+        </section>
+      )}
+      {work.pastDue.length > 0 && (
+        <section className="flex flex-col gap-3" aria-labelledby="pd-title">
+          <h2 id="pd-title" className="text-sm font-semibold text-foreground">
+            Paiements à régulariser ({work.pastDue.length})
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Le dernier prélèvement n&apos;a pas abouti. Votre client a reçu un email pour mettre à jour son moyen de paiement.
+          </p>
+          <SubscriptionLineList items={work.pastDue} action="Voir" />
+        </section>
+      )}
+      {work.sync.length > 0 && (
+        <section className="flex flex-col gap-3" aria-labelledby="sync-title">
+          <h2 id="sync-title" className="text-sm font-semibold text-foreground">
+            Synchronisations à vérifier ({work.sync.length})
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Votre décision est bien enregistrée, mais le service de paiement n&apos;a pas encore été mis à jour.
+          </p>
+          <SubscriptionLineList items={work.sync} action="Réessayer" />
         </section>
       )}
     </div>

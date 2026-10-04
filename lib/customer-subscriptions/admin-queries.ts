@@ -6,8 +6,10 @@
 import "server-only"
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { db } from "@/lib/db"
+import { getCustomerSubscriptionCapacity } from "./engine"
 import {
   companies,
+  maintenanceAuditLog,
   maintenanceCancellationRequests,
   maintenancePayments,
   maintenancePlans,
@@ -80,6 +82,49 @@ export function vehicleLabel(brand: string, model: string, plate: string | null)
   return [`${brand} ${model}`.trim(), plate ? `· ${plate}` : ""].filter(Boolean).join(" ")
 }
 
+/** Snapshots financiers RÉELS du paiement (aucun recalcul). */
+const paymentColumns = {
+  id: maintenancePayments.id,
+  subscriptionId: maintenancePayments.subscriptionId,
+  type: maintenancePayments.type,
+  status: maintenancePayments.status,
+  grossAmountCents: maintenancePayments.grossAmountCents,
+  providerFeeAmountCents: maintenancePayments.providerFeeAmountCents,
+  platformFeeAmountCents: maintenancePayments.platformFeeAmountCents,
+  netAmountCents: maintenancePayments.netAmountCents,
+  refundedAmountCents: maintenancePayments.refundedAmountCents,
+  createdAt: maintenancePayments.createdAt,
+  paidAt: maintenancePayments.paidAt,
+}
+
+/**
+ * Contrats dont la DERNIÈRE synchronisation Stripe journalisée a échoué
+ * (même règle que le portail client : provider_sync_failed non suivi d'un succès).
+ */
+export async function listProviderSyncPending(companyId: number, subscriptionIds?: number[]): Promise<Set<number>> {
+  if (subscriptionIds && !subscriptionIds.length) return new Set()
+  const rows = await db
+    .select({ subscriptionId: maintenanceAuditLog.subscriptionId, action: maintenanceAuditLog.action })
+    .from(maintenanceAuditLog)
+    .where(
+      and(
+        eq(maintenanceAuditLog.companyId, companyId),
+        inArray(maintenanceAuditLog.action, ["provider_sync_failed", "provider_cancellation_applied"]),
+        subscriptionIds ? inArray(maintenanceAuditLog.subscriptionId, subscriptionIds) : undefined,
+      ),
+    )
+    .orderBy(desc(maintenanceAuditLog.id))
+    .limit(1000)
+  const seen = new Set<number>()
+  const pending = new Set<number>()
+  for (const r of rows) {
+    if (r.subscriptionId == null || seen.has(r.subscriptionId)) continue
+    seen.add(r.subscriptionId)
+    if (r.action === "provider_sync_failed") pending.add(r.subscriptionId)
+  }
+  return pending
+}
+
 export async function getAdminOverview(companyId: number) {
   const [company] = await db
     .select({
@@ -111,16 +156,7 @@ export async function getAdminOverview(companyId: number) {
       .where(and(eq(maintenanceCancellationRequests.companyId, companyId), eq(maintenanceCancellationRequests.status, "pending")))
       .orderBy(desc(maintenanceCancellationRequests.createdAt)),
     db
-      .select({
-        id: maintenancePayments.id,
-        subscriptionId: maintenancePayments.subscriptionId,
-        type: maintenancePayments.type,
-        status: maintenancePayments.status,
-        grossAmountCents: maintenancePayments.grossAmountCents,
-        refundedAmountCents: maintenancePayments.refundedAmountCents,
-        createdAt: maintenancePayments.createdAt,
-        paidAt: maintenancePayments.paidAt,
-      })
+      .select(paymentColumns)
       .from(maintenancePayments)
       .where(eq(maintenancePayments.companyId, companyId))
       .orderBy(desc(maintenancePayments.createdAt))
@@ -141,7 +177,11 @@ export async function getAdminOverview(companyId: number) {
       .limit(50),
   ])
 
-  const vehicles = await currentVehicles(companyId, subscriptions.map((s) => s.id))
+  const [vehicles, capacity, syncPendingIds] = await Promise.all([
+    currentVehicles(companyId, subscriptions.map((s) => s.id)),
+    getCustomerSubscriptionCapacity(db, companyId),
+    listProviderSyncPending(companyId),
+  ])
   const subById = new Map(subscriptions.map((s) => [s.id, s]))
   const planById = new Map(plans.map((p) => [p.id, p]))
 
@@ -162,8 +202,9 @@ export async function getAdminOverview(companyId: number) {
 
   return {
     company: company ?? { publicMode: "disabled", stripeAccountId: null, stripeChargesEnabled: false, paymentsEnabled: false },
+    capacity,
     plans,
-    subscriptions: subscriptions.map((s) => ({ ...s, vehicle: vehicles.get(s.id) ?? null })),
+    subscriptions: subscriptions.map((s) => ({ ...s, vehicle: vehicles.get(s.id) ?? null, providerSyncPending: syncPendingIds.has(s.id) })),
     requests,
     earlyCancellations,
     payments: payments.map((p) => ({ ...p, customerName: subById.get(p.subscriptionId)?.customerName ?? "Client" })),
@@ -198,15 +239,7 @@ export async function getSubscriptionDetail(companyId: number, subscriptionId: n
       .where(and(eq(maintenanceSubscriptionVehicles.companyId, companyId), eq(maintenanceSubscriptionVehicles.subscriptionId, subscriptionId)))
       .orderBy(desc(maintenanceSubscriptionVehicles.activeFrom)),
     db
-      .select({
-        id: maintenancePayments.id,
-        type: maintenancePayments.type,
-        status: maintenancePayments.status,
-        grossAmountCents: maintenancePayments.grossAmountCents,
-        refundedAmountCents: maintenancePayments.refundedAmountCents,
-        createdAt: maintenancePayments.createdAt,
-        paidAt: maintenancePayments.paidAt,
-      })
+      .select(paymentColumns)
       .from(maintenancePayments)
       .where(and(eq(maintenancePayments.companyId, companyId), eq(maintenancePayments.subscriptionId, subscriptionId)))
       .orderBy(desc(maintenancePayments.createdAt)),
@@ -235,7 +268,21 @@ export async function getSubscriptionDetail(companyId: number, subscriptionId: n
       .orderBy(desc(maintenanceCancellationRequests.createdAt)),
   ])
   const current = vehicles.find((v) => v.activeUntil == null) ?? vehicles[0] ?? null
+  const [initialPaid] = await db
+    .select({ id: maintenancePayments.id })
+    .from(maintenancePayments)
+    .where(
+      and(
+        eq(maintenancePayments.companyId, companyId),
+        eq(maintenancePayments.subscriptionId, subscriptionId),
+        eq(maintenancePayments.type, "initial_cleaning"),
+        eq(maintenancePayments.status, "paid"),
+      ),
+    )
+    .limit(1)
   return {
+    providerSyncPending: (await listProviderSyncPending(companyId, [subscriptionId])).has(subscriptionId),
+    initialCleaningPaid: !!initialPaid,
     subscription,
     vehicle: current ? vehicleLabel(current.vehicleBrand, current.vehicleModel, current.vehiclePlate) : null,
     payments,
