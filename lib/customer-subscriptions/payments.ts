@@ -33,7 +33,9 @@ import {
   assertCanMutate,
   buildServerTermsConsent,
   createCycleIfMissing,
+  decideEarlyCancellation,
   forceEndSubscription,
+  type EarlyCancellationDecisionInput,
   requestRenewalOptOut,
   requestRenewalOptOutAsCustomer,
   resolveCurrentCustomerSubscriptionFee,
@@ -524,6 +526,29 @@ async function decideThenSync<T extends object>(
 ): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
   assertCanMutate(actor)
   return decideThenSyncCore(db, port, companyId, userSyncActor(actor), subscriptionId, now, decide, retryWhenTerminal)
+}
+
+/**
+ * Décision pro sur une fin anticipée : DB d'abord (verrou + transaction),
+ * Stripe ensuite. Refus : aucune synchro (le contrat ne change pas).
+ * Approbation : `cancel_at` Stripe aligné sur la date calculée serveur ; une
+ * panne provider renvoie `pending_retry` sans défaire la décision.
+ */
+export async function decideEarlyCancellationAndSync(
+  db: Executor,
+  port: CustomerSubscriptionStripePort,
+  companyId: number,
+  actor: Actor,
+  cancellationRequestId: number,
+  decision: "approved" | "rejected",
+  input: EarlyCancellationDecisionInput = {},
+  now: Date = new Date(),
+) {
+  assertCanMutate(actor)
+  const local = await decideEarlyCancellation(db, companyId, actor, cancellationRequestId, decision, input, now)
+  if (decision === "rejected") return { ...local, provider: { status: "noop", reason: "rejected" } as ProviderSyncOutcome }
+  const provider = await syncAfterDecision(db, port, companyId, userSyncActor(actor), local.subscriptionId, now)
+  return { ...local, provider }
 }
 
 /** Cœur sans autorisation : chaque wrapper public applique la sienne AVANT d'appeler. */

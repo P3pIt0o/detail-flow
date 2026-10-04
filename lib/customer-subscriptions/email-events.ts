@@ -120,6 +120,28 @@ export const emailEvents = {
       },
       now,
     ),
+  /** Un seul email client par demande (dedupe), décision + date d'effet ; le message pro est relu au rendu. */
+  earlyCancellationDecided: (
+    tx: Executor,
+    sub: ContractSubscriptionInput & SubRef,
+    d: { cancellationRequestId: number; decision: "approved" | "rejected"; cancelAt: Date | null },
+    now: Date,
+  ) => {
+    const last = d.decision === "approved" ? lastPaymentBefore(sub, d.cancelAt, now) : null
+    return enqueueEmailSafely(
+      tx,
+      {
+        companyId: sub.companyId,
+        subscriptionId: sub.id,
+        type: "early_cancellation_decided",
+        recipientRole: "client",
+        dedupeKey: dedupeKeys.earlyCancellationDecided(d.cancellationRequestId),
+        cancellationRequestId: d.cancellationRequestId,
+        payload: { decision: d.decision, cancelAt: iso(d.cancelAt), lastPaymentAt: iso(last), lastPaymentCents: last ? sub.priceCentsSnapshot : null },
+      },
+      now,
+    )
+  },
   ended: (tx: Executor, sub: SubRef, endedAt: Date, now: Date) =>
     enqueueEmailSafely(tx, { companyId: sub.companyId, subscriptionId: sub.id, type: "subscription_ended", recipientRole: "client", dedupeKey: dedupeKeys.ended(sub.id), payload: { endedAt: iso(endedAt) } }, now),
 

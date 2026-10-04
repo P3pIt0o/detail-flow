@@ -31,6 +31,7 @@ import { CustomerSubscriptionError } from "./errors"
 import {
   billingBoundary,
   computeActualTermEnd,
+  nextBillingBoundaryAfter,
   type BillingInterval,
   type Commitment,
 } from "./dates"
@@ -123,6 +124,8 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "early_cancellation_withdrawn",
   "terms_accepted",
   "public_mode_changed",
+  "early_cancellation_approved",
+  "early_cancellation_rejected",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -899,6 +902,106 @@ export async function withdrawEarlyCancellationAsCustomer(db: Executor, session:
       await appendMaintenanceAudit(tx, { companyId: session.companyId, subscriptionId: sub.id, action: "early_cancellation_withdrawn", actorType: "customer", meta: { cancellationRequestId: r.id } })
     }
     return { withdrawn: rows.length > 0 }
+  })
+}
+
+export type EarlyCancellationDecisionInput = { customerMessage?: unknown; internalNote?: unknown }
+
+export type EarlyCancellationDecisionResult = {
+  cancellationRequestId: number
+  subscriptionId: number
+  decision: "approved" | "rejected"
+  /** Date d'effet de la fin (approbation uniquement). */
+  cancelAt: Date | null
+  alreadyApplied: boolean
+}
+
+/**
+ * Effet d'une approbation, calculé SERVEUR uniquement :
+ *  - récurrent démarré : fin à la PROCHAINE échéance de facturation, même si
+ *    l'engagement aurait continué (c'est précisément l'objet de la dérogation) ;
+ *  - prépayé : aucune règle non ambiguë (montant déjà encaissé) → revue manuelle ;
+ *  - tout autre état : non mutable.
+ * Jamais de remboursement.
+ */
+export function resolveEarlyCancellationEffect(
+  sub: { status: string; paymentMode: string; billingAnchorAt: Date | null; cancelAt: Date | null; billingIntervalUnitSnapshot: string; billingIntervalCountSnapshot: number },
+  now: Date,
+): { kind: "scheduled"; cancelAt: Date } | { kind: "manual_review" } | { kind: "not_mutable" } {
+  if (isTerminalStatus(sub.status)) return { kind: "not_mutable" }
+  if (sub.paymentMode === "prepaid") return { kind: "manual_review" }
+  if (sub.paymentMode !== "recurring" || !sub.billingAnchorAt || !["active", "past_due", "cancel_scheduled"].includes(sub.status)) {
+    return { kind: "not_mutable" }
+  }
+  const interval = { unit: sub.billingIntervalUnitSnapshot, count: sub.billingIntervalCountSnapshot } as BillingInterval
+  const next = nextBillingBoundaryAfter(sub.billingAnchorAt, interval, now)
+  // Un arrêt déjà programmé plus tôt n'est jamais repoussé.
+  const cancelAt = sub.cancelAt && sub.cancelAt.getTime() > now.getTime() && sub.cancelAt < next ? sub.cancelAt : next
+  return { kind: "scheduled", cancelAt }
+}
+
+/**
+ * Décision OWNER/ADMIN sur une demande de fin anticipée. Lookup strict
+ * companyId + id, verrou de la demande puis du contrat : deux clics
+ * concurrents (ou approve + reject) → une seule décision effective, la
+ * seconde reçoit REQUEST_NOT_PENDING (ou alreadyApplied si même décision).
+ * Aucun appel réseau ici : la synchronisation Stripe suit, hors transaction.
+ */
+export async function decideEarlyCancellation(
+  db: Executor,
+  companyId: number,
+  actor: Actor,
+  cancellationRequestId: number,
+  decision: "approved" | "rejected",
+  input: EarlyCancellationDecisionInput = {},
+  now: Date = new Date(),
+): Promise<EarlyCancellationDecisionResult> {
+  assertCanMutate(actor)
+  if (!Number.isInteger(cancellationRequestId) || cancellationRequestId <= 0) throw new CustomerSubscriptionError("REQUEST_NOT_FOUND")
+  const customerMessage = normalizeCustomerMessage(input.customerMessage)
+  const internalNote = normalizeCustomerMessage(input.internalNote)
+  return db.transaction(async (tx) => {
+    const [request] = await tx
+      .select({ id: maintenanceCancellationRequests.id, subscriptionId: maintenanceCancellationRequests.subscriptionId, status: maintenanceCancellationRequests.status })
+      .from(maintenanceCancellationRequests)
+      .where(and(eq(maintenanceCancellationRequests.companyId, companyId), eq(maintenanceCancellationRequests.id, cancellationRequestId)))
+      .for("update")
+      .limit(1)
+    if (!request) throw new CustomerSubscriptionError("REQUEST_NOT_FOUND")
+    if (request.status !== "pending") {
+      if (request.status === decision) {
+        const current = await lockSubscription(tx, companyId, request.subscriptionId)
+        return { cancellationRequestId: request.id, subscriptionId: request.subscriptionId, decision, cancelAt: decision === "approved" ? current.cancelAt : null, alreadyApplied: true }
+      }
+      throw new CustomerSubscriptionError("REQUEST_NOT_PENDING")
+    }
+    const sub = await lockSubscription(tx, companyId, request.subscriptionId)
+    let cancelAt: Date | null = null
+    if (decision === "approved") {
+      const effect = resolveEarlyCancellationEffect(sub, now)
+      if (effect.kind === "manual_review") throw new CustomerSubscriptionError("EARLY_CANCELLATION_MANUAL_REVIEW")
+      if (effect.kind === "not_mutable") throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+      cancelAt = effect.cancelAt
+      const status = sub.status === "active" ? "cancel_scheduled" : sub.status
+      await tx
+        .update(maintenanceSubscriptions)
+        .set({ status, cancelRequestedAt: sub.cancelRequestedAt ?? now, cancelAt, updatedAt: now })
+        .where(and(eq(maintenanceSubscriptions.id, sub.id), eq(maintenanceSubscriptions.companyId, companyId)))
+    }
+    await tx
+      .update(maintenanceCancellationRequests)
+      .set({ status: decision, decidedAt: now, updatedAt: now, customerDecisionMessage: customerMessage, internalDecisionNote: internalNote })
+      .where(and(eq(maintenanceCancellationRequests.companyId, companyId), eq(maintenanceCancellationRequests.id, request.id), eq(maintenanceCancellationRequests.status, "pending")))
+    await appendMaintenanceAudit(tx, {
+      companyId,
+      subscriptionId: sub.id,
+      action: decision === "approved" ? "early_cancellation_approved" : "early_cancellation_rejected",
+      actorType: "user",
+      actorUserId: actor.userId,
+      meta: { cancellationRequestId: request.id, cancelAt, refund: "none", hasCustomerMessage: customerMessage != null, hasInternalNote: internalNote != null },
+    })
+    await emailEvents.earlyCancellationDecided(tx, sub as never, { cancellationRequestId: request.id, decision, cancelAt }, now)
+    return { cancellationRequestId: request.id, subscriptionId: sub.id, decision, cancelAt, alreadyApplied: false }
   })
 }
 

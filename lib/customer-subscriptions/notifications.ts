@@ -144,13 +144,15 @@ async function resolveRecipient(db: Executor, row: OutboxRow) {
       )[0] ?? null
     : null
   const cancellationRequest = row.cancellationRequestId && sub
-    ? (await db.select({ customerMessage: maintenanceCancellationRequests.customerMessage, createdAt: maintenanceCancellationRequests.createdAt })
+    ? (await db.select({ customerMessage: maintenanceCancellationRequests.customerMessage, customerDecisionMessage: maintenanceCancellationRequests.customerDecisionMessage, createdAt: maintenanceCancellationRequests.createdAt })
         .from(maintenanceCancellationRequests)
         .where(and(eq(maintenanceCancellationRequests.companyId, row.companyId), eq(maintenanceCancellationRequests.id, row.cancellationRequestId), eq(maintenanceCancellationRequests.subscriptionId, sub.id))).limit(1))[0] ?? null
     : null
   if (row.type === "early_cancellation_requested_pro" && !cancellationRequest) return null
   const payload = { ...((row.payload ?? {}) as Record<string, unknown>) }
   if (row.type === "request_rejected" && request?.customerDecisionMessage) payload.customerMessage = request.customerDecisionMessage
+  // Seul le message destiné au client est relu ; la note interne n'est jamais chargée pour un email.
+  if (row.type === "early_cancellation_decided") payload.customerMessage = cancellationRequest?.customerDecisionMessage ?? null
   const legacyEmail = typeof payload.requestEmail === "string" ? payload.requestEmail : undefined
   delete payload.requestEmail
   const to = row.recipientRole === "professional" ? set?.businessEmail : (sub?.customerEmail ?? request?.customerEmail ?? legacyEmail)

@@ -321,7 +321,24 @@ export function renderCustomerSubscriptionEmail(type: CustomerSubscriptionEmailT
       return { subject: "Demande de fin anticipée", html: layout({ ...base, title: "Demande de fin anticipée", intro: ["Un client demande à arrêter sa formule avant la date prévue."], rows: [["Client", ctx.customerName ?? "—"], ["Véhicule", ctx.vehicleLabel ?? "—"], ["Formule", s?.planName ?? "—"], ["Date de fin contractuelle", formatDateFr(ctx.contractualEndAt, tz)], ["Date de la demande", formatDateFr(ctx.requestedAt, tz)], ...(ctx.cancellationMessage ? [["Message du client", ctx.cancellationMessage] as Row] : [])], after: ["Aucune modification automatique n'a été effectuée."], cta: ctx.ctaUrl ? { label: "Traiter la demande", url: ctx.ctaUrl } : null }) }
     case "early_cancellation_decided": {
       const msg = typeof pl.customerMessage === "string" && pl.customerMessage.trim() ? [pl.customerMessage.trim()] : []
-      return { subject: "Votre demande de fin anticipée", html: layout({ ...base, title: pl.decision === "approved" ? "Votre demande de fin anticipée a été acceptée" : "Votre demande de fin anticipée n'a pas été retenue", intro: msg, cta: manage }) }
+      if (pl.decision === "approved") {
+        return {
+          subject: "Votre demande d'arrêt anticipé a été acceptée",
+          html: layout({
+            ...base,
+            title: "Votre demande d'arrêt anticipé a été acceptée",
+            intro: [
+              ...(pl.cancelAt ? [`Votre abonnement prendra fin le ${date(pl.cancelAt, tz)}. Vos prestations restent disponibles jusqu'à cette date.`] : []),
+              ...(pl.lastPaymentAt ? [`Une dernière échéance de ${money(pl.lastPaymentCents, cur)} reste prévue le ${date(pl.lastPaymentAt, tz)}.`] : ["Aucun prélèvement n'est prévu après cette date."]),
+              ...msg,
+            ],
+            rows: s ? [["Formule", s.planName]] : [],
+            after: ["Cette décision n'entraîne aucun remboursement automatique."],
+            cta: manage,
+          }),
+        }
+      }
+      return { subject: "Votre demande d'arrêt anticipé", html: layout({ ...base, title: "Votre demande d'arrêt anticipé n'a pas été retenue", intro: [...msg, "Votre abonnement continue aux conditions prévues."], cta: manage }) }
     }
     case "refund_succeeded":
       return {

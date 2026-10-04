@@ -43,6 +43,8 @@ export const ERROR_MESSAGES: Record<CustomerSubscriptionErrorCode, string> = {
   RATE_LIMITED: "Trop de tentatives. Patientez quelques instants.",
   REQUEST_NOT_FOUND: "Cette demande est introuvable.",
   REQUEST_NOT_PENDING: "Cette demande a déjà été traitée ou a expiré.",
+  EARLY_CANCELLATION_MANUAL_REVIEW:
+    "Formule prépayée : l'arrêt anticipé ne peut pas être appliqué automatiquement. Refusez la demande ou contactez votre client ; aucun remboursement n'est effectué automatiquement.",
   PLAN_CHANGED_REQUIRES_CONFIRMATION: "Cette formule a changé depuis la demande du client.",
   INTERNAL_ERROR: "Une erreur inattendue est survenue. Réessayez.",
 }

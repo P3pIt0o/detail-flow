@@ -96,6 +96,19 @@ export const rejectRequestForCurrentTenant = (requestId: number, input: { custom
     }),
   )
 
+/** Le navigateur ne transmet que l'id de la demande, la décision et les textes libres. */
+export const decideEarlyCancellationForCurrentTenant = (
+  cancellationRequestId: number,
+  decision: "approved" | "rejected",
+  input: { customerMessage?: unknown; internalNote?: unknown },
+) =>
+  run(MUTATORS, (companyId, actor) =>
+    payments.decideEarlyCancellationAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, cancellationRequestId, decision, {
+      customerMessage: input.customerMessage,
+      internalNote: input.internalNote,
+    }),
+  )
+
 export const setPublicModeForCurrentTenant = (mode: unknown) =>
   run(MUTATORS, (companyId, actor) => setCustomerSubscriptionPublicMode(db, companyId, actor, mode))
 

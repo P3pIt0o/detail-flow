@@ -5,6 +5,7 @@ import {
   acceptRequestForCurrentTenant,
   archivePlanForCurrentTenant,
   createPlanForCurrentTenant,
+  decideEarlyCancellationForCurrentTenant,
   rejectRequestForCurrentTenant,
   setPublicModeForCurrentTenant,
   updatePlanForCurrentTenant,
@@ -58,6 +59,27 @@ export async function acceptRequestAction(
   if (!r.ok) return fail(r)
   revalidatePath(BASE)
   return { ok: true, id: r.value.subscriptionId }
+}
+
+export type EarlyCancellationActionResult =
+  | { ok: true; providerPending: boolean }
+  | { ok: false; message: string }
+
+export async function decideEarlyCancellationAction(
+  cancellationRequestId: number,
+  decision: string,
+  input: { customerMessage?: string; internalNote?: string },
+): Promise<EarlyCancellationActionResult> {
+  if (!validId(cancellationRequestId) || (decision !== "approved" && decision !== "rejected")) {
+    return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
+  }
+  const r = await decideEarlyCancellationForCurrentTenant(cancellationRequestId, decision, {
+    customerMessage: typeof input?.customerMessage === "string" ? input.customerMessage : undefined,
+    internalNote: typeof input?.internalNote === "string" ? input.internalNote : undefined,
+  })
+  if (!r.ok) return { ok: false, message: errorMessage(r.code) }
+  revalidatePath(BASE, "layout")
+  return { ok: true, providerPending: r.value.provider.status === "pending_retry" }
 }
 
 export async function rejectRequestAction(
