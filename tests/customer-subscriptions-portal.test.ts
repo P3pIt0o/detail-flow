@@ -95,7 +95,7 @@ function fakePort(opts: { failUpdate?: boolean } = {}) {
 
 async function seedCompany() {
   const r = await pg.query<{ id: number }>(
-    `INSERT INTO companies ("licensePlan","stripeAccountId","stripeChargesEnabled","paymentsEnabled") VALUES ('PERFORMANCE',$1,true,true) RETURNING id`,
+    `INSERT INTO companies ("licensePlan","stripeAccountId","stripeChargesEnabled","paymentsEnabled") VALUES ('BUSINESS',$1,true,true) RETURNING id`,
     [uid("acct_test")],
   )
   const companyId = r.rows[0].id
@@ -347,7 +347,7 @@ describe("statuts et actions proposées", () => {
     expect(view?.primaryAction?.kind).toBe("schedule_cancellation")
     const at = (view!.primaryAction as { cancelAt: Date }).cancelAt
     expect(at.getTime()).toBeGreaterThan(NOW.getTime())
-    expect(at.toISOString()).toBe("2026-04-12T00:00:00.000Z")
+    expect(at.toISOString()).toBe("2026-03-12T00:00:00.000Z")
   })
 
   it("engagement en cours (same_term) → non-renouvellement, jamais d'arrêt avant la fin d'engagement", async () => {
@@ -363,7 +363,7 @@ describe("statuts et actions proposées", () => {
   })
 
   it("prepaid → pas de non-renouvellement, seulement la demande de fin anticipée", async () => {
-    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12, renewalMode: "none" }, { status: "active", paymentMode: "prepaid", prepaidUntil: new Date("2027-01-12T00:00:00.000Z"), termEndsAt: new Date("2027-01-12T00:00:00.000Z") })
+    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12, renewalMode: "none", allowPrepaidPayment: true, prepaidBillingCycles: 12 }, { status: "active", paymentMode: "prepaid", prepaidUntil: new Date("2027-01-12T00:00:00.000Z"), termEndsAt: new Date("2027-01-12T00:00:00.000Z") })
     const view = await loadCustomerPortal(db, await sessionFor(s))
     expect(view?.primaryAction).toBeNull()
     expect(view?.secondaryAction?.kind).toBe("early_cancellation_request")
@@ -423,7 +423,7 @@ describe("non-renouvellement / révocation / arrêt + synchronisation Stripe", (
     const r1 = await customerScheduleCancellation(db, port, ctx)
     const r2 = await customerScheduleCancellation(db, port, ctx)
     expect(new Date(r1.cancelAt).getTime()).toBe(new Date(r2.cancelAt).getTime())
-    expect(new Date(r1.cancelAt).toISOString()).toBe("2026-04-12T00:00:00.000Z")
+    expect(new Date(r1.cancelAt).toISOString()).toBe("2026-03-12T00:00:00.000Z")
     expect(calls.find((c) => c.method === "updateSubscription")?.params?.cancel_at).toBe(Math.floor(new Date(r1.cancelAt).getTime() / 1000))
     expect((await outboxTypes(s.subscriptionId)).filter((t) => t === "cancellation_scheduled")).toHaveLength(1)
     expect(await auditActions(s.subscriptionId)).toContain("customer_cancellation_scheduled")
