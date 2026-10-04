@@ -9,7 +9,12 @@ vi.mock("server-only", () => ({}))
 
 import * as schema from "@/lib/db/schema"
 import * as engine from "@/lib/customer-subscriptions/engine"
-import type * as payments from "@/lib/customer-subscriptions/payments"
+import * as payments from "@/lib/customer-subscriptions/payments"
+import { drainCustomerSubscriptionOutbox } from "@/lib/customer-subscriptions/notifications"
+import { renderToStaticMarkup } from "react-dom/server"
+
+vi.mock("@/lib/customer-subscriptions/customer-portal.server", () => ({ get customerDb() { return db } }))
+vi.mock("@/lib/tenant", () => ({ resolvePublicRequestTenant: async () => ({ id: A.companyId, name: "Atelier" }) }))
 import {
   CUSTOMER_MANAGE_PATH,
   MANAGE_LINK_TTL_SECONDS,
@@ -18,6 +23,7 @@ import {
 } from "@/lib/customer-subscriptions/customer-access"
 import {
   computeCustomerActions,
+  readCheckoutReturnState,
   customerRequestEarlyCancellation,
   customerRequestRenewalOptOut,
   customerRevokeRenewalOptOut,
@@ -99,6 +105,7 @@ async function seedCompany() {
     [uid("acct_test")],
   )
   const companyId = r.rows[0].id
+  await pg.query(`INSERT INTO settings ("companyId", "businessName", "businessEmail") VALUES ($1,'Atelier','pro@example.com')`, [companyId])
   const s = await pg.query<{ id: number }>(`INSERT INTO services ("companyId", name, "basePriceCents") VALUES ($1,'Lavage complet',4900) RETURNING id`, [companyId])
   return { companyId, serviceId: s.rows[0].id }
 }
@@ -185,6 +192,7 @@ beforeAll(async () => {
   pg = new PGlite()
   await pg.exec(`
     CREATE TABLE companies (id serial PRIMARY KEY, slug text NOT NULL DEFAULT ('tenant-' || floor(random()*1e9)::text), "licensePlan" text, "stripeAccountId" text, "stripeChargesEnabled" boolean NOT NULL DEFAULT false, "paymentsEnabled" boolean NOT NULL DEFAULT false);
+    CREATE TABLE settings (id serial PRIMARY KEY, "companyId" integer NOT NULL UNIQUE, "businessName" text, "businessEmail" text);
     CREATE TABLE clients (id serial PRIMARY KEY, "companyId" integer NOT NULL);
     CREATE TABLE services (id serial PRIMARY KEY, "companyId" integer NOT NULL, name text NOT NULL, "basePriceCents" integer NOT NULL DEFAULT 0);
     CREATE TABLE bookings (id serial PRIMARY KEY);
@@ -303,7 +311,7 @@ describe("isolation", () => {
   })
 
   it("aucun identifiant navigateur : les actions n'acceptent que la session", async () => {
-    const a = await seedSub(A, {}, { status: "active" })
+    const a = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
     const other = await seedSub(A, {}, { status: "active" })
     const ctx = await sessionFor(a)
     await customerRequestEarlyCancellation(db, ctx, { message: "Bonjour", subscriptionId: other.subscriptionId, companyId: B.companyId, planId: 999 } as never)
@@ -383,7 +391,7 @@ describe("statuts et actions proposées", () => {
 
   it("arrêt déjà programmé → plus d'action d'arrêt", async () => {
     const sub = { status: "cancel_scheduled", billingAnchorAt: NOW, paymentMode: "recurring", cancelAt: new Date("2026-05-01T00:00:00.000Z"), commitmentUnitSnapshot: "none" } as never
-    expect(computeCustomerActions(sub, { hasPendingEarlyCancellation: false }, NOW)).toEqual({ primary: null, secondary: null })
+    expect(computeCustomerActions(sub, { hasPendingEarlyCancellation: false, initialCleaningPaid: false }, NOW)).toEqual({ primary: null, secondary: null })
   })
 })
 
@@ -472,6 +480,143 @@ describe("demande de fin anticipée", () => {
     expect(await snapshotRow(s.subscriptionId)).toBe(before)
     // Le service de fin anticipée ne reçoit même pas de port Stripe.
     expect(customerRequestEarlyCancellation.length).toBe(3)
+  })
+})
+
+describe("corrections finales lot 3", () => {
+  it("nettoyage payé + webhook rejoué : aucun second CTA paiement", async () => {
+    const s = await seedSub(A, { initialCleaningRequired: true, initialServiceId: A.serviceId })
+    const ctx = await sessionFor(s)
+    expect((await loadCustomerPortal(db, ctx))?.primaryAction).toEqual({ kind: "checkout", step: "initial_cleaning" })
+    const fp = fakePort()
+    const checkout = await customerStartCheckout(db, fp.port, ctx, { termsAccepted: true }, { rootDomain: "detailflow.test", allowLocalhost: true })
+    const sub = await getSub(s.subscriptionId)
+    const evt = { id: uid("evt"), type: "checkout.session.completed", account: sub.providerAccountId!, created: Math.floor(NOW.getTime() / 1000), data: { object: { id: checkout.checkoutSessionId, mode: "payment", payment_status: "paid", payment_intent: uid("pi"), customer: uid("cus"), amount_total: 4900, currency: "eur", metadata: fp.calls[0].params!.metadata } } }
+    for (const event of [evt, evt, { ...evt, id: uid("evt") }]) {
+      await payments.handleCustomerSubscriptionWebhook(db, fp.port, event)
+      expect((await getSub(s.subscriptionId)).status).toBe("pending_initial_cleaning")
+      expect(await loadCustomerPortal(db, ctx)).toMatchObject({ initialCleaningPaid: true, primaryAction: null, secondaryAction: null })
+    }
+    expect(await db.select().from(schema.maintenancePayments).where(eq(schema.maintenancePayments.subscriptionId, s.subscriptionId))).toHaveLength(1)
+    expect(read("app/abonnements/gerer/page.tsx")).toContain("Votre nettoyage initial est payé.")
+  })
+
+  it.each(["active", "cancel_scheduled", "cancelled", "ended", "expired", "pending_payment", "pending_initial_cleaning", "suspended"])("fin anticipée refusée côté serveur : %s sans engagement", async (status) => {
+    const s = await seedSub(A, {}, { status })
+    const ctx = await sessionFor(s)
+    await expect(customerRequestEarlyCancellation(db, ctx, {})).rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_MUTABLE" })
+    expect(await cancellationRequests(s.companyId, s.subscriptionId)).toHaveLength(0)
+    expect((await loadCustomerPortal(db, ctx))?.secondaryAction).toBeNull()
+  })
+
+  it.each(["cancel_scheduled", "pending_payment", "pending_initial_cleaning", "cancelled"])("engagement futur ne contourne pas le statut %s", async (status) => {
+    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status, termEndsAt: new Date("2027-01-12") })
+    await expect(customerRequestEarlyCancellation(db, await sessionFor(s), {})).rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_MUTABLE" })
+    expect(await cancellationRequests(s.companyId, s.subscriptionId)).toHaveLength(0)
+  })
+
+  it("engagement expiré : arrêt normal disponible, fin anticipée refusée", async () => {
+    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 1 }, { status: "active", termEndsAt: new Date("2026-02-12") })
+    const ctx = await sessionFor(s)
+    expect((await loadCustomerPortal(db, ctx))?.primaryAction?.kind).toBe("schedule_cancellation")
+    await expect(customerRequestEarlyCancellation(db, ctx, {})).rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_MUTABLE" })
+    expect(await cancellationRequests(s.companyId, s.subscriptionId)).toHaveLength(0)
+  })
+
+  it("concurrence : deux succès, une demande, un audit, un email échappé sans PII outbox/logs", async () => {
+    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
+    const ctx = await sessionFor(s)
+    const message = "<script>alert(1)</script>"
+    const logs = [vi.spyOn(console, "log"), vi.spyOn(console, "warn"), vi.spyOn(console, "error"), vi.spyOn(console, "info"), vi.spyOn(console, "debug")]
+    try {
+      const results = await Promise.allSettled([
+        customerRequestEarlyCancellation(db, ctx, { message }),
+        customerRequestEarlyCancellation(db, ctx, { message }),
+      ])
+      expect(results.every((r) => r.status === "fulfilled")).toBe(true)
+      const values = results.map((r) => r.status === "fulfilled" ? r.value : null)
+      expect(values.filter((r) => r?.created)).toHaveLength(1)
+      expect(values[0]?.requestId).toBe(values[1]?.requestId)
+      const rows = await cancellationRequests(s.companyId, s.subscriptionId)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].status).toBe("pending")
+      expect((await auditActions(s.subscriptionId)).filter((a) => a === "early_cancellation_requested")).toHaveLength(1)
+      const outbox = await db.select().from(schema.maintenanceSubscriptionEmailOutbox).where(eq(schema.maintenanceSubscriptionEmailOutbox.subscriptionId, s.subscriptionId))
+      expect(outbox).toHaveLength(1)
+      expect(outbox[0].cancellationRequestId).toBe(rows[0].id)
+      expect(outbox[0].payload).not.toHaveProperty("customerMessage")
+      expect(JSON.stringify(outbox)).not.toContain(message)
+      // Drain only this test's email; other fixtures must not require real access secrets.
+      await db.update(schema.maintenanceSubscriptionEmailOutbox).set({ status: "skipped" }).where(eq(schema.maintenanceSubscriptionEmailOutbox.status, "pending"))
+      await db.update(schema.maintenanceSubscriptionEmailOutbox).set({ status: "pending" }).where(eq(schema.maintenanceSubscriptionEmailOutbox.id, outbox[0].id))
+      const send = vi.fn(async () => ({ ok: true, id: "fake-email" }))
+      expect(await drainCustomerSubscriptionOutbox(db, send, NOW, { emailsAllowed: true })).toEqual({ sent: 1, failed: 0, skipped: 0 })
+      await drainCustomerSubscriptionOutbox(db, send, NOW, { emailsAllowed: true })
+      expect(send).toHaveBeenCalledTimes(1)
+      const html = (send.mock.calls[0] as unknown as [{ html: string }])[0].html
+      expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;")
+      expect(html).not.toContain("<script>")
+      for (const text of ["Jean", "Peugeot 308", "Entretien Premium", "Date de fin contractuelle", "Date de la demande", "Aucune modification automatique"]) expect(html).toContain(text)
+      for (const spy of logs) expect(JSON.stringify(spy.mock.calls)).not.toContain(message)
+    } finally { logs.forEach((spy) => spy.mockRestore()) }
+  })
+
+  it("conflit index pending après prélecture périmée : replay sans 23505 ni doublon", async () => {
+    const s = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
+    const ctx = await sessionFor(s)
+    const first = await customerRequestEarlyCancellation(db, ctx, {})
+    const verified = await resolveCustomerSession(db, ctx)
+    const racedDb = new Proxy(db, { get(target, key) {
+      if (key !== "transaction") return Reflect.get(target, key)
+      return (run: (tx: engine.Executor) => Promise<unknown>) => target.transaction(async (tx) => {
+        const original = tx.select.bind(tx)
+        const spy = vi.spyOn(tx, "select")
+          .mockImplementationOnce(original)
+          .mockImplementationOnce(() => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }) as never)
+        try { return await run(tx as unknown as engine.Executor) } finally { spy.mockRestore() }
+      })
+    } })
+    expect(await engine.requestEarlyCancellationAsCustomer(racedDb, verified!.proof, {}, NOW)).toEqual({ requestId: first.requestId, created: false })
+    expect(await cancellationRequests(s.companyId, s.subscriptionId)).toHaveLength(1)
+    expect((await auditActions(s.subscriptionId)).filter((a) => a === "early_cancellation_requested")).toHaveLength(1)
+    expect((await outboxTypes(s.subscriptionId)).filter((t) => t === "early_cancellation_requested_pro")).toHaveLength(1)
+  })
+
+  it("email : cancellationRequestId d'un autre tenant ou contrat n'est jamais rendu", async () => {
+    const a = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
+    const b = await seedSub(B, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
+    const other = await seedSub(A, { commitmentUnit: "month", commitmentCount: 12 }, { status: "active", termEndsAt: new Date("2027-01-12") })
+    const foreign = await customerRequestEarlyCancellation(db, await sessionFor(b), { message: "secret tenant B" })
+    const sameTenant = await customerRequestEarlyCancellation(db, await sessionFor(other), { message: "secret autre contrat" })
+    await db.update(schema.maintenanceSubscriptionEmailOutbox).set({ status: "skipped" }).where(eq(schema.maintenanceSubscriptionEmailOutbox.status, "pending"))
+    const insert = (id: number) => db.insert(schema.maintenanceSubscriptionEmailOutbox).values({ companyId: A.companyId, subscriptionId: a.subscriptionId, cancellationRequestId: id, type: "early_cancellation_requested_pro", recipientRole: "professional", dedupeKey: uid("mismatch"), sendAt: NOW })
+    await expect(insert(foreign.requestId)).rejects.toMatchObject({ cause: { code: "23503" } })
+    await insert(sameTenant.requestId)
+    const send = vi.fn(async () => ({ ok: true }))
+    expect(await drainCustomerSubscriptionOutbox(db, send, NOW, { emailsAllowed: true })).toEqual({ sent: 0, failed: 0, skipped: 1 })
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it("retour absent, invalide, inconnu, autre tenant : unknown et jamais Paiement reçu dans le HTML", async () => {
+    const b = await seedSub(B, {}, { status: "active" })
+    await pg.query(`UPDATE maintenance_subscriptions SET "externalCheckoutSessionId"='cs_other_tenant' WHERE id=$1`, [b.subscriptionId])
+    const { default: Page } = await import("@/app/abonnement-entretien/retour/page")
+    for (const session_id of [undefined, "invalid!", "cs_unknown", "cs_other_tenant"]) {
+      expect(await readCheckoutReturnState(db, A.companyId, session_id)).toBe("unknown")
+      const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id }) }))
+      expect(html).not.toContain("Paiement reçu")
+      expect(html).toContain("pas pu vérifier ce paiement")
+      expect(html).toContain("Rouvrez le lien reçu par email")
+    }
+    const a = await seedSub(A)
+    await pg.query(`UPDATE maintenance_subscriptions SET "externalCheckoutSessionId"='cs_unpaid' WHERE id=$1`, [a.subscriptionId])
+    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("unknown")
+    await db.insert(schema.maintenancePayments).values({ companyId: A.companyId, subscriptionId: a.subscriptionId, type: "recurring", status: "paid", grossAmountCents: 3900, platformFeeBps: 0, platformFeeAmountCents: 0 })
+    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("processing")
+    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))).toContain("Paiement reçu. Activation en cours…")
+    await pg.query(`UPDATE maintenance_subscriptions SET status='active' WHERE id=$1`, [a.subscriptionId])
+    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("active")
+    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))).toContain("Votre abonnement est actif.")
   })
 })
 

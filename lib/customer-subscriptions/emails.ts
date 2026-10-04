@@ -40,6 +40,8 @@ export type EmailContext = {
   summary?: SubscriptionContractSummary | null
   requestSummary?: ReturnType<typeof buildRequestPlanSummary> | null
   requestedAt?: Date | null
+  cancellationMessage?: string | null
+  contractualEndAt?: Date | null
   manageUrl?: string | null
   ctaUrl?: string | null
   timeZone?: string
@@ -298,7 +300,7 @@ export function renderCustomerSubscriptionEmail(type: CustomerSubscriptionEmailT
     case "subscription_ended":
       return { subject: "Votre abonnement est terminé", html: layout({ ...base, title: "Votre abonnement est terminé", rows: [["Formule", s?.planName ?? "—"], ["Date de fin", date(pl.endedAt, tz)]], after: ["Aucun prélèvement ne sera plus effectué pour cette formule."] }) }
     case "early_cancellation_requested_pro":
-      return { subject: "Demande de fin anticipée", html: layout({ ...base, title: "Demande de fin anticipée", intro: ["Un client demande à arrêter sa formule avant la date prévue. Aucune action automatique n'a été effectuée."], cta: ctx.ctaUrl ? { label: "Traiter la demande", url: ctx.ctaUrl } : null }) }
+      return { subject: "Demande de fin anticipée", html: layout({ ...base, title: "Demande de fin anticipée", intro: ["Un client demande à arrêter sa formule avant la date prévue."], rows: [["Client", ctx.customerName ?? "—"], ["Véhicule", ctx.vehicleLabel ?? "—"], ["Formule", s?.planName ?? "—"], ["Date de fin contractuelle", formatDateFr(ctx.contractualEndAt, tz)], ["Date de la demande", formatDateFr(ctx.requestedAt, tz)], ...(ctx.cancellationMessage ? [["Message du client", ctx.cancellationMessage] as Row] : [])], after: ["Aucune modification automatique n'a été effectuée."], cta: ctx.ctaUrl ? { label: "Traiter la demande", url: ctx.ctaUrl } : null }) }
     case "early_cancellation_decided": {
       const msg = typeof pl.customerMessage === "string" && pl.customerMessage.trim() ? [pl.customerMessage.trim()] : []
       return { subject: "Votre demande de fin anticipée", html: layout({ ...base, title: pl.decision === "approved" ? "Votre demande de fin anticipée a été acceptée" : "Votre demande de fin anticipée n'a pas été retenue", intro: msg, cta: manage }) }

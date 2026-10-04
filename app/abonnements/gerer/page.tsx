@@ -29,6 +29,12 @@ export default async function ManageSubscriptionPage() {
   return (
     <CustomerShell title="Mon abonnement" companyName={tenant?.name}>
       <ContractCard view={view} />
+      {view.initialCleaningPaid && view.status === "Nettoyage initial à réaliser" && (
+        <div className="rounded-xl border border-border bg-card p-5 text-card-foreground" role="status">
+          <p className="font-medium">Votre nettoyage initial est payé.</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{"Le professionnel doit maintenant réaliser le nettoyage avant l'activation de votre formule."}</p>
+        </div>
+      )}
       <PortalActions
         actions={serializePortalActions(view)}
         price={view.summary.price}

@@ -37,6 +37,7 @@ import {
 import {
   buildContractSnapshot,
   canOptOutOfRenewal,
+  canCustomerRequestEarlyCancellation,
   evaluateCapacity,
   initialStatusFor,
   resolveCancellationAt,
@@ -841,8 +842,7 @@ export async function requestEarlyCancellationAsCustomer(db: Executor, session: 
   const message = normalizeCustomerMessage(input.message)
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, session.companyId, session.subscriptionId)
-    if (isTerminalStatus(sub.status)) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
-    if (!sub.billingAnchorAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+    if (!canCustomerRequestEarlyCancellation(sub, now)) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
     const [existing] = await tx
       .select({ id: maintenanceCancellationRequests.id })
       .from(maintenanceCancellationRequests)
@@ -858,7 +858,15 @@ export async function requestEarlyCancellationAsCustomer(db: Executor, session: 
     const [row] = await tx
       .insert(maintenanceCancellationRequests)
       .values({ companyId: session.companyId, subscriptionId: sub.id, status: "pending", customerMessage: message, createdAt: now, updatedAt: now })
+      .onConflictDoNothing()
       .returning({ id: maintenanceCancellationRequests.id })
+    // ON CONFLICT absorbs the partial unique index race without aborting the transaction (23505).
+    if (!row) {
+      const [pending] = await tx.select({ id: maintenanceCancellationRequests.id }).from(maintenanceCancellationRequests)
+        .where(and(eq(maintenanceCancellationRequests.companyId, session.companyId), eq(maintenanceCancellationRequests.subscriptionId, sub.id), eq(maintenanceCancellationRequests.status, "pending"))).limit(1)
+      if (!pending) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
+      return { requestId: pending.id, created: false }
+    }
     await appendMaintenanceAudit(tx, {
       companyId: session.companyId,
       subscriptionId: sub.id,

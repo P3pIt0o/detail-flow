@@ -116,7 +116,7 @@ export const emailEvents = {
         type: "early_cancellation_requested_pro",
         recipientRole: "professional",
         dedupeKey: dedupeKeys.earlyCancellationRequested(cancellationRequestId),
-        payload: { cancellationRequestId },
+        cancellationRequestId,
       },
       now,
     ),

@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm"
 import { expireStaleSubscriptionRequests } from "./requests"
-import { companies, maintenanceSubscriptionRequests, maintenanceSubscriptions, maintenanceSubscriptionVehicles, settings } from "@/lib/db/schema"
+import { companies, maintenanceCancellationRequests, maintenanceSubscriptionRequests, maintenanceSubscriptions, maintenanceSubscriptionVehicles, settings } from "@/lib/db/schema"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import type { Executor } from "./engine"
 import { buildSubscriptionContractSummary, computeNextBillingAt, type ContractSubscriptionInput } from "./contract-summary"
@@ -143,12 +143,18 @@ async function resolveRecipient(db: Executor, row: OutboxRow) {
           .where(and(eq(maintenanceSubscriptionRequests.id, row.requestId), eq(maintenanceSubscriptionRequests.companyId, row.companyId)))
       )[0] ?? null
     : null
+  const cancellationRequest = row.cancellationRequestId && sub
+    ? (await db.select({ customerMessage: maintenanceCancellationRequests.customerMessage, createdAt: maintenanceCancellationRequests.createdAt })
+        .from(maintenanceCancellationRequests)
+        .where(and(eq(maintenanceCancellationRequests.companyId, row.companyId), eq(maintenanceCancellationRequests.id, row.cancellationRequestId), eq(maintenanceCancellationRequests.subscriptionId, sub.id))).limit(1))[0] ?? null
+    : null
+  if (row.type === "early_cancellation_requested_pro" && !cancellationRequest) return null
   const payload = { ...((row.payload ?? {}) as Record<string, unknown>) }
   if (row.type === "request_rejected" && request?.customerDecisionMessage) payload.customerMessage = request.customerDecisionMessage
   const legacyEmail = typeof payload.requestEmail === "string" ? payload.requestEmail : undefined
   delete payload.requestEmail
   const to = row.recipientRole === "professional" ? set?.businessEmail : (sub?.customerEmail ?? request?.customerEmail ?? legacyEmail)
-  return { company, settings: set ?? null, sub, vehicle, request, to, payload }
+  return { company, settings: set ?? null, sub, vehicle, request, cancellationRequest, to, payload }
 }
 
 export type DrainResult = { sent: number; failed: number; skipped: number }
@@ -189,7 +195,9 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
         customerName: r.sub?.customerName ?? r.request?.customerName ?? null,
         vehicleLabel,
         requestSummary: r.request && (row.type === "request_received" || row.type === "request_received_pro") ? buildRequestPlanSummary(r.request.planSnapshot) : null,
-        requestedAt: r.request?.createdAt,
+        requestedAt: r.cancellationRequest?.createdAt ?? r.request?.createdAt,
+        cancellationMessage: r.cancellationRequest?.customerMessage,
+        contractualEndAt: r.sub?.prepaidUntil ?? r.sub?.currentTermEndsAt,
         summary,
         manageUrl,
         ctaUrl,

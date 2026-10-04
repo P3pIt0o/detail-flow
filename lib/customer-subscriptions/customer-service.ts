@@ -12,6 +12,7 @@
  */
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import {
+  maintenancePayments,
   maintenanceAuditLog,
   maintenanceCancellationRequests,
   maintenanceSubscriptionVehicles,
@@ -36,7 +37,7 @@ import {
   type StartCheckoutResult,
 } from "./payments"
 import { buildSubscriptionContractSummary, type SubscriptionContractSummary } from "./contract-summary"
-import { resolveCancellationAt } from "./contract"
+import { canCustomerRequestEarlyCancellation, resolveCancellationAt } from "./contract"
 import { lastPaymentBefore } from "./email-events"
 import { CustomerSubscriptionError } from "./errors"
 import { isTerminalStatus } from "./statuses"
@@ -147,6 +148,7 @@ export type CustomerPortalView = {
   status: string
   terminal: boolean
   paymentIssue: boolean
+  initialCleaningPaid: boolean
   /** Dernier état connu de la synchronisation Stripe (journal d'audit, sans appel réseau). */
   providerSyncPending: boolean
   pendingEarlyCancellation: { id: number; createdAt: Date } | null
@@ -175,15 +177,15 @@ export function customerStatusLabel(status: string): string {
 /** Actions disponibles, calculées serveur depuis les snapshots du contrat uniquement. */
 export function computeCustomerActions(
   sub: SubscriptionRow,
-  opts: { hasPendingEarlyCancellation: boolean },
+  opts: { hasPendingEarlyCancellation: boolean; initialCleaningPaid: boolean },
   now: Date,
 ): { primary: CustomerAction | null; secondary: CustomerAction | null } {
   if (isTerminalStatus(sub.status)) return { primary: null, secondary: null }
-  if (sub.status === "pending_initial_cleaning") return { primary: { kind: "checkout", step: "initial_cleaning" }, secondary: null }
+  if (sub.status === "pending_initial_cleaning") return { primary: opts.initialCleaningPaid ? null : { kind: "checkout", step: "initial_cleaning" }, secondary: null }
   if (sub.status === "pending_payment") return { primary: { kind: "checkout", step: "subscription" }, secondary: null }
   if (!sub.billingAnchorAt) return { primary: null, secondary: null }
 
-  const early: CustomerAction | null = opts.hasPendingEarlyCancellation ? null : { kind: "early_cancellation_request" }
+  const early: CustomerAction | null = !opts.hasPendingEarlyCancellation && canCustomerRequestEarlyCancellation(sub, now) ? { kind: "early_cancellation_request" } : null
   if (sub.paymentMode === "prepaid") return { primary: null, secondary: early }
   if (sub.status === "suspended") return { primary: null, secondary: null }
   // Arrêt déjà programmé : rien d'autre à proposer qu'une éventuelle demande.
@@ -263,13 +265,17 @@ export async function loadCustomerPortal(db: Executor, ctx: CustomerRequestConte
     .limit(1)
   const pending = await readPendingEarlyCancellation(db, sub.companyId, sub.id)
   const providerSyncPending = await readProviderSyncPending(db, sub.companyId, sub.id)
-  const { primary, secondary } = computeCustomerActions(sub, { hasPendingEarlyCancellation: !!pending }, now)
+  const [initialPayment] = await db.select({ id: maintenancePayments.id }).from(maintenancePayments)
+    .where(and(eq(maintenancePayments.companyId, sub.companyId), eq(maintenancePayments.subscriptionId, sub.id), eq(maintenancePayments.type, "initial_cleaning"), eq(maintenancePayments.status, "paid"))).limit(1)
+  const initialCleaningPaid = !!initialPayment
+  const { primary, secondary } = computeCustomerActions(sub, { hasPendingEarlyCancellation: !!pending, initialCleaningPaid }, now)
   return {
     summary: buildSubscriptionContractSummary(sub, now),
     vehicle: vehicle ? { label: `${vehicle.brand} ${vehicle.model}`.trim(), plate: vehicle.plate } : null,
     status: customerStatusLabel(sub.status),
     terminal: isTerminalStatus(sub.status),
     paymentIssue: sub.status === "past_due",
+    initialCleaningPaid,
     providerSyncPending,
     pendingEarlyCancellation: pending,
     primaryAction: primary,
@@ -337,12 +343,15 @@ export async function readCheckoutReturnState(
 ): Promise<"active" | "processing" | "unknown"> {
   if (companyId == null || !checkoutSessionId || checkoutSessionId.length > 255 || !/^cs_[A-Za-z0-9_]+$/.test(checkoutSessionId)) return "unknown"
   const [row] = await db
-    .select({ status: maintenanceSubscriptions.status })
+    .select({ id: maintenanceSubscriptions.id, status: maintenanceSubscriptions.status })
     .from(maintenanceSubscriptions)
     .where(and(eq(maintenanceSubscriptions.companyId, companyId), eq(maintenanceSubscriptions.externalCheckoutSessionId, checkoutSessionId)))
     .limit(1)
   if (!row) return "unknown"
-  return row.status === "active" ? "active" : "processing"
+  if (row.status === "active") return "active"
+  const [paid] = await db.select({ id: maintenancePayments.id }).from(maintenancePayments)
+    .where(and(eq(maintenancePayments.companyId, companyId), eq(maintenancePayments.subscriptionId, row.id), eq(maintenancePayments.status, "paid"))).limit(1)
+  return paid ? "processing" : "unknown"
 }
 
 /* ------------------------------ Messages FR ------------------------------ */

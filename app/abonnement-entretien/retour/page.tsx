@@ -14,11 +14,13 @@ export default async function SubscriptionReturnPage({ searchParams }: { searchP
 
   return (
     <div className="min-h-dvh bg-background font-sans text-foreground">
-      <CustomerShell title={state === "active" ? "Votre abonnement est actif." : "Paiement reçu. Activation en cours…"} companyName={tenant?.name}>
+      <CustomerShell title={state === "active" ? "Votre abonnement est actif." : state === "processing" ? "Paiement reçu. Activation en cours…" : "Nous n'avons pas pu vérifier ce paiement."} companyName={tenant?.name}>
         <p className="text-sm leading-relaxed text-muted-foreground" aria-live="polite">
           {state === "active"
             ? "Vous recevrez un email récapitulatif. Vous pouvez gérer votre abonnement depuis le lien « Gérer mon abonnement »."
-            : "Nous finalisons votre activation. Vous recevrez un email de confirmation dès qu'elle sera terminée."}
+            : state === "processing"
+              ? "Nous finalisons votre activation. Vous recevrez un email de confirmation dès qu'elle sera terminée."
+              : "Rouvrez le lien reçu par email ou contactez le professionnel si le problème persiste."}
         </p>
       </CustomerShell>
     </div>
