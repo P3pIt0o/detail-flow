@@ -8,7 +8,7 @@ import type { Executor } from "@/lib/customer-subscriptions/engine"
 import { escapeHtml, safeHref } from "@/lib/customer-subscriptions/html"
 import { isPlanPubliclyAccessible, parsePublicMode, parseWidgetMode, resolveWidgetEntry } from "@/lib/customer-subscriptions/public-mode"
 import { buildSubscriptionContractSummary, type ContractSubscriptionInput } from "@/lib/customer-subscriptions/contract-summary"
-import { renderCustomerSubscriptionEmail } from "@/lib/customer-subscriptions/emails"
+import { buildRequestPlanSummary, professionalAdminDestination, requestAdminDestination, renderCustomerSubscriptionEmail } from "@/lib/customer-subscriptions/emails"
 import {
   capabilityMatches,
   customerSessionCookieOptions,
@@ -71,6 +71,48 @@ describe("HTML escape / URLs", () => {
     expect(r.html).not.toContain("<script>x")
     expect(r.html).not.toContain("<b>Pro</b>")
     expect(r.html).toContain("&lt;script&gt;")
+  })
+})
+
+describe("emails — destinations professionnelles et conditions de demande", () => {
+  it("utilise la liste admin existante avec le tenant, jamais une route de demande inexistante", () => {
+    const destination = requestAdminDestination(12, "atelier-test", "detailflow.test")
+    expect(destination).toBe("https://www.detailflow.test/admin/abonnements-clients?vue=a-traiter&tenant=atelier-test")
+    expect(requestAdminDestination(0, "atelier-test", "detailflow.test")).toBeNull()
+    expect(requestAdminDestination(12, "atelier-test")).toBeNull()
+    expect(requestAdminDestination(12, null, "detailflow.test")).toBeNull()
+    expect(professionalAdminDestination("//evil.test", "atelier-test", "detailflow.test")).toBeNull()
+    const html = renderCustomerSubscriptionEmail("request_received_pro", { businessName: "Atelier", ctaUrl: destination }).html
+    expect(html).toContain("Voir la demande")
+    expect(html).toContain("&amp;tenant=atelier-test")
+    expect(html).not.toContain("&amp;amp;")
+  })
+
+  it("les liens professionnels restent sur l'administration et non le domaine public personnalisé", () => {
+    expect(professionalAdminDestination("/admin/abonnements-clients/abonnes/42", "spirit-acs", "detailflow.test"))
+      .toBe("https://www.detailflow.test/admin/abonnements-clients/abonnes/42?tenant=spirit-acs")
+  })
+
+  it("présente engagement, renouvellement, rappel et paiements depuis la demande figée", () => {
+    const summary = buildRequestPlanSummary({
+      name: "Entretien Premium", priceCents: 3900, currency: "EUR",
+      billingIntervalUnit: "month", billingIntervalCount: 1, includedUsesPerCycle: 1,
+      includedServiceId: 1, includedServiceName: "Lavage complet",
+      commitmentUnit: "month", commitmentCount: 12, renewalMode: "same_term", renewalNoticeDays: 7,
+      allowRecurringPayment: true, allowPrepaidPayment: true, prepaidBillingCycles: 12,
+      status: "active", visibility: "public",
+    })
+    for (const type of ["request_received", "request_received_pro"] as const) {
+      const html = renderCustomerSubscriptionEmail(type, { businessName: "Atelier", requestSummary: summary }).html
+      expect(html).toContain("39,00")
+      expect(html).toContain("Engagement")
+      expect(html).toContain("12 mois")
+      expect(html).toContain("Renouvellement")
+      expect(html).toContain("7 jours")
+      expect(html).toContain("Prélèvement récurrent")
+      expect(html).toContain("12 périodes")
+      expect(html).not.toMatch(/same_term|open_ended|commission|platformFee|provider/i)
+    }
   })
 })
 

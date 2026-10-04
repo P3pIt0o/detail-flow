@@ -13,7 +13,7 @@ import {
   markEmailSkipped,
   type OutboxRow,
 } from "./email-outbox"
-import { buildRequestPlanSummary, requestAdminDestination, renderCustomerSubscriptionEmail } from "./emails"
+import { buildRequestPlanSummary, professionalAdminDestination, requestAdminDestination, renderCustomerSubscriptionEmail } from "./emails"
 import { CUSTOMER_MANAGE_PATH, MANAGE_LINK_TTL_SECONDS, signCustomerAccess } from "./customer-access"
 import { addBillingInterval, type BillingInterval } from "./dates"
 
@@ -189,7 +189,13 @@ export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailS
       const vehicleSource = r.vehicle ?? r.request
       const vehicleLabel = vehicleSource ? [vehicleSource.vehicleBrand, vehicleSource.vehicleModel].filter(Boolean).join(" ") : null
       // « Finaliser mon abonnement » = lien signé vers l'espace client (récapitulatif final avant paiement).
-      const ctaUrl = row.type === "request_accepted" ? manageUrl : row.type === "request_received_pro" && row.requestId ? requestAdminDestination(row.requestId) : null
+      const ctaUrl = row.recipientRole === "professional"
+        ? row.type === "request_received_pro" && r.request && row.requestId
+          ? requestAdminDestination(row.requestId, r.company.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+          : r.sub
+            ? professionalAdminDestination(`/admin/abonnements-clients/abonnes/${r.sub.id}`, r.company.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+            : null
+        : row.type === "request_accepted" || row.type === "initial_cleaning_done" ? manageUrl : null
       const rendered = renderCustomerSubscriptionEmail(row.type as never, {
         businessName,
         customerName: r.sub?.customerName ?? r.request?.customerName ?? null,

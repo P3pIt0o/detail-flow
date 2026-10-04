@@ -1,3 +1,4 @@
+import { tenantPathUrl } from "@/lib/tenant-shared"
 import { escapeHtml, safeHref } from "./html"
 import { assertValidPlanConfig } from "./plan-validation"
 
@@ -11,13 +12,28 @@ export function buildRequestPlanSummary(snapshot: unknown) {
     uses: plan.includedUsesPerCycle,
     price: formatMoney(plan.priceCents, plan.currency),
     frequency: formatIntervalFr({ unit: plan.billingIntervalUnit, count: plan.billingIntervalCount }),
+    commitment: formatCommitmentFr(plan.commitmentUnit, plan.commitmentCount),
+    renewal: formatRenewalFr(plan.renewalMode, false),
+    notice: plan.renewalNoticeDays == null ? null : `${plan.renewalNoticeDays} jours avant l'échéance`,
+    payment: [
+      plan.allowRecurringPayment ? "Prélèvement récurrent" : null,
+      plan.allowPrepaidPayment ? `Paiement à l'avance pour ${plan.prepaidBillingCycles} périodes` : null,
+    ].filter(Boolean).join(" ou "),
     initialCleaning: plan.initialCleaningRequired
       ? (typeof names.initialServiceName === "string" ? names.initialServiceName : "Nettoyage initial requis") : null,
   }
 }
 
-/** Aucune route de détail admin n'est encore implémentée. */
-export function requestAdminDestination(_requestId: number): string | null { return null }
+export function requestAdminDestination(requestId: number, slug?: string | null, rootDomain?: string): string | null {
+  if (!Number.isSafeInteger(requestId) || requestId <= 0) return null
+  return professionalAdminDestination("/admin/abonnements-clients?vue=a-traiter", slug, rootDomain)
+}
+
+export function professionalAdminDestination(path: string, slug?: string | null, rootDomain?: string): string | null {
+  if (!slug || !rootDomain || !/^\/admin\/abonnements-clients(?:\?|\/|$)/.test(path)) return null
+  const destination = tenantPathUrl(path, slug, rootDomain)
+  return safeHref(destination) === "#" ? null : destination
+}
 import {
   formatCommitmentFr,
   formatDateFr,
@@ -126,6 +142,8 @@ export function renderCustomerSubscriptionEmail(type: CustomerSubscriptionEmailT
     ["Formule", r.planName], ["Véhicule", ctx.vehicleLabel ?? "—"],
     ["Prestation incluse", r.serviceName], ["Nombre d'utilisations", `${r.uses} par période`],
     ["Prix au moment de la demande", r.price], ["Fréquence", r.frequency],
+    ["Engagement", r.commitment], ["Renouvellement", r.renewal], ["Modes de paiement proposés", r.payment],
+    ...(r.notice ? [["Rappel", r.notice] as Row] : []),
     ...(r.initialCleaning ? [["Nettoyage initial", r.initialCleaning] as Row] : []),
   ] : []
   switch (type) {

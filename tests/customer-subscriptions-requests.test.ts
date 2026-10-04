@@ -313,7 +313,9 @@ describe("corrections ciblées lot 2", () => {
     expect(pro.html).toContain("Client 61")
     expect(pro.html).toContain("Date de demande")
     expect(pro.html).toContain("2026")
-    expect(pro.html).not.toContain("href=")
+    expect(pro.html).toContain('href="https://www.detailflow.test/admin/abonnements-clients?vue=a-traiter&amp;tenant=acme"')
+    expect(pro.html).toContain("Voir la demande")
+    expect(pro.html).not.toContain("/demandes/")
   })
 
   it.each([

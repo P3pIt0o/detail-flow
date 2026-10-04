@@ -31,7 +31,7 @@ export function PaymentsList({ payments }: { payments: PaymentItem[] }) {
           { label: "Frais de paiement", value: amount(p.providerFeeAmountCents) },
           { label: "Commission DetailFlow", value: amount(p.platformFeeAmountCents) },
           { label: "Net", value: amount(p.netAmountCents) },
-          { label: "Remboursé", value: p.refundedAmountCents ? amount(p.refundedAmountCents) : "—" },
+          { label: "Remboursé", value: amount(p.refundedAmountCents) },
         ]
         return (
           <li key={p.id} className="flex flex-col gap-3 p-4">
