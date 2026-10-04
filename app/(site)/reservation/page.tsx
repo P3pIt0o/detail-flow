@@ -51,12 +51,12 @@ export const dynamic = "force-dynamic"
 export default async function ReservationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ embed?: string }>
+  searchParams: Promise<{ embed?: string; view?: string }>
 }) {
   // Mode embarqué (widget sur site externe) : on masque le chrome du site et
   // l'en-tête de page pour n'afficher que le moteur, et on synchronise la
   // hauteur avec le site hôte. Le moteur lui-même est STRICTEMENT le même.
-  const { embed } = await searchParams
+  const { embed, view } = await searchParams
   const isEmbed = embed === "1"
 
   const requestTenant = await resolvePublicRequestTenant()
@@ -113,6 +113,16 @@ export default async function ReservationPage({
             />
             <EmbedFrameSync />
           </>
+        )}
+        {view === "both" && (
+          <nav aria-label="Choix du service" className="flex gap-2 px-4 pt-6">
+            <span aria-current="page" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+              Réserver une prestation
+            </span>
+            <a href={isEmbed ? "/formules?embed=1&view=both" : "/formules"} className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground">
+              Formules d&apos;entretien
+            </a>
+          </nav>
         )}
         {/* Cleanyzer only: the standard Navbar is `fixed` (h-16), so BookingV2 must start below it. */}
         <section
