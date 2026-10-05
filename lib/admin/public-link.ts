@@ -10,14 +10,14 @@
  *  1. Domaine personnalisé connecté et vérifié (`tenantCanonicalOrigin`).
  *  2. / 3. À défaut, l'URL PUBLIQUE CANONIQUE « jolie » selon le parcours :
  *     - booking_only → lien de réservation `/p/<slug>/reservation` ;
- *     - sinon (page publique, site custom sans domaine, legacy) → `/p/<slug>`.
+ *     - sinon (page publique, site custom sans domaine, legacy) →
+ *       `/?tenant=<slug>` (même URL que le Super Admin, `tenantPublicUrl`).
  *
- * Ces chemins `/p/<slug>` sont volontairement SANS `?tenant=` : le lien reste
- * propre et présentable à un client. Un tenant suspendu/archivé n'est pas
+ * Un tenant suspendu/archivé n'est pas
  * joignable → `null` (le shell affiche alors un état neutre, aucune URL).
  */
 
-import { publicPageUrl, publicReservationUrl, tenantCanonicalOrigin } from "@/lib/tenant-shared"
+import { publicReservationUrl, tenantCanonicalOrigin, tenantPublicUrl } from "@/lib/tenant-shared"
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 
 export type PublicLinkKind = "custom_domain" | "public_page" | "reservation"
@@ -50,7 +50,9 @@ export function resolvePublicLink(opts: {
     return url.startsWith("https://") ? { url, kind: "reservation" } : null
   }
 
-  // 3. Page publique / site custom sans domaine / legacy → page canonique.
-  const url = publicPageUrl(opts.slug, opts.rootDomain)
+  // 3. Page publique / site custom sans domaine / legacy → même URL que le
+  // Super Admin (`/?tenant=<slug>`) : la navigation interne du site standard
+  // conserve le tenant via `?tenant=`, ce que `/p/<slug>` ne garantit pas.
+  const url = tenantPublicUrl(opts.slug, opts.rootDomain)
   return url.startsWith("https://") ? { url, kind: "public_page" } : null
 }
