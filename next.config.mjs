@@ -16,18 +16,6 @@ const nextConfig = {
    * automatiquement la query string entrante (`?tenant=spirit-acs` en préversion).
    * Ces slugs n'ont jamais existé pour un autre tenant → redirection globale sûre.
    */
-  /** Espace client abonnements : jamais en cache, jamais indexé, aucun Referer. */
-  async headers() {
-    const privateHeaders = [
-      { key: "Cache-Control", value: "no-store" },
-      { key: "Referrer-Policy", value: "no-referrer" },
-      { key: "X-Robots-Tag", value: "noindex, nofollow" },
-    ]
-    return [
-      { source: "/abonnements/:path*", headers: privateHeaders },
-      { source: "/abonnement-entretien/retour", headers: privateHeaders },
-    ]
-  },
   async redirects() {
     return [
       {

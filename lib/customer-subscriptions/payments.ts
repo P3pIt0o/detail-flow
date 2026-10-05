@@ -31,24 +31,16 @@ import {
   appendMaintenanceAudit,
   activateSubscription,
   assertCanMutate,
-  buildServerTermsConsent,
   createCycleIfMissing,
-  decideEarlyCancellation,
   forceEndSubscription,
-  type EarlyCancellationDecisionInput,
   requestRenewalOptOut,
-  requestRenewalOptOutAsCustomer,
   resolveCurrentCustomerSubscriptionFee,
   revokeRenewalOptOut,
-  revokeRenewalOptOutAsCustomer,
   scheduleCancellation,
-  scheduleCancellationAsCustomer,
   type Actor,
-  type CustomerSessionProof,
   type Executor,
 } from "./engine"
 import { isTerminalStatus } from "./statuses"
-import { emailEvents } from "./email-events"
 import {
   CUSTOMER_SUBSCRIPTION_MODULE,
   bpsFromFeePercent,
@@ -247,17 +239,7 @@ export async function startSubscriptionCheckout(
   input: { returnUrlContext?: ReturnUrlContext } = {},
 ): Promise<StartCheckoutResult> {
   assertCanMutate(actor)
-  return startSubscriptionCheckoutCore(db, port, companyId, userSyncActor(actor), subscriptionId, input)
-}
 
-async function startSubscriptionCheckoutCore(
-  db: Executor,
-  port: CustomerSubscriptionStripePort,
-  companyId: number,
-  who: SyncActor,
-  subscriptionId: number,
-  input: { returnUrlContext?: ReturnUrlContext },
-): Promise<StartCheckoutResult> {
   const plan = await db.transaction(async (tx) => {
     const sub = await lockTenantSubscription(tx, companyId, subscriptionId)
     const kind = resolveCheckoutKind(sub)
@@ -335,8 +317,8 @@ async function startSubscriptionCheckoutCore(
       companyId,
       subscriptionId: sub.id,
       action: "checkout_started",
-      actorType: who.actorType,
-      actorUserId: who.actorUserId ?? null,
+      actorType: "user",
+      actorUserId: actor.userId,
       meta: { kind, platformFeeBps: built.platformFeeBps, grossAmountCents: built.grossAmountCents, retryOf: previousSessionId },
     })
     return { checkoutSessionId: session.id, clientSecret, status: "open" as const, paymentMode, kind, reused: false }
@@ -348,7 +330,7 @@ async function startSubscriptionCheckoutCore(
 const readTenantSubscription = (db: Executor, companyId: number, subscriptionId: number) =>
   db.transaction((tx) => lockTenantSubscription(tx, companyId, subscriptionId))
 
-type SyncActor = { actorType: "user" | "system" | "customer"; actorUserId?: string | null }
+type SyncActor = { actorType: "user" | "system"; actorUserId?: string | null }
 const userSyncActor = (actor: Actor): SyncActor => ({ actorType: "user", actorUserId: actor.userId })
 const SYSTEM_SYNC: SyncActor = { actorType: "system", actorUserId: null }
 
@@ -495,16 +477,16 @@ async function syncAfterDecision(
   db: Executor,
   port: CustomerSubscriptionStripePort,
   companyId: number,
-  who: SyncActor,
+  actor: Actor,
   subscriptionId: number,
   now: Date,
 ): Promise<ProviderSyncOutcome> {
   try {
-    const r = await syncProviderStateInternal(db, port, companyId, subscriptionId, now, who)
+    const r = await syncProviderStateInternal(db, port, companyId, subscriptionId, now, userSyncActor(actor))
     return r.applied ? { status: "synced", mode: r.mode, reason: r.reason } : { status: "noop", reason: r.reason }
   } catch (e) {
     const code = e instanceof CustomerSubscriptionError ? e.code : "PROVIDER_ERROR"
-    await appendMaintenanceAudit(db, { companyId, subscriptionId, action: "provider_sync_failed", actorType: who.actorType, actorUserId: who.actorUserId ?? null, meta: { code } })
+    await appendMaintenanceAudit(db, { companyId, subscriptionId, action: "provider_sync_failed", actorType: "user", actorUserId: actor.userId, meta: { code } })
     return { status: "pending_retry", code }
   }
 }
@@ -525,43 +507,6 @@ async function decideThenSync<T extends object>(
   retryWhenTerminal = false,
 ): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
   assertCanMutate(actor)
-  return decideThenSyncCore(db, port, companyId, userSyncActor(actor), subscriptionId, now, decide, retryWhenTerminal)
-}
-
-/**
- * Décision pro sur une fin anticipée : DB d'abord (verrou + transaction),
- * Stripe ensuite. Refus : aucune synchro (le contrat ne change pas).
- * Approbation : `cancel_at` Stripe aligné sur la date calculée serveur ; une
- * panne provider renvoie `pending_retry` sans défaire la décision.
- */
-export async function decideEarlyCancellationAndSync(
-  db: Executor,
-  port: CustomerSubscriptionStripePort,
-  companyId: number,
-  actor: Actor,
-  cancellationRequestId: number,
-  decision: "approved" | "rejected",
-  input: EarlyCancellationDecisionInput = {},
-  now: Date = new Date(),
-) {
-  assertCanMutate(actor)
-  const local = await decideEarlyCancellation(db, companyId, actor, cancellationRequestId, decision, input, now)
-  if (decision === "rejected") return { ...local, provider: { status: "noop", reason: "rejected" } as ProviderSyncOutcome }
-  const provider = await syncAfterDecision(db, port, companyId, userSyncActor(actor), local.subscriptionId, now)
-  return { ...local, provider }
-}
-
-/** Cœur sans autorisation : chaque wrapper public applique la sienne AVANT d'appeler. */
-async function decideThenSyncCore<T extends object>(
-  db: Executor,
-  port: CustomerSubscriptionStripePort,
-  companyId: number,
-  who: SyncActor,
-  subscriptionId: number,
-  now: Date,
-  decide: () => Promise<T>,
-  retryWhenTerminal: boolean,
-): Promise<T & { alreadyApplied?: boolean; provider: ProviderSyncOutcome }> {
   let local: T & { alreadyApplied?: boolean }
   try {
     local = await decide()
@@ -570,48 +515,8 @@ async function decideThenSyncCore<T extends object>(
     const sub = await readTenantSubscription(db, companyId, subscriptionId)
     local = { status: sub.status, alreadyApplied: true } as unknown as T & { alreadyApplied?: boolean }
   }
-  const provider = await syncAfterDecision(db, port, companyId, who, subscriptionId, now)
+  const provider = await syncAfterDecision(db, port, companyId, actor, subscriptionId, now)
   return { ...local, provider }
-}
-
-/* ------------- Voies CLIENT (preuve de session signée, jamais un rôle simulé) ------------- */
-
-const CUSTOMER_SYNC: SyncActor = { actorType: "customer", actorUserId: null }
-
-export const requestRenewalOptOutAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
-  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => requestRenewalOptOutAsCustomer(db, session, now), false)
-
-export const revokeRenewalOptOutAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
-  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => revokeRenewalOptOutAsCustomer(db, session, now), false)
-
-export const scheduleCancellationAsCustomerAndSync = (db: Executor, port: CustomerSubscriptionStripePort, session: CustomerSessionProof, now: Date = new Date()) =>
-  decideThenSyncCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, now, () => scheduleCancellationAsCustomer(db, session, now), false)
-
-/**
- * Checkout client : seule `termsAccepted === true` vient du navigateur. Le
- * consentement (date + version) est construit serveur et enregistré sur le
- * contrat AVANT Stripe ; prix, fee, compte, URL de retour et IDs sont tous
- * rechargés serveur par le moteur Checkout existant.
- */
-export async function startSubscriptionCheckoutAsCustomer(
-  db: Executor,
-  port: CustomerSubscriptionStripePort,
-  session: CustomerSessionProof,
-  input: { termsAccepted: unknown },
-  ctx: { returnUrlContext?: ReturnUrlContext } = {},
-  now: Date = new Date(),
-): Promise<StartCheckoutResult> {
-  const consent = buildServerTermsConsent(input.termsAccepted, now)
-  await db.transaction(async (tx) => {
-    const sub = await lockTenantSubscription(tx, session.companyId, session.subscriptionId)
-    if (!resolveCheckoutKind(sub)) throw new CustomerSubscriptionError("CHECKOUT_NOT_ALLOWED")
-    await tx
-      .update(maintenanceSubscriptions)
-      .set({ termsAcceptedAt: consent.acceptedAt, termsVersion: consent.version, updatedAt: now })
-      .where(whereSub(sub))
-    await appendMaintenanceAudit(tx, { companyId: session.companyId, subscriptionId: sub.id, action: "terms_accepted", actorType: "customer", actorUserId: null, meta: { version: consent.version } })
-  })
-  return startSubscriptionCheckoutCore(db, port, session.companyId, CUSTOMER_SYNC, session.subscriptionId, ctx)
 }
 
 export const requestRenewalOptOutAndSync = (db: Executor, port: CustomerSubscriptionStripePort, companyId: number, actor: Actor, subscriptionId: number, now: Date = new Date()) =>
@@ -921,9 +826,6 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
     await linkProviderIds(tx, row, { externalSubscriptionId: ext, externalCustomerId: idOf(inv.customer) })
 
     let payment = await findPaymentBy(tx, row, "externalInvoiceId", inv.id)
-    // Email « paiement reçu » uniquement sur transition réelle vers paid (rejeu = aucun email).
-    const newlyPaid = !payment || payment.status === "pending" || payment.status === "failed"
-    let activatedNow = false
     if (!payment) {
       if (realFee == null) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
       const fee = realFee
@@ -963,7 +865,6 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
       // Ancre = période Stripe réelle de la 1re facture.
       await activateSubscription(tx, row.companyId, row.id, realPeriod.start, "provider")
       row = await lockTenantSubscription(tx, row.companyId, row.id)
-      activatedNow = row.status === "active"
     } else if (row.status === "past_due") {
       const next = statusAfterRecovery(row, paidAt)
       await tx.update(maintenanceSubscriptions).set({ status: next, updatedAt: paidAt }).where(whereSub(row))
@@ -996,12 +897,6 @@ async function onInvoicePaid({ db, port, event, account, target }: Ctx): Promise
       await tx.update(maintenancePayments).set({ cycleId }).where(and(eq(maintenancePayments.id, payment.id), eq(maintenancePayments.companyId, row.companyId)))
     }
     await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action: "payment_succeeded", actorType: "provider", meta: { invoiceId: inv.id, cycleId } })
-    // État métier persisté ci-dessus → enqueue (savepoint isolé, jamais bloquant).
-    if (activatedNow) {
-      await emailEvents.activated(tx, row, new Date())
-    } else if (newlyPaid) {
-      await emailEvents.paymentSucceeded(tx, row, { paymentId: payment.id, amountCents: payment.grossAmountCents, paidAt, periodStart: realPeriod.start, periodEnd: realPeriod.end }, new Date())
-    }
     return { handled: true as const, outcome: "invoice_paid" }
   })
 
@@ -1057,13 +952,6 @@ async function recordInvoiceFailure({ db, port, event, account, target }: Ctx, k
       actorType: "provider",
       meta: { invoiceId: inv.id },
     })
-    // Facture déjà payée (événement en retard) : aucun email d'échec.
-    if (payment?.status !== "paid" && !isTerminalStatus(next)) {
-      const attempt = (inv as { attempt_count?: number }).attempt_count
-      const attemptKey = `${inv.id}#${Number.isInteger(attempt) ? attempt : 0}`
-      if (kind === "failed") await emailEvents.paymentFailed(tx, row, { attemptKey, amountCents: gross, failedAt }, new Date())
-      else await emailEvents.paymentActionRequired(tx, row, { attemptKey, amountCents: gross }, new Date())
-    }
     return { handled: true as const, outcome: kind === "failed" ? "invoice_payment_failed" : "invoice_payment_action_required" }
   })
 }
@@ -1205,9 +1093,8 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
       return "refund_conflict"
     }
     let changed = false
-    let succeededRefundId: number | null = null
     if (!existing) {
-      const [inserted] = await tx.insert(maintenanceRefunds).values({
+      await tx.insert(maintenanceRefunds).values({
         companyId: p.companyId,
         subscriptionId: p.subscriptionId,
         maintenancePaymentId: p.id,
@@ -1221,13 +1108,11 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
         succeededAt: incoming === "succeeded" ? at : null,
         failedAt: incoming === "failed" || incoming === "canceled" ? at : null,
         meta: { stripeChargeId: idOf(refund.charge) },
-      }).returning({ id: maintenanceRefunds.id })
+      })
       changed = true
-      if (incoming === "succeeded" && inserted) succeededRefundId = inserted.id
     } else {
       const next = nextRefundStatus(existing.status as RefundStatusValue, incoming)
       if (next !== existing.status) {
-        if (next === "succeeded") succeededRefundId = existing.id
         await tx
           .update(maintenanceRefunds)
           .set({
@@ -1259,10 +1144,6 @@ export async function recordMaintenanceRefund(db: Executor, payment: PaymentRow,
     }
     if (changed) {
       await appendMaintenanceAudit(tx, { companyId: p.companyId, subscriptionId: p.subscriptionId, action: "refund_recorded", actorType: "provider", meta: { paymentId: p.id, refundStatus: incoming, amountCents: refund.amount, refundedAmountCents: refunded, paymentStatus: nextStatus } })
-    }
-    // Transition réelle vers succeeded (webhook) → enqueue ; rejeu → dedupe refund:{id}.
-    if (succeededRefundId != null) {
-      await emailEvents.refundSucceeded(tx, { companyId: p.companyId, id: p.subscriptionId }, { refundId: succeededRefundId, amountCents: refund.amount as number, refundedAt: at, full: refunded >= p.grossAmountCents }, new Date())
     }
     return changed ? `refund_${incoming}` : "refund_duplicate"
   })
@@ -1320,9 +1201,6 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
         meta: { checkoutSessionId: session.id },
       })
       await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action: "payment_succeeded", actorType: "provider", meta: { kind } })
-      if (kind === "initial_cleaning") {
-        await emailEvents.initialCleaningPaid(tx, row, { amountCents: gross, paidAt }, new Date())
-      }
     }
 
     // Nettoyage initial : paiement enregistré, contrat reste pending_initial_cleaning.
@@ -1330,7 +1208,6 @@ async function onCheckoutPaid({ db, port, event, account, target, meta }: Ctx): 
       await activateSubscription(tx, row.companyId, row.id, paidAt, "provider")
       row = await lockTenantSubscription(tx, row.companyId, row.id)
       await ensureCycle(tx, row, paidAt)
-      if (row.status === "active") await emailEvents.activated(tx, row, new Date())
     }
     return { handled: true as const, outcome: existing ? "checkout_paid_duplicate" : "checkout_paid" }
   })
@@ -1376,7 +1253,6 @@ async function onSubscriptionDeleted({ db, event, target }: Ctx): Promise<Webhoo
     await tx.update(maintenanceSubscriptions).set({ ...patch, updatedAt: endedAt }).where(whereSub(row))
     const action = outcome === "cancelled" ? "subscription_cancelled" : outcome === "expired" ? "subscription_expired" : "subscription_ended_by_provider"
     await appendMaintenanceAudit(tx, { companyId: row.companyId, subscriptionId: row.id, action, actorType: "provider", meta: { previousStatus: row.status, refund: "none" } })
-    await emailEvents.ended(tx, row, endedAt, new Date())
     return { handled: true as const, outcome: `subscription_deleted_${outcome}` }
   })
 }
