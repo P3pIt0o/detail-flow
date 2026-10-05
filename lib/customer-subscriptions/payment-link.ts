@@ -15,6 +15,7 @@ import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import { buildSubscriptionContractSummary, formatIntervalFr, formatMoney } from "./contract-summary"
 import type { CustomerSessionProof, Executor } from "./engine"
 import { CustomerSubscriptionError } from "./errors"
+import { previewDeploymentHost } from "./return-url"
 import { escapeHtml, safeHref } from "./html"
 import { hashManageToken, verifyManageToken } from "./manage-token"
 import { customerEmailsAllowed, isValidEmail, type EmailSender } from "./notifications"
@@ -37,7 +38,13 @@ export class PaymentLinkInvalidError extends Error {
 
 export const isWellFormedManageToken = (t: unknown): t is string => typeof t === "string" && TOKEN_RE.test(t)
 
-export function buildPaymentLinkUrl(slug: string, token: string, rootDomain: string | undefined = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "www.detailflow.fr"): string {
+export function buildPaymentLinkUrl(
+  slug: string,
+  token: string,
+  rootDomain: string | undefined = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "www.detailflow.fr",
+  previewHost: string | null = previewDeploymentHost(),
+): string {
+  if (previewHost) return `https://${previewHost}${PAYMENT_LINK_BASE_PATH}/${token}?tenant=${encodeURIComponent(slug)}`
   return tenantPublicPathUrl(`${PAYMENT_LINK_BASE_PATH}/${token}`, slug, rootDomain)
 }
 

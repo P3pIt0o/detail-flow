@@ -15,13 +15,29 @@ export const CHECKOUT_SESSION_PLACEHOLDER = "{CHECKOUT_SESSION_ID}"
 export const CUSTOMER_SUBSCRIPTION_RETURN_PATH = "/abonnement-entretien/retour"
 const DEV_ORIGIN = "http://localhost:3000"
 
-export type ReturnUrlContext = { rootDomain?: string | null; allowLocalhost?: boolean }
+export type ReturnUrlContext = { rootDomain?: string | null; allowLocalhost?: boolean; previewHost?: string | null }
 
 const bareRoot = (rootDomain?: string | null) =>
   (rootDomain || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "").replace(/^www\./, "")
 
+const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
+
+/**
+ * Hostname du déploiement Vercel Preview courant, lu UNIQUEMENT depuis l'env
+ * serveur (jamais depuis le navigateur). `null` hors Preview → Production inchangée.
+ */
+export function previewDeploymentHost(env: Record<string, string | undefined> = process.env): string | null {
+  if (env.VERCEL_ENV !== "preview") return null
+  const host = (env.VERCEL_URL || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "")
+  return HOSTNAME_RE.test(host) ? host : null
+}
+
 export function defaultReturnUrlContext(): ReturnUrlContext {
-  return { rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null, allowLocalhost: process.env.NODE_ENV !== "production" }
+  return {
+    rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null,
+    allowLocalhost: process.env.NODE_ENV !== "production",
+    previewHost: previewDeploymentHost(),
+  }
 }
 
 /** Vérifie qu'une URL appartient bien aux origines DetailFlow/tenant attendues. */
@@ -52,6 +68,7 @@ export function assertAllowedReturnUrl(url: string, slug: string, ctx: ReturnUrl
     allowed.add(canonical.toLowerCase())
     allowed.add(canonical.toLowerCase().replace(/^www\./, ""))
   }
+  if (ctx.previewHost) allowed.add(ctx.previewHost.toLowerCase())
   if (!allowed.has(host)) throw new CustomerSubscriptionError("INVALID_RETURN_URL")
   return url
 }
@@ -63,6 +80,9 @@ export function assertAllowedReturnUrl(url: string, slug: string, ctx: ReturnUrl
 export function buildCustomerSubscriptionReturnUrl(slug: string, ctx: ReturnUrlContext = defaultReturnUrlContext()): string {
   if (!slug) throw new CustomerSubscriptionError("INVALID_RETURN_URL")
   const path = `${CUSTOMER_SUBSCRIPTION_RETURN_PATH}?session_id=${CHECKOUT_SESSION_PLACEHOLDER}`
+  if (ctx.previewHost) {
+    return assertAllowedReturnUrl(`https://${ctx.previewHost}${path}&tenant=${encodeURIComponent(slug)}`, slug, ctx)
+  }
   const root = bareRoot(ctx.rootDomain)
   let url = tenantPublicPathUrl(path, slug, root ? `www.${root}` : undefined)
   if (url.startsWith("/")) {
