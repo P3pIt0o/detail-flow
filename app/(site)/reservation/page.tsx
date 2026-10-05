@@ -15,7 +15,6 @@ import {
 } from "@/lib/booking/queries"
 import { BookingV2 } from "@/components/booking-v2/booking-v2"
 import { headers } from "next/headers"
-import { publicSiteHref } from "@/lib/public-site-links"
 import { resolvePublicRequestTenant, resolveRequestTenant } from "@/lib/tenant"
 import { isOnlineBookingOpen } from "@/lib/booking/online-booking-access"
 import { BookingUnavailable } from "@/components/booking/booking-unavailable"
@@ -52,12 +51,12 @@ export const dynamic = "force-dynamic"
 export default async function ReservationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ embed?: string; view?: string }>
+  searchParams: Promise<{ embed?: string }>
 }) {
   // Mode embarqué (widget sur site externe) : on masque le chrome du site et
   // l'en-tête de page pour n'afficher que le moteur, et on synchronise la
   // hauteur avec le site hôte. Le moteur lui-même est STRICTEMENT le même.
-  const { embed, view } = await searchParams
+  const { embed } = await searchParams
   const isEmbed = embed === "1"
 
   const requestTenant = await resolvePublicRequestTenant()
@@ -114,22 +113,6 @@ export default async function ReservationPage({
             />
             <EmbedFrameSync />
           </>
-        )}
-        {view === "both" && (
-          <nav aria-label="Choix du service" className={`flex flex-wrap gap-2 px-4 ${isEmbed ? "pt-6" : "pt-24"}`}>
-            <span aria-current="page" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-              Réserver une prestation
-            </span>
-            <a
-              href={publicSiteHref("formules", {
-                tenantKind: (await headers()).get("x-tenant-kind"),
-                tenantSlug: requestTenant?.slug,
-                embed: isEmbed,
-                view,
-              })} className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground">
-              Formules d&apos;entretien
-            </a>
-          </nav>
         )}
         {/* Cleanyzer only: the standard Navbar is `fixed` (h-16), so BookingV2 must start below it. */}
         <section

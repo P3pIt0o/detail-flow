@@ -7,15 +7,9 @@
 import "server-only"
 import { requireCompanyMember, type MemberContext } from "@/lib/admin"
 import { db } from "@/lib/db"
-import { and, eq } from "drizzle-orm"
-import { maintenanceSubscriptions } from "@/lib/db/schema"
-import { sendEmail } from "@/lib/email/send"
-import { CustomerSubscriptionError, toErrorResult, type Result } from "./errors"
-import * as paymentLink from "./payment-link"
+import { toErrorResult, type Result } from "./errors"
 import * as engine from "./engine"
 import * as payments from "./payments"
-import * as requests from "./requests"
-import { setCustomerSubscriptionPublicMode } from "./public-mode-admin"
 import { createCustomerSubscriptionStripePort } from "./stripe"
 import type { PlanConfigInput } from "./plan-validation"
 import type { VehicleInput } from "./vehicle"
@@ -78,64 +72,6 @@ export const forceEndSubscriptionForCurrentTenant = (subscriptionId: number, rea
   run(MUTATORS, (companyId, actor) =>
     payments.forceEndSubscriptionAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, subscriptionId, reason),
   )
-
-/** Le navigateur ne transmet que l'id, les textes libres et confirmPlanChange (jamais prix, snapshot, tenant). */
-const sendPaymentLink = (companyId: number, subscriptionId: number, manageToken: string) =>
-  paymentLink.sendPaymentLinkEmail(db, (args) => sendEmail(args), { companyId, subscriptionId, manageToken })
-
-/**
- * Acceptation puis email de paiement. L'email est envoyé APRÈS commit : un
- * échec ne touche jamais le contrat. Le token brut n'est jamais renvoyé à l'UI.
- */
-export const acceptRequestForCurrentTenant = (
-  requestId: number,
-  input: { customerMessage?: unknown; internalNote?: unknown; confirmPlanChange?: boolean },
-) =>
-  run(MUTATORS, async (companyId, actor) => {
-    const { manageToken, ...result } = await requests.acceptSubscriptionRequest(db, companyId, actor, requestId, {
-      customerMessage: input.customerMessage,
-      internalNote: input.internalNote,
-      confirmPlanChange: input.confirmPlanChange === true,
-    })
-    const paymentLinkEmail: paymentLink.PaymentLinkEmailOutcome | null = manageToken ? await sendPaymentLink(companyId, result.subscriptionId, manageToken) : null
-    return { ...result, paymentLinkEmail }
-  })
-
-/** Rotation (ancien lien révoqué) puis renvoi. Uniquement pour un contrat pending_payment du tenant. */
-export const resendPaymentLinkForCurrentTenant = (subscriptionId: number) =>
-  run(MUTATORS, async (companyId, actor) => {
-    const [sub] = await db
-      .select({ status: maintenanceSubscriptions.status })
-      .from(maintenanceSubscriptions)
-      .where(and(eq(maintenanceSubscriptions.id, subscriptionId), eq(maintenanceSubscriptions.companyId, companyId)))
-    if (!sub || sub.status !== "pending_payment") throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_MUTABLE")
-    const { manageToken } = await engine.rotateManageToken(db, companyId, actor, subscriptionId)
-    return { paymentLinkEmail: await sendPaymentLink(companyId, subscriptionId, manageToken) }
-  })
-
-export const rejectRequestForCurrentTenant = (requestId: number, input: { customerMessage?: unknown; internalNote?: unknown }) =>
-  run(MUTATORS, (companyId, actor) =>
-    requests.rejectSubscriptionRequest(db, companyId, actor, requestId, {
-      customerMessage: input.customerMessage,
-      internalNote: input.internalNote,
-    }),
-  )
-
-/** Le navigateur ne transmet que l'id de la demande, la décision et les textes libres. */
-export const decideEarlyCancellationForCurrentTenant = (
-  cancellationRequestId: number,
-  decision: "approved" | "rejected",
-  input: { customerMessage?: unknown; internalNote?: unknown },
-) =>
-  run(MUTATORS, (companyId, actor) =>
-    payments.decideEarlyCancellationAndSync(db, createCustomerSubscriptionStripePort(), companyId, actor, cancellationRequestId, decision, {
-      customerMessage: input.customerMessage,
-      internalNote: input.internalNote,
-    }),
-  )
-
-export const setPublicModeForCurrentTenant = (mode: unknown) =>
-  run(MUTATORS, (companyId, actor) => setCustomerSubscriptionPublicMode(db, companyId, actor, mode))
 
 /** Retry explicite de la synchronisation Stripe de l'état DB courant. */
 export const syncProviderStateForCurrentTenant = (subscriptionId: number) =>

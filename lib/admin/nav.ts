@@ -28,7 +28,6 @@ export type AdminNavIcon =
   | "leads"
   | "factures"
   | "clients"
-  | "abonnements"
   | "prestations"
   | "produits"
   | "analyse"
@@ -93,7 +92,6 @@ function baseAdminNav(opts: { intent: OnboardingIntentValue | null; customSiteKe
     { href: "/admin/leads", label: "Prospects", icon: "leads" },
     { href: "/admin/factures", label: "Factures", icon: "factures" },
     { href: "/admin/clients", label: "Clients", icon: "clients" },
-    { href: "/admin/abonnements-clients", label: "Abonnements clients", icon: "abonnements" },
     { href: "/admin/prestations", label: "Prestations", icon: "prestations" },
     { href: "/admin/produits", label: "Produits", icon: "produits" },
     { href: "/admin/analyse", label: "Analyse", icon: "analyse" },
@@ -139,7 +137,6 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/demandes": "quotidien",
   "/admin/leads": "quotidien",
   "/admin/clients": "quotidien",
-  "/admin/abonnements-clients": "gestion",
   "/admin/prestations": "gestion",
   "/admin/produits": "gestion",
   "/admin/factures": "gestion",
