@@ -6,7 +6,7 @@ import { PaymentLinkInvalidError, startCheckoutForManageToken } from "@/lib/cust
 import { resolvePublicRequestTenant } from "@/lib/tenant"
 import type { CheckoutActionResult } from "@/app/abonnements/gerer/actions"
 
-export const PAYMENT_LINK_INVALID_MESSAGE = "Ce lien est invalide ou n’est plus disponible."
+const PAYMENT_LINK_INVALID_MESSAGE = "Ce lien est invalide ou n’est plus disponible."
 
 /** Seuls le token (autorisation) et le booléen de consentement viennent du navigateur. */
 export async function startPaymentLinkCheckoutAction(token: string, termsAccepted: boolean): Promise<CheckoutActionResult> {
