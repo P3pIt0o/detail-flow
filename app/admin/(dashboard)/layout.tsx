@@ -15,7 +15,6 @@ import { getPublicationFlags } from "@/lib/company/publication"
 import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 import { isBookingLinkAccessible } from "@/lib/company/publication-shared"
 import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
-import { marketingOrigin } from "@/lib/tenant-shared"
 
 export const metadata = {
   title: "Espace pro",
@@ -67,7 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       slug: ctx.tenant.slug,
       active: isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id)),
       scriptSnippet: buildEmbedScriptSnippet(ctx.tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN),
-      origin: marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN),
+      rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
     })
   }
 

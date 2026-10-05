@@ -12,6 +12,8 @@
  *                 tenants existants, dont Spirit ACS et Rozan).
  */
 
+import { humanReservationUrl } from "@/lib/admin/public-link"
+
 export const BOOKING_DISTRIBUTION_MODES = ["link", "widget"] as const
 export type BookingDistributionMode = (typeof BOOKING_DISTRIBUTION_MODES)[number]
 
@@ -31,9 +33,10 @@ export type WidgetPrimaryAction = {
   /** Code d'intégration existant (`buildEmbedScriptSnippet`), slug injecté serveur. */
   scriptSnippet: string
   /**
-   * Lien public de réservation (`/p/<slug>/reservation`), toujours fourni : c'est
-   * l'action principale du mode widget. Même route que l'iframe du widget, sans
-   * `?embed=1`. Utilisé par « Copier mon lien de réservation » et « Voir mon module ».
+   * Lien DIRECT partageable de réservation (`humanReservationUrl` :
+   * `/reservation?tenant=<slug>` ou domaine custom), toujours fourni. L'iframe
+   * du widget reste sur `/p/<slug>/reservation?embed=1` (technique, inchangé).
+   * Utilisé par « Copier mon lien de réservation » et « Voir mon module ».
    */
   bookingUrl: string
 }
@@ -48,13 +51,12 @@ export function buildWidgetPrimaryAction(opts: {
   slug: string
   active: boolean
   scriptSnippet: string
-  origin: string
+  rootDomain?: string
 }): WidgetPrimaryAction {
-  const origin = opts.origin.replace(/\/+$/, "")
   return {
     active: opts.active,
     scriptSnippet: opts.scriptSnippet,
-    bookingUrl: `${origin}/p/${encodeURIComponent(opts.slug)}/reservation`,
+    bookingUrl: humanReservationUrl(opts.slug, opts.rootDomain),
   }
 }
 

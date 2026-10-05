@@ -86,18 +86,16 @@ describe("onboarding → persistance", () => {
 })
 
 describe("widget : lien de réservation direct + « Voir mon site »", () => {
-  const ORIGIN = "https://www.detailflow.fr"
   const snippet = buildEmbedScriptSnippet("tenant-a", ROOT)
 
-  it("URL directe = route canonique /p/<slug>/reservation (jamais /book, jamais ?tenant=)", () => {
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
-    expect(a.bookingUrl).toBe("https://www.detailflow.fr/p/tenant-a/reservation")
-    expect(a.bookingUrl).not.toMatch(/\/book\/|\?tenant=|embed=1|\/admin/)
+  it("URL directe partageable = /reservation?tenant=<slug> (jamais /p/, jamais /book, jamais embed)", () => {
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, rootDomain: ROOT })
+    expect(a.bookingUrl).toBe("https://www.detailflow.fr/reservation?tenant=tenant-a")
+    expect(a.bookingUrl).not.toMatch(/\/p\/|\/book\/|embed=1|\/admin/)
   })
 
-  it("même route que l'iframe du widget (un seul moteur)", () => {
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
-    expect(embedIframeSrc("tenant-a", ROOT)).toBe(`${a.bookingUrl}?embed=1`)
+  it("l'iframe d'intégration (technique) reste inchangée sur /p/<slug>/reservation?embed=1", () => {
+    expect(embedIframeSrc("tenant-a", ROOT)).toBe("https://www.detailflow.fr/p/tenant-a/reservation?embed=1")
   })
 
   it("bouton du dashboard : libellé/icône inchangés, copie UNIQUEMENT bookingUrl", () => {
@@ -131,15 +129,15 @@ describe("widget : lien de réservation direct + « Voir mon site »", () => {
     const page = read("app/admin/(dashboard)/parametres/page.tsx")
     expect(page).toMatch(/resolveDashboardPrimaryMode\(await getBookingDistributionMode\(tenant\.id\)\) === "widget"/)
     expect(page).toMatch(/slug: tenant\.slug/)
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, rootDomain: ROOT })
     expect(a.bookingUrl).not.toMatch(/<|>|data-|script/i)
     expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
   })
 
   it("widget inactif → lien public toujours fourni + code d'intégration conservé", () => {
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: false, scriptSnippet: snippet, origin: ORIGIN })
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: false, scriptSnippet: snippet, rootDomain: ROOT })
     expect(a.active).toBe(false)
-    expect(a.bookingUrl).toBe("https://www.detailflow.fr/p/tenant-a/reservation")
+    expect(a.bookingUrl).toBe("https://www.detailflow.fr/reservation?tenant=tenant-a")
     expect(a.scriptSnippet).toContain('data-detailflow-slug="tenant-a"')
   })
 
@@ -164,12 +162,12 @@ describe("widget : lien de réservation direct + « Voir mon site »", () => {
   })
 
   it("isolation : le lien ne porte que le slug du tenant authentifié (encodé)", () => {
-    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, origin: ORIGIN })
-    const b = buildWidgetPrimaryAction({ slug: "tenant-b", active: true, scriptSnippet: snippet, origin: ORIGIN })
+    const a = buildWidgetPrimaryAction({ slug: "tenant-a", active: true, scriptSnippet: snippet, rootDomain: ROOT })
+    const b = buildWidgetPrimaryAction({ slug: "tenant-b", active: true, scriptSnippet: snippet, rootDomain: ROOT })
     expect(a.bookingUrl).not.toContain("tenant-b")
     expect(b.bookingUrl).not.toContain("tenant-a")
-    const evil = buildWidgetPrimaryAction({ slug: "x/../y?tenant=z", active: true, scriptSnippet: "", origin: ORIGIN })
-    expect(evil.bookingUrl).toBe("https://www.detailflow.fr/p/x%2F..%2Fy%3Ftenant%3Dz/reservation")
+    const evil = buildWidgetPrimaryAction({ slug: "x/../y?tenant=z", active: true, scriptSnippet: "", rootDomain: ROOT })
+    expect(evil.bookingUrl).toBe("https://www.detailflow.fr/reservation?tenant=x%2F..%2Fy%3Ftenant%3Dz")
     const layout = read("app/admin/(dashboard)/layout.tsx")
     expect(layout).toMatch(/slug: ctx\.tenant\.slug/)
     expect(layout).toMatch(/resolveSiteLinkUrl\(bookingDistributionMode/)

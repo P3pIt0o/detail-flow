@@ -34,8 +34,8 @@ describe("Super Admin — présentation publique contextuelle", () => {
     expect(p.kind).toBe("reservation")
     expect(p.siteLabel).toBe("Réservation / Widget")
     expect(p.linkLabel).toBe("Lien de réservation")
-    expect(p.publicUrl).toBe(publicReservationUrl("s-wash", ROOT))
-    expect(p.publicUrl).toBe("https://www.detailflow.fr/p/s-wash/reservation")
+    expect(p.publicUrl).toBe("https://www.detailflow.fr/reservation?tenant=s-wash")
+    expect(p.publicUrl).not.toContain("/p/s-wash")
     // La régression exacte du bug : plus jamais l'URL de vitrine `/?tenant=`.
     expect(p.publicUrl).not.toContain("/?tenant=")
     expect(p.siteLabel).not.toBe("Site standard")

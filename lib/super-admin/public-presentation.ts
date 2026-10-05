@@ -6,7 +6,7 @@
  * Le Super Admin doit refléter le PRODUIT réellement choisi :
  *  - booking_only  → « Réservation en ligne » : le tenant n'a PAS de vitrine
  *                    DetailFlow ; le lien partageable est le moteur de
- *                    réservation canonique `/p/<slug>/reservation` (jamais dupliqué).
+ *                    réservation `/reservation?tenant=<slug>` (tenantReservationUrl).
  *  - public_page   → « Site vitrine » : la vitrine DetailFlow, servie via
  *                    `/?tenant=<slug>` (comportement historique de la vitrine).
  *  - custom_website / customSiteKey → affichage « site personnalisé » historique.
@@ -17,7 +17,7 @@
  * n'est affecté par la logique d'intention.
  */
 
-import { tenantPublicUrl, publicReservationUrl } from "@/lib/tenant-shared"
+import { tenantPublicUrl, tenantReservationUrl } from "@/lib/tenant-shared"
 import { customSiteLabel } from "@/lib/custom-sites/meta"
 
 /** Nature du produit public d'un tenant, telle qu'affichée au super-admin. */
@@ -62,7 +62,7 @@ export function resolveTenantPublicPresentation(params: {
       kind: "reservation",
       siteLabel: "Réservation / Widget",
       linkLabel: "Lien de réservation",
-      publicUrl: publicReservationUrl(slug, rootDomain),
+      publicUrl: tenantReservationUrl(slug, rootDomain),
     }
   }
 

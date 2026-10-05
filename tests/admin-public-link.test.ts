@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveSiteLinkUrl } from "@/lib/admin/primary-action"
-import { publicReservationUrl } from "@/lib/tenant-shared"
 
 const ROOT = "detailflow.fr"
 const base = { intent: null, customSiteKey: null, status: "ACTIVE", rootDomain: ROOT } as const
@@ -40,9 +39,10 @@ describe("resolvePublicLink — lien public du dashboard Admin", () => {
     expect(resolvePublicLink({ ...base, slug: "mon-garage", status: "ARCHIVED" })).toBeNull()
   })
 
-  it("booking_only inchangé", () => {
+  it("booking_only sans domaine custom → /reservation?tenant=<slug>", () => {
     const link = resolvePublicLink({ ...base, slug: "mon-garage", intent: "booking_only" })
-    expect(link).toEqual({ url: publicReservationUrl("mon-garage", ROOT), kind: "reservation" })
+    expect(link).toEqual({ url: "https://www.detailflow.fr/reservation?tenant=mon-garage", kind: "reservation" })
+    expect(link?.url).not.toContain("/p/")
   })
 
   it("le dashboard reçoit ce publicUrl pour « Copier mon lien » et « Voir mon site »", () => {

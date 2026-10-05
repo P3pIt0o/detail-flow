@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { ExternalLink, Info } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { withTenant } from "@/lib/tenant-link"
-import { publicReservationUrl } from "@/lib/tenant-shared"
+import { humanReservationUrl } from "@/lib/admin/public-link"
 import { buildEmbedScriptSnippet, buildEmbedIframeSnippet } from "@/lib/embed/snippet"
 import { getBookingSetupStatus } from "@/lib/booking/setup-status"
 import { ReadinessBanner, SetupChecklist, StepHeading } from "@/components/admin/booking-hub/setup-overview"
@@ -45,7 +45,7 @@ export default async function MaReservationPage({
 
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
   const reachable = tenant.status !== "SUSPENDED" && tenant.status !== "ARCHIVED"
-  const reservationUrl = publicReservationUrl(tenant.slug, rootDomain)
+  const reservationUrl = humanReservationUrl(tenant.slug, rootDomain)
   const status = await getBookingSetupStatus(tenant.id)
 
   return (
