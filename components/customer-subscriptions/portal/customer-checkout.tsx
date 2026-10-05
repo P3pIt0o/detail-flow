@@ -6,6 +6,7 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { startCustomerCheckoutAction } from "@/app/abonnements/gerer/actions"
+import { startPaymentLinkCheckoutAction } from "@/app/abonnement-entretien/[token]/actions"
 import { formatMoney } from "@/lib/customer-subscriptions/contract-summary"
 
 /** Consentement : seul le booléen est envoyé ; date et version sont construites serveur. */
@@ -14,11 +15,14 @@ export function CustomerCheckout({
   dueTodayCents,
   followingPaymentCents,
   currency,
+  paymentToken,
 }: {
   step: "initial_cleaning" | "subscription"
   dueTodayCents: number
   followingPaymentCents: number | null
   currency: string
+  /** Lien de paiement email : le token autorise le Checkout (sinon session du portail). */
+  paymentToken?: string
 }) {
   const [accepted, setAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +34,7 @@ export function CustomerCheckout({
       setError(null)
       const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
       if (!pk) return setError("Le paiement en ligne n'est pas disponible pour le moment.")
-      const r = await startCustomerCheckoutAction(accepted)
+      const r = paymentToken ? await startPaymentLinkCheckoutAction(paymentToken, accepted) : await startCustomerCheckoutAction(accepted)
       if (!r.ok) return setError(r.message)
       setSession({ stripe: loadStripe(pk, { stripeAccount: r.connectedAccountId }), clientSecret: r.clientSecret })
     })

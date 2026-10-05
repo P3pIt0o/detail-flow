@@ -7,13 +7,14 @@ import {
   createPlanForCurrentTenant,
   decideEarlyCancellationForCurrentTenant,
   rejectRequestForCurrentTenant,
+  resendPaymentLinkForCurrentTenant,
   setPublicModeForCurrentTenant,
   updatePlanForCurrentTenant,
 } from "@/lib/customer-subscriptions/service"
 import { toPlanConfigInput, type PlanFormState } from "@/lib/customer-subscriptions/plan-form"
 import { errorMessage } from "@/lib/customer-subscriptions/admin-labels"
 
-export type ActionResult = { ok: true; id?: number } | { ok: false; message: string; planChanged?: boolean }
+export type ActionResult = { ok: true; id?: number; warning?: string } | { ok: false; message: string; planChanged?: boolean }
 
 const BASE = "/admin/abonnements-clients"
 
@@ -58,7 +59,23 @@ export async function acceptRequestAction(
   const r = await acceptRequestForCurrentTenant(requestId, input)
   if (!r.ok) return fail(r)
   revalidatePath(BASE)
-  return { ok: true, id: r.value.subscriptionId }
+  const mail = r.value.paymentLinkEmail
+  const warning =
+    mail === "failed"
+      ? "Abonnement créé, mais l’email de paiement n’a pas pu être envoyé. Utilisez « Renvoyer le lien de paiement » sur la fiche."
+      : mail === "disabled"
+        ? "Abonnement créé. L’envoi d’emails clients est désactivé dans cet environnement : utilisez « Renvoyer le lien de paiement » une fois activé."
+        : undefined
+  return { ok: true, id: r.value.subscriptionId, warning }
+}
+
+export async function resendPaymentLinkAction(subscriptionId: number): Promise<ActionResult> {
+  if (!validId(subscriptionId)) return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
+  const r = await resendPaymentLinkForCurrentTenant(subscriptionId)
+  if (!r.ok) return fail(r)
+  revalidatePath(`${BASE}/abonnes/${subscriptionId}`)
+  if (r.value.paymentLinkEmail !== "sent") return { ok: false, message: "Le lien n’a pas pu être envoyé. Réessayez." }
+  return { ok: true, id: subscriptionId }
 }
 
 export type EarlyCancellationActionResult =

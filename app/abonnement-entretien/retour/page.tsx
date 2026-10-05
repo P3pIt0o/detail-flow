@@ -19,7 +19,7 @@ export default async function SubscriptionReturnPage({ searchParams }: { searchP
           {state === "active"
             ? "Vous recevrez un email récapitulatif. Vous pouvez gérer votre abonnement depuis le lien « Gérer mon abonnement »."
             : state === "processing"
-              ? "Nous finalisons votre activation. Vous recevrez un email de confirmation dès qu'elle sera terminée."
+              ? "Votre abonnement est en cours d’activation. Vous recevrez un email de confirmation dès qu'elle sera terminée."
               : "Rouvrez le lien reçu par email ou contactez le professionnel si le problème persiste."}
         </p>
       </CustomerShell>

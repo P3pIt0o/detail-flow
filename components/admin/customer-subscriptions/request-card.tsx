@@ -34,6 +34,7 @@ export function RequestCard({ request }: { request: RequestCardData }) {
   const [confirmChange, setConfirmChange] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<"accepted" | "rejected" | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const hasChanges = request.changes.length > 0
 
@@ -46,6 +47,7 @@ export function RequestCard({ request }: { request: RequestCardData }) {
           ? await acceptRequestAction(request.id, { ...input, confirmPlanChange: hasChanges ? confirmChange : undefined })
           : await rejectRequestAction(request.id, input)
       if (!r.ok) return setError(r.message)
+      setWarning(r.warning ?? null)
       setDone(mode === "accept" ? "accepted" : "rejected")
     })
   }
@@ -53,7 +55,11 @@ export function RequestCard({ request }: { request: RequestCardData }) {
   if (done) {
     return (
       <article className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground" aria-live="polite">
-        Demande de {request.customerName} {done === "accepted" ? "acceptée. Votre client reçoit un email pour finaliser son paiement." : "refusée. Votre client en est informé par email."}
+        {warning ?? (
+          <>
+            Demande de {request.customerName} {done === "accepted" ? "acceptée. Votre client reçoit un email pour finaliser son paiement." : "refusée. Votre client en est informé par email."}
+          </>
+        )}
       </article>
     )
   }

@@ -10,6 +10,7 @@ import { subscriptionStatusUi } from "@/lib/customer-subscriptions/admin-labels"
 import { EmptyState, InfoRow, SectionCard, ToneBadge } from "@/components/admin/customer-subscriptions/ui"
 import { EmailsList, PaymentsList } from "@/components/admin/customer-subscriptions/activity-lists"
 import { EarlyCancellationCard } from "@/components/admin/customer-subscriptions/early-cancellation-card"
+import { ResendPaymentLinkButton } from "@/components/admin/customer-subscriptions/resend-payment-link-button"
 
 export const metadata: Metadata = { title: "Abonnement" }
 export const dynamic = "force-dynamic"
@@ -44,6 +45,7 @@ export default async function SubscriptionPage({ params }: { params: Promise<{ i
         <p className="text-sm text-muted-foreground">
           {summary.planName} · {formatEuros(summary.price.amountCents)} {perIntervalShort(summary.interval.unit, summary.interval.count)}
         </p>
+        {s.status === "pending_payment" ? <ResendPaymentLinkButton subscriptionId={s.id} /> : null}
       </div>
 
       {pendingCancellations.map((c) => (

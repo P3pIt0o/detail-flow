@@ -229,7 +229,8 @@ export function defaultPaymentMode(plan: Pick<ValidatedPlanConfig, "allowRecurri
   throw new CustomerSubscriptionError("INVALID_PAYMENT_MODE")
 }
 
-export type AcceptRequestResult = { requestId: number; subscriptionId: number; replayed: boolean; planChangedSinceRequest: boolean }
+/** manageToken : brut rendu UNE fois (email de paiement) ; null lors d'un rejeu. Jamais stocké. */
+export type AcceptRequestResult = { requestId: number; subscriptionId: number; replayed: boolean; planChangedSinceRequest: boolean; manageToken?: string | null }
 
 /**
  * Acceptation ATOMIQUE demande → maintenance_subscription.
@@ -321,7 +322,7 @@ export async function acceptSubscriptionRequest(
       meta: { requestId, planChangedSinceRequest },
     })
     await emailEvents.requestAccepted(tx, { companyId, requestId, subscriptionId: created.subscriptionId, planChangedSinceRequest }, now)
-    return { requestId, subscriptionId: created.subscriptionId, replayed: false, planChangedSinceRequest }
+    return { requestId, subscriptionId: created.subscriptionId, replayed: false, planChangedSinceRequest, manageToken: created.manageToken }
   })
 }
 
