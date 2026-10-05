@@ -7,6 +7,7 @@ import { resolvePublicRequestTenant } from "@/lib/tenant"
 import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
 import { PublicPlans } from "@/components/subscriptions/public-plans"
 import { EmbedFrameSync } from "@/components/booking/embed-frame-sync"
+import { publicSiteHref } from "@/lib/public-site-links"
 
 export const metadata: Metadata = {
   title: "Formules d'entretien",
@@ -28,9 +29,15 @@ export default async function FormulesPage({
   const { embed, view } = await searchParams
   const isEmbed = embed === "1"
   const tenant = await resolvePublicRequestTenant()
-  if (!tenant && (await headers()).get("x-tenant-slug")?.trim()) notFound()
+  const h = await headers()
+  if (!tenant && h.get("x-tenant-slug")?.trim()) notFound()
   const offer = await loadPublicOffer(db, tenant?.id)
-  const bookingHref = isEmbed ? "/reservation?embed=1&view=both" : "/reservation"
+  const bookingHref = publicSiteHref("reservation", {
+    tenantKind: h.get("x-tenant-kind"),
+    tenantSlug: tenant?.slug,
+    embed: isEmbed,
+    view,
+  })
 
   return (
     <>
@@ -44,7 +51,7 @@ export default async function FormulesPage({
         </>
       )}
       {view === "both" && (
-        <nav aria-label="Choix du service" className="flex gap-2 px-4 pt-6">
+        <nav aria-label="Choix du service" className={`flex flex-wrap gap-2 px-4 ${isEmbed ? "pt-6" : "pt-24"}`}>
           <Link href={bookingHref} className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground">
             Réserver une prestation
           </Link>

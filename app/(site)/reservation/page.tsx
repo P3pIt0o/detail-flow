@@ -15,6 +15,7 @@ import {
 } from "@/lib/booking/queries"
 import { BookingV2 } from "@/components/booking-v2/booking-v2"
 import { headers } from "next/headers"
+import { publicSiteHref } from "@/lib/public-site-links"
 import { resolvePublicRequestTenant, resolveRequestTenant } from "@/lib/tenant"
 import { isOnlineBookingOpen } from "@/lib/booking/online-booking-access"
 import { BookingUnavailable } from "@/components/booking/booking-unavailable"
@@ -115,11 +116,17 @@ export default async function ReservationPage({
           </>
         )}
         {view === "both" && (
-          <nav aria-label="Choix du service" className="flex gap-2 px-4 pt-6">
+          <nav aria-label="Choix du service" className={`flex flex-wrap gap-2 px-4 ${isEmbed ? "pt-6" : "pt-24"}`}>
             <span aria-current="page" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
               Réserver une prestation
             </span>
-            <a href={isEmbed ? "/formules?embed=1&view=both" : "/formules"} className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground">
+            <a
+              href={publicSiteHref("formules", {
+                tenantKind: (await headers()).get("x-tenant-kind"),
+                tenantSlug: requestTenant?.slug,
+                embed: isEmbed,
+                view,
+              })} className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground">
               Formules d&apos;entretien
             </a>
           </nav>
