@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite"
 import { and, eq } from "drizzle-orm"
 
 vi.mock("server-only", () => ({}))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }))
 
 import * as schema from "@/lib/db/schema"
 import * as engine from "@/lib/customer-subscriptions/engine"
@@ -610,10 +611,18 @@ describe("corrections finales lot 3", () => {
     }
     const a = await seedSub(A)
     await pg.query(`UPDATE maintenance_subscriptions SET "externalCheckoutSessionId"='cs_unpaid' WHERE id=$1`, [a.subscriptionId])
-    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("unknown")
+    // Webhook pas encore reçu (aucun maintenance_payment) : attente, pas d'erreur.
+    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("processing")
+    const waiting = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))
+    expect(waiting).toContain("Paiement en cours de confirmation…")
+    expect(waiting).toContain("Cette page se met à jour automatiquement.")
+    expect(waiting).not.toContain("pas pu vérifier ce paiement")
+    await pg.query(`UPDATE maintenance_subscriptions SET status='pending_initial_cleaning' WHERE id=$1`, [a.subscriptionId])
+    expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("processing")
+    await pg.query(`UPDATE maintenance_subscriptions SET status='pending_payment' WHERE id=$1`, [a.subscriptionId])
     await db.insert(schema.maintenancePayments).values({ companyId: A.companyId, subscriptionId: a.subscriptionId, type: "recurring", status: "paid", grossAmountCents: 3900, platformFeeBps: 0, platformFeeAmountCents: 0 })
     expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("processing")
-    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))).toContain("Paiement reçu. Activation en cours…")
+    expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))).toContain("Paiement en cours de confirmation…")
     await pg.query(`UPDATE maintenance_subscriptions SET status='active' WHERE id=$1`, [a.subscriptionId])
     expect(await readCheckoutReturnState(db, A.companyId, "cs_unpaid")).toBe("active")
     expect(renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ session_id: "cs_unpaid" }) }))).toContain("Votre abonnement est actif.")

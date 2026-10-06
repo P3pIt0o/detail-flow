@@ -349,6 +349,9 @@ export async function readCheckoutReturnState(
     .limit(1)
   if (!row) return "unknown"
   if (row.status === "active") return "active"
+  // Stripe redirige avant le webhook invoice.paid : la session rattachée au
+  // contrat du tenant suffit à afficher l'attente, sans jamais activer ici.
+  if (row.status === "pending_payment" || row.status === "pending_initial_cleaning") return "processing"
   const [paid] = await db.select({ id: maintenancePayments.id }).from(maintenancePayments)
     .where(and(eq(maintenancePayments.companyId, companyId), eq(maintenancePayments.subscriptionId, row.id), eq(maintenancePayments.status, "paid"))).limit(1)
   return paid ? "processing" : "unknown"
