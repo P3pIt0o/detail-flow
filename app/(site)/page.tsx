@@ -35,6 +35,7 @@ import { PracticalInfo } from "@/components/public-page/practical-info"
 import { PublicPlans } from "@/components/subscriptions/public-plans"
 import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
 import { db } from "@/lib/db"
+import { withPlansSlot, PLANS_SLOT } from "@/lib/home-plans-placement"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
@@ -81,6 +82,9 @@ export default async function HomePage() {
   // uniquement pour justcleandetailing. Aucun autre tenant n'est affecté.
   const heroOverlay = getTenantHeroOverlay(tenant?.slug)
 
+  // Offre publique du tenant courant uniquement (maintenance_plans).
+  const publicOffer = await loadPublicOffer(db, tenant?.id)
+
   // Chaque section conserve sa logique interne d'activation/masquage ; seul
   // l'ORDRE change ici. La section Contact reste masquée si elle est désactivée.
   const sections: Record<HomeSectionKey, React.ReactNode> = {
@@ -107,8 +111,9 @@ export default async function HomePage() {
   return (
     <>
       <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} overlay={heroOverlay} />
-      {order.map((key) => sections[key])}
-      <PublicPlans offer={await loadPublicOffer(db, tenant?.id)} />
+      {withPlansSlot(order).map((slot) =>
+        slot === PLANS_SLOT ? <PublicPlans key={PLANS_SLOT} offer={publicOffer} /> : sections[slot],
+      )}
 
       {/* Informations pratiques (LOT 2) : rendu uniquement si le configurateur
           renseigne au moins un champ. Additif → aucun tenant sans config n'est
