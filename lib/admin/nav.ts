@@ -162,6 +162,20 @@ function withDisplayLabel(item: AdminNavItem): AdminNavItem {
   return label ? { ...item, label } : item
 }
 
+/**
+ * Libellés LONGS réservés à la navigation groupée (sidebar desktop + menu
+ * « Plus »). La barre mobile principale garde le libellé court pour sa mise en
+ * page.
+ */
+const ADMIN_NAV_GROUPED_LABEL: Readonly<Record<string, string>> = {
+  "/admin/demandes": "Demandes spéciales",
+}
+
+function withGroupedLabel(item: AdminNavItem): AdminNavItem {
+  const label = ADMIN_NAV_GROUPED_LABEL[item.href]
+  return label ? { ...item, label } : item
+}
+
 /** Routes de l'entrée « web » (mutuellement exclusives selon le parcours). */
 const WEB_HREFS = new Set<string>(["/admin/ma-reservation", "/admin/page-publique"])
 
@@ -175,7 +189,7 @@ export function buildAdminNavGroups(opts: {
   customSiteKey: string | null
   bookingDistributionMode?: string | null
 }): AdminNavGroup[] {
-  const flat = buildAdminNav(opts).map(withDisplayLabel)
+  const flat = buildAdminNav(opts).map(withDisplayLabel).map(withGroupedLabel)
   const buckets = new Map<string, AdminNavItem[]>()
   for (const item of flat) {
     const groupId = WEB_HREFS.has(item.href) ? "enligne" : (ADMIN_NAV_GROUP_OF[item.href] ?? "gestion")

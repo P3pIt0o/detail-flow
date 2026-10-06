@@ -6,7 +6,7 @@ import { CustomRequestStatusBadge } from "@/components/admin/custom-request-stat
 import { formatDateShort } from "@/lib/format"
 import { withTenant } from "@/lib/tenant-link"
 
-export const metadata: Metadata = { title: "Demandes personnalisées" }
+export const metadata: Metadata = { title: "Demandes spéciales" }
 export const dynamic = "force-dynamic"
 
 export default async function DemandesPage({
@@ -23,17 +23,18 @@ export default async function DemandesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Demandes personnalisées</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Demandes spéciales</h1>
         <p className="text-sm text-muted-foreground">
-          Demandes sur mesure reçues depuis votre site. Envoyez une proposition, puis convertissez-la en
-          rendez-vous une fois acceptée.
+          Demandes sur mesure, flottes professionnelles et besoins particuliers reçus depuis votre site. Envoyez
+          une proposition, puis convertissez-la en rendez-vous une fois acceptée. Les formules d&apos;entretien
+          récurrentes se gèrent dans « Abonnements clients ».
         </p>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            Aucune demande pour le moment. Activez la fonctionnalité dans Paramètres → Demandes pour afficher le
+            Aucune demande pour le moment. Activez la fonctionnalité dans Paramètres → Demandes spéciales pour afficher le
             formulaire sur votre site.
           </p>
         </div>

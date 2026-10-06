@@ -63,7 +63,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { value: "appearance", label: "Apparence" },
       { value: "gallery", label: "Galerie" },
       { value: "reviews", label: "Avis" },
-      { value: "custom-requests", label: "Demandes" },
+      { value: "custom-requests", label: "Demandes spéciales" },
     ],
   },
   {
