@@ -225,6 +225,11 @@ export function StepVehicles({
                               {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
                             </span>
                             {cat && <span className="mt-0.5 text-xs text-muted-foreground">{cat.name}</span>}
+                            {s.description?.trim() && (
+                              <span className="mt-1 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
+                                {s.description}
+                              </span>
+                            )}
                             <span className="mt-1 text-xs text-muted-foreground">
                               À partir de {formatPrice(s.basePriceCents)} · {formatDuration(s.durationMin)}
                             </span>

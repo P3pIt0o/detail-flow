@@ -61,7 +61,7 @@ export function StepService({ services, vehicleTypes, priceMap, selectedId, onSe
                 </span>
               </span>
               {s.description?.trim() && (
-                <span className="mt-1.5 text-pretty text-[13px] leading-relaxed text-muted-foreground">
+                <span className="mt-1.5 whitespace-pre-line text-pretty text-[13px] leading-relaxed text-muted-foreground">
                   {s.description}
                 </span>
               )}

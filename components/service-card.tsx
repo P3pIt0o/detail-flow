@@ -76,7 +76,7 @@ export function ServiceCard({ service }: { service: PublicService }) {
         </h3>
 
         {service.description && (
-          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {service.description}
           </p>
         )}
