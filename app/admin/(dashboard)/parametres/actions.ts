@@ -5,6 +5,7 @@ import { and, eq, gte, lte, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { settings, businessHours, timeOff, bookings, companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { isAllowedTenantLogoPathname } from "@/lib/admin/logo-policy"
 import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
@@ -50,6 +51,24 @@ export async function saveInvoicingSettings(input: {
   invoiceLogoPathname: string | null
 }): Promise<ActionResult> {
   const { tenant } = await requireCompanyMember()
+
+  // Le pathname vient du navigateur : il doit appartenir à CE tenant (logo déjà
+  // enregistré ou namespace invoice-logo/{companyId}/), sinon aucun changement.
+  const requestedLogo =
+    typeof input.invoiceLogoPathname === "string" && input.invoiceLogoPathname.length > 0
+      ? input.invoiceLogoPathname
+      : null
+  if (requestedLogo !== null) {
+    const [current] = await db
+      .select({ invoiceLogoPathname: settings.invoiceLogoPathname })
+      .from(settings)
+      .where(eq(settings.companyId, tenant.id))
+      .limit(1)
+    if (!isAllowedTenantLogoPathname(requestedLogo, tenant.id, current?.invoiceLogoPathname ?? null)) {
+      return { ok: false, error: "Logo invalide. Téléversez à nouveau votre logo." }
+    }
+  }
+
   await ensureSettingsRow(tenant.id)
 
   const rate = Number.parseFloat(input.vatRate.replace(",", "."))
@@ -74,7 +93,7 @@ export async function saveInvoicingSettings(input: {
       invoiceLegalMentions: input.invoiceLegalMentions.trim() || null,
       invoiceEmailSubject: input.invoiceEmailSubject.trim() || null,
       invoiceEmailBody: input.invoiceEmailBody.trim() || null,
-      invoiceLogoPathname: input.invoiceLogoPathname || null,
+      invoiceLogoPathname: requestedLogo,
       updatedAt: new Date(),
     })
     .where(eq(settings.companyId, tenant.id))

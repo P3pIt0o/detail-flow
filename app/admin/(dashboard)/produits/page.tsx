@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { requireAdmin } from "@/lib/admin"
 import { getProductPurchases } from "@/lib/admin/queries"
 import { ProductPurchasesTable } from "@/components/admin/product-purchases-table"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { canUseFeature } from "@/lib/licensing/enforce"
 
 export const metadata: Metadata = { title: "Produits" }
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic"
 export default async function ProduitsPage() {
   await requireAdmin()
   // companyId résolu côté serveur (isolation + évaluation des droits).
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   // Feature expense_management. LEGACY (licensePlan = NULL) => autorisé.
   const canExpenses = await canUseFeature(companyId, "expense_management")
 

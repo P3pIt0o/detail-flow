@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getSubscriptionDetail } from "@/lib/customer-subscriptions/admin-queries"
 import { buildSubscriptionContractSummary, formatDateFr } from "@/lib/customer-subscriptions/contract-summary"
 import { commitmentSentence, formatEuros, perIntervalShort, reminderSentence, renewalSentence } from "@/lib/customer-subscriptions/plan-form"
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic"
 
 export default async function SubscriptionPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin()
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const { id } = await params
   const subscriptionId = Number(id)
   if (!Number.isInteger(subscriptionId) || subscriptionId <= 0) notFound()

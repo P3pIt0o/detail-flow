@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { requireAdmin } from "@/lib/admin"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { getAdminOverview, planRowToConfig } from "@/lib/customer-subscriptions/admin-queries"
@@ -35,7 +35,7 @@ const BASE = "/admin/abonnements-clients"
 
 export default async function AbonnementsClientsPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
   await requireAdmin()
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const [{ vue }, data] = await Promise.all([searchParams, getAdminOverview(companyId)])
   const view: ViewKey = ALL_VIEWS.some((v) => v.key === vue) ? (vue as ViewKey) : "a-traiter"
 

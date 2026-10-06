@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { requireAdmin } from "@/lib/admin"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getAdminOverview, listServiceOptions } from "@/lib/customer-subscriptions/admin-queries"
 import { DEFAULT_PLAN_FORM } from "@/lib/customer-subscriptions/plan-form"
 import { PlanConfigurator } from "@/components/admin/customer-subscriptions/plan-configurator"
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic"
 
 export default async function NewPlanPage() {
   await requireAdmin()
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const [services, overview] = await Promise.all([listServiceOptions(companyId), getAdminOverview(companyId)])
   const { company } = overview
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)

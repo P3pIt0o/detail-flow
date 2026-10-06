@@ -2,7 +2,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases, payments } from "@/lib/db/schema"
 import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
 import {
@@ -39,7 +39,7 @@ function monthRange() {
 
 /** Indicateurs clés du tableau de bord. */
 export async function getDashboardStats(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const today = todayISO()
   const { start, end } = monthRange()
 
@@ -166,7 +166,7 @@ export async function getDashboardStats(companyId?: number) {
  * companyId (isolation multi-tenant), requête paramétrée Drizzle.
  */
 export async function getPendingDepositCount(companyId?: number): Promise<number> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const [row] = await db
     .select({ n: count() })
     .from(bookings)
@@ -179,7 +179,7 @@ export async function getPendingDepositCount(companyId?: number): Promise<number
    * utilisé par l'onboarding pour cocher « parcours de réservation testé ».
    */
   export async function getBookingCount(companyId?: number): Promise<number> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const [row] = await db
   .select({ n: count() })
   .from(bookings)
@@ -189,7 +189,7 @@ export async function getPendingDepositCount(companyId?: number): Promise<number
 
   /** Prochaines réservations (pour l'aperçu du tableau de bord). */
 export async function getUpcomingBookings(limit = 6, companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const today = todayISO()
   return db
     .select()
@@ -228,7 +228,7 @@ export async function getUpcomingBookingsDetailed(
   limit = 5,
   companyId?: number,
 ): Promise<UpcomingBookingDetailed[]> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const today = todayISO()
   const rows = await db
     .select({
@@ -305,7 +305,7 @@ export type DashboardWeekDay = {
 }
 
 export async function getDashboardWeek(companyId?: number): Promise<DashboardWeekDay[]> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const { getAvailability } = await import("@/lib/booking/availability")
 
   // Lundi de la semaine courante (lundi = début).
@@ -380,7 +380,7 @@ export async function getDashboardWeek(companyId?: number): Promise<DashboardWee
  * émission). Cohérent avec getDashboardStats.
  */
 export async function getRevenueByMonth(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   // Même affectation de date que le tableau de bord : avoir => mois d'émission,
   // facture => mois de prestation (sinon émission/création).
   const monthExpr = sql<string>`to_char(${revenuePeriodDateExpr}, 'YYYY-MM')`
@@ -403,7 +403,7 @@ export async function getRevenueByMonth(companyId?: number) {
  * véhicules par réservation.
  */
 export async function getBookingsBetween(startDate: string, endDate: string, companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select({
       id: bookings.id,
@@ -436,7 +436,7 @@ export async function getBookingsBetween(startDate: string, endDate: string, com
 
 /** Toutes les réservations (liste admin), triées par date de création. */
 export async function getAllBookings(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   return db
     .select()
     .from(bookings)
@@ -446,7 +446,7 @@ export async function getAllBookings(companyId?: number) {
 
 /** Détail complet d'une réservation (avec lignes + options), scopé entreprise. */
 export async function getBookingDetail(id: number, companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select()
     .from(bookings)
@@ -478,7 +478,7 @@ export async function getBookingDetail(id: number, companyId?: number) {
  * l'appartenance est revérifiée côté serveur à l'ouverture de la fiche.
  */
 export async function getClients(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select({
       email: bookings.customerEmail,
@@ -529,7 +529,7 @@ const normPhone = normalizePhone
  * Dédoublonnage prioritaire sur l'email, sinon sur le téléphone.
  */
 export async function getMergedClients(companyId?: number): Promise<MergedClient[]> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const [manual, aggregated] = await Promise.all([
     db.select().from(clients).where(eq(clients.companyId, cid)).orderBy(desc(clients.createdAt)),
     getClients(cid),
@@ -626,7 +626,7 @@ export async function getMergedClients(companyId?: number): Promise<MergedClient
 
 /** Achats de produits/consommables de l'entreprise, du plus récent au plus ancien. */
 export async function getProductPurchases(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   return db
     .select()
     .from(productPurchases)
