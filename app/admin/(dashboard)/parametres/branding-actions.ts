@@ -8,7 +8,7 @@ import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 import { SOCIAL_KEYS } from "./social-config"
-import { resolveSectionOrder, type SiteContent } from "@/lib/site-content"
+import { PROCESS_STEP_COUNT, resolveSectionOrder, type SiteContent } from "@/lib/site-content"
 
 export type ActionResult = { ok: boolean; error?: string; logoPathname?: string | null }
 
@@ -205,6 +205,20 @@ export async function saveSiteContent(content: SiteContent): Promise<ActionResul
     footer: {
       text: str(content.footer?.text, 300),
       tagline: str(content.footer?.tagline, 100),
+    },
+    process: {
+      enabled: bool(content.process?.enabled, true),
+      eyebrow: str(content.process?.eyebrow, 60),
+      title: str(content.process?.title, 100),
+      description: str(content.process?.description, 300),
+      // Exactement PROCESS_STEP_COUNT étapes ; une étape vide retombe sur le défaut à la lecture.
+      steps: Array.from({ length: PROCESS_STEP_COUNT }, (_, i) => {
+        const step = Array.isArray(content.process?.steps) ? content.process!.steps![i] : undefined
+        return {
+          title: str(step?.title, 80),
+          description: str(step?.description, 300),
+        }
+      }),
     },
   }
 
