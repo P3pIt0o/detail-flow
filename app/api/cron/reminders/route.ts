@@ -166,7 +166,19 @@ export async function GET(request: Request) {
   // (réutilise ce cron quotidien, pas de nouveau planificateur).
   const orphanCleanup = await cleanupOrphanQuotePhotos()
 
+  // Abonnements clients : isolé — une panne ici n'affecte jamais Booking/SMS.
+  let customerSubscriptionNotifications: unknown = null
+  try {
+    const { processCustomerSubscriptionNotifications } = await import("@/lib/customer-subscriptions/notifications")
+    const { sendEmail } = await import("@/lib/email/send")
+    customerSubscriptionNotifications = await processCustomerSubscriptionNotifications(db, (args) => sendEmail(args as never))
+  } catch (error) {
+    console.error("[customer-subscriptions] notifications failed", { code: (error as { code?: string })?.code ?? "unknown" })
+    customerSubscriptionNotifications = { ok: false }
+  }
+
   return NextResponse.json({
+    customerSubscriptionNotifications,
     ok: true,
     date: target,
     candidates: due.length,

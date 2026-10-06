@@ -10,6 +10,16 @@ import { addBillingInterval, nextBillingBoundaryAfter, type BillingInterval } fr
 import { isPaymentModeAllowed, type PaymentMode, type ValidatedPlanConfig } from "./plan-validation"
 import { CUSTOMER_SUBSCRIPTION_USABLE_STATUSES, isTerminalStatus } from "./statuses"
 
+export function canCustomerRequestEarlyCancellation(sub: {
+  status: string; billingAnchorAt: Date | null; cancelAt: Date | null;
+  commitmentUnitSnapshot: string; currentTermEndsAt: Date | null;
+  paymentMode: string; prepaidUntil: Date | null;
+}, now: Date): boolean {
+  if (!["active", "past_due"].includes(sub.status) || !sub.billingAnchorAt || sub.billingAnchorAt > now || sub.cancelAt) return false
+  return (sub.commitmentUnitSnapshot !== "none" && !!sub.currentTermEndsAt && sub.currentTermEndsAt > now)
+    || (sub.paymentMode === "prepaid" && !!sub.prepaidUntil && sub.prepaidUntil > now)
+}
+
 const INT4_MAX = 2_147_483_647
 
 /* ------------------------------- Capacité -------------------------------- */

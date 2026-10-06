@@ -32,6 +32,9 @@ import { getCurrentTenant } from "@/lib/tenant"
 import { getTenantHeroImage, getTenantHeroOverlay } from "@/lib/tenant-hero"
 import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
 import { PracticalInfo } from "@/components/public-page/practical-info"
+import { PublicPlans } from "@/components/subscriptions/public-plans"
+import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
+import { db } from "@/lib/db"
 
 export default async function HomePage() {
   // Garde du site vitrine (feature website). LEGACY / domaine racine => autorisé.
@@ -105,6 +108,8 @@ export default async function HomePage() {
     <>
       <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} overlay={heroOverlay} />
       {order.map((key) => sections[key])}
+      <PublicPlans offer={await loadPublicOffer(db, tenant?.id)} />
+
       {/* Informations pratiques (LOT 2) : rendu uniquement si le configurateur
           renseigne au moins un champ. Additif → aucun tenant sans config n'est
           affecté. */}

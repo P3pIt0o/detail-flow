@@ -148,6 +148,10 @@ export const companies = pgTable("companies", {
   // Nullable SANS default : NULL = comportement historique du tenant. Migration :
   // scripts/booking-distribution-mode-migration.sql (à appliquer AVANT déploiement).
   bookingDistributionMode: text("bookingDistributionMode"),
+  // Abonnements d'entretien vendus PAR le tenant (≠ Billing SaaS) : source de
+  // vérité UNIQUE du site ET du widget. disabled | request | direct (CHECK DB).
+  // Migration : scripts/customer-subscriptions-ui-v1-migration.sql.
+  customerSubscriptionPublicMode: text("customerSubscriptionPublicMode").notNull().default("disabled"),
   /* -------------------------- Paiements en ligne --------------------------- */
   // Fournisseur de paiement du tenant (générique, extensible : "stripe" | "sumup"…).
   // Null = aucun provider connecté. Seul Stripe est implémenté en V1.
@@ -2225,6 +2229,157 @@ export const maintenanceAuditLog = pgTable(
     actorTypeValid: check(
       "maintenance_audit_log_actor_type_valid",
       sql`${t.actorType} in ('user', 'customer', 'system', 'provider')`,
+    ),
+  }),
+)
+
+/** Demande d'abonnement : N'EST PAS un contrat. planSnapshot construit côté serveur. */
+export const maintenanceSubscriptionRequests = pgTable(
+  "maintenance_subscription_requests",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    planId: integer("planId").notNull(),
+    customerId: integer("customerId"),
+    customerName: text("customerName").notNull(),
+    customerEmail: text("customerEmail").notNull(),
+    customerPhone: text("customerPhone"),
+    vehicleBrand: text("vehicleBrand").notNull(),
+    vehicleModel: text("vehicleModel").notNull(),
+    vehiclePlate: text("vehiclePlate"),
+    vehicleTypeName: text("vehicleTypeName"),
+    message: text("message"),
+    // pending | accepted | rejected | expired
+    status: text("status").notNull().default("pending"),
+    submissionId: text("submissionId").notNull(),
+    planSnapshot: jsonb("planSnapshot").notNull(),
+    planSnapshotVersion: text("planSnapshotVersion").notNull(),
+    convertedSubscriptionId: integer("convertedSubscriptionId"),
+    // Note interne : JAMAIS envoyée au client (≠ customerDecisionMessage).
+    internalDecisionNote: text("internalDecisionNote"),
+    customerDecisionMessage: text("customerDecisionMessage"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    acceptedAt: timestamp("acceptedAt"),
+    rejectedAt: timestamp("rejectedAt"),
+    expiresAt: timestamp("expiresAt"),
+  },
+  (t) => ({
+    planFk: foreignKey({
+      name: "maintenance_subscription_requests_plan_fk",
+      columns: [t.companyId, t.planId],
+      foreignColumns: [maintenancePlans.companyId, maintenancePlans.id],
+    }).onDelete("restrict"),
+    subscriptionFk: foreignKey({
+      name: "maintenance_subscription_requests_subscription_fk",
+      columns: [t.companyId, t.convertedSubscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    uniqSubmission: uniqueIndex("maintenance_subscription_requests_submission_key").on(t.companyId, t.submissionId),
+    tenantKey: uniqueIndex("maintenance_subscription_requests_company_id_key").on(t.companyId, t.id),
+    byCompanyStatus: index("maintenance_subscription_requests_company_status_idx").on(t.companyId, t.status),
+    byCompanyCreated: index("maintenance_subscription_requests_company_created_idx").on(t.companyId, t.createdAt),
+    byPlan: index("maintenance_subscription_requests_plan_idx").on(t.planId),
+    statusValid: check(
+      "maintenance_subscription_requests_status_valid",
+      sql`${t.status} in ('pending', 'accepted', 'rejected', 'expired')`,
+    ),
+  }),
+)
+
+/** Demande de fin anticipée : ne mute NI Stripe NI le contrat ; notifie le professionnel. */
+export const maintenanceCancellationRequests = pgTable(
+  "maintenance_cancellation_requests",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId").notNull(),
+    // pending | approved | rejected | withdrawn
+    status: text("status").notNull().default("pending"),
+    customerMessage: text("customerMessage"),
+    internalDecisionNote: text("internalDecisionNote"),
+    customerDecisionMessage: text("customerDecisionMessage"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    decidedAt: timestamp("decidedAt"),
+  },
+  (t) => ({
+    subscriptionFk: foreignKey({
+      name: "maintenance_cancellation_requests_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    tenantKey: uniqueIndex("maintenance_cancellation_requests_company_id_key").on(t.companyId, t.id),
+    byCompanyStatus: index("maintenance_cancellation_requests_company_status_idx").on(t.companyId, t.status),
+    statusValid: check(
+      "maintenance_cancellation_requests_status_valid",
+      sql`${t.status} in ('pending', 'approved', 'rejected', 'withdrawn')`,
+    ),
+  }),
+)
+
+/**
+ * Outbox emails abonnements. dedupeKey UNIQUE = un email logique envoyé au plus une fois.
+ * Aucune adresse stockée : le destinataire est résolu depuis la ressource au moment de l'envoi.
+ */
+export const maintenanceSubscriptionEmailOutbox = pgTable(
+  "maintenance_subscription_email_outbox",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    subscriptionId: integer("subscriptionId"),
+    requestId: integer("requestId"),
+    cancellationRequestId: integer("cancellationRequestId"),
+    type: text("type").notNull(),
+    // client | professional
+    recipientRole: text("recipientRole").notNull(),
+    dedupeKey: text("dedupeKey").notNull(),
+    // pending | sending | sent | failed | skipped
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    payload: jsonb("payload").notNull().default({}),
+    sendAt: timestamp("sendAt").notNull().defaultNow(),
+    claimedAt: timestamp("claimedAt"),
+    sentAt: timestamp("sentAt"),
+    providerMessageId: text("providerMessageId"),
+    lastErrorCode: text("lastErrorCode"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    subscriptionFk: foreignKey({
+      name: "maintenance_subscription_email_outbox_subscription_fk",
+      columns: [t.companyId, t.subscriptionId],
+      foreignColumns: [maintenanceSubscriptions.companyId, maintenanceSubscriptions.id],
+    }).onDelete("restrict"),
+    requestFk: foreignKey({
+      name: "maintenance_subscription_email_outbox_request_fk",
+      columns: [t.companyId, t.requestId],
+      foreignColumns: [maintenanceSubscriptionRequests.companyId, maintenanceSubscriptionRequests.id],
+    }).onDelete("restrict"),
+    cancellationFk: foreignKey({
+      name: "maintenance_subscription_email_outbox_cancellation_fk",
+      columns: [t.companyId, t.cancellationRequestId],
+      foreignColumns: [maintenanceCancellationRequests.companyId, maintenanceCancellationRequests.id],
+    }).onDelete("restrict"),
+    uniqDedupe: uniqueIndex("maintenance_subscription_email_outbox_dedupe_key").on(t.dedupeKey),
+    byCompanySubscription: index("maintenance_subscription_email_outbox_company_subscription_idx").on(
+      t.companyId,
+      t.subscriptionId,
+    ),
+    statusValid: check(
+      "maintenance_subscription_email_outbox_status_valid",
+      sql`${t.status} in ('pending', 'sending', 'sent', 'failed', 'skipped')`,
+    ),
+    roleValid: check(
+      "maintenance_subscription_email_outbox_role_valid",
+      sql`${t.recipientRole} in ('client', 'professional')`,
     ),
   }),
 )
