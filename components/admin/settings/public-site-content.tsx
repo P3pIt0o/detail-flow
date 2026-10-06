@@ -229,6 +229,99 @@ export function PublicSiteContent({ content, simplified = false }: Props) {
 
         )}
 
+        {/* Comment ça marche — masqué en mode simplifié (non rendu par les sites personnalisés). */}
+        {!simplified && (
+        <AccordionItem value="process" className="rounded-2xl border border-border bg-card px-4">
+          <AccordionTrigger className="text-base font-semibold text-foreground">Comment ça marche</AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-4 pt-2">
+            <p className="text-xs text-muted-foreground text-pretty">
+              Adaptez ces étapes à votre fonctionnement : atelier, déplacement à domicile, point de rendez-vous,
+              récupération du véhicule, etc.
+            </p>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+              <span className="text-sm text-foreground">Afficher cette section sur le site public</span>
+              <Switch
+                checked={values.process?.enabled ?? true}
+                onCheckedChange={(checked) => set("process", { enabled: checked })}
+              />
+            </div>
+            <div>
+              <label htmlFor="process-eyebrow" className={labelClass}>Sur-titre</label>
+              <input
+                id="process-eyebrow"
+                type="text"
+                maxLength={60}
+                value={values.process?.eyebrow ?? ""}
+                onChange={(e) => set("process", { eyebrow: e.target.value })}
+                placeholder={content.process.eyebrow}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="process-title" className={labelClass}>Titre</label>
+              <input
+                id="process-title"
+                type="text"
+                maxLength={100}
+                value={values.process?.title ?? ""}
+                onChange={(e) => set("process", { title: e.target.value })}
+                placeholder={content.process.title}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="process-description" className={labelClass}>Texte d&apos;introduction</label>
+              <textarea
+                id="process-description"
+                maxLength={300}
+                value={values.process?.description ?? ""}
+                onChange={(e) => set("process", { description: e.target.value })}
+                rows={2}
+                placeholder={content.process.description}
+                className={inputClass}
+              />
+            </div>
+            {content.process.steps.map((defaultStep, i) => {
+              const step = values.process?.steps?.[i]
+              const updateStep = (patch: { title?: string; description?: string }) => {
+                const current = [...(values.process?.steps ?? content.process.steps)]
+                current[i] = { ...(current[i] ?? {}), ...patch }
+                set("process", { steps: current })
+              }
+              return (
+                <fieldset key={i} className="flex flex-col gap-3 rounded-lg border border-border bg-background p-3">
+                  <legend className="px-1 text-sm font-semibold text-foreground">Étape {i + 1}</legend>
+                  <div>
+                    <label htmlFor={`process-step-${i}-title`} className={labelClass}>Titre</label>
+                    <input
+                      id={`process-step-${i}-title`}
+                      type="text"
+                      maxLength={80}
+                      value={step?.title ?? ""}
+                      onChange={(e) => updateStep({ title: e.target.value })}
+                      placeholder={defaultStep.title}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`process-step-${i}-description`} className={labelClass}>Description</label>
+                    <textarea
+                      id={`process-step-${i}-description`}
+                      maxLength={300}
+                      value={step?.description ?? ""}
+                      onChange={(e) => updateStep({ description: e.target.value })}
+                      rows={3}
+                      placeholder={defaultStep.description}
+                      className={inputClass}
+                    />
+                  </div>
+                </fieldset>
+              )
+            })}
+          </AccordionContent>
+        </AccordionItem>
+        )}
+
         {/* Galerie */}
         <AccordionItem value="gallery" className="rounded-2xl border border-border bg-card px-4">
           <AccordionTrigger className="text-base font-semibold text-foreground">

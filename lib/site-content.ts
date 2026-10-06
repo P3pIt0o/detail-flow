@@ -59,6 +59,17 @@ export interface SiteContent {
     text?: string
     tagline?: string
   }
+  /** Section « Comment ça marche » (4 étapes, icônes fixes côté rendu). */
+  process?: {
+    enabled?: boolean
+    eyebrow?: string
+    title?: string
+    description?: string
+    steps?: Array<{
+      title?: string
+      description?: string
+    }>
+  }
   /** Ordre d'affichage des sections de la homepage (clés de HOME_SECTION_KEYS). */
   sectionOrder?: string[]
 }
@@ -164,7 +175,66 @@ export const SITE_CONTENT_DEFAULTS: Required<{
     text: "",
     tagline: "",
   },
+  process: {
+    enabled: true,
+    eyebrow: "Comment ça marche",
+    title: "Simple et sans effort",
+    description: "Un processus clair en quatre étapes pour une expérience sans souci.",
+    steps: [
+      {
+        title: "1. Réservation",
+        description: "Choisissez votre prestation et un créneau qui vous convient, en ligne ou par téléphone.",
+      },
+      {
+        title: "2. Prise en charge",
+        description: "Nous venons à vous ou vous accueillons à l'atelier, à l'heure convenue.",
+      },
+      {
+        title: "3. Detailing",
+        description: "Votre véhicule est traité avec soin selon un protocole professionnel rigoureux.",
+      },
+      {
+        title: "4. Livraison",
+        description: "Vous récupérez un véhicule impeccable, protégé et éclatant de propreté.",
+      },
+    ],
+  },
 } as any
+
+/** Nombre d'étapes fixes de la section « Comment ça marche » (rendu standard). */
+export const PROCESS_STEP_COUNT = 4
+
+export type ResolvedProcessStep = { title: string; description: string }
+export type ResolvedProcessContent = {
+  enabled: boolean
+  eyebrow: string
+  title: string
+  description: string
+  steps: ResolvedProcessStep[]
+}
+
+/**
+ * Résout la section « Comment ça marche » : exactement 4 étapes, chaque champ
+ * absent, non textuel ou vide retombe sur le texte par défaut correspondant
+ * (jamais d'« undefined » ni d'étape vide). Ancienne config sans `process`
+ * → rendu par défaut strictement identique à l'ancien rendu codé en dur.
+ */
+export function resolveProcessContent(raw: unknown): ResolvedProcessContent {
+  const defaults = (SITE_CONTENT_DEFAULTS as any).process as ResolvedProcessContent
+  const src = (raw && typeof raw === "object" ? raw : {}) as NonNullable<SiteContent["process"]>
+  const text = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v.trim() : fallback)
+  const rawSteps = Array.isArray(src.steps) ? src.steps : []
+  return {
+    enabled: typeof src.enabled === "boolean" ? src.enabled : true,
+    eyebrow: text(src.eyebrow, defaults.eyebrow),
+    title: text(src.title, defaults.title),
+    description: text(src.description, defaults.description),
+    steps: defaults.steps.slice(0, PROCESS_STEP_COUNT).map((def, i) => {
+      const s = rawSteps[i] && typeof rawSteps[i] === "object" ? rawSteps[i] : {}
+      return { title: text(s.title, def.title), description: text(s.description, def.description) }
+    }),
+  }
+}
 
 /** Fusionne le contenu personnalisé du tenant avec les valeurs par défaut, section par section. */
 export function resolveSiteContent(raw: unknown): typeof SITE_CONTENT_DEFAULTS {
@@ -187,6 +257,9 @@ export function resolveSiteContent(raw: unknown): typeof SITE_CONTENT_DEFAULTS {
   // n'ont jamais vu le switch — on déduit de l'ancien comportement
   // « vide = masqué » afin que l'admin reflète exactement le rendu public.
   result.services.eyebrowEnabled = resolveEyebrowEnabled(custom.services)
+  // « Comment ça marche » : fusion étape par étape (la fusion superficielle
+  // ci-dessus remplacerait le tableau `steps` en entier).
+  result.process = resolveProcessContent(custom.process)
   return result
 }
 
