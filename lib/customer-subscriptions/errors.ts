@@ -34,6 +34,17 @@ export const CUSTOMER_SUBSCRIPTION_ERROR_CODES = [
   "PROVIDER_ERROR",
   // Donnée Stripe indispensable momentanément indisponible : retriable (webhook → 500).
   "PROVIDER_DATA_UNAVAILABLE",
+  // Demandes d'abonnement (mode « request »).
+  "REQUESTS_DISABLED",
+  "PLAN_NOT_AVAILABLE",
+  "NOT_ACCEPTING_REQUESTS",
+  "INVALID_SUBMISSION",
+  "INVALID_MESSAGE",
+  "RATE_LIMITED",
+  "REQUEST_NOT_FOUND",
+  "REQUEST_NOT_PENDING",
+  "EARLY_CANCELLATION_MANUAL_REVIEW",
+  "PLAN_CHANGED_REQUIRES_CONFIRMATION",
   "INTERNAL_ERROR",
 ] as const
 
@@ -44,6 +55,7 @@ export type FieldIssue = { field: string; code: CustomerSubscriptionErrorCode }
 export class CustomerSubscriptionError extends Error {
   readonly code: CustomerSubscriptionErrorCode
   readonly issues: FieldIssue[]
+  get planChangedSinceRequest(): boolean { return this.code === "PLAN_CHANGED_REQUIRES_CONFIRMATION" }
 
   constructor(code: CustomerSubscriptionErrorCode, issues: FieldIssue[] = []) {
     super(code)
@@ -55,11 +67,12 @@ export class CustomerSubscriptionError extends Error {
 
 export type Result<T> =
   | { ok: true; value: T }
-  | { ok: false; code: CustomerSubscriptionErrorCode; issues?: FieldIssue[] }
+  | { ok: false; code: CustomerSubscriptionErrorCode; issues?: FieldIssue[]; planChangedSinceRequest?: boolean }
 
 /** Convertit toute erreur en résultat sérialisable (aucun détail interne exposé). */
-export function toErrorResult(error: unknown): { ok: false; code: CustomerSubscriptionErrorCode; issues?: FieldIssue[] } {
+export function toErrorResult(error: unknown): { ok: false; code: CustomerSubscriptionErrorCode; issues?: FieldIssue[]; planChangedSinceRequest?: boolean } {
   if (error instanceof CustomerSubscriptionError) {
+    if (error.planChangedSinceRequest) return { ok: false, code: error.code, planChangedSinceRequest: true }
     return error.issues.length ? { ok: false, code: error.code, issues: error.issues } : { ok: false, code: error.code }
   }
   // Violation d'unicité Postgres (course perdue, clé d'idempotence, ID externe).
