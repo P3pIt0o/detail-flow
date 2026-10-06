@@ -12,7 +12,7 @@ import {
   quoteRequestAttachments,
   refunds,
 } from "@/lib/db/schema"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import {
   classifyMatch,
   daysSince,
@@ -138,7 +138,7 @@ export async function getClientProfileByClientId(
   clientId: number,
   companyId?: number,
 ): Promise<ClientProfile | null> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   if (!Number.isInteger(clientId) || clientId <= 0) return null
 
   const [client] = await db
@@ -170,7 +170,7 @@ export async function getClientProfileByBookingId(
   bookingId: number,
   companyId?: number,
 ): Promise<ClientProfile | null> {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   if (!Number.isInteger(bookingId) || bookingId <= 0) return null
 
   const [booking] = await db

@@ -2,7 +2,7 @@ import "server-only"
 import { and, asc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { services, vehicleTypes, options, servicePrices } from "@/lib/db/schema"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { attachServiceHighlights } from "@/lib/services/highlight-store"
 
 /**
@@ -11,7 +11,7 @@ import { attachServiceHighlights } from "@/lib/services/highlight-store"
 
 /** Prestations pour l'admin (toutes, visibles ou non), triées. */
 export async function getAdminServices(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select()
     .from(services)
@@ -37,7 +37,7 @@ export async function getAdminServices(companyId?: number) {
 
 /** Types de véhicules pour l'admin. */
 export async function getAdminVehicleTypes(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select()
     .from(vehicleTypes)
@@ -54,7 +54,7 @@ export async function getAdminVehicleTypes(companyId?: number) {
 
 /** Options complémentaires pour l'admin. */
 export async function getAdminOptions(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select()
     .from(options)
@@ -75,7 +75,7 @@ export async function getAdminOptions(companyId?: number) {
  * Jointure sur services pour garantir l'isolation par entreprise.
  */
 export async function getPriceMatrix(companyId?: number) {
-  const cid = companyId ?? (await requireCompanyId())
+  const cid = companyId ?? (await requireAdminCompanyId())
   const rows = await db
     .select({
       serviceId: servicePrices.serviceId,

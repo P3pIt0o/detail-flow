@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { clients } from "@/lib/db/schema"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireCompanyMember } from "@/lib/admin"
 import { canCreateWithinLimit, LIMIT_REACHED_MESSAGE } from "@/lib/licensing/enforce"
 import { getCountryProfile } from "@/lib/billing/country-profiles"
 import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
@@ -89,7 +89,8 @@ function findDuplicateClient(
 export async function createClientAction(
   formData: FormData,
 ): Promise<CreateClientResult> {
-  const companyId = await requireCompanyId()
+  const { tenant } = await requireCompanyMember()
+  const companyId = tenant.id
 
   const name = String(formData.get("name") ?? "").trim()
   const email = String(formData.get("email") ?? "")
@@ -173,12 +174,13 @@ export async function createClientAction(
 /**
  * Modification d'un client EXISTANT. La limite maxCustomers ne s'applique PAS
  * (uniquement à la création). Anti-IDOR : le clientId est une ressource ; le
- * companyId provient EXCLUSIVEMENT de requireCompanyId (jamais du navigateur),
- * et l'UPDATE est scopé (clients.id + clients.companyId).
+ * companyId provient EXCLUSIVEMENT de requireCompanyMember (session + appartenance,
+ * jamais du navigateur), et l'UPDATE est scopé (clients.id + clients.companyId).
  * Aucune donnée n'est supprimée lors d'un changement de type (masquage UI seul).
  */
 export async function updateClientAction(clientId: number, formData: FormData): Promise<CreateClientResult> {
-  const companyId = await requireCompanyId()
+  const { tenant } = await requireCompanyMember()
+  const companyId = tenant.id
   if (!Number.isInteger(clientId) || clientId <= 0) {
     return { success: false, message: "Client invalide." }
   }

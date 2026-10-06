@@ -1,14 +1,27 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put, get } from "@vercel/blob"
-import { getSession } from "@/lib/admin"
+import { eq } from "drizzle-orm"
+import { getCompanyMemberContext } from "@/lib/admin"
+import { db } from "@/lib/db"
+import { settings } from "@/lib/db/schema"
+import { isAllowedTenantLogoPathname, safeLogoExtension, tenantLogoPrefix } from "@/lib/admin/logo-policy"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-/** Upload du logo (Blob privé). Renvoie le pathname à enregistrer en base. */
+async function getStoredLogoPathname(companyId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ invoiceLogoPathname: settings.invoiceLogoPathname })
+    .from(settings)
+    .where(eq(settings.companyId, companyId))
+    .limit(1)
+  return row?.invoiceLogoPathname ?? null
+}
+
+/** Upload du logo (Blob privé) dans le namespace du tenant. Renvoie le pathname à enregistrer. */
 export async function POST(request: NextRequest) {
-  const session = await getSession()
-  if (!session?.user) {
+  const member = await getCompanyMemberContext()
+  if (!member) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
   }
 
@@ -24,8 +37,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Image trop lourde (max 2 Mo)." }, { status: 400 })
   }
 
-  const ext = file.name.split(".").pop() || "png"
-  const blob = await put(`invoice-logo/logo-${Date.now()}.${ext}`, file, {
+  const ext = safeLogoExtension(file.name)
+  const blob = await put(`${tenantLogoPrefix(member.tenant.id)}logo-${Date.now()}.${ext}`, file, {
     access: "private",
     addRandomSuffix: true,
   })
@@ -33,10 +46,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ pathname: blob.pathname })
 }
 
-/** Sert le logo (Blob privé) pour l'aperçu dans les paramètres. */
+/** Sert le logo du tenant courant (Blob privé) pour l'aperçu dans les paramètres. */
 export async function GET(request: NextRequest) {
-  const session = await getSession()
-  if (!session?.user) {
+  const member = await getCompanyMemberContext()
+  if (!member) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
   }
 
@@ -45,13 +58,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Paramètre manquant." }, { status: 400 })
   }
 
+  // Appartenance vérifiée AVANT tout accès Blob : réponse neutre sinon.
+  const stored = await getStoredLogoPathname(member.tenant.id)
+  if (!isAllowedTenantLogoPathname(pathname, member.tenant.id, stored)) {
+    return new NextResponse("Not found", { status: 404 })
+  }
+
   const result = await get(pathname, { access: "private" })
   if (!result || !("stream" in result)) {
     return new NextResponse("Not found", { status: 404 })
   }
   return new NextResponse(result.stream, {
     headers: {
-      "Content-Type": result.blob.contentType,
+      "Content-Type": result.blob.contentType ?? "application/octet-stream",
       ETag: result.blob.etag,
       "Cache-Control": "private, no-cache",
     },

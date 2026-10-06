@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getAdminOverview, getPlanForEdit, listServiceOptions, planRowToConfig } from "@/lib/customer-subscriptions/admin-queries"
 import { planFormFromConfig } from "@/lib/customer-subscriptions/plan-form"
 import { PlanConfigurator } from "@/components/admin/customer-subscriptions/plan-configurator"
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 
 export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin()
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const { id } = await params
   const planId = Number(id)
   if (!Number.isInteger(planId) || planId <= 0) notFound()

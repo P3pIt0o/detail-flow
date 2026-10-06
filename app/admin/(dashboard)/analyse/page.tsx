@@ -11,7 +11,7 @@ import {
   UserPlus,
   Wallet,
 } from "lucide-react"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { withTenant } from "@/lib/tenant-link"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { formatMoney } from "@/lib/format"
@@ -61,7 +61,7 @@ export default async function AnalysePage({
 }: {
   searchParams: Promise<{ period?: string; tenant?: string }>
 }) {
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const sp = await searchParams
   const period = parsePeriod(sp.period)
 

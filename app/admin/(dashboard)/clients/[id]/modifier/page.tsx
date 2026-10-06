@@ -4,7 +4,7 @@ import { notFound } from "next/navigation"
 import { and, eq } from "drizzle-orm"
 import { ArrowLeft } from "lucide-react"
 import { requireAdmin } from "@/lib/admin"
-import { requireCompanyId } from "@/lib/tenant"
+import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { db } from "@/lib/db"
 import { clients } from "@/lib/db/schema"
 import { ClientForm } from "@/components/admin/client-form"
@@ -21,7 +21,7 @@ export default async function EditClientPage({
   searchParams: Promise<{ tenant?: string }>
 }) {
   await requireAdmin()
-  const companyId = await requireCompanyId()
+  const companyId = await requireAdminCompanyId()
   const { id } = await params
   const clientId = Number(id)
   if (!Number.isInteger(clientId) || clientId <= 0) notFound()
