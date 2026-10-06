@@ -68,8 +68,9 @@ export function CustomRequestsSettings({ config }: { config: CustomRequestsConfi
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground text-pretty">
-        Proposez à vos clients de décrire un besoin sur mesure (prestation spécifique, entretien régulier, flotte
-        professionnelle…). Vous recevez la demande, envoyez une proposition, puis convertissez-la en rendez-vous.
+        Proposez à vos clients de décrire un besoin sur mesure (prestation spécifique, flotte professionnelle,
+        besoin particulier…). Vous recevez la demande, envoyez une proposition, puis convertissez-la en rendez-vous.
+        Les formules d&apos;entretien récurrentes se gèrent dans « Abonnements clients ».
       </p>
 
       {/* Activation */}

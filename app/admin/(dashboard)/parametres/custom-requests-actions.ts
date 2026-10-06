@@ -7,6 +7,7 @@ import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import {
   BUILTIN_KEYS,
+  RETIRED_TYPE_KEYS,
   resolveCustomRequestsConfig,
   type CustomRequestsConfig,
   type CustomRequestType,
@@ -48,9 +49,9 @@ export async function saveCustomRequestsConfig(input: CustomRequestsConfig): Pro
 
   // Types personnalisés : nom requis, clé slugifiée unique, description courte.
   const customs: CustomRequestType[] = []
-  const seen = new Set<string>(BUILTIN_KEYS)
+  const seen = new Set<string>([...BUILTIN_KEYS, ...RETIRED_TYPE_KEYS])
   for (const t of input.types ?? []) {
-    if (!t || t.builtin || BUILTIN_KEYS.has(t.key)) continue
+    if (!t || t.builtin || BUILTIN_KEYS.has(t.key) || RETIRED_TYPE_KEYS.has(t.key)) continue
     const label = (t.label || "").trim().slice(0, 60)
     if (!label) continue
     let key = normalizeSlug(t.key || label) || `type-${customs.length + 1}`

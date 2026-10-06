@@ -22,7 +22,7 @@
  *  Estimation : PARTIELLE et jamais un devis ferme (cf. `flow-data.ts`). Le
  *  Nettoyage applique la grille officielle Spirit ACS (Intérieur + Extérieur =
  *  Int + Ext − 10 €). Un repli « Autre demande » ouvre le formulaire libre
- *  historique (flotte, abonnement, besoin hors liste).
+ *  historique (flotte, besoin hors liste).
  * ============================================================================
  */
 
@@ -647,7 +647,7 @@ function FlowFooter({
       )}
       {stepKey === "famille" && (
         <button type="button" className="rq-textlink rq-foot-alt" onClick={onClassic}>
-          Autre demande (flotte, abonnement, besoin spécifique) ›
+          Autre demande (flotte, besoin spécifique) ›
         </button>
       )}
     </footer>

@@ -36,14 +36,13 @@ export interface CustomRequestsConfig {
 export const CUSTOM_REQUEST_DEFAULTS = {
   title: "Besoin d'une offre personnalisée ?",
   description:
-    "Prestation spécifique, entretien régulier ou flotte professionnelle : décrivez votre besoin et recevez une proposition adaptée.",
+    "Prestation spécifique, flotte professionnelle ou besoin particulier : décrivez votre besoin et recevez une proposition adaptée.",
   ctaLabel: "Faire une demande",
 } as const
 
 /** Catégories prêtes à l'emploi proposées par DetailFlow (activables une à une). */
 export const BUILTIN_TYPES: CustomRequestType[] = [
   { key: "sur-mesure", label: "Prestation sur mesure", enabled: true, builtin: true },
-  { key: "abonnement", label: "Abonnement / entretien régulier", enabled: true, builtin: true },
   { key: "flotte", label: "Flotte / véhicules d'entreprise", enabled: true, builtin: true },
   { key: "autre", label: "Autre demande", enabled: true, builtin: true },
 ]
@@ -52,10 +51,20 @@ export const BUILTIN_TYPES: CustomRequestType[] = [
 export const BUILTIN_KEYS = new Set(BUILTIN_TYPES.map((t) => t.key))
 
 /**
+ * Clés HISTORIQUES désactivées : jamais proposées, jamais réinjectées depuis une
+ * ancienne config `siteContent`, jamais acceptées pour une nouvelle soumission.
+ * « abonnement » est remplacé par le module « Abonnements clients ». Les
+ * demandes déjà enregistrées (table `custom_requests`, `typeLabel` stocké) ne
+ * sont pas touchées et restent consultables dans l'admin.
+ */
+export const RETIRED_TYPE_KEYS: ReadonlySet<string> = new Set(["abonnement"])
+
+/**
  * Fusionne la configuration brute enregistrée avec les valeurs par défaut.
- * Garantit toujours la présence des 4 types intégrés (dans l'ordre), suivis des
+ * Garantit toujours la présence des types intégrés (dans l'ordre), suivis des
  * éventuels types personnalisés. Un type intégré retrouve son libellé par
- * défaut si l'entreprise ne l'a pas personnalisé.
+ * défaut si l'entreprise ne l'a pas personnalisé. Les clés historiques
+ * (RETIRED_TYPE_KEYS) sont ignorées.
  */
 export function resolveCustomRequestsConfig(raw: unknown): CustomRequestsConfig {
   const cfg = (raw ?? {}) as Partial<CustomRequestsConfig>
@@ -81,7 +90,7 @@ export function resolveCustomRequestsConfig(raw: unknown): CustomRequestsConfig 
   const customs: CustomRequestType[] = []
   if (Array.isArray(cfg.types)) {
     for (const t of cfg.types) {
-      if (!t || typeof t.key !== "string" || BUILTIN_KEYS.has(t.key)) continue
+      if (!t || typeof t.key !== "string" || BUILTIN_KEYS.has(t.key) || RETIRED_TYPE_KEYS.has(t.key)) continue
       customs.push({
         key: t.key,
         label: (t.label || "").trim() || t.key,
@@ -112,7 +121,7 @@ export function resolveCustomRequestTexts(cfg: CustomRequestsConfig) {
 
 /** Types actifs affichés au public (dans l'ordre). */
 export function activeTypes(cfg: CustomRequestsConfig): CustomRequestType[] {
-  return cfg.types.filter((t) => t.enabled)
+  return cfg.types.filter((t) => t.enabled && !RETIRED_TYPE_KEYS.has(t.key))
 }
 
 /** Retrouve un type ACTIF par clé (validation d'une soumission publique). */

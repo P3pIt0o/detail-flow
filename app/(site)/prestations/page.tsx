@@ -13,6 +13,9 @@ import { resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { getCurrentTenant } from "@/lib/tenant"
 import { withTenant } from "@/lib/tenant-link"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
+import { db } from "@/lib/db"
+import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
+import { PublicPlans } from "@/components/subscriptions/public-plans"
 
 export const metadata: Metadata = {
   title: "Prestations",
@@ -39,6 +42,10 @@ export default async function PrestationsPage() {
     getPublicCustomRequestsConfig(),
     getCurrentTenant(),
   ])
+
+  // Formules d'entretien : même backend que l'accueil et /formules, scopé au
+  // tenant courant (aucune formule d'un autre tenant, aucun prix statique).
+  const offer = await loadPublicOffer(db, tenant?.id)
 
   // Card « Demande personnalisée » : affichée UNIQUEMENT si l'entreprise a
   // activé la fonctionnalité (sinon page identique à aujourd'hui).
@@ -105,6 +112,10 @@ export default async function PrestationsPage() {
           </p>
         </section>
       )}
+
+      {/* Formules d'entretien réelles du tenant (via loadPublicOffer). PublicPlans
+          retourne null si aucune formule publique : aucun espace vide. */}
+      <PublicPlans offer={offer} heading="Formules d'entretien" />
 
       {/* Demande personnalisée (facultatif, activé par l'entreprise) */}
       {crConfig.enabled && (
