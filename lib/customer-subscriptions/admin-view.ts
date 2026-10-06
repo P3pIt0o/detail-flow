@@ -3,6 +3,7 @@
  * en langage métier : aucun terme technique ne doit en sortir.
  */
 import type { ValidatedPlanConfig } from "./plan-validation"
+import { withTenant } from "@/lib/tenant-link"
 import {
   commitmentSentence,
   formatEuros,
@@ -64,21 +65,23 @@ export function buildChecklist(input: {
   paymentsReady: boolean
   hasActivePlan: boolean
   publicMode: string
+  tenant?: string | null
 }): ChecklistItem[] {
+  const tenant = input.tenant ?? null
   return [
     {
       key: "payments",
       label: "Recevoir les paiements en ligne",
       done: input.paymentsReady,
       help: "Connectez votre compte de paiement pour que vos clients puissent payer en ligne.",
-      href: "/admin/parametres",
+      href: withTenant("/admin/parametres", tenant),
     },
     {
       key: "plan",
       label: "Créer votre première formule",
       done: input.hasActivePlan,
       help: "Une formule décrit ce que votre client reçoit et ce qu'il paie.",
-      href: "/admin/abonnements-clients/formules/nouvelle",
+      href: withTenant("/admin/abonnements-clients/formules/nouvelle", tenant),
     },
     {
       key: "public",

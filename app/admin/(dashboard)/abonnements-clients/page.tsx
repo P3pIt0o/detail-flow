@@ -3,6 +3,7 @@ import Link from "next/link"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { cn } from "@/lib/utils"
+import { withTenant } from "@/lib/tenant-link"
 import { Button } from "@/components/ui/button"
 import { getAdminOverview, planRowToConfig } from "@/lib/customer-subscriptions/admin-queries"
 import { buildChecklist, LIVE_STATUSES, planChanges } from "@/lib/customer-subscriptions/admin-view"
@@ -33,16 +34,18 @@ const ALL_VIEWS: readonly { key: ViewKey }[] = [...VIEWS, ...SECONDARY_VIEWS]
 
 const BASE = "/admin/abonnements-clients"
 
-export default async function AbonnementsClientsPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
+type Tenant = string | null
+
+export default async function AbonnementsClientsPage({ searchParams }: { searchParams: Promise<{ vue?: string; tenant?: string }> }) {
   await requireAdmin()
   const companyId = await requireAdminCompanyId()
-  const [{ vue }, data] = await Promise.all([searchParams, getAdminOverview(companyId)])
+  const [{ vue, tenant = null }, data] = await Promise.all([searchParams, getAdminOverview(companyId)])
   const view: ViewKey = ALL_VIEWS.some((v) => v.key === vue) ? (vue as ViewKey) : "a-traiter"
 
   const { company, capacity } = data
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
   const hasActivePlan = data.plans.some((p) => p.status === "active")
-  const checklist = buildChecklist({ paymentsReady, hasActivePlan, publicMode: company.publicMode })
+  const checklist = buildChecklist({ paymentsReady, hasActivePlan, publicMode: company.publicMode, tenant })
   const work = toProcessGroups(data)
   const toProcess = work.total
   const pastDue = work.pastDue.length
@@ -61,7 +64,7 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
             Proposez des formules d&apos;entretien régulier à vos clients et suivez leurs paiements.
           </p>
         </div>
-        <Button render={<Link href={`${BASE}/formules/nouvelle`} />} nativeButton={false} className="w-full sm:w-auto">
+        <Button render={<Link href={withTenant(`${BASE}/formules/nouvelle`, tenant)} />} nativeButton={false} className="w-full sm:w-auto">
           Nouvelle formule
         </Button>
       </header>
@@ -123,7 +126,7 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
           {VIEWS.map((v) => (
             <li key={v.key} className="min-w-0">
               <Link
-                href={`${BASE}?vue=${v.key}`}
+                href={withTenant(`${BASE}?vue=${v.key}`, tenant)}
                 aria-current={view === v.key ? "page" : undefined}
                 className={cn(
                   "flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-1 text-sm font-medium transition-colors",
@@ -142,7 +145,7 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
           {SECONDARY_VIEWS.map((v) => (
             <li key={v.key}>
               <Link
-                href={`${BASE}?vue=${v.key}`}
+                href={withTenant(`${BASE}?vue=${v.key}`, tenant)}
                 aria-current={view === v.key ? "page" : undefined}
                 className={cn(
                   "inline-flex min-h-11 items-center text-sm underline-offset-4 hover:underline",
@@ -156,9 +159,9 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
         </ul>
       </nav>
 
-      {view === "a-traiter" && <ToProcessView data={data} work={work} />}
-      {view === "formules" && <PlansView plans={data.plans} />}
-      {view === "abonnes" && <SubscribersView subscriptions={data.subscriptions} />}
+      {view === "a-traiter" && <ToProcessView data={data} work={work} tenant={tenant} />}
+      {view === "formules" && <PlansView plans={data.plans} tenant={tenant} />}
+      {view === "abonnes" && <SubscribersView subscriptions={data.subscriptions} tenant={tenant} />}
       {view === "paiements" && <PaymentsView payments={data.payments} />}
       {view === "emails" && <EmailsView emails={data.emails} />}
     </div>
@@ -183,13 +186,13 @@ function toProcessGroups(data: Overview) {
   }
 }
 
-function SubscriptionLineList({ items, action }: { items: Overview["subscriptions"]; action: string }) {
+function SubscriptionLineList({ items, action, tenant }: { items: Overview["subscriptions"]; action: string; tenant: Tenant }) {
   return (
     <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
       {items.map((s) => (
         <li key={s.id}>
           <Link
-            href={`${BASE}/abonnes/${s.id}`}
+            href={withTenant(`${BASE}/abonnes/${s.id}`, tenant)}
             className="flex min-h-11 items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/40"
           >
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -207,7 +210,7 @@ function SubscriptionLineList({ items, action }: { items: Overview["subscription
   )
 }
 
-function ToProcessView({ data, work }: { data: Overview; work: Work }) {
+function ToProcessView({ data, work, tenant }: { data: Overview; work: Work; tenant: Tenant }) {
   if (!work.total) {
     return <EmptyState title="Rien à traiter pour le moment">Les nouvelles demandes de vos clients apparaîtront ici.</EmptyState>
   }
@@ -250,6 +253,7 @@ function ToProcessView({ data, work }: { data: Overview; work: Work }) {
             return (
               <EarlyCancellationCard
                 key={c.id}
+                tenant={tenant}
                 request={{
                   id: c.id,
                   subscriptionId: c.subscriptionId,
@@ -274,7 +278,7 @@ function ToProcessView({ data, work }: { data: Overview; work: Work }) {
           <p className="text-sm leading-relaxed text-muted-foreground">
             Le dernier prélèvement n&apos;a pas abouti. Votre client a reçu un email pour mettre à jour son moyen de paiement.
           </p>
-          <SubscriptionLineList items={work.pastDue} action="Voir" />
+          <SubscriptionLineList items={work.pastDue} action="Voir" tenant={tenant} />
         </section>
       )}
       {work.sync.length > 0 && (
@@ -285,20 +289,20 @@ function ToProcessView({ data, work }: { data: Overview; work: Work }) {
           <p className="text-sm leading-relaxed text-muted-foreground">
             Votre décision est bien enregistrée, mais le service de paiement n&apos;a pas encore été mis à jour.
           </p>
-          <SubscriptionLineList items={work.sync} action="Réessayer" />
+          <SubscriptionLineList items={work.sync} action="Réessayer" tenant={tenant} />
         </section>
       )}
     </div>
   )
 }
 
-function PlansView({ plans }: { plans: Overview["plans"] }) {
+function PlansView({ plans, tenant }: { plans: Overview["plans"]; tenant: Tenant }) {
   const visible = plans.filter((p) => p.status !== "archived")
   if (!visible.length) {
     return (
       <EmptyState title="Aucune formule pour l'instant">
         Créez votre première formule en quelques étapes.{" "}
-        <Link href={`${BASE}/formules/nouvelle`} className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link href={withTenant(`${BASE}/formules/nouvelle`, tenant)} className="font-medium text-primary underline-offset-4 hover:underline">
           Nouvelle formule
         </Link>
       </EmptyState>
@@ -311,7 +315,7 @@ function PlansView({ plans }: { plans: Overview["plans"] }) {
         const status = PLAN_STATUS_UI[p.status] ?? PLAN_STATUS_UI.draft
         return (
           <li key={p.id}>
-            <Link href={`${BASE}/formules/${p.id}`} className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50">
+            <Link href={withTenant(`${BASE}/formules/${p.id}`, tenant)} className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50">
               <div className="flex items-start justify-between gap-2">
                 <p className="font-semibold text-foreground">{c.name}</p>
                 <ToneBadge tone={status.tone}>{status.label}</ToneBadge>
@@ -331,7 +335,7 @@ function PlansView({ plans }: { plans: Overview["plans"] }) {
   )
 }
 
-function SubscribersView({ subscriptions }: { subscriptions: Overview["subscriptions"] }) {
+function SubscribersView({ subscriptions, tenant }: { subscriptions: Overview["subscriptions"]; tenant: Tenant }) {
   if (!subscriptions.length) return <EmptyState title="Aucun abonné pour l'instant">Vos clients abonnés apparaîtront ici.</EmptyState>
   return (
     <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
@@ -340,7 +344,7 @@ function SubscribersView({ subscriptions }: { subscriptions: Overview["subscript
         const status = subscriptionStatusUi(s.status)
         return (
           <li key={s.id}>
-            <Link href={`${BASE}/abonnes/${s.id}`} className="flex flex-col gap-1 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <Link href={withTenant(`${BASE}/abonnes/${s.id}`, tenant)} className="flex flex-col gap-1 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <p className="truncate font-medium text-foreground">{s.customerName}</p>
                 <p className="truncate text-sm text-muted-foreground">

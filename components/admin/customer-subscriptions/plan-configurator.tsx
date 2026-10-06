@@ -1,8 +1,9 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { withTenant } from "@/lib/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -85,6 +86,8 @@ export function PlanConfigurator({
   publicMode: string
 }) {
   const router = useRouter()
+  const tenant = useSearchParams().get("tenant")
+  const plansListHref = withTenant("/admin/abonnements-clients?vue=formules", tenant)
   const [form, setForm] = useState<PlanFormState>(() => (paymentsReady ? initial : { ...initial, status: "draft" }))
   const [stepIndex, setStepIndex] = useState(0)
   const [showErrors, setShowErrors] = useState(false)
@@ -119,7 +122,7 @@ export function PlanConfigurator({
     startTransition(async () => {
       const r = await savePlanAction(planId, form)
       if (!r.ok) return setServerError(r.message)
-      router.push("/admin/abonnements-clients?vue=formules")
+      router.push(plansListHref)
     })
   }
 
@@ -129,7 +132,7 @@ export function PlanConfigurator({
     startTransition(async () => {
       const r = await archivePlanAction(planId)
       if (!r.ok) return setServerError(r.message)
-      router.push("/admin/abonnements-clients?vue=formules")
+      router.push(plansListHref)
     })
   }
 
@@ -189,7 +192,7 @@ export function PlanConfigurator({
               {services.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   Vous n&apos;avez pas encore de prestation.{" "}
-                  <Link href="/admin/prestations" className="font-medium text-primary underline-offset-4 hover:underline">
+                  <Link href={withTenant("/admin/prestations", tenant)} className="font-medium text-primary underline-offset-4 hover:underline">
                     Créer une prestation
                   </Link>
                 </p>
@@ -314,7 +317,7 @@ export function PlanConfigurator({
                 ) : (
                   <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm leading-relaxed text-muted-foreground">
                     Pour publier, connectez d&apos;abord la réception des paiements en ligne dans{" "}
-                    <Link href="/admin/parametres" className="font-medium text-primary underline-offset-4 hover:underline">
+                    <Link href={withTenant("/admin/parametres", tenant)} className="font-medium text-primary underline-offset-4 hover:underline">
                       Paramètres
                     </Link>
                     . Vous pouvez enregistrer la formule en brouillon dès maintenant.
@@ -344,7 +347,7 @@ export function PlanConfigurator({
                 Retour
               </Button>
             ) : (
-              <Button variant="ghost" render={<Link href="/admin/abonnements-clients?vue=formules" />} nativeButton={false}>
+              <Button variant="ghost" render={<Link href={plansListHref} />} nativeButton={false}>
                 Annuler
               </Button>
             )}

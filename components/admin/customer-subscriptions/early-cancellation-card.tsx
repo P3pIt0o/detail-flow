@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
+import { withTenant } from "@/lib/tenant-link"
 import { InfoRow, ToneBadge } from "./ui"
 import { EarlyCancellationDecision } from "./early-cancellation-decision"
 
@@ -16,7 +17,15 @@ export type EarlyCancellationCardData = {
 }
 
 /** Demande de fin anticipée : `actions` remplace les boutons de décision par défaut si fourni. */
-export function EarlyCancellationCard({ request, actions }: { request: EarlyCancellationCardData; actions?: ReactNode }) {
+export function EarlyCancellationCard({
+  request,
+  actions,
+  tenant = null,
+}: {
+  request: EarlyCancellationCardData
+  actions?: ReactNode
+  tenant?: string | null
+}) {
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5">
       <header className="flex flex-wrap items-start justify-between gap-2">
@@ -42,7 +51,7 @@ export function EarlyCancellationCard({ request, actions }: { request: EarlyCanc
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <Link
-          href={`/admin/abonnements-clients/abonnes/${request.subscriptionId}`}
+          href={withTenant(`/admin/abonnements-clients/abonnes/${request.subscriptionId}`, tenant)}
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Voir l&apos;abonnement
