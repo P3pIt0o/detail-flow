@@ -223,12 +223,14 @@ function founderFeatures(): Record<FeatureKey, boolean> {
 
 export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
   FREE: {
-    // Aucune feature PREMIUM ; seule la feature de base `customer_subscriptions`
-    // est ouverte, avec une capacité réduite (maxActiveCustomerSubscriptions).
-    features: { ...noFeatures(), customer_subscriptions: true },
+    // Offre de découverte : site/page, réservation en ligne, paiements en ligne
+    // (avec commission DetailFlow) et abonnements clients (capacité réduite).
+    // Volume limité (clients / véhicules) pour encourager l'upgrade. Aucune
+    // feature premium (SMS, automatisations, stats, marketing, CRM...).
+    features: featuresFrom(["website", "online_booking", "online_payments", "customer_subscriptions"]),
     limits: {
-      maxCustomers: 10,
-      maxVehicles: 10,
+      maxCustomers: 5,
+      maxVehicles: 5,
       maxQuotesPerMonth: 3,
       maxInvoicesPerMonth: 3,
       maxActiveCustomerSubscriptions: 2,

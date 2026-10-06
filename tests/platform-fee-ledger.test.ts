@@ -59,8 +59,8 @@ describe("ESSENTIEL / FREE — règle commerciale sans ouverture des droits", ()
     })
   })
 
-  it("PLAN_MATRIX.FREE n'accorde TOUJOURS PAS online_payments (décision séparée avant commercialisation)", () => {
-    expect(PLAN_MATRIX.FREE.features.online_payments).toBe(false)
+  it("PLAN_MATRIX.FREE accorde online_payments (encaissement soumis à la commission FREE existante)", () => {
+    expect(PLAN_MATRIX.FREE.features.online_payments).toBe(true)
   })
 })
 

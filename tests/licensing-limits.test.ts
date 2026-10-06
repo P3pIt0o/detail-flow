@@ -36,10 +36,10 @@ describe("A. LEGACY (licensePlan = NULL) — aucune restriction ajoutée", () =>
   })
 })
 
-describe("B. FREE — seuils exacts (clients 10, factures/mois 3)", () => {
-  it("client n°10 accepté (comptage 9 -> 10ᵉ), n°11 refusé (comptage 10)", () => {
-    expect(creationAllowed("FREE", "maxCustomers", 9)).toBe(true) // crée le 10ᵉ
-    expect(creationAllowed("FREE", "maxCustomers", 10)).toBe(false) // 11ᵉ refusé
+describe("B. FREE — seuils exacts (clients 5, factures/mois 3)", () => {
+  it("client n°5 accepté (comptage 4 -> 5ᵉ), n°6 refusé (comptage 5)", () => {
+    expect(creationAllowed("FREE", "maxCustomers", 4)).toBe(true) // crée le 5ᵉ
+    expect(creationAllowed("FREE", "maxCustomers", 5)).toBe(false) // 6ᵉ refusé
   })
   it("facture n°3 du mois acceptée (comptage 2 -> 3ᵉ), n°4 refusée (comptage 3)", () => {
     expect(creationAllowed("FREE", "maxInvoicesPerMonth", 2)).toBe(true) // crée la 3ᵉ
@@ -64,11 +64,11 @@ describe("C. Plans avec limites illimitées (null)", () => {
 
 describe("D. Isolation du comptage (par tenant)", () => {
   it("la décision ne dépend QUE du comptage passé (scopé companyId serveur)", () => {
-    // Entreprise A : 9 clients (autorisé). Les clients d'une autre entreprise
+    // Entreprise A : 4 clients (autorisé). Les clients d'une autre entreprise
     // ne sont jamais inclus dans ce comptage -> ne changent pas la décision.
-    expect(creationAllowed("FREE", "maxCustomers", 9)).toBe(true)
-    // Même plan, comptage tenant = 10 (aucune fuite d'un autre tenant) -> refus.
-    expect(creationAllowed("FREE", "maxCustomers", 10)).toBe(false)
+    expect(creationAllowed("FREE", "maxCustomers", 4)).toBe(true)
+    // Même plan, comptage tenant = 5 (aucune fuite d'un autre tenant) -> refus.
+    expect(creationAllowed("FREE", "maxCustomers", 5)).toBe(false)
   })
 })
 

@@ -1087,7 +1087,7 @@ describe("Customer Portal", () => {
 })
 
 describe("Périmètre", () => {
-  it("PLAN_MATRIX.FREE inchangé (pas d'online_payments)", () => {
-    expect(PLAN_MATRIX.FREE.features.online_payments).toBe(false)
+  it("PLAN_MATRIX.FREE ouvre online_payments (offre de découverte avec commission)", () => {
+    expect(PLAN_MATRIX.FREE.features.online_payments).toBe(true)
   })
 })

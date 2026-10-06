@@ -136,18 +136,19 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     price: "0 €",
     period: "sans engagement",
     monthlyPriceCents: 0,
-    description: "L'essentiel pour lancer votre activité en ligne, gratuitement.",
+    description: "Découvrez DetailFlow gratuitement et encaissez vos premières réservations en ligne.",
     trial: null,
     highlights: [
-      "Page professionnelle en ligne",
-      "Lien de réservation à partager",
+      "Page professionnelle personnalisable",
+      "Réservation en ligne & widget à partager",
       "Planning centralisé",
-      "Fiches clients & véhicules",
-      "Prestations & tableau de bord simple",
+      "Jusqu'à 5 clients",
+      "Jusqu'à 5 véhicules",
+      "Paiements en ligne (commission DetailFlow)",
+      "Fonctionnalités avancées avec l'offre supérieure",
     ],
-    // FREE n'accorde aucune feature premium gated : page publique et réservation
-    // sont des capacités non gated, listées en `highlights` ci-dessus.
-    includedFeatures: [],
+    // Features gated réellement ouvertes par PLAN_MATRIX.FREE.
+    includedFeatures: ["website", "online_booking", "online_payments", "customer_subscriptions"],
     availability: "self_serve",
     cta: { label: "Créer mon espace gratuitement", href: "/demarrer" },
     highlighted: false,
