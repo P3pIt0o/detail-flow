@@ -37,7 +37,7 @@ import { OnboardingPanel } from "@/components/admin/onboarding-panel"
 import { StartFlowCard } from "@/components/admin/start-flow-card"
 import { SpiritDashboardRequests, type SpiritActionItem } from "@/components/admin/spirit-dashboard-requests"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
-import { publicPageUrl, publicReservationUrl } from "@/lib/tenant-shared"
+import { humanReservationUrl, humanSiteUrl } from "@/lib/admin/public-link"
 import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember, getCompanyOwnerName } from "@/lib/admin"
 import { canUseFeature } from "@/lib/licensing/enforce"
@@ -170,8 +170,8 @@ export default async function DashboardPage({
   const startCard = contextualIntent ? (
     <StartFlowCard
       intent={contextualIntent}
-      reservationUrl={publicReservationUrl(company.slug, rootDomain)}
-      pageUrl={publicPageUrl(company.slug, rootDomain)}
+      reservationUrl={humanReservationUrl(company.slug, rootDomain)}
+      pageUrl={humanSiteUrl(company.slug, rootDomain)}
       configureHref={href("/admin/page-publique")}
       bookingSettingsHref={href("/admin/ma-reservation")}
       customRequestHref={href("/admin/site-personnalise")}

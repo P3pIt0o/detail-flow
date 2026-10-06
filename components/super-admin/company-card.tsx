@@ -65,7 +65,7 @@ export function CompanyCard({ company, rootDomain }: { company: CompanyCardData;
   const expired = company.status === "BETA" && company.betaEndsAt != null && new Date(company.betaEndsAt).getTime() < Date.now()
 
   // Présentation publique CONTEXTUELLE (source de vérité : onboardingIntent).
-  // booking_only → lien de réservation `/p/<slug>/reservation` (pas de vitrine),
+  // booking_only → lien de réservation `/reservation?tenant=<slug>` (pas de vitrine),
   // public_page → site vitrine, custom/legacy → affichage historique.
   const presentation = resolveTenantPublicPresentation({
     slug: company.slug,

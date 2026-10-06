@@ -125,6 +125,16 @@ export function tenantPathUrl(path: string, slug: string, rootDomain?: string): 
   return `${p}${query}`
 }
 
+/**
+ * URL de RÉSERVATION HUMAN-FACING (copiée / ouverte / partagée) :
+ * `https://www.<root>/reservation?tenant=<slug>`. Même modèle que
+ * `tenantPublicUrl` (le contexte tenant est porté par `?tenant=`, conservé par
+ * la navigation publique). `/p/<slug>/reservation` reste réservé à l'embed.
+ */
+export function tenantReservationUrl(slug: string, rootDomain?: string): string {
+  return tenantPathUrl("/reservation", slug, rootDomain)
+}
+
 /** Chemin public canonique « joli » d'une entreprise : `/p/<slug>`. */
 export function publicPagePath(slug: string): string {
   return `/p/${slug}`

@@ -57,7 +57,6 @@ import { OnlineBookingSettings } from "@/components/admin/settings/online-bookin
 import { buildWidgetPrimaryAction, resolveDashboardPrimaryMode } from "@/lib/admin/primary-action"
 import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
-import { marketingOrigin } from "@/lib/tenant-shared"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
@@ -182,7 +181,7 @@ export default async function ParametresPage({
           slug: tenant.slug,
           active: true,
           scriptSnippet: buildEmbedScriptSnippet(tenant.slug, rootDomain),
-          origin: marketingOrigin(rootDomain),
+          rootDomain,
         })
       : null
 

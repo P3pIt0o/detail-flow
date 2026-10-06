@@ -9,7 +9,7 @@
  * Priorité (dans l'ordre) :
  *  1. Domaine personnalisé connecté et vérifié (`tenantCanonicalOrigin`).
  *  2. / 3. À défaut, l'URL PUBLIQUE CANONIQUE « jolie » selon le parcours :
- *     - booking_only → lien de réservation `/p/<slug>/reservation` ;
+ *     - booking_only → lien de réservation `/reservation?tenant=<slug>` ;
  *     - sinon (page publique, site custom sans domaine, legacy) →
  *       `/?tenant=<slug>` (même URL que le Super Admin, `tenantPublicUrl`).
  *
@@ -17,7 +17,7 @@
  * joignable → `null` (le shell affiche alors un état neutre, aucune URL).
  */
 
-import { publicReservationUrl, tenantCanonicalOrigin, tenantPublicUrl } from "@/lib/tenant-shared"
+import { tenantCanonicalOrigin, tenantPublicUrl, tenantReservationUrl } from "@/lib/tenant-shared"
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 
 export type PublicLinkKind = "custom_domain" | "public_page" | "reservation"
@@ -46,7 +46,7 @@ export function resolvePublicLink(opts: {
 
   // 2. Parcours « réservation seule » : le lien utile est la prise de RDV.
   if (opts.intent === "booking_only") {
-    const url = publicReservationUrl(opts.slug, opts.rootDomain)
+    const url = tenantReservationUrl(opts.slug, opts.rootDomain)
     return url.startsWith("https://") ? { url, kind: "reservation" } : null
   }
 
@@ -55,4 +55,18 @@ export function resolvePublicLink(opts: {
   // conserve le tenant via `?tenant=`, ce que `/p/<slug>` ne garantit pas.
   const url = tenantPublicUrl(opts.slug, opts.rootDomain)
   return url.startsWith("https://") ? { url, kind: "public_page" } : null
+}
+
+/**
+ * SOURCE DE VÉRITÉ des URLs HUMAN-FACING (copier / ouvrir / partager) de
+ * l'Admin. Domaine personnalisé connecté prioritaire ; sinon `?tenant=`.
+ * Ne jamais renvoyer `/p/<slug>` (réservé à l'embed / l'aperçu interne).
+ */
+export function humanSiteUrl(slug: string, rootDomain?: string): string {
+  return tenantCanonicalOrigin(slug) ?? tenantPublicUrl(slug, rootDomain)
+}
+
+export function humanReservationUrl(slug: string, rootDomain?: string): string {
+  const canonical = tenantCanonicalOrigin(slug)
+  return canonical ? `${canonical}/reservation` : tenantReservationUrl(slug, rootDomain)
 }
