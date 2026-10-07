@@ -8,9 +8,8 @@ import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck, Star, UserRound, BadgeCheck } from "lucide-react"
 import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
-import { CleanyzerZoneMap } from "./zone-map"
-import { BRAND, TRAVEL, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
+import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
 
 function SectionHead({
   eyebrow,
@@ -50,7 +49,7 @@ export function UniversSection() {
       title: "Réservez votre nettoyage auto",
       text: "Intérieur ou extérieur, du lavage Éco au détail Excellence. Parcours guidé, prix en direct.",
       img: "/custom-sites/cleanyzer/service-interieur.png",
-      href: `${CLZ_PREVIEW_BASE}/reservation`,
+      href: CLZ_BOOKING_HREF,
       cta: "Réserver un nettoyage",
     },
     {
@@ -59,7 +58,7 @@ export function UniversSection() {
       title: "Demandez un devis textile",
       text: "Canapé, matelas, tapis, moquette. Aspiration, shampoing, désinfection et traitement des odeurs.",
       img: "/custom-sites/cleanyzer/service-textile.png",
-      href: CLZ_BOOKING_HREF,
+      href: CLZ_DEMANDE_HREF,
       cta: "Faire une demande",
     },
   ]
@@ -107,9 +106,9 @@ export function PrestationsPreview() {
   const extMin = Math.min(...EXTERIEUR_FORMULAS.flatMap((f) => Object.values(f.prices).filter((p): p is number => p != null)))
   const txtMin = Math.min(...TEXTILE_ITEMS.map((t) => t.price).filter((p): p is number => p != null))
   const items = [
-    { label: "Nettoyage intérieur", from: intMin, href: `${CLZ_PREVIEW_BASE}/prestations/interieur`, img: "/custom-sites/cleanyzer/service-interieur.png" },
-    { label: "Nettoyage extérieur", from: extMin, href: `${CLZ_PREVIEW_BASE}/prestations/exterieur`, img: "/custom-sites/cleanyzer/service-exterieur.png" },
-    { label: "Canapé & textile", from: txtMin, href: `${CLZ_PREVIEW_BASE}/prestations/textile`, img: "/custom-sites/cleanyzer/service-textile.png" },
+    { label: "Nettoyage intérieur", from: intMin, href: CLZ_BOOKING_HREF, img: "/custom-sites/cleanyzer/service-interieur.png" },
+    { label: "Nettoyage extérieur", from: extMin, href: CLZ_BOOKING_HREF, img: "/custom-sites/cleanyzer/service-exterieur.png" },
+    { label: "Canapé & textile", from: txtMin, href: CLZ_DEMANDE_HREF, img: "/custom-sites/cleanyzer/service-textile.png" },
   ]
   return (
     <section className="bg-[var(--clz-surface-2)]">
@@ -132,7 +131,7 @@ export function PrestationsPreview() {
           ))}
         </div>
         <div className="mt-8 text-center">
-          <Link href={`${CLZ_PREVIEW_BASE}/tarifs`} className="clz-btn clz-btn-ghost">
+          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost">
             Voir tous les tarifs
           </Link>
         </div>
@@ -166,8 +165,8 @@ export function RealisationsPreview() {
               Sièges, tapis, plastiques et recoins : chaque détail est traité. Les futures
               réalisations deviendront des pages dédiées, indexables et localisées.
             </p>
-            <Link href={`${CLZ_PREVIEW_BASE}/realisations`} className="clz-btn clz-btn-ghost mt-7">
-              Voir les réalisations
+            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost mt-7">
+              Réserver un nettoyage
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -207,53 +206,8 @@ export function ServiceADomicile() {
   )
 }
 
-/* Zone d'intervention (règles exactes cahier §9). */
-export function ZoneSection() {
-  return (
-    <section id="zone" className="bg-[var(--clz-surface-2)]">
-      <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 md:grid-cols-2 md:px-6 md:py-28">
-        <div>
-          <SectionHead
-            eyebrow="Notre zone d'intervention"
-            title={<>À Annecy, <span className="clz-accent">et autour de vous.</span></>}
-            intro="Nettoyage automobile et textile à domicile. Vérifiez votre zone d'intervention avant de poursuivre : les frais de déplacement sont calculés simplement et affichés avant validation."
-          />
-          <ul className="mt-8 space-y-4">
-            <li className="flex gap-3">
-              <span className="clz-check mt-0.5"><MapPin className="h-3.5 w-3.5" /></span>
-              <span className="text-[var(--clz-fg)]">
-                <strong>{TRAVEL.includedKmOneWay} km à l'aller inclus</strong> autour d'Annecy
-                (soit {TRAVEL.includedKmRoundTrip} km aller-retour).
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="clz-check mt-0.5"><ArrowRight className="h-3.5 w-3.5" /></span>
-              <span className="text-[var(--clz-fg)]">
-                Au-delà : <strong>{TRAVEL.pricePerExtraKm} € / km supplémentaire</strong> parcouru
-                (ex. +5 km à l'aller = +10 € A/R).
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="clz-check mt-0.5"><Clock className="h-3.5 w-3.5" /></span>
-              <span className="text-[var(--clz-fg)]">{TRAVEL.daysLabel}, {TRAVEL.hoursLabel}.</span>
-            </li>
-          </ul>
-          <p className="mt-6 text-sm text-[var(--clz-muted)]">
-            La zone est définie par un rayon autour d'Annecy, pas par une liste de communes.
-            Le montant exact du déplacement est calculé et affiché avant validation.
-          </p>
-        </div>
-        <div className="clz-card relative overflow-hidden">
-          <CleanyzerZoneMap />
-          <div className="pointer-events-none absolute bottom-3 left-3 z-[500] inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
-            <MapPin className="h-3.5 w-3.5" />
-            Zone incluse : {TRAVEL.includedKmOneWay} km autour d'Annecy
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
+/* Zone d'intervention : module dédié (zone-section.tsx), réexporté ici. */
+export { ZoneSection } from "./zone-section"
 
 /* Section « Derrière CLEANYZER » (brief §9). Portrait réel de Tom à venir :
    emplacement propre aux bonnes dimensions, aucun portrait IA. */
@@ -336,14 +290,16 @@ export function AvisSection() {
     <section className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
         <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
-        {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
+        {/* Preuve sociale Google : 5,0/5 — 86 avis (fiche Google Maps officielle). */}
         <div className="mx-auto mt-10 inline-flex flex-col items-center gap-4 rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-8 py-7 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
             <GoogleGlyph className="h-5 w-5" />
             Avis Google
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">{rating}</span>
+            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">
+              {rating?.toLocaleString("fr-FR", { minimumFractionDigits: 1 })}
+            </span>
             <span className="text-lg text-[var(--clz-muted)]">/ 5</span>
           </div>
           <div className="flex" aria-hidden>
@@ -354,6 +310,17 @@ export function AvisSection() {
           <p className="text-sm text-[var(--clz-muted)]">
             Basé sur <strong className="text-[var(--clz-fg)]">{count} avis</strong> Google
           </p>
+          {BRAND.googleReviewsUrl && (
+            <a
+              href={BRAND.googleReviewsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="clz-btn clz-btn-primary !px-5 !py-2.5 !text-sm"
+            >
+              Voir les avis Google
+              <span className="sr-only">(nouvel onglet)</span>
+            </a>
+          )}
         </div>
       </div>
     </section>
@@ -396,11 +363,11 @@ export function FinalCta() {
           {BRAND.subtitle} {BRAND.area}. {BRAND.tagline}
         </p>
         <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href={`${CLZ_PREVIEW_BASE}/reservation`} className="clz-btn clz-btn-primary !px-7 !py-4 !text-base">
+          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary !px-7 !py-4 !text-base">
             Réserver un nettoyage auto
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost !px-7 !py-4 !text-base">
+          <Link href={CLZ_DEMANDE_HREF} className="clz-btn clz-btn-ghost !px-7 !py-4 !text-base">
             Faire une demande personnalisée
           </Link>
         </div>

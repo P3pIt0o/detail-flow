@@ -236,10 +236,11 @@ export const BRAND = {
   ownerFullName: "Tom Fermigier",
   phone: null as string | null, // absent du cahier → à confirmer
   email: null as string | null, // absent du cahier → à confirmer
-  // Preuve sociale Google : 5/5 — 78 avis. Valeurs FOURNIES par le client,
-  // conformes aux visuels de référence. Ne pas modifier sans instruction.
+  // Preuve sociale Google : 5,0/5 — 86 avis. Relevé manuel sur la fiche Google
+  // Maps officielle (non synchronisé dynamiquement) : ne PAS publier en JSON-LD.
   googleRating: 5 as number | null,
-  googleReviewCount: 78 as number | null,
+  googleReviewCount: 86 as number | null,
+  googleReviewsUrl: "https://maps.app.goo.gl/QeQ4NW2RQVX3xBNx8" as string | null,
 }
 
 export const NAV_LABELS = {

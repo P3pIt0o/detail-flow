@@ -18,7 +18,7 @@ import {
   FaqSection,
   FinalCta,
 } from "./home-sections"
-import { CLZ_NAV_ITEMS } from "./nav"
+import { CLZ_SITE_NAV_ITEMS } from "./nav"
 
 // Contrat public identique à SpiritAcsHome / RozanHome : le tenant est résolu
 // côté serveur et injecté ici par le dispatch (registry). `data` est OPTIONNEL
@@ -29,7 +29,7 @@ import { CLZ_NAV_ITEMS } from "./nav"
 export function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
   void data
   return (
-    <CleanyzerShell navItems={CLZ_NAV_ITEMS} immersive>
+    <CleanyzerShell navItems={CLZ_SITE_NAV_ITEMS} immersive>
       <CleanyzerHero />
       <UniversSection />
       <PrestationsPreview />

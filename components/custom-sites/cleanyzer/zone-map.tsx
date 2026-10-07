@@ -1,91 +1,177 @@
 "use client"
 
 /**
- * Carte interactive de la zone d'intervention CLEANYZER (cahier §9, §11).
- *
- * RÈGLE MÉTIER (validée par Tom) : la zone incluse est un RAYON de 20 km à
- * l'aller autour d'Annecy (40 km A/R inclus), et NON une liste fermée de
- * communes. On matérialise donc un cercle de 20 km centré sur Annecy — aucune
- * commune n'est affichée comme « validée » individuellement. Au-delà du cercle :
- * 1 €/km supplémentaire A/R (affiché dans la section).
- *
- * Implémentation : Leaflet + tuiles OpenStreetMap (aucune clé API, pas de secret
- * exposé côté client). Initialisation dans un effet après montage pour éviter
- * tout accès à `window` côté serveur. Le zoom molette est désactivé pour ne pas
- * piéger le scroll de la page (activable via les boutons +/-).
- *
- * L'architecture reste prête pour des pages locales validées : la logique de
- * zone est isolée ici et dans `content.ts` (TRAVEL.annecy / rayon).
+ * Carte Leaflet de la zone CLEANYZER.
+ *  - Vue centrée sur Annecy (esthétique), cercle INDICATIF centré sur Choisy.
+ *  - Repère doré pulsant pour la base, points = exemples de communes du secteur.
+ *  - Purement visuelle : n'intervient jamais dans le calcul des frais.
+ *  - Cercle animé à l'apparition (respecte prefers-reduced-motion).
+ *  - Contrôlée : `selected` + `onSelect` (l'état vit dans <CleanyzerZoneModule />).
+ * Leaflet est importé dynamiquement (accès au DOM) : aucun rendu côté serveur.
  */
 
 import { useEffect, useRef } from "react"
 import "leaflet/dist/leaflet.css"
-import { TRAVEL } from "./content"
+import type * as Leaflet from "leaflet"
+import { ZONE, ZONE_COMMUNES, type ZoneCommune } from "./zones"
 
-const RADIUS_M = TRAVEL.includedKmOneWay * 1000 // 20 km inclus à l'aller
+type Props = { selected: string; onSelect: (slug: string) => void }
 
-export function CleanyzerZoneMap() {
+const BLUE = "#0A84FF"
+
+
+function markerHtml(c: ZoneCommune, active: boolean, showLabel: boolean): string {
+  const cls = ["clz-zm-pin", c.status === "base" ? "is-base" : "is-incluse", active ? "is-active" : ""].join(" ")
+  const label = showLabel || active ? `<span class="clz-zm-label">${c.name}</span>` : ""
+  return `<span class="${cls}"><span class="clz-zm-dot"></span>${c.status === "base" ? '<span class="clz-zm-pulse"></span>' : ""}${label}</span>`
+}
+
+export function CleanyzerZoneMap({ selected, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-
+  const mapRef = useRef<Leaflet.Map | null>(null)
+  const LRef = useRef<typeof Leaflet | null>(null)
+  const markersRef = useRef<Map<string, Leaflet.Marker>>(new Map())
+  const onSelectRef = useRef(onSelect)
   useEffect(() => {
-    let map: import("leaflet").Map | null = null
-    let cancelled = false
+    onSelectRef.current = onSelect
+  }, [onSelect])
+  const selectedRef = useRef(selected)
 
-    // Import dynamique : Leaflet accède au DOM, on le charge donc côté client.
+  const refreshMarkers = () => {
+    const map = mapRef.current
+    const L = LRef.current
+    if (!map || !L) return
+    const dense = map.getZoom() < 12
+    for (const c of ZONE_COMMUNES) {
+      const m = markersRef.current.get(c.slug)
+      if (!m) continue
+      const active = c.slug === selectedRef.current
+      m.setIcon(
+        L.divIcon({ className: "clz-zm-icon", html: markerHtml(c, active, !dense || !!c.major), iconSize: [0, 0] }),
+      )
+      m.setZIndexOffset(active ? 1000 : c.status === "base" ? 500 : 0)
+    }
+  }
+
+  // Initialisation (une seule fois)
+  useEffect(() => {
+    let cancelled = false
+    let raf = 0
+    let observer: IntersectionObserver | null = null
+
     import("leaflet").then((L) => {
       if (cancelled || !containerRef.current) return
+      LRef.current = L
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-      map = L.map(containerRef.current, {
-        center: [TRAVEL.annecy.lat, TRAVEL.annecy.lng],
+      const map = L.map(containerRef.current, {
+        center: [ZONE.viewCenter.lat, ZONE.viewCenter.lng],
         zoom: 10,
         scrollWheelZoom: false,
+        zoomControl: false,
         attributionControl: true,
       })
+      mapRef.current = map
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap',
+      // Fond sombre sobre (CARTO dark, sans clé API, attribution obligatoire).
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 18,
+        subdomains: "abcd",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
       }).addTo(map)
 
-      // Cercle de zone incluse (20 km) aux couleurs CLEANYZER.
-      const circle = L.circle([TRAVEL.annecy.lat, TRAVEL.annecy.lng], {
-        radius: RADIUS_M,
-        color: "#0A84FF",
+      const radius = ZONE.visualRadiusKm * 1000
+      const circle = L.circle([ZONE.base.lat, ZONE.base.lng], {
+        radius: reduce ? radius : 0,
+        color: BLUE,
         weight: 2,
-        fillColor: "#0A84FF",
-        fillOpacity: 0.12,
+        dashArray: "8 6",
+        fillColor: BLUE,
+        fillOpacity: 0.08,
+        interactive: false,
       }).addTo(map)
 
-      // Marqueur central (Annecy) sans icône image pour éviter les assets manquants.
-      L.circleMarker([TRAVEL.annecy.lat, TRAVEL.annecy.lng], {
-        radius: 6,
-        color: "#0A84FF",
-        weight: 2,
-        fillColor: "#ffffff",
-        fillOpacity: 1,
-      })
+      L.tooltip({ permanent: true, direction: "bottom", className: "clz-zm-km", offset: [0, 0] })
+        .setLatLng([ZONE.base.lat - radius / 111_320 - 0.004, ZONE.base.lng])
+        .setContent(`${ZONE.visualRadiusKm} km`)
         .addTo(map)
-        .bindTooltip("Annecy — zone incluse : 20 km à l'aller", {
-          direction: "top",
-          offset: [0, -6],
-        })
 
-      // Cadre la vue sur le cercle avec une marge.
-      map.fitBounds(circle.getBounds(), { padding: [24, 24] })
+      for (const c of ZONE_COMMUNES) {
+        const m = L.marker([c.lat, c.lng], {
+          icon: L.divIcon({ className: "clz-zm-icon", html: "", iconSize: [0, 0] }),
+          keyboard: true,
+          title: c.name,
+          alt: `Sélectionner ${c.name}`,
+        })
+          .on("click", () => onSelectRef.current(c.slug))
+          .addTo(map)
+        markersRef.current.set(c.slug, m)
+      }
+      map.on("zoomend", refreshMarkers)
+      refreshMarkers()
+
+      // Animation d'apparition du cercle
+      if (!reduce && "IntersectionObserver" in window) {
+        observer = new IntersectionObserver(
+          (entries) => {
+            if (!entries.some((e) => e.isIntersecting)) return
+            observer?.disconnect()
+            const t0 = performance.now()
+            const grow = (t: number) => {
+              const p = Math.min(1, (t - t0) / 1100)
+              circle.setRadius(radius * (1 - Math.pow(1 - p, 3)))
+              if (p < 1) raf = requestAnimationFrame(grow)
+            }
+            raf = requestAnimationFrame(grow)
+          },
+          { threshold: 0.35 },
+        )
+        observer.observe(containerRef.current)
+      } else {
+        circle.setRadius(radius)
+      }
     })
 
     return () => {
       cancelled = true
-      if (map) map.remove()
+      cancelAnimationFrame(raf)
+      observer?.disconnect()
+      markersRef.current.clear()
+      mapRef.current?.remove()
+      mapRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Sélection pilotée de l'extérieur
+  useEffect(() => {
+    const changed = selectedRef.current !== selected
+    selectedRef.current = selected
+    refreshMarkers()
+    const map = mapRef.current
+    const c = ZONE_COMMUNES.find((x) => x.slug === selected)
+    if (changed && map && c) {
+      map.flyTo([c.lat, c.lng], Math.max(map.getZoom(), 12), { duration: 0.8 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected])
+
+  const zoom = (d: number) => mapRef.current?.setZoom((mapRef.current?.getZoom() ?? 10) + d)
+  const reset = () => mapRef.current?.flyTo([ZONE.viewCenter.lat, ZONE.viewCenter.lng], 10, { duration: 0.8 })
+
   return (
-    <div
-      ref={containerRef}
-      role="img"
-      aria-label={`Carte de la zone d'intervention CLEANYZER : rayon de ${TRAVEL.includedKmOneWay} km à l'aller autour d'Annecy`}
-      className="clz-zone-map h-full min-h-[320px] w-full"
-    />
+    <div className="clz-zm">
+      <div
+        ref={containerRef}
+        role="region"
+        aria-label={`Carte indicative de la zone d'intervention CLEANYZER autour de ${ZONE.base.label}, Annecy et alentours`}
+        className="clz-zone-map"
+      />
+      <div className="clz-zm-controls">
+        <button type="button" onClick={() => zoom(1)} aria-label="Zoomer">+</button>
+        <button type="button" onClick={() => zoom(-1)} aria-label="Dézoomer">−</button>
+        <button type="button" onClick={reset} aria-label="Recentrer la carte">◎</button>
+      </div>
+    </div>
   )
 }
