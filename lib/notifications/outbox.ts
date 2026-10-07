@@ -16,11 +16,21 @@ import "server-only"
  *    n'est envoyé. Aucune ligne à nettoyer.
  *  - Anti-rétroactif : une fenêtre d'envoi manquée est marquée « skipped »
  *    (jamais rattrapée), donc aucun envoi massif en cas d'activation tardive.
- *  - Reprise sur erreur : un envoi « failed » est réessayable au passage suivant ;
- *    un « sent »/« simulated » ne l'est jamais.
+ *  - Reprise sur erreur : un envoi « failed » est réessayable au passage suivant,
+ *    UNIQUEMENT dans la fenêtre d'envoi (pas de retry infini) ; « sent »,
+ *    « invalid » et « skipped » sont terminaux. « simulated » est un état
+ *    historique (anciennes versions) traité comme terminal, plus jamais créé.
  *  - Opposition : un client opposé aux demandes d'avis est marqué « skipped ».
  *
- * Tant que la migration LOT D n'est pas appliquée, tout est un no-op sûr.
+ * NOTIFICATIONS_ENABLED !== "true" => ran=false/disabled sans AUCUN accès DB.
+ * Migration LOT D absente => ran=false/migration_pending, no-op sûr.
+ *
+ * Distinction : ce module = rappel AU PROFESSIONNEL + demande d'avis AU CLIENT.
+ * Le rappel historique AU CLIENT (J+1) vit dans lib/notifications/client-reminders.ts
+ * (cron /api/cron/reminders).
+ *
+ * Logs : uniquement compteurs / ids / codes génériques — jamais d'email,
+ * de lien, de jeton ni de message d'erreur SQL brut (peut contenir des valeurs).
  */
 
 import { db } from "@/lib/db"
@@ -36,8 +46,10 @@ import {
 } from "./schedule"
 import { notificationOutboxExists, lotDColumnsExist } from "./settings-store"
 import { resolveTenantReviewLink } from "./review-resolver"
-import { isReviewOptedOut } from "./opt-out-store"
+import { isReviewOptedOut, optOutTableExists } from "./opt-out-store"
 import { buildReviewOptOutUrl } from "./opt-out-url"
+import { completedAtColumnExists } from "./completion"
+import { notificationsRuntimeEnabled, isValidNotificationEmail } from "./runtime"
 import { sendProReminderEmail, sendReviewRequestEmail, type NotificationOutcome } from "@/lib/email/notifications"
 
 type NotificationType = "pro_reminder" | "review_request"
@@ -77,7 +89,8 @@ async function claim(
     const row = rowsOf<{ id: number }>(res)[0]
     return row ? Number(row.id) : null
   } catch (e) {
-    console.log("[notifications] claim error:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] claim_error", { companyId, bookingId, type })
     return null
   }
 }
@@ -91,14 +104,16 @@ async function mark(id: number, outcome: NotificationOutcome): Promise<void> {
           reason = ${outcome.reason ?? null}, updated_at = NOW()
       WHERE id = ${id}`)
   } catch (e) {
-    console.log("[notifications] mark error:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] mark_error", { id })
   }
 }
 
 /**
- * Enregistre un « skip » TERMINAL (fenêtre manquée, opposition, destinataire
- * absent) : évite de ré-évaluer indéfiniment le même cas. N'écrase jamais un
- * état terminal de succès.
+ * Enregistre un état TERMINAL sans envoi (« skipped » : fenêtre manquée,
+ * opposition, destinataire absent, RDV commencé ; « invalid » : destinataire
+ * syntaxiquement invalide, aucun appel fournisseur). N'écrase jamais un état
+ * terminal ni une ligne en cours d'envoi.
  */
 async function recordSkip(
   companyId: number,
@@ -107,27 +122,29 @@ async function recordSkip(
   recipient: string,
   reason: string,
   sendAt: Date | null,
+  status: "skipped" | "invalid" = "skipped",
 ): Promise<void> {
   try {
     await db.execute(sql`
       INSERT INTO notification_outbox
         ("companyId", "bookingId", type, recipient, status, send_at, reason, created_at, updated_at)
-      VALUES (${companyId}, ${bookingId}, ${type}, ${recipient}, 'skipped', ${sendAt ? sendAt.toISOString() : null}, ${reason}, NOW(), NOW())
+      VALUES (${companyId}, ${bookingId}, ${type}, ${recipient}, ${status}, ${sendAt ? sendAt.toISOString() : null}, ${reason}, NOW(), NOW())
       ON CONFLICT ("companyId", "bookingId", type) DO UPDATE
-        SET status = 'skipped', reason = ${reason}, updated_at = NOW()
-        WHERE notification_outbox.status NOT IN ('sent', 'simulated', 'sending')`)
+        SET status = ${status}, reason = ${reason}, updated_at = NOW()
+        WHERE notification_outbox.status NOT IN ('sent', 'simulated', 'sending', 'invalid', 'skipped')`)
   } catch (e) {
-    console.log("[notifications] recordSkip error:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] record_terminal_error", { companyId, bookingId, type })
   }
 }
 
-export type PassResult = { candidates: number; sent: number; simulated: number; failed: number; skipped: number }
+export type PassResult = { candidates: number; sent: number; failed: number; invalid: number; skipped: number }
 
-const EMPTY: PassResult = { candidates: 0, sent: 0, simulated: 0, failed: 0, skipped: 0 }
+const EMPTY: PassResult = { candidates: 0, sent: 0, failed: 0, invalid: 0, skipped: 0 }
 
 function tally(acc: PassResult, o: NotificationOutcome) {
   if (o.state === "sent") acc.sent += 1
-  else if (o.state === "simulated") acc.simulated += 1
+  else if (o.state === "invalid") acc.invalid += 1
   else acc.failed += 1
 }
 
@@ -192,6 +209,11 @@ async function processProReminders(now: Date): Promise<PassResult> {
     if (!recipient) {
       acc.skipped += 1
       await recordSkip(b.company_id, b.id, "pro_reminder", "—", "no_recipient", sendAt)
+      continue
+    }
+    if (!isValidNotificationEmail(recipient)) {
+      acc.invalid += 1
+      await recordSkip(b.company_id, b.id, "pro_reminder", "—", "invalid_recipient", sendAt, "invalid")
       continue
     }
     const id = await claim(b.company_id, b.id, "pro_reminder", recipient, sendAt)
@@ -262,6 +284,11 @@ async function processReviewRequests(now: Date): Promise<PassResult> {
       await recordSkip(b.company_id, b.id, "review_request", "—", "no_recipient", sendAt)
       continue
     }
+    if (!isValidNotificationEmail(recipient)) {
+      acc.invalid += 1
+      await recordSkip(b.company_id, b.id, "review_request", "—", "invalid_recipient", sendAt, "invalid")
+      continue
+    }
     // Respect des oppositions.
     if (await isReviewOptedOut(b.company_id, recipient)) {
       acc.skipped += 1
@@ -290,8 +317,18 @@ export type ProcessResult = {
  * pas appliquée (colonnes/outbox absentes).
  */
 export async function processDueNotifications(now: Date = new Date()): Promise<ProcessResult> {
-  const [colsOk, outboxOk] = await Promise.all([lotDColumnsExist(), notificationOutboxExists()])
-  if (!colsOk || !outboxOk) {
+  // Barrière globale AVANT toute lecture/écriture : flag absent ou ≠ "true" =>
+  // aucun candidat, aucun claim, aucune ligne outbox, aucun email.
+  if (!notificationsRuntimeEnabled()) {
+    return { ran: false, reason: "disabled", proReminders: { ...EMPTY }, reviewRequests: { ...EMPTY } }
+  }
+  const [colsOk, outboxOk, completedOk, optOutOk] = await Promise.all([
+    lotDColumnsExist(),
+    notificationOutboxExists(),
+    completedAtColumnExists(),
+    optOutTableExists(),
+  ])
+  if (!colsOk || !outboxOk || !completedOk || !optOutOk) {
     return { ran: false, reason: "migration_pending", proReminders: { ...EMPTY }, reviewRequests: { ...EMPTY } }
   }
   const proReminders = await processProReminders(now)

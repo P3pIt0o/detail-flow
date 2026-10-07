@@ -23,6 +23,7 @@ import {
 import { claimPaymentEmail, markPaymentEmail, type PaymentEmailRecipient } from "@/lib/payments/queries"
 import { claimRefundEmail, markRefundEmail } from "@/lib/payments/refunds"
 import { getBookingLocationType } from "@/lib/booking/location"
+import { isValidNotificationEmail, notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
 
 /** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
 function isValidEmail(value: string | null | undefined): value is string {
@@ -413,20 +414,16 @@ export async function sendBookingUpdatedEmail(bookingId: number): Promise<void> 
 /* ----------------------------- LOT D — envois ----------------------------- */
 
 /**
- * Garde d'ENVOI RÉEL des notifications LOT D (rappel pro + demande d'avis).
- *
- * Par défaut DÉSACTIVÉ : aucun email réel n'est émis (ni pro, ni client). Le
- * fournisseur est alors SIMULÉ (journalisé, jamais appelé). L'envoi réel n'est
- * possible qu'en positionnant explicitement `NOTIFICATIONS_ENABLED=true` en
- * production — hors périmètre de ce lot (non activé). Cela garantit qu'en
- * Preview et tant que l'activation n'est pas décidée, rien n'est envoyé.
+ * Deuxième barrière d'envoi LOT D (la première est dans processDueNotifications,
+ * avant tout accès DB). Flag ≠ "true" => aucun envoi, aucune lecture, état
+ * « failed » non terminal (jamais « simulated »).
  */
 export function notificationsRealSendEnabled(): boolean {
-  return process.env.NOTIFICATIONS_ENABLED === "true"
+  return notificationsRuntimeEnabled()
 }
 
 export type NotificationOutcome = {
-  state: "sent" | "simulated" | "failed" | "invalid"
+  state: "sent" | "failed" | "invalid"
   providerMessageId?: string
   reason?: string
 }
@@ -436,30 +433,27 @@ export type NotificationOutcome = {
  * Destinataire = email pro du tenant. Ne lève jamais.
  */
 export async function sendProReminderEmail(bookingId: number): Promise<NotificationOutcome> {
+  if (!notificationsRealSendEnabled()) return { state: "failed", reason: "notifications_disabled" }
   try {
     const loaded = await loadBookingEmailData(bookingId)
     if (!loaded) return { state: "failed", reason: "booking_not_found" }
     const { data, customerEmail, proEmail } = loaded
-    void customerEmail
-    if (!isValidEmail(proEmail)) return { state: "invalid", reason: "no_pro_email" }
+    if (!isValidNotificationEmail(proEmail)) return { state: "invalid", reason: "no_pro_email" }
 
     const mail = proReminderEmail(data)
-    if (!notificationsRealSendEnabled()) {
-      console.log("[notifications] pro_reminder SIMULÉ (envoi réel désactivé) booking", bookingId)
-      return { state: "simulated", providerMessageId: `simulated:${Date.now()}` }
-    }
     const res = await sendEmail({
-      to: proEmail,
+      to: proEmail.trim(),
       subject: mail.subject,
       html: mail.html,
       fromName: data.businessName,
-      replyTo: customerEmail,
+      replyTo: isValidNotificationEmail(customerEmail) ? customerEmail.trim() : undefined,
     })
     return res.ok
       ? { state: "sent", providerMessageId: res.id }
       : { state: "failed", reason: res.error }
   } catch (e) {
-    console.log("[v0] sendProReminderEmail a échoué:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] pro_reminder_exception", { bookingId })
     return { state: "failed", reason: "exception" }
   }
 }
@@ -473,40 +467,42 @@ export async function sendReviewRequestEmail(
   bookingId: number,
   opts: { reviewUrl: string; optOutUrl?: string | null },
 ): Promise<NotificationOutcome> {
+  if (!notificationsRealSendEnabled()) return { state: "failed", reason: "notifications_disabled" }
   try {
     if (!opts.reviewUrl) return { state: "invalid", reason: "no_review_link" }
     const loaded = await loadBookingEmailData(bookingId)
     if (!loaded) return { state: "failed", reason: "booking_not_found" }
     const { data, customerEmail, proEmail } = loaded
-    if (!isValidEmail(customerEmail)) return { state: "invalid", reason: "no_customer_email" }
+    if (!isValidNotificationEmail(customerEmail)) return { state: "invalid", reason: "no_customer_email" }
 
     const mail = reviewRequestEmail(data, opts)
-    if (!notificationsRealSendEnabled()) {
-      console.log("[notifications] review_request SIMULÉ (envoi réel désactivé) booking", bookingId)
-      return { state: "simulated", providerMessageId: `simulated:${Date.now()}` }
-    }
     const res = await sendEmail({
-      to: customerEmail,
+      to: customerEmail.trim(),
       subject: mail.subject,
       html: mail.html,
       fromName: data.businessName,
-      replyTo: proEmail ?? undefined,
+      replyTo: isValidNotificationEmail(proEmail) ? proEmail.trim() : undefined,
     })
     return res.ok
       ? { state: "sent", providerMessageId: res.id }
       : { state: "failed", reason: res.error }
   } catch (e) {
-    console.log("[v0] sendReviewRequestEmail a échoué:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] review_request_exception", { bookingId })
     return { state: "failed", reason: "exception" }
   }
 }
 
-/** Email de rappel (envoyé par la tâche planifiée la veille du RDV). */
+/**
+ * Rappel historique AU CLIENT (veille du RDV), cron /api/cron/reminders.
+ * Le droit `email_reminders` est vérifié par l'appelant (client-reminders.ts).
+ */
 export async function sendReminderEmail(bookingId: number): Promise<boolean> {
   try {
     const loaded = await loadBookingEmailData(bookingId)
     if (!loaded) return false
     const { data, customerEmail, proEmail } = loaded
+    if (!isValidNotificationEmail(customerEmail)) return false
 
     const mail = reminderEmail(data)
     const res = await sendEmail({

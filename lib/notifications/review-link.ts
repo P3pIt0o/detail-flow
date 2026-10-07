@@ -61,6 +61,15 @@ export function validateGoogleReviewLink(raw: string | null | undefined): Review
     return { ok: false, error: "Le lien doit commencer par https://" }
   }
 
+  // Identifiants embarqués (https://user:pass@…) : vecteur classique de
+  // déguisement d'URL. Port non standard : jamais utilisé par Google.
+  if (parsed.username || parsed.password || /^[^/]*@/.test(value.replace(/^https:\/\//i, ""))) {
+    return { ok: false, error: "Lien invalide." }
+  }
+  if (parsed.port !== "") {
+    return { ok: false, error: "Lien invalide." }
+  }
+
   if (!hostIsAllowed(parsed.hostname)) {
     return { ok: false, error: "Le lien doit pointer vers un domaine Google officiel." }
   }

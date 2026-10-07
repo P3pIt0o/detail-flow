@@ -14,6 +14,13 @@ import {
 } from "@/lib/notifications/settings-store"
 import { validateGoogleReviewLink } from "@/lib/notifications/review-link"
 import { resolveTenantReviewLink } from "@/lib/notifications/review-resolver"
+import { getReviewsSourceConfig } from "@/lib/reviews/config"
+import { notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
+import {
+  checkProReminderActivation,
+  checkReviewRequestActivation,
+  type ActivationCheck,
+} from "@/lib/notifications/activation"
 
 export type NotifActionResult = { ok: boolean; error?: string; migrationRequired?: boolean }
 
@@ -23,17 +30,47 @@ async function ensureSettingsRow(companyId: number) {
   if (!rows.length) await db.insert(settings).values({ companyId })
 }
 
+function activationError(check: ActivationCheck): NotifActionResult | null {
+  if (check.ok) return null
+  return { ok: false, error: check.reason === "locked" ? FEATURE_LOCKED_MESSAGE : check.error }
+}
+
+async function loadBusinessEmail(companyId: number): Promise<string | null> {
+  const rows = await db
+    .select({ businessEmail: settings.businessEmail })
+    .from(settings)
+    .where(eq(settings.companyId, companyId))
+    .limit(1)
+  return rows[0]?.businessEmail ?? null
+}
+
 /**
- * Réglages du RAPPEL PRO. Droit `email_reminders` requis UNIQUEMENT pour activer
- * (désactiver toujours possible). companyId = session serveur (jamais le client).
+ * Réglages du RAPPEL PRO (email AU PROFESSIONNEL avant le RDV). Activer exige,
+ * côté serveur : `email_reminders`, disponibilité globale (nouvelle activation),
+ * email professionnel valide, puis migration (settings-store). Désactiver est
+ * toujours possible. companyId = session serveur (jamais le client).
  */
 export async function saveProReminderAction(input: {
   enabled: boolean
   offsetHours: number
 }): Promise<NotifActionResult> {
   const { tenant } = await requireCompanyMember()
-  if (input.enabled && !(await canUseFeature(tenant.id, "email_reminders"))) {
-    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  if (input.enabled) {
+    const [licensed, current, businessEmail] = await Promise.all([
+      canUseFeature(tenant.id, "email_reminders"),
+      getLotDSettings(tenant.id),
+      loadBusinessEmail(tenant.id),
+    ])
+    const denied = activationError(
+      checkProReminderActivation({
+        enabled: true,
+        alreadyEnabled: current.proReminderEnabled,
+        runtimeEnabled: notificationsRuntimeEnabled(),
+        licensed,
+        businessEmail,
+      }),
+    )
+    if (denied) return denied
   }
   await ensureSettingsRow(tenant.id)
   const res = await saveProReminderSettings(tenant.id, input.enabled, input.offsetHours)
@@ -42,8 +79,10 @@ export async function saveProReminderAction(input: {
 }
 
 /**
- * Réglages de la DEMANDE D'AVIS. Droit `review_requests` requis pour activer.
- * Le lien est validé (HTTPS + domaine Google) avant stockage.
+ * Réglages de la DEMANDE D'AVIS (email AU CLIENT après completed_at). Activer
+ * exige `review_requests`, disponibilité globale (nouvelle activation) et un
+ * lien d'avis effectif (Place ID Google configuré OU lien manuel valide).
+ * Le lien manuel est validé (HTTPS + domaine Google) avant stockage.
  */
 export async function saveReviewRequestAction(input: {
   enabled: boolean
@@ -51,8 +90,23 @@ export async function saveReviewRequestAction(input: {
   link: string | null
 }): Promise<NotifActionResult> {
   const { tenant } = await requireCompanyMember()
-  if (input.enabled && !(await canUseFeature(tenant.id, "review_requests"))) {
-    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  if (input.enabled) {
+    const [licensed, current, reviewsConfig] = await Promise.all([
+      canUseFeature(tenant.id, "review_requests"),
+      getLotDSettings(tenant.id),
+      getReviewsSourceConfig(tenant.id).catch(() => ({ source: "manual" as const, googlePlaceId: null })),
+    ])
+    const denied = activationError(
+      checkReviewRequestActivation({
+        enabled: true,
+        alreadyEnabled: current.reviewRequestEnabled,
+        runtimeEnabled: notificationsRuntimeEnabled(),
+        licensed,
+        placeId: reviewsConfig.source === "google" ? reviewsConfig.googlePlaceId : null,
+        manualLink: input.link,
+      }),
+    )
+    if (denied) return denied
   }
   await ensureSettingsRow(tenant.id)
   const res = await saveReviewRequestSettings(tenant.id, input.enabled, input.offsetHours, input.link)

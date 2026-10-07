@@ -39,6 +39,7 @@ import { SmsSettings } from "@/components/admin/settings/sms-settings"
 import { NotificationsSettings } from "@/components/admin/settings/notifications-settings"
 import { getLotDSettings, lotDColumnsExist } from "@/lib/notifications/settings-store"
 import { resolveTenantReviewLink } from "@/lib/notifications/review-resolver"
+import { notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
 import { PromoSettings } from "@/components/admin/settings/promo-settings"
 import { listPromoCodes } from "./promo-actions"
 import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
@@ -499,7 +500,8 @@ export default async function ParametresPage({
                   canReminders={canEmailReminders}
                   canReviews={canReviewRequests}
                   migrationApplied={lotDMigrationApplied}
-                  proRecipient={settings.businessEmail ?? tenant.email ?? null}
+                  runtimeEnabled={notificationsRuntimeEnabled()}
+                  proRecipient={settings.businessEmail ?? null}
                   proReminderEnabled={lotDSettings.proReminderEnabled}
                   proReminderOffsetHours={lotDSettings.proReminderOffsetHours}
                   reviewRequestEnabled={lotDSettings.reviewRequestEnabled}
