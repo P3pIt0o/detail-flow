@@ -15,7 +15,10 @@ import {
 import { validateGoogleReviewLink } from "@/lib/notifications/review-link"
 import { resolveTenantReviewLink } from "@/lib/notifications/review-resolver"
 import { getReviewsSourceConfig } from "@/lib/reviews/config"
-import { notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
+import {
+  proReminderInfrastructureReady,
+  reviewRequestInfrastructureReady,
+} from "@/lib/notifications/runtime"
 import {
   checkProReminderActivation,
   checkReviewRequestActivation,
@@ -65,7 +68,8 @@ export async function saveProReminderAction(input: {
       checkProReminderActivation({
         enabled: true,
         alreadyEnabled: current.proReminderEnabled,
-        runtimeEnabled: notificationsRuntimeEnabled(),
+        // Flag global + fournisseur email configuré (booléen serveur uniquement).
+        runtimeEnabled: proReminderInfrastructureReady(),
         licensed,
         businessEmail,
       }),
@@ -100,7 +104,8 @@ export async function saveReviewRequestAction(input: {
       checkReviewRequestActivation({
         enabled: true,
         alreadyEnabled: current.reviewRequestEnabled,
-        runtimeEnabled: notificationsRuntimeEnabled(),
+        // Flag global + fournisseur email + capacité de lien de désinscription.
+        runtimeEnabled: reviewRequestInfrastructureReady(),
         licensed,
         placeId: reviewsConfig.source === "google" ? reviewsConfig.googlePlaceId : null,
         manualLink: input.link,

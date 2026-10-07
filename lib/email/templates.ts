@@ -397,19 +397,17 @@ export function proReminderEmail(b: BookingEmailData) {
 /**
  * Email de DEMANDE D'AVIS envoyé AU CLIENT après une prestation réalisée (LOT D).
  * Contient le lien d'avis Google (validé/résolu côté serveur) et un lien de
- * désinscription (respect des oppositions). Aucun avis n'est simulé : sans lien
- * résolu, cet email n'est jamais généré (garde côté serveur).
+ * désinscription OBLIGATOIRE (toujours rendu). Sans lien d'avis résolu ou sans
+ * lien de désinscription, cet email n'est jamais généré (gardes côté serveur).
  */
 export function reviewRequestEmail(
   b: BookingEmailData,
-  opts: { reviewUrl: string; optOutUrl?: string | null },
+  opts: { reviewUrl: string; optOutUrl: string },
 ) {
-  const optOut = opts.optOutUrl
-    ? `<p style="text-align:center;font-size:12px;line-height:1.6;color:${MUTED};margin:18px 0 0;">
+  const optOut = `<p style="text-align:center;font-size:12px;line-height:1.6;color:${MUTED};margin:18px 0 0;">
          Vous préférez ne plus recevoir ce type de message ?
          <a href="${esc(opts.optOutUrl)}" style="color:${MUTED};">Se désinscrire</a>.
        </p>`
-    : ""
   return {
     subject: `Votre avis compte — ${b.businessName}`,
     html: layout({
@@ -571,7 +569,7 @@ export function statusCancelledEmail(b: BookingEmailData) {
 /** Notification au professionnel : un client vient d'annuler son RDV. */
 export function proCancellationEmail(b: BookingEmailData) {
   return {
-    subject: `Annulation client — ${b.customerName} (${b.reference})`,
+    subject: `Annulation client �� ${b.customerName} (${b.reference})`,
     html: layout({
       businessName: b.businessName,
       businessEmail: b.businessEmail,

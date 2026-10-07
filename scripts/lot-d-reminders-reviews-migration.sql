@@ -35,8 +35,11 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at timestamp;
 -- 3) Outbox de notifications (dédup atomique durable) ----------------------
 -- Mécanisme minimal en cours/envoyé/échoué/invalide/ignoré, scopé tenant.
 -- Déduplication atomique par (companyId, bookingId, type) via index
--- unique. `schedule_version` gère l'invalidation lors d'un report (l'ancienne
--- ligne devient obsolète, une nouvelle version est planifiée).
+-- unique. Aucun moteur de reprogrammation : un report hors fenêtre n'est pas
+-- renvoyé (éligibilité revérifiée à chaque passe). `schedule_version` est un
+-- champ RÉSERVÉ, non utilisé par le code actuel.
+-- NB : CREATE TABLE IF NOT EXISTS ne répare pas une table partielle existante ;
+-- notificationsSchemaReady() détecte cet état et garde le LOT D indisponible.
 CREATE TABLE IF NOT EXISTS notification_outbox (
   id              serial PRIMARY KEY,
   "companyId"     integer NOT NULL,
@@ -51,8 +54,7 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
   status          text NOT NULL DEFAULT 'planned',
   -- instant d'envoi théorique (UTC)
   send_at         timestamp,
-  -- version de programmation : incrémentée à chaque report pour invalider
-  -- proprement l'ancienne planification.
+  -- RÉSERVÉ (futur) : non lu ni incrémenté par le code actuel.
   schedule_version integer NOT NULL DEFAULT 1,
   -- id de message fournisseur (idempotence / diagnostic), sans secret
   provider_message_id text,

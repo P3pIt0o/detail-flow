@@ -23,7 +23,7 @@ import {
 import { claimPaymentEmail, markPaymentEmail, type PaymentEmailRecipient } from "@/lib/payments/queries"
 import { claimRefundEmail, markRefundEmail } from "@/lib/payments/refunds"
 import { getBookingLocationType } from "@/lib/booking/location"
-import { isValidNotificationEmail, notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
+import { isHttpsUrl, isValidNotificationEmail, notificationsRuntimeEnabled } from "@/lib/notifications/runtime"
 
 /** Validation minimale d'une adresse email (avant tout appel au fournisseur). */
 function isValidEmail(value: string | null | undefined): value is string {
@@ -438,7 +438,7 @@ export async function sendProReminderEmail(bookingId: number): Promise<Notificat
     const loaded = await loadBookingEmailData(bookingId)
     if (!loaded) return { state: "failed", reason: "booking_not_found" }
     const { data, customerEmail, proEmail } = loaded
-    if (!isValidNotificationEmail(proEmail)) return { state: "invalid", reason: "no_pro_email" }
+    if (!isValidNotificationEmail(proEmail)) return { state: "invalid", reason: "invalid_recipient" }
 
     const mail = proReminderEmail(data)
     const res = await sendEmail({
@@ -448,9 +448,10 @@ export async function sendProReminderEmail(bookingId: number): Promise<Notificat
       fromName: data.businessName,
       replyTo: isValidNotificationEmail(customerEmail) ? customerEmail.trim() : undefined,
     })
+    // Jamais le message fournisseur brut (peut contenir des données) : code borné.
     return res.ok
       ? { state: "sent", providerMessageId: res.id }
-      : { state: "failed", reason: res.error }
+      : { state: "failed", reason: "provider_error" }
   } catch (e) {
     void e
     console.error("[notifications] pro_reminder_exception", { bookingId })
@@ -461,21 +462,23 @@ export async function sendProReminderEmail(bookingId: number): Promise<Notificat
 /**
  * Envoie (ou simule) la DEMANDE D'AVIS AU CLIENT pour une réservation réalisée.
  * `reviewUrl` est résolu/validé côté serveur par l'appelant (jamais fabriqué
- * ici). `optOutUrl` porte le lien de désinscription signé. Ne lève jamais.
+ * ici). `optOutUrl` (lien de désinscription signé) est OBLIGATOIRE : sans lien
+ * HTTPS valide, aucun appel fournisseur (failed réessayable). Ne lève jamais.
  */
 export async function sendReviewRequestEmail(
   bookingId: number,
-  opts: { reviewUrl: string; optOutUrl?: string | null },
+  opts: { reviewUrl: string; optOutUrl: string },
 ): Promise<NotificationOutcome> {
   if (!notificationsRealSendEnabled()) return { state: "failed", reason: "notifications_disabled" }
   try {
     if (!opts.reviewUrl) return { state: "invalid", reason: "no_review_link" }
+    if (!isHttpsUrl(opts.optOutUrl)) return { state: "failed", reason: "opt_out_url_unavailable" }
     const loaded = await loadBookingEmailData(bookingId)
     if (!loaded) return { state: "failed", reason: "booking_not_found" }
     const { data, customerEmail, proEmail } = loaded
-    if (!isValidNotificationEmail(customerEmail)) return { state: "invalid", reason: "no_customer_email" }
+    if (!isValidNotificationEmail(customerEmail)) return { state: "invalid", reason: "invalid_recipient" }
 
-    const mail = reviewRequestEmail(data, opts)
+    const mail = reviewRequestEmail(data, { reviewUrl: opts.reviewUrl, optOutUrl: opts.optOutUrl })
     const res = await sendEmail({
       to: customerEmail.trim(),
       subject: mail.subject,
@@ -485,7 +488,7 @@ export async function sendReviewRequestEmail(
     })
     return res.ok
       ? { state: "sent", providerMessageId: res.id }
-      : { state: "failed", reason: res.error }
+      : { state: "failed", reason: "provider_error" }
   } catch (e) {
     void e
     console.error("[notifications] review_request_exception", { bookingId })
@@ -506,15 +509,16 @@ export async function sendReminderEmail(bookingId: number): Promise<boolean> {
 
     const mail = reminderEmail(data)
     const res = await sendEmail({
-      to: customerEmail,
+      to: customerEmail.trim(),
       subject: mail.subject,
       html: mail.html,
       fromName: data.businessName,
-      replyTo: proEmail ?? undefined,
+      replyTo: isValidNotificationEmail(proEmail) ? proEmail.trim() : undefined,
     })
     return res.ok
   } catch (e) {
-    console.log("[v0] sendReminderEmail a échoué:", e instanceof Error ? e.message : e)
+    void e
+    console.error("[notifications] client_reminder_exception", { bookingId })
     return false
   }
 }

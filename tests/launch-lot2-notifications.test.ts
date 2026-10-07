@@ -20,11 +20,13 @@ const recordReviewOptOut = vi.fn()
 vi.mock("@/lib/notifications/opt-out-store", () => ({
   recordReviewOptOut: (...a: unknown[]) => recordReviewOptOut(...a),
   isReviewOptedOut: vi.fn(async () => false),
+  checkReviewOptOut: vi.fn(async () => "not_opted_out"),
   optOutTableExists: vi.fn(async () => false),
 }))
 
 const settingsStore = { cols: false, outbox: false }
 vi.mock("@/lib/notifications/settings-store", () => ({
+  notificationsSchemaReady: vi.fn(async () => settingsStore.cols && settingsStore.outbox),
   lotDColumnsExist: vi.fn(async () => settingsStore.cols),
   notificationOutboxExists: vi.fn(async () => settingsStore.outbox),
   getLotDSettings: vi.fn(),

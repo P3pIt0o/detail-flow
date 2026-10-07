@@ -21,9 +21,18 @@ import "server-only"
  *    « invalid » et « skipped » sont terminaux. « simulated » est un état
  *    historique (anciennes versions) traité comme terminal, plus jamais créé.
  *  - Opposition : un client opposé aux demandes d'avis est marqué « skipped ».
+ *    Vérification d'opposition indisponible (erreur DB) => AUCUN envoi, aucune
+ *    ligne écrite (« deferred ») : réessayé au passage suivant dans la fenêtre.
+ *  - Lien de désinscription indisponible => « failed » (opt_out_url_unavailable),
+ *    aucun appel fournisseur : jamais de demande d'avis sans lien de désinscription.
+ *  - Isolation : une erreur de licence ou de résolution de lien d'un tenant le
+ *    rend non éligible pour la passe, sans affecter les autres tenants.
+ *  - Report de RDV : la date/heure est relue à chaque passe ; une ligne déjà
+ *    « sent »/« skipped » pour (companyId, bookingId, type) reste terminale
+ *    (pas de moteur de reprogrammation ; schedule_version est réservé, inutilisé).
  *
  * NOTIFICATIONS_ENABLED !== "true" => ran=false/disabled sans AUCUN accès DB.
- * Migration LOT D absente => ran=false/migration_pending, no-op sûr.
+ * Schéma LOT D incomplet (notificationsSchemaReady) => ran=false/migration_pending.
  *
  * Distinction : ce module = rappel AU PROFESSIONNEL + demande d'avis AU CLIENT.
  * Le rappel historique AU CLIENT (J+1) vit dans lib/notifications/client-reminders.ts
@@ -44,12 +53,11 @@ import {
   sendWindowState,
   tenantLocalToInstant,
 } from "./schedule"
-import { notificationOutboxExists, lotDColumnsExist } from "./settings-store"
+import { notificationsSchemaReady } from "./settings-store"
 import { resolveTenantReviewLink } from "./review-resolver"
-import { isReviewOptedOut, optOutTableExists } from "./opt-out-store"
+import { checkReviewOptOut } from "./opt-out-store"
 import { buildReviewOptOutUrl } from "./opt-out-url"
-import { completedAtColumnExists } from "./completion"
-import { notificationsRuntimeEnabled, isValidNotificationEmail } from "./runtime"
+import { notificationsRuntimeEnabled, isValidNotificationEmail, isHttpsUrl } from "./runtime"
 import { sendProReminderEmail, sendReviewRequestEmail, type NotificationOutcome } from "@/lib/email/notifications"
 
 type NotificationType = "pro_reminder" | "review_request"
@@ -138,9 +146,32 @@ async function recordSkip(
   }
 }
 
-export type PassResult = { candidates: number; sent: number; failed: number; invalid: number; skipped: number }
+export type PassResult = {
+  candidates: number
+  sent: number
+  failed: number
+  invalid: number
+  skipped: number
+  deferred: number
+}
 
-const EMPTY: PassResult = { candidates: 0, sent: 0, failed: 0, invalid: 0, skipped: 0 }
+const EMPTY: PassResult = { candidates: 0, sent: 0, failed: 0, invalid: 0, skipped: 0, deferred: 0 }
+
+/** Licence évaluée UNE fois par tenant ; une erreur rend CE tenant non éligible. */
+async function licensedTenants<T extends { company_id: number }>(
+  rows: T[],
+  key: "email_reminders" | "review_requests",
+): Promise<T[]> {
+  const out: T[] = []
+  for (const row of rows) {
+    const ok = await canUseFeature(row.company_id, key).catch(() => {
+      console.error("[notifications] licence_check_error", { companyId: row.company_id })
+      return false
+    })
+    if (ok) out.push(row)
+  }
+  return out
+}
 
 function tally(acc: PassResult, o: NotificationOutcome) {
   if (o.state === "sent") acc.sent += 1
@@ -161,10 +192,7 @@ async function processProReminders(now: Date): Promise<PassResult> {
   )
   if (enabled.length === 0) return acc
 
-  // Licence évaluée UNE fois par tenant (LEGACY => autorisé).
-  const licensed = (await Promise.all(enabled.map((e) => canUseFeature(e.company_id, "email_reminders"))))
-    .map((ok, i) => (ok ? enabled[i] : null))
-    .filter((e): e is (typeof enabled)[number] => e !== null)
+  const licensed = await licensedTenants(enabled, "email_reminders")
   if (licensed.length === 0) return acc
 
   const byCompany = new Map(licensed.map((e) => [e.company_id, e]))
@@ -236,18 +264,19 @@ async function processReviewRequests(now: Date): Promise<PassResult> {
   )
   if (enabled.length === 0) return acc
 
-  const licensed = (await Promise.all(enabled.map((e) => canUseFeature(e.company_id, "review_requests"))))
-    .map((ok, i) => (ok ? enabled[i] : null))
-    .filter((e): e is (typeof enabled)[number] => e !== null)
+  const licensed = await licensedTenants(enabled, "review_requests")
   if (licensed.length === 0) return acc
 
-  // Lien d'avis résolu UNE fois par tenant. Sans lien => on n'envoie rien (et on
-  // n'invente jamais de fiche/Place ID).
+  // Lien d'avis résolu UNE fois par tenant. Sans lien (ou erreur de résolution
+  // pour CE tenant) => rien pour lui ; jamais de fiche/Place ID inventé.
   const linkByCompany = new Map<number, string>()
   const offsetByCompany = new Map<number, number>()
   for (const e of licensed) {
     offsetByCompany.set(e.company_id, normalizeReviewOffset(e.offset_hours))
-    const link = await resolveTenantReviewLink(e.company_id)
+    const link = await resolveTenantReviewLink(e.company_id).catch(() => {
+      console.error("[notifications] review_link_error", { companyId: e.company_id })
+      return null
+    })
     if (link) linkByCompany.set(e.company_id, link)
   }
   const companyIds = [...linkByCompany.keys()]
@@ -289,8 +318,14 @@ async function processReviewRequests(now: Date): Promise<PassResult> {
       await recordSkip(b.company_id, b.id, "review_request", "—", "invalid_recipient", sendAt, "invalid")
       continue
     }
-    // Respect des oppositions.
-    if (await isReviewOptedOut(b.company_id, recipient)) {
+    // Respect des oppositions : une vérification indisponible n'autorise JAMAIS l'envoi.
+    const optOut = await checkReviewOptOut(b.company_id, recipient)
+    if (optOut === "unavailable") {
+      acc.deferred += 1
+      console.error("[notifications] opt_out_check_unavailable", { companyId: b.company_id, bookingId: b.id })
+      continue
+    }
+    if (optOut === "opted_out") {
       acc.skipped += 1
       await recordSkip(b.company_id, b.id, "review_request", recipient, "opted_out", sendAt)
       continue
@@ -298,6 +333,12 @@ async function processReviewRequests(now: Date): Promise<PassResult> {
     const id = await claim(b.company_id, b.id, "review_request", recipient, sendAt)
     if (id == null) continue
     const optOutUrl = buildReviewOptOutUrl(b.company_id, recipient)
+    if (!isHttpsUrl(optOutUrl)) {
+      const outcome: NotificationOutcome = { state: "failed", reason: "opt_out_url_unavailable" }
+      await mark(id, outcome)
+      tally(acc, outcome)
+      continue
+    }
     const outcome = await sendReviewRequestEmail(b.id, { reviewUrl, optOutUrl })
     await mark(id, outcome)
     tally(acc, outcome)
@@ -322,13 +363,7 @@ export async function processDueNotifications(now: Date = new Date()): Promise<P
   if (!notificationsRuntimeEnabled()) {
     return { ran: false, reason: "disabled", proReminders: { ...EMPTY }, reviewRequests: { ...EMPTY } }
   }
-  const [colsOk, outboxOk, completedOk, optOutOk] = await Promise.all([
-    lotDColumnsExist(),
-    notificationOutboxExists(),
-    completedAtColumnExists(),
-    optOutTableExists(),
-  ])
-  if (!colsOk || !outboxOk || !completedOk || !optOutOk) {
+  if (!(await notificationsSchemaReady())) {
     return { ran: false, reason: "migration_pending", proReminders: { ...EMPTY }, reviewRequests: { ...EMPTY } }
   }
   const proReminders = await processProReminders(now)
