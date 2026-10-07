@@ -12,10 +12,10 @@ import {
   ensureSmsCreditsRow,
   ensureMonthlySmsGrant,
 } from "@/lib/sms/credits"
-import { headers } from "next/headers"
+import { BillingOriginError, resolveBillingOrigin } from "@/lib/billing/billing-origin"
 import { withTenant } from "@/lib/tenant-link"
 import { startSmsPackCheckout, getStripeRechargeStatus } from "@/lib/sms/checkout"
-import { ensureTenantSubAccount } from "@/lib/sms/send"
+import { ensureTenantSubAccount, allocateDeltaToTenant } from "@/lib/sms/send"
 import {
   SMS_MIN_CUSTOM_QUANTITY,
   amountForQuantity,
@@ -167,6 +167,16 @@ export async function saveSmsReminderSettings(input: {
         tenant.id,
       )
     }
+
+    // Transfert des crédits DetailFlow en attente (grant mensuel, packs) —
+    // idempotent via le delta. Un échec ne bloque pas l'activation ni ne
+    // modifie le solde DB ; il sera rejoué au prochain appel.
+    try {
+      const alloc = await allocateDeltaToTenant(tenant.id)
+      if (!alloc.ok) console.error("[sms] allocation delta échouée:", tenant.id, alloc.error ?? "erreur inconnue")
+    } catch (e) {
+      console.error("[sms] allocation delta échouée:", tenant.id, e instanceof Error ? e.message : e)
+    }
   }
 
   revalidatePath("/admin/parametres")
@@ -295,13 +305,6 @@ export async function getMySmsBalance() {
   return getSmsBalance(tenant.id)
 }
 
-async function absoluteUrl(path: string): Promise<string> {
-  const h = await headers()
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
-  const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https")
-  return `${proto}://${host}${path}`
-}
-
 /**
  * Achat d'un pack SMS via Stripe Checkout (compte PLATEFORME).
  * OWNER uniquement. companyId = session ; montant recalculé serveur.
@@ -320,14 +323,19 @@ export async function startSmsPackCheckoutAction(
   if (qty > 5000) return { ok: false, error: "Quantité trop élevée." }
 
   try {
+    const origin = resolveBillingOrigin()
     const { url } = await startSmsPackCheckout({
       companyId: tenant.id,
       quantity: qty,
-      successUrl: await absoluteUrl(withTenant("/admin/parametres?sms_session={CHECKOUT_SESSION_ID}#sms", tenant.slug)),
-      cancelUrl: await absoluteUrl(withTenant("/admin/parametres?sms_annule=1#sms", tenant.slug)),
+      successUrl: origin + withTenant("/admin/parametres?sms_session={CHECKOUT_SESSION_ID}#sms", tenant.slug),
+      cancelUrl: origin + withTenant("/admin/parametres?sms_annule=1#sms", tenant.slug),
     })
     return { ok: true, url }
   } catch (e) {
+    if (e instanceof BillingOriginError) {
+      console.error("[sms-checkout] origine Billing invalide")
+      return { ok: false, error: e.message }
+    }
     console.error("[sms-checkout] erreur:", e instanceof Error ? e.message : e)
     return { ok: false, error: "Le paiement n'a pas pu être initialisé." }
   }

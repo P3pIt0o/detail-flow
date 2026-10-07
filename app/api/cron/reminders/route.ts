@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { and, eq, isNull, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { bookings, settings as settingsTable, companies } from "@/lib/db/schema"
+import { bookings, settings as settingsTable, companies, smsCredits } from "@/lib/db/schema"
 import { sendReminderEmail } from "@/lib/email/notifications"
-import { sendSms } from "@/lib/sms/send"
+import { sendSms, allocateDeltaToTenant } from "@/lib/sms/send"
+import { grantMonthlyAndAllocate } from "@/lib/sms/allocation-core"
 import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit, ensureMonthlySmsGrant } from "@/lib/sms/credits"
 import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE, SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
@@ -96,7 +97,19 @@ export async function GET(request: Request) {
       : []
     for (const c of eligible) {
       try {
-        if (await ensureMonthlySmsGrant(c.id)) smsMonthlyGranted += 1
+        const r = await grantMonthlyAndAllocate(c.id, {
+          grant: ensureMonthlySmsGrant,
+          hasSubAccount: async (id) => {
+            const [row] = await db
+              .select({ sub: smsCredits.allmysmsSubLogin })
+              .from(smsCredits)
+              .where(eq(smsCredits.companyId, id))
+              .limit(1)
+            return !!row?.sub
+          },
+          allocate: allocateDeltaToTenant,
+        })
+        if (r.granted) smsMonthlyGranted += 1
       } catch (e) {
         console.error("[cron] grant SMS mensuel échoué:", c.id, e instanceof Error ? e.message : e)
       }
