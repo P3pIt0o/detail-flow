@@ -3,7 +3,7 @@
  * Purement structurel — aucune donnée métier, aucun couplage tenant.
  */
 
-import { publicReservationPath } from "@/lib/tenant-shared"
+import { publicPagePath, publicReservationPath } from "@/lib/tenant-shared"
 
 export const CLZ_SECTIONS = {
   prestations: "prestations",
@@ -20,3 +20,9 @@ export const CLZ_PREVIEW_BASE = "/cleanyzer-preview"
 
 /** Module de réservation standard (BookingV2) du tenant CLEANYZER. */
 export const CLZ_BOOKING_HREF = publicReservationPath("cleanyzer")
+
+/** Accueil public officiel du site personnalisé CLEANYZER (production). */
+export const CLZ_HOME_HREF = publicPagePath("cleanyzer")
+
+/** Demande personnalisée existante (app/(site)/demande), résolue par tenant. */
+export const CLZ_DEMANDE_HREF = `${publicPagePath("cleanyzer")}/demande`

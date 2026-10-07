@@ -13,7 +13,7 @@ import Image from "next/image"
 import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
 import { BRAND } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE, type ClzNavItem } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
@@ -90,8 +90,8 @@ export function CleanyzerShell({
     return () => window.removeEventListener("scroll", onScroll)
   }, [open])
 
-  const reserverHref = `${CLZ_PREVIEW_BASE}/reservation`
-  const devisHref = CLZ_BOOKING_HREF
+  const reserverHref = CLZ_BOOKING_HREF
+  const devisHref = CLZ_DEMANDE_HREF
 
   // Surface opaque dès qu'on quitte le sommet OU que le menu mobile est ouvert.
   const solidSurface = scrolled || open
@@ -121,7 +121,7 @@ export function CleanyzerShell({
           />
         )}
         <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 md:h-20 md:px-6">
-          <Link href={CLZ_PREVIEW_BASE} className="flex items-center" aria-label={`${BRAND.name} — accueil`}>
+          <Link href={CLZ_HOME_HREF} className="flex items-center" aria-label={`${BRAND.name} — accueil`}>
             <Image
               src={LOGO || "/placeholder.svg"}
               alt={BRAND.name}
@@ -135,7 +135,7 @@ export function CleanyzerShell({
 
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Navigation principale">
             {navItems.map((item) => {
-              const href = item.href ?? `${CLZ_PREVIEW_BASE}#${item.id}`
+              const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
               const isActive = active === item.label
               return (
                 <Link
@@ -195,7 +195,7 @@ export function CleanyzerShell({
           >
             <nav className="mx-auto flex max-w-6xl flex-col px-4 py-3" aria-label="Navigation mobile">
               {navItems.map((item) => {
-                const href = item.href ?? `${CLZ_PREVIEW_BASE}#${item.id}`
+                const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
                 return (
                   <Link
                     key={item.id}
@@ -275,7 +275,7 @@ function CleanyzerFooter({ navItems }: { navItems: ClzNavItem[] }) {
               {navItems.map((item) => (
                 <li key={item.id}>
                   <Link
-                    href={item.href ?? `${CLZ_PREVIEW_BASE}#${item.id}`}
+                    href={item.href ?? `${CLZ_HOME_HREF}#${item.id}`}
                     className="text-[var(--clz-on-dark)]/90 transition-colors hover:text-white"
                   >
                     {item.label}
