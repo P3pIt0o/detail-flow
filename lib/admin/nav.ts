@@ -35,6 +35,7 @@ export type AdminNavIcon =
   | "reservationLink"
   | "web"
   | "settings"
+  | "billing"
 
 export type AdminNavItem = {
   href: string
@@ -99,6 +100,7 @@ function baseAdminNav(opts: { intent: OnboardingIntentValue | null; customSiteKe
     { href: "/admin/analyse", label: "Analyse", icon: "analyse" },
     webNavItem(opts.intent),
     { href: "/admin/parametres", label: "Paramètres", icon: "settings" },
+    { href: "/admin/abonnement", label: "Mon abonnement", icon: "billing" },
   ]
 
   if (opts.customSiteKey === "spirit-acs") {
@@ -145,6 +147,7 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/factures": "gestion",
   "/admin/analyse": "gestion",
   "/admin/parametres": "reglages",
+  "/admin/abonnement": "reglages",
 }
 
 const ADMIN_NAV_GROUP_LABELS: Readonly<Record<string, string>> = {
