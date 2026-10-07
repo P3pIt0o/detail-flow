@@ -52,10 +52,11 @@ import type { FeatureKey, LicensePlan } from "@/lib/licensing/types"
  * `provisionCompanyForUser` importe cette constante : marketing, onboarding et
  * attribution partagent ainsi une seule valeur (impossible de dériver).
  *
- * NOTE : la page publique standard `/p/<slug>` et le lien de réservation
- * `/p/<slug>/reservation` sont accessibles à FREE SANS la feature `website`
- * (réservée aux vrais sites personnalisés). Page publique standard ≠ feature
- * `website` : ce sont deux concepts distincts.
+ * NOTE : PLAN_MATRIX.FREE inclut la feature `website` (page professionnelle
+ * standard `/p/<slug>` personnalisable + lien de réservation). Les sites
+ * entièrement sur mesure (`customSiteKey` : Spirit ACS, Rozan, Cleanyzer…) sont
+ * une mécanique DISTINCTE, attribuée séparément, et ne sont PAS une feature
+ * self-service d'aucune offre.
  */
 export const SELF_SERVICE_LICENSE_PLAN: LicensePlan = "FREE"
 
@@ -72,8 +73,9 @@ export type CommercialPlan = {
   /** Ligne de positionnement courte (« Commencez simplement. »). */
   tagline: string
   /**
-   * Plan technique du moteur de licences correspondant, ou `null` quand aucun
-   * plan réel n'existe encore (cas Entreprise : gestion d'équipe non modélisée).
+   * Plan technique du moteur de licences correspondant. Toutes les offres
+   * actuelles ont un plan réel (Équipe -> ENTERPRISE) ; `null` reste permis par
+   * le type pour une future offre sans plan technique.
    */
   licensePlan: LicensePlan | null
   price: string
@@ -86,7 +88,7 @@ export type CommercialPlan = {
    */
   monthlyPriceCents: number
   description: string
-  /** Promesse « 1er mois offert » affichée sur les offres payantes. */
+  /** Promesse d'essai affichée — aujourd'hui Indépendant uniquement (`null` ailleurs). */
   trial?: string | null
   /**
    * Puces d'affichage marketing. Peuvent inclure des capacités NON gated
@@ -96,7 +98,8 @@ export type CommercialPlan = {
   /**
    * Features GATED explicitement promises par l'offre. INVARIANT (vérifié par
    * les tests) : chacune DOIT être `true` dans `PLAN_MATRIX[licensePlan]`.
-   * Vide pour FREE (aucune feature premium) et pour Entreprise (pas de plan).
+   * FREE : website, online_booking, online_payments, customer_subscriptions.
+   * Équipe : vide tant que les modules d'équipe n'existent pas.
    */
   includedFeatures: FeatureKey[]
   availability: PlanAvailability
@@ -235,7 +238,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Attribution des rendez-vous & RDV simultanés",
       "Permissions & statistiques par employé",
     ],
-    // licensePlan null -> aucune feature ne peut être promise (invariant testé).
+    // Aucune feature d'équipe n'existe encore -> rien n'est promis (invariant testé).
     includedFeatures: [],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },

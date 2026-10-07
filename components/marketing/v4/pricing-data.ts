@@ -52,7 +52,6 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
     rows: [
       { label: "Fiches clients & véhicules", values: all },
       { label: "Historique des prestations", values: all },
-      { label: "Photos clients / véhicules", values: ultimeUp },
       { label: "Leads / CRM prospects", values: ultimeUp },
       // PLAN_MATRIX.FREE inclut `customer_subscriptions`.
       { label: "Abonnements clients récurrents", values: all },
@@ -73,7 +72,8 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       // FREE : 3 devis / 3 factures par mois (limites serveur) ; illimité dès PRO.
       { label: "Devis (3/mois en Essentiel)", values: all },
       { label: "Factures (3/mois en Essentiel)", values: all },
-      { label: "Avoirs", values: ultimeUp },
+      // createCreditNote / issueCreditNote : aucune FeatureKey dédiée côté serveur.
+      { label: "Avoirs", values: all },
     ],
   },
   {
@@ -99,7 +99,6 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
     name: "Site internet",
     rows: [
       { label: "Page professionnelle", values: all },
-      { label: "Site personnalisé", values: proUp },
       { label: "Domaine personnalisé", values: ultimeUp },
     ],
   },

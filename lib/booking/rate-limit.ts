@@ -34,15 +34,15 @@ export async function isBookingRateLimited(
   const env = deps.env ?? (process.env as BookingRateLimitEnv)
   try {
     const { rateLimited, error } = await check(BOOKING_RATE_LIMIT_ID, { headers })
-    if (error === "blocked") return true
-    if (error === "not-found") {
+    if (rateLimited === true || error === "blocked") return true
+    if (error) {
       if (isRealProduction(env)) {
-        console.error("[booking] règle anti-abus introuvable — réservation refusée (fail-closed)")
+        console.error("[booking] anti-abus en erreur — réservation refusée (fail-closed)")
         return true
       }
       return false
     }
-    return Boolean(rateLimited)
+    return false
   } catch {
     if (isRealProduction(env)) {
       console.error("[booking] anti-abus indisponible — réservation refusée (fail-closed)")

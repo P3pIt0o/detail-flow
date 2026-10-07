@@ -183,6 +183,17 @@ describe("I — rate limit réservation", () => {
     expect(await isBookingRateLimited(h, { check: async () => ({ rateLimited: false, error: "not-found" }), env: prod })).toBe(true)
     expect(await isBookingRateLimited(h, { check: async () => { throw new Error("down") }, env: prod })).toBe(true)
   })
+  it.each(["unknown", "unavailable", "rate-limit-error", "x"])(
+    "prod : toute erreur firewall (%s) + rateLimited=false => refusé",
+    async (error) => {
+      expect(await isBookingRateLimited(h, { check: async () => ({ rateLimited: false, error }), env: prod })).toBe(true)
+    },
+  )
+  it("preview / local : erreur inattendue => réservation possible", async () => {
+    for (const env of [preview, local]) {
+      expect(await isBookingRateLimited(h, { check: async () => ({ rateLimited: false, error: "unknown" }), env })).toBe(false)
+    }
+  })
   it("preview / local : règle absente => réservation possible", async () => {
     for (const env of [preview, local]) {
       expect(await isBookingRateLimited(h, { check: async () => ({ rateLimited: false, error: "not-found" }), env })).toBe(false)
