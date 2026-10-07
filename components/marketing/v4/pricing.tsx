@@ -10,7 +10,7 @@ import {
 import { StaggerGroup, StaggerItem } from "@/components/ui/reveal"
 import { cn } from "@/lib/utils"
 import { Container, DetailFlowMark, SectionIntro } from "./primitives"
-import { COMPARE_CATEGORIES, COMPARE_COLUMNS } from "./pricing-data"
+import { COMPARE_CATEGORIES, COMPARE_COLUMNS, getPlanFeatureGroups } from "./pricing-data"
 import { LifetimeOffer } from "./lifetime-offer"
 
 /**
@@ -110,10 +110,65 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
         ))}
       </ul>
 
+      <PlanFeatureDetails plan={plan} />
+
       <div className="mt-auto">
         <PlanCta plan={plan} emphasis={available || !!featured} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Volet repliable « Voir toutes les fonctionnalités » — <details> natif (0 JS).
+ * Contenu DÉRIVÉ de COMPARE_CATEGORIES via getPlanFeatureGroups (aucune seconde matrice).
+ */
+function PlanFeatureDetails({ plan }: { plan: CommercialPlan }) {
+  const groups = getPlanFeatureGroups(plan.id)
+  const planned = plan.availability === "coming_soon"
+  return (
+    <details className="group mt-5 border-t border-border pt-1">
+      <summary className="-mx-2 flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        Voir toutes les fonctionnalités
+        <ChevronDown
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+
+      <div className="flex flex-col gap-5 pb-1 pt-3">
+        <p className="text-xs font-semibold text-muted-foreground">
+          {planned ? "Fonctionnalités prévues" : "Fonctionnalités incluses"}
+        </p>
+        {groups.map((group) => (
+          <div key={group.name}>
+            <p className="text-xs font-bold uppercase tracking-wide text-primary">{group.name}</p>
+            <ul className="mt-2 flex flex-col gap-3">
+              {group.items.map((item) => (
+                <li key={item.label} className="flex items-start gap-2.5">
+                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold leading-snug text-foreground">
+                      {item.label}
+                      {item.note ? (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          {item.note}
+                        </span>
+                      ) : null}
+                    </p>
+                    {item.description ? (
+                      <p className="mt-0.5 text-pretty text-xs leading-relaxed text-muted-foreground">
+                        {item.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }
 
