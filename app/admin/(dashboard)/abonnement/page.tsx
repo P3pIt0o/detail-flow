@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/saas-admin"
 import { SUBSCRIPTION_TRIAL_DAYS, describeSubscriptionPlan, isCompanyTrialEligible } from "@/lib/billing/subscription-core"
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
+import { parseDesiredPlan } from "@/lib/pricing/desired-plan"
 import { Badge } from "@/components/ui/badge"
 import { SaasCheckoutButton, SaasPortalButton } from "@/components/admin/saas-billing/billing-buttons"
 
@@ -23,8 +24,14 @@ const euros = (cents: number) =>
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
   })
 
-export default async function SaasBillingPage({ searchParams }: { searchParams: Promise<{ annule?: string }> }) {
-  const { annule } = await searchParams
+export default async function SaasBillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ annule?: string; plan?: string | string[] }>
+}) {
+  const { annule, plan: planParam } = await searchParams
+  // Mise en avant visuelle uniquement : aucune écriture DB, aucun Checkout automatique.
+  const desiredPlan = parseDesiredPlan(planParam)
   const member = await requireCompanyMember()
   const isOwner = member.role === "OWNER"
   const company = await createPgSubscriptionStore().getCompany(member.tenant.id)
@@ -108,10 +115,12 @@ export default async function SaasBillingPage({ searchParams }: { searchParams: 
             <div className="grid gap-4 md:grid-cols-3">
               {SAAS_ADMIN_CHECKOUT_PLANS.map((plan) => {
                 const { name, monthlyPriceCents } = describeSubscriptionPlan(plan)
-                const featured = plan === "BUSINESS"
+                const chosen = desiredPlan === plan
+                const featured = desiredPlan ? chosen : plan === "BUSINESS"
                 return (
                   <article
                     key={plan}
+                    data-desired-plan={chosen ? "true" : undefined}
                     className={
                       featured
                         ? "flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5 text-card-foreground"
@@ -119,6 +128,7 @@ export default async function SaasBillingPage({ searchParams }: { searchParams: 
                     }
                   >
                     <div className="flex flex-col gap-1">
+                      {chosen ? <Badge className="self-start">Votre choix</Badge> : null}
                       <h3 className="font-semibold">{name}</h3>
                       <p>
                         <span className="text-2xl font-semibold">{euros(monthlyPriceCents)}</span>

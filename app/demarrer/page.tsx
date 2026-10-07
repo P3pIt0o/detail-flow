@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/admin"
+import { parseDesiredPlan, withDesiredPlan } from "@/lib/pricing/desired-plan"
 import { Onboarding } from "./onboarding"
 
 // Tunnel d'inscription : pas d'intérêt SEO propre, on évite l'indexation.
@@ -24,9 +25,11 @@ export const dynamic = "force-dynamic"
  * Garde : un utilisateur déjà connecté n'a pas besoin de s'inscrire — on le
  * renvoie vers son espace (idempotence gérée en aval).
  */
-export default async function DemarrerPage() {
+export default async function DemarrerPage({ searchParams }: { searchParams: Promise<{ plan?: string | string[] }> }) {
+  // Intention commerciale uniquement (PRO | BUSINESS | null) : aucun droit accordé.
+  const desiredPlan = parseDesiredPlan((await searchParams).plan)
   const session = await getSession()
-  if (session?.user) redirect("/admin/creer-mon-espace")
+  if (session?.user) redirect(withDesiredPlan("/admin/creer-mon-espace", desiredPlan))
 
-  return <Onboarding />
+  return <Onboarding desiredPlan={desiredPlan} />
 }

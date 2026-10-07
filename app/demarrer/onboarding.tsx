@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { saveOnboarding, type OnboardingIntent } from "@/lib/onboarding/shared"
+import { withDesiredPlan, type DesiredPlan } from "@/lib/pricing/desired-plan"
 
 /* -------------------------------------------------------------------------- */
 /*  Données du parcours                                                        */
@@ -97,8 +98,9 @@ function stepsFor(intent: OnboardingIntent | ""): Step[] {
 /*  Composant principal                                                        */
 /* -------------------------------------------------------------------------- */
 
-export function Onboarding() {
+export function Onboarding({ desiredPlan = null }: { desiredPlan?: DesiredPlan | null }) {
   const [step, setStep] = useState<Step>("intent")
+  const callbackURL = withDesiredPlan("/admin/creer-mon-espace", desiredPlan)
   const [intent, setIntent] = useState<OnboardingIntent | "">("")
 
   const [distribution, setDistribution] = useState<"link" | "widget" | "">("")
@@ -167,6 +169,7 @@ export function Onboarding() {
         city: city.trim() || undefined,
         country,
         phone: phone.trim() || undefined,
+        desiredPlan,
       })
     }
 
@@ -174,7 +177,7 @@ export function Onboarding() {
       email: email.trim(),
       password,
       name: ownerName.trim() || companyName.trim(),
-      callbackURL: "/admin/creer-mon-espace",
+      callbackURL,
     })
     setLoading(false)
     if (authError) {
@@ -188,7 +191,7 @@ export function Onboarding() {
     setResent(false)
     const { error: e } = await authClient.sendVerificationEmail({
       email: email.trim(),
-      callbackURL: "/admin/creer-mon-espace",
+      callbackURL,
     })
     if (!e) setResent(true)
   }

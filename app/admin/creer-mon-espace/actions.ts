@@ -8,6 +8,7 @@ import { getSession } from "@/lib/admin"
 import { provisionCompanyForUser } from "@/lib/company/provision"
 import { isValidSlug, isReservedSlug, normalizeSlug } from "@/lib/tenant-shared"
 import { toCanonicalIntent } from "@/lib/onboarding/intent"
+import { buildPostCreationRedirect, parseDesiredPlan } from "@/lib/pricing/desired-plan"
 
 /* -------------------------------------------------------------------------- */
 /*  Actions du parcours « Créer mon espace » (inscription self-service)        */
@@ -75,6 +76,8 @@ export async function createWorkspace(
       ? distributionRaw
       : undefined
 
+  const desiredPlan = parseDesiredPlan(formData.get("desiredPlan"))
+
   if (!name) return { error: "Le nom de votre entreprise est requis." }
 
   const slug = normalizeSlug(slugRaw || name)
@@ -113,7 +116,7 @@ export async function createWorkspace(
   // `?tenant=` garantit le contexte tenant en aperçu (production : résolu aussi
   // par l'appartenance de l'utilisateur). `start=` transmet l'intention de
   // l'onboarding pour orienter la première configuration (booking/page/website).
-  const params = new URLSearchParams({ tenant: createdSlug })
-  if (intent) params.set("start", intent)
-  redirect(`/admin?${params.toString()}`)
+  // `desiredPlan` ne sert QU'À la redirection vers /admin/abonnement : l'espace
+  // vient d'être créé FREE et aucun droit n'est accordé ici.
+  redirect(buildPostCreationRedirect(createdSlug, intent, desiredPlan))
 }

@@ -10,6 +10,8 @@
  * persistées en base (voir provisionCompanyForUser — colonnes existantes only).
  */
 
+import type { DesiredPlan } from "@/lib/pricing/desired-plan"
+
 export const ONBOARDING_STORAGE_KEY = "df_onboarding_v1"
 
 /** Ce que veut faire le professionnel avec DetailFlow. */
@@ -27,6 +29,8 @@ export type OnboardingPayload = {
   city?: string
   country?: string
   phone?: string
+  /** Intention commerciale (PRO | BUSINESS) — n'accorde aucun droit. */
+  desiredPlan?: DesiredPlan | null
 }
 
 /** Enregistre l'état onboarding (sans jamais lever, même si le storage échoue). */

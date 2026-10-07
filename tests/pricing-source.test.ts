@@ -4,6 +4,7 @@ import {
   COMMERCIAL_PLANS,
   CUSTOM_PLATFORM_OFFER,
   PLAN_JOURNEY,
+  PRICING_COPY,
   SELF_SERVICE_LICENSE_PLAN,
   getSelfServePlans,
 } from "@/lib/pricing/plans"
@@ -58,15 +59,36 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
 })
 
 describe("self-service : ce qui est sélectionnable == ce qui est réellement attribué", () => {
-  it("seule l'offre gratuite est self_serve aujourd'hui", () => {
+  it("Essentiel, Indépendant et Performance sont self_serve ; Équipe non", () => {
     const selfServe = getSelfServePlans()
-    expect(selfServe.map((p) => p.id)).toEqual(["starter"])
+    expect(selfServe.map((p) => p.id)).toEqual(["starter", "pro", "ultime"])
   })
 
-  it("l'offre self_serve attribue exactement le plan self-service (FREE)", () => {
-    const [starter] = getSelfServePlans()
-    expect(starter.licensePlan).toBe(SELF_SERVICE_LICENSE_PLAN)
+  it("la création self-service attribue toujours FREE (les offres payantes passent par Checkout)", () => {
+    const starter = getSelfServePlans().find((p) => p.id === "starter")
+    expect(starter?.licensePlan).toBe(SELF_SERVICE_LICENSE_PLAN)
     expect(SELF_SERVICE_LICENSE_PLAN).toBe("FREE")
+  })
+
+  it("CTA : FREE → /demarrer, PRO → /demarrer?plan=PRO, BUSINESS → /demarrer?plan=BUSINESS", () => {
+    const byId = Object.fromEntries(ALL_COMMERCIAL_PLANS.map((p) => [p.id, p]))
+    expect(byId.starter.cta.href).toBe("/demarrer")
+    expect(byId.starter.cta.label).toBe("Créer mon espace gratuitement")
+    expect(byId.pro.licensePlan).toBe("PRO")
+    expect(byId.pro.cta.href).toBe("/demarrer?plan=PRO")
+    expect(byId.pro.cta.label).toBe("Essayer 30 jours gratuitement")
+    expect(byId.ultime.licensePlan).toBe("BUSINESS")
+    expect(byId.ultime.cta.href).toBe("/demarrer?plan=BUSINESS")
+    expect(byId.ultime.cta.label).toBe("Essayer 30 jours gratuitement")
+    expect(byId.pro.trial).toBe("30 jours gratuits")
+    expect(byId.ultime.trial).toBe("30 jours gratuits")
+  })
+
+  it("Équipe : coming_soon, « Bientôt disponible », aucun CTA de souscription", () => {
+    const equipe = ALL_COMMERCIAL_PLANS.find((p) => p.id === "entreprise")
+    expect(equipe?.availability).toBe("coming_soon")
+    expect(equipe?.cta.label).toBe("Bientôt disponible")
+    expect(equipe?.cta.href).toBeNull()
   })
 
   it("une offre coming_soon ne mène JAMAIS à /demarrer (pas de création FREE déguisée)", () => {
@@ -77,11 +99,9 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     }
   })
 
-  it("Indépendant, Performance et Équipe sont coming_soon tant que le paiement n'est pas livré", () => {
-    const byId = Object.fromEntries(ALL_COMMERCIAL_PLANS.map((p) => [p.id, p]))
-    expect(byId.pro.availability).toBe("coming_soon")
-    expect(byId.ultime.availability).toBe("coming_soon")
-    expect(byId.entreprise.availability).toBe("coming_soon")
+  it("aucun texte « offres payantes prochainement » ne subsiste", () => {
+    expect(PRICING_COPY.note).not.toMatch(/prochainement/i)
+    expect(PRICING_COPY.trialHeadline).not.toMatch(/prochainement|future formule/i)
   })
 })
 
@@ -94,11 +114,11 @@ describe("séparation page publique standard vs feature `website`", () => {
 })
 
 describe("cohérence avec le registre interne (super-admin)", () => {
-  it("Performance s'appuie sur BUSINESS, non commercialisable en self-service (aligné sur PLAN_META)", () => {
-    // PLAN_META.purchasable = sellabilité manuelle super-admin ; la source
-    // commerciale reste au moins aussi prudente pour l'offre Performance (BUSINESS).
+  it("le registre super-admin n'est pas modifié par la commercialisation Checkout", () => {
+    // PLAN_META.purchasable = attribution MANUELLE super-admin ; inchangé. La
+    // vente self-service de BUSINESS passe uniquement par Stripe Checkout + webhook.
     expect(PLAN_META.BUSINESS.purchasable).toBe(false)
-    expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("coming_soon")
+    expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("self_serve")
   })
 })
 
