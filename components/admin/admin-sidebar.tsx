@@ -17,6 +17,7 @@ import {
   Repeat,
   Sparkles,
   Settings,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -48,6 +49,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   reservationLink: CalendarCheck,
   web: Globe,
   settings: Settings,
+  billing: CreditCard,
 }
 
 export function AdminSidebar({
@@ -82,7 +84,7 @@ export function AdminSidebar({
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin"
-    return pathname.startsWith(href)
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   const navContent = (

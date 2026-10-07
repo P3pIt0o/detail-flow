@@ -21,6 +21,7 @@ import {
   Repeat,
   Sparkles,
   Settings,
+  CreditCard,
   LogOut,
   X,
   ShieldCheck,
@@ -52,6 +53,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   reservationLink: CalendarCheck,
   web: Globe,
   settings: Settings,
+  billing: CreditCard,
 }
 
 type SimpleItem = { href: string; label: string; Icon: React.ComponentType<{ className?: string }> }
@@ -124,7 +126,7 @@ export function AdminShell({
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin"
-    return pathname.startsWith(href)
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   // Entrées super-admin (jamais affichées aux utilisateurs classiques).
