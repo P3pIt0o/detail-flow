@@ -8,8 +8,8 @@
  *   son on/off explicite et accessible.
  * - `prefers-reduced-motion` : autoplay neutralisé, vidéo en pause (aucune image de remplacement).
  *
- * Preuve sociale Google : 5/5 — 78 avis (valeurs fournies par le client,
- * conformes aux visuels de référence). Ne pas modifier sans instruction.
+ * Preuve sociale Google : 5,0/5 — 86 avis (relevé sur la fiche Google Maps
+ * officielle, source unique : BRAND dans content.ts). Ne pas modifier sans instruction.
  */
 
 import { useEffect, useRef, useState } from "react"
@@ -20,8 +20,9 @@ import { CLZ_BOOKING_HREF, CLZ_HOME_HREF } from "./tokens"
 
 const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
 
-const GOOGLE_RATING = 5
-const GOOGLE_REVIEWS = 78
+const GOOGLE_RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
+const GOOGLE_REVIEWS = BRAND.googleReviewCount
+const GOOGLE_REVIEWS_URL = BRAND.googleReviewsUrl
 
 export function CleanyzerHero() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -112,8 +113,8 @@ export function CleanyzerHero() {
           </Link>
         </div>
 
-        {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
-        <div className="mt-10 flex items-center gap-3">
+        {/* Preuve sociale Google : 5,0/5 — 86 avis (fiche Google Maps officielle). */}
+        <div className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="flex" aria-hidden>
             {Array.from({ length: 5 }).map((_, i) => (
               <Star key={i} className="h-4 w-4 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />
@@ -125,6 +126,18 @@ export function CleanyzerHero() {
             </span>{" "}
             — {GOOGLE_REVIEWS} avis Google
           </p>
+          {GOOGLE_REVIEWS_URL && (
+            <a
+              href={GOOGLE_REVIEWS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-medium text-white/85 underline-offset-4 transition hover:text-white hover:underline"
+            >
+              Voir les avis Google
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+              <span className="sr-only">(nouvel onglet)</span>
+            </a>
+          )}
         </div>
       </div>
 

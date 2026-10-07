@@ -290,14 +290,16 @@ export function AvisSection() {
     <section className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
         <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
-        {/* Preuve sociale Google : 5/5 — 78 avis (valeurs client, cf. maquette). */}
+        {/* Preuve sociale Google : 5,0/5 — 86 avis (fiche Google Maps officielle). */}
         <div className="mx-auto mt-10 inline-flex flex-col items-center gap-4 rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-8 py-7 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
             <GoogleGlyph className="h-5 w-5" />
             Avis Google
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">{rating}</span>
+            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">
+              {rating?.toLocaleString("fr-FR", { minimumFractionDigits: 1 })}
+            </span>
             <span className="text-lg text-[var(--clz-muted)]">/ 5</span>
           </div>
           <div className="flex" aria-hidden>
@@ -308,6 +310,17 @@ export function AvisSection() {
           <p className="text-sm text-[var(--clz-muted)]">
             Basé sur <strong className="text-[var(--clz-fg)]">{count} avis</strong> Google
           </p>
+          {BRAND.googleReviewsUrl && (
+            <a
+              href={BRAND.googleReviewsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="clz-btn clz-btn-primary !px-5 !py-2.5 !text-sm"
+            >
+              Voir les avis Google
+              <span className="sr-only">(nouvel onglet)</span>
+            </a>
+          )}
         </div>
       </div>
     </section>
