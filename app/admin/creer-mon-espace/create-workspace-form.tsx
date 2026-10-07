@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { normalizeSlug } from "@/lib/tenant-shared"
 import { loadOnboarding, type OnboardingPayload } from "@/lib/onboarding/shared"
+import { parseDesiredPlan, type DesiredPlan } from "@/lib/pricing/desired-plan"
 import { checkSlugAvailability, createWorkspace, type SlugCheck } from "./actions"
 
 /**
@@ -17,7 +18,13 @@ import { checkSlugAvailability, createWorkspace, type SlugCheck } from "./action
  * - Disponibilité de l'adresse vérifiée en direct (debounce), sans bloquer.
  * - La soumission délègue au Server Action `createWorkspace` (idempotent).
  */
-export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
+export function CreateWorkspaceForm({
+  defaultName,
+  desiredPlan = null,
+}: {
+  defaultName: string
+  desiredPlan?: DesiredPlan | null
+}) {
   const [state, formAction, pending] = useActionState(createWorkspace, {} as { error?: string })
 
   const [name, setName] = useState("")
@@ -69,6 +76,8 @@ export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
   }, [])
 
   const feedback = slugFeedback(check, checking, slug)
+  // URL (lien email) prioritaire, sinon état onboarding ; revalidé côté serveur.
+  const plan = desiredPlan ?? parseDesiredPlan(onboarding?.desiredPlan)
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10">
@@ -155,6 +164,7 @@ export function CreateWorkspaceForm({ defaultName }: { defaultName: string }) {
               {onboarding.websiteUrl && <input type="hidden" name="websiteUrl" value={onboarding.websiteUrl} />}
             </>
           )}
+          {plan && <input type="hidden" name="desiredPlan" value={plan} />}
 
           {state?.error && (
             <p className="text-sm text-destructive" role="alert">

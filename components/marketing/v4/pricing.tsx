@@ -255,8 +255,7 @@ function FeatureCompare() {
         ))}
 
         <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
-          Certaines fonctionnalités des offres payantes arrivent progressivement. Les formules payantes seront activées
-          prochainement.
+          Certaines fonctionnalités des offres payantes arrivent progressivement.
         </p>
       </div>
     </details>
