@@ -28,8 +28,11 @@ vi.mock("@/lib/tenant", () => ({
   getCurrentTenant: () => getCurrentTenant(),
   isCurrentTenantPreviewer: (id: number) => isCurrentTenantPreviewer(id),
 }))
+const loadLicenseContext = vi.fn()
+
 vi.mock("@/lib/licensing/server", () => ({
   hasFeature: (companyId: number, key: string) => hasFeature(companyId, key),
+  loadLicenseContext: (companyId: number) => loadLicenseContext(companyId),
 }))
 vi.mock("@/lib/public-page/config", () => ({
   isPublicPagePublished: (id: number) => isPublicPagePublished(id),
@@ -48,6 +51,9 @@ beforeEach(() => {
   hasFeature.mockReset()
   isCurrentTenantPreviewer.mockReset()
   isPublicPagePublished.mockReset()
+  loadLicenseContext.mockReset()
+  // Par défaut : contexte LEGACY (plan null) → comportement historique.
+  loadLicenseContext.mockResolvedValue({ plan: null, generation: null, overrides: [] })
   // Par défaut : ni aperçu, ni publié → seules les dérogations testées passent.
   isCurrentTenantPreviewer.mockResolvedValue(false)
   isPublicPagePublished.mockResolvedValue(false)
@@ -102,5 +108,69 @@ describe("requireWebsiteFeature — dérogations self-service (Cas B)", () => {
     isPublicPagePublished.mockResolvedValue(true)
     await expect(requireWebsiteFeature()).resolves.toBeUndefined()
     expect(isPublicPagePublished).toHaveBeenCalledWith(12)
+  })
+})
+
+describe("requireWebsiteFeature — FREE avec `website` : publication obligatoire pour le public", () => {
+  const freeCtx = { plan: "FREE", generation: null, overrides: [] }
+
+  it("FREE + brouillon + visiteur anonyme => refus (404)", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 21, slug: "free-draft" })
+    loadLicenseContext.mockResolvedValue(freeCtx)
+    hasFeature.mockResolvedValue(true)
+    isCurrentTenantPreviewer.mockResolvedValue(false)
+    isPublicPagePublished.mockResolvedValue(false)
+    await expect(requireWebsiteFeature()).rejects.toBe(NOT_FOUND)
+    expect(hasFeature).not.toHaveBeenCalled()
+    expect(isPublicPagePublished).toHaveBeenCalledWith(21)
+  })
+
+  it("FREE + brouillon + propriétaire/super-admin => aperçu autorisé", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 22, slug: "free-owner" })
+    loadLicenseContext.mockResolvedValue(freeCtx)
+    hasFeature.mockResolvedValue(true)
+    isCurrentTenantPreviewer.mockResolvedValue(true)
+    isPublicPagePublished.mockResolvedValue(false)
+    await expect(requireWebsiteFeature()).resolves.toBeUndefined()
+    expect(isCurrentTenantPreviewer).toHaveBeenCalledWith(22)
+  })
+
+  it("FREE + publié + visiteur anonyme => autorisé", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 23, slug: "free-live" })
+    loadLicenseContext.mockResolvedValue(freeCtx)
+    hasFeature.mockResolvedValue(true)
+    isCurrentTenantPreviewer.mockResolvedValue(false)
+    isPublicPagePublished.mockResolvedValue(true)
+    await expect(requireWebsiteFeature()).resolves.toBeUndefined()
+    expect(isPublicPagePublished).toHaveBeenCalledWith(23)
+  })
+
+  it("FREE avec override `website` ENABLED actif => comportement historique conservé", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 24, slug: "free-override" })
+    loadLicenseContext.mockResolvedValue({
+      plan: "FREE",
+      generation: null,
+      overrides: [{ featureKey: "website", state: "ENABLED", source: "MANUAL", expiresAt: null }],
+    })
+    hasFeature.mockResolvedValue(true)
+    await expect(requireWebsiteFeature()).resolves.toBeUndefined()
+    expect(isPublicPagePublished).not.toHaveBeenCalled()
+  })
+
+  it("PRO avec website + brouillon + anonyme => autorisé (inchangé, publication non consultée)", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 25, slug: "pro-draft" })
+    loadLicenseContext.mockResolvedValue({ plan: "PRO", generation: null, overrides: [] })
+    hasFeature.mockResolvedValue(true)
+    await expect(requireWebsiteFeature()).resolves.toBeUndefined()
+    expect(isCurrentTenantPreviewer).not.toHaveBeenCalled()
+    expect(isPublicPagePublished).not.toHaveBeenCalled()
+  })
+
+  it("LEGACY (plan null) + brouillon + anonyme => autorisé (inchangé)", async () => {
+    getCurrentTenant.mockResolvedValue({ id: 26, slug: "legacy-draft" })
+    loadLicenseContext.mockResolvedValue({ plan: null, generation: null, overrides: [] })
+    hasFeature.mockResolvedValue(true)
+    await expect(requireWebsiteFeature()).resolves.toBeUndefined()
+    expect(isPublicPagePublished).not.toHaveBeenCalled()
   })
 })

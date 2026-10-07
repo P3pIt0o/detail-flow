@@ -2,7 +2,8 @@ import "server-only"
 import { notFound } from "next/navigation"
 import { getCurrentTenant, isCurrentTenantPreviewer } from "@/lib/tenant"
 import { isPublicPagePublished } from "@/lib/public-page/config"
-import { hasFeature } from "./server"
+import { hasFeature, loadLicenseContext } from "./server"
+import { isOverrideActive } from "./resolver"
 
 /**
  * GARDE DU SITE VITRINE (feature `website`).
@@ -34,7 +35,18 @@ export async function requireWebsiteFeature(): Promise<void> {
   //    personnalisés Spirit ACS / Rozan / Cleanyzer qui portent cette feature) :
   //    comportement historique EXACT, sans aucune garde de publication.
   //    → Non-régression garantie pour tous les tenants existants.
-  if (await hasFeature(tenant.id, "website")) return
+  //    EXCEPTION : plan FREE (self-service). Depuis que FREE porte `website`
+  //    via la matrice, la feature ne donne que le droit de CRÉER/PERSONNALISER
+  //    le site ; la visibilité publique reste conditionnée à la publication
+  //    (étapes 2 et 3). Un FREE à qui un super-admin a explicitement accordé
+  //    `website` par override actif conserve le comportement historique.
+  const ctx = await loadLicenseContext(tenant.id)
+  const isSelfServiceFree =
+    ctx?.plan === "FREE" &&
+    !ctx.overrides.some(
+      (o) => o.featureKey === "website" && o.state === "ENABLED" && isOverrideActive(o, new Date()),
+    )
+  if (!isSelfServiceFree && (await hasFeature(tenant.id, "website"))) return
 
   // 2) DÉROGATION D'APERÇU : le propriétaire (membre du tenant) ou un
   //    super-admin peut prévisualiser sa page — brouillon inclus — depuis le
