@@ -11,8 +11,8 @@
  *
  *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
  *    Essentiel   0 €          -> plan technique FREE       (self-service actif)
- *    Indépendant 19,90 €/mois -> plan technique PRO         (coming_soon)
- *    Performance 34,90 €/mois -> plan technique BUSINESS    (coming_soon)
+ *    Indépendant 19,90 €/mois -> plan technique PRO         (self_serve via Stripe Billing)
+ *    Performance 34,90 €/mois -> plan technique BUSINESS    (self_serve via Stripe Billing)
   *    Équipe      59,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
  *  L'offre « Équipe » (gestion multi-employés, agendas par collaborateur,
@@ -32,14 +32,14 @@
  *    en self-service MAINTENANT (attribution câblée de bout en bout) ?
  *
  *  RÈGLE ABSOLUE : une offre n'est `self_serve` que si son attribution existe
- *  vraiment. Tant que le Checkout Stripe des offres payantes n'est pas livré,
- *  SEUL le plan gratuit (FREE) est `self_serve`. Les autres sont `coming_soon`
- *  et NE DOIVENT PAS pointer vers /demarrer (sinon un clic crée silencieusement
- *  un compte FREE en laissant croire que l'offre payante a été sélectionnée).
+ *  vraiment. PRO et BUSINESS sont `self_serve` : `/demarrer?plan=…` crée un
+ *  espace FREE et mémorise seulement une INTENTION (aucun droit), puis amène
+ *  sur « Mon abonnement DetailFlow » où l'utilisateur lance lui-même le
+ *  Checkout Stripe Billing. La licence payante n'est attribuée QUE par le
+ *  webhook Billing. ENTERPRISE reste `coming_soon` (aucun lien de souscription).
  *
- *  MOIS OFFERT : les offres payantes affichent « 1er mois offert » comme
- *  PROMESSE de lancement. Aucun Checkout ni `trial_period_days` n'est câblé —
- *  la présentation est prête, le backend reste à livrer (cf. compte-rendu).
+ *  ESSAI : 30 jours gratuits pour une première souscription, appliqués par
+ *  `createSubscriptionCheckout` / `isCompanyTrialEligible` (lib/billing).
  * ============================================================================
  */
 
@@ -112,9 +112,9 @@ export const PRICING_COPY = {
   eyebrow: "Tarifs",
   title: "Une formule pour chaque étape de votre activité",
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
-  trialHeadline: "À l'ouverture, votre premier mois est offert.",
-  trialSub: "Sur votre future formule payante.",
-  note: "Prix indiqués hors taxes. Les offres payantes sont en cours de finalisation et seront activées prochainement.",
+  trialHeadline: "30 jours gratuits sur Indépendant et Performance.",
+  trialSub: "Pour votre première souscription, sans engagement.",
+  note: "Prix indiqués hors taxes.",
   comingSoonLabel: "Bientôt disponible",
   compareLabel: "Comparer les fonctionnalités",
 } as const
@@ -122,10 +122,8 @@ export const PRICING_COPY = {
 /**
  * Offres présentées sur la grille principale (4 colonnes).
  *
- * ÉTAT ACTUEL : seule « Essentiel » (FREE) est `self_serve`. « Indépendant »,
- * « Performance » et « Équipe » sont `coming_soon` tant que le Checkout + l'attribution
- * payante ne sont pas livrés — elles restent visibles pour communiquer la
- * trajectoire, sans CTA trompeur vers /demarrer.
+ * ÉTAT ACTUEL : « Essentiel », « Indépendant » et « Performance » sont
+ * `self_serve`. « Équipe » reste `coming_soon`, sans CTA de souscription.
  */
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
@@ -163,7 +161,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     period: "/ mois",
     monthlyPriceCents: 1990,
     description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
-    trial: "1er mois offert",
+    trial: "30 jours gratuits",
     highlights: [
       "Tout Essentiel",
       "Réservation avancée (véhicules, options, suppléments)",
@@ -173,8 +171,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     ],
     // Toutes garanties true dans PLAN_MATRIX.PRO.
     includedFeatures: ["online_booking", "online_payments", "email_reminders", "review_requests", "business_stats"],
-    availability: "coming_soon",
-    cta: { label: PRICING_COPY.comingSoonLabel, href: null },
+    availability: "self_serve",
+    cta: { label: "Essayer 30 jours gratuitement", href: "/demarrer?plan=PRO" },
     highlighted: true,
     badge: "Recommandé pour les indépendants",
   },
@@ -187,7 +185,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     period: "/ mois",
     monthlyPriceCents: 3490,
     description: "Pour développer, automatiser et fidéliser à grande échelle.",
-    trial: "1er mois offert",
+    trial: "30 jours gratuits",
     highlights: [
       "Tout Indépendant",
       "Devis, factures & avoirs",
@@ -206,8 +204,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       // LOT 2 — la promesse « Leads / CRM » est désormais adossée à la FeatureKey réelle.
       "leads_crm",
     ],
-    availability: "coming_soon",
-    cta: { label: PRICING_COPY.comingSoonLabel, href: null },
+    availability: "self_serve",
+    cta: { label: "Essayer 30 jours gratuitement", href: "/demarrer?plan=BUSINESS" },
     highlighted: false,
     badge: null,
   },
