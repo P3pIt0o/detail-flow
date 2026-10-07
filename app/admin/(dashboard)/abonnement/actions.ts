@@ -27,7 +27,7 @@ function toResult(error: unknown, fallback: string): SaasBillingActionResult {
   return { ok: false, error: fallback }
 }
 
-/** Seul input navigateur accepté : la formule (PRO | BUSINESS), revalidée serveur. */
+/** Seul input navigateur accepté : la formule (PRO | BUSINESS | ENTERPRISE), revalidée serveur. */
 export async function startSaasCheckoutAction(plan: string): Promise<SaasBillingActionResult> {
   try {
     parseSaasAdminCheckoutPlan(plan)
