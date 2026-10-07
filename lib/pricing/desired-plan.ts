@@ -9,13 +9,14 @@
 
 import { withTenant } from "../tenant-link"
 
-export const DESIRED_PLANS = ["PRO", "BUSINESS"] as const
+/** Phase de lancement : seule l'intention PRO (Indépendant) est retenue. */
+export const DESIRED_PLANS = ["PRO"] as const
 export type DesiredPlan = (typeof DESIRED_PLANS)[number]
 
-/** Seules PRO et BUSINESS sont retenues ; FREE, ENTERPRISE et toute autre valeur → null. */
+/** Seule PRO est retenue ; FREE, BUSINESS, ENTERPRISE et toute autre valeur → null. */
 export function parseDesiredPlan(value: unknown): DesiredPlan | null {
   const raw = Array.isArray(value) ? value[0] : value
-  return raw === "PRO" || raw === "BUSINESS" ? raw : null
+  return raw === "PRO" ? raw : null
 }
 
 /** Ajoute `?plan=` à un chemin interne quand une intention valide existe. */
@@ -27,7 +28,7 @@ export function withDesiredPlan(href: string, plan: DesiredPlan | null): string 
 /**
  * Redirection après création d'espace.
  * - sans intention : redirection historique `/admin?tenant=<slug>[&start=<intent>]` ;
- * - PRO/BUSINESS : `/admin/abonnement?tenant=<slug>&plan=<plan>`.
+ * - PRO : `/admin/abonnement?tenant=<slug>&plan=PRO`.
  */
 export function buildPostCreationRedirect(slug: string, intent: string, desiredPlan: DesiredPlan | null): string {
   if (desiredPlan) return withDesiredPlan(withTenant("/admin/abonnement", slug), desiredPlan)

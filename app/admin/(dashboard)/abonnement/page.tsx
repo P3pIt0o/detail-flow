@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import { Check } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import {
-  SAAS_ADMIN_CHECKOUT_PLANS,
+  SAAS_ADMIN_DISPLAY_PLANS,
+  isSaasAdminCheckoutPlan,
   describeCurrentSaasPlanName,
   describeSaasPeriodEndLabel,
   describeSaasStatusBadges,
@@ -12,6 +13,7 @@ import { SUBSCRIPTION_TRIAL_DAYS, describeSubscriptionPlan, isCompanyTrialEligib
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 import { parseDesiredPlan } from "@/lib/pricing/desired-plan"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { SaasCheckoutButton, SaasPortalButton } from "@/components/admin/saas-billing/billing-buttons"
 
 export const metadata: Metadata = { title: "Mon abonnement DetailFlow", robots: { index: false, follow: false } }
@@ -112,10 +114,11 @@ export default async function SaasBillingPage({
               Passer à la formule supérieure
             </h2>
             <div className="grid gap-4 md:grid-cols-3">
-              {SAAS_ADMIN_CHECKOUT_PLANS.map((plan) => {
+              {SAAS_ADMIN_DISPLAY_PLANS.map((plan) => {
                 const { name, monthlyPriceCents } = describeSubscriptionPlan(plan)
+                const purchasable = isSaasAdminCheckoutPlan(plan)
                 const chosen = desiredPlan === plan
-                const featured = desiredPlan ? chosen : plan === "BUSINESS"
+                const featured = purchasable && (desiredPlan ? chosen : plan === "PRO")
                 return (
                   <article
                     key={plan}
@@ -128,18 +131,31 @@ export default async function SaasBillingPage({
                   >
                     <div className="flex flex-col gap-1">
                       {chosen ? <Badge className="self-start">Votre choix</Badge> : null}
+                      {purchasable ? null : (
+                        <Badge variant="secondary" className="self-start">
+                          Bientôt disponible
+                        </Badge>
+                      )}
                       <h3 className="font-semibold">{name}</h3>
                       <p>
                         <span className="text-2xl font-semibold">{euros(monthlyPriceCents)}</span>
                         <span className="text-sm text-muted-foreground">/mois</span>
                       </p>
                     </div>
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Check className="size-4 text-primary" aria-hidden="true" />
-                      {trialEligible ? `${SUBSCRIPTION_TRIAL_DAYS} jours gratuits` : "Essai gratuit déjà utilisé"}
-                    </p>
+                    {purchasable ? (
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="size-4 text-primary" aria-hidden="true" />
+                        {trialEligible ? `${SUBSCRIPTION_TRIAL_DAYS} jours gratuits` : "Essai gratuit déjà utilisé"}
+                      </p>
+                    ) : null}
                     <div className="mt-auto">
-                      {isOwner ? <SaasCheckoutButton plan={plan} label={`Essayer ${name}`} featured={featured} /> : null}
+                      {!isOwner ? null : isSaasAdminCheckoutPlan(plan) ? (
+                        <SaasCheckoutButton plan={plan} label={`Essayer ${name}`} featured={featured} />
+                      ) : (
+                        <Button type="button" variant="outline" className="w-full" disabled aria-disabled="true">
+                          Bientôt disponible
+                        </Button>
+                      )}
                     </div>
                   </article>
                 )

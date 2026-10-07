@@ -59,9 +59,9 @@ describe("source unique des offres — cohérence avec le moteur de licences", (
 })
 
 describe("self-service : ce qui est sélectionnable == ce qui est réellement attribué", () => {
-  it("Essentiel, Indépendant et Performance sont self_serve ; Équipe non", () => {
+  it("seuls Essentiel et Indépendant sont self_serve ; Performance et Équipe non", () => {
     const selfServe = getSelfServePlans()
-    expect(selfServe.map((p) => p.id)).toEqual(["starter", "pro", "ultime"])
+    expect(selfServe.map((p) => p.id)).toEqual(["starter", "pro"])
   })
 
   it("la création self-service attribue toujours FREE (les offres payantes passent par Checkout)", () => {
@@ -70,7 +70,7 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     expect(SELF_SERVICE_LICENSE_PLAN).toBe("FREE")
   })
 
-  it("CTA : FREE → /demarrer, PRO → /demarrer?plan=PRO, BUSINESS → /demarrer?plan=BUSINESS", () => {
+  it("CTA : FREE → /demarrer, PRO → /demarrer?plan=PRO, BUSINESS → aucun lien", () => {
     const byId = Object.fromEntries(ALL_COMMERCIAL_PLANS.map((p) => [p.id, p]))
     expect(byId.starter.cta.href).toBe("/demarrer")
     expect(byId.starter.cta.label).toBe("Créer mon espace gratuitement")
@@ -78,10 +78,10 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     expect(byId.pro.cta.href).toBe("/demarrer?plan=PRO")
     expect(byId.pro.cta.label).toBe("Essayer 30 jours gratuitement")
     expect(byId.ultime.licensePlan).toBe("BUSINESS")
-    expect(byId.ultime.cta.href).toBe("/demarrer?plan=BUSINESS")
-    expect(byId.ultime.cta.label).toBe("Essayer 30 jours gratuitement")
+    expect(byId.ultime.availability).toBe("coming_soon")
+    expect(byId.ultime.cta.href).toBeNull()
+    expect(byId.ultime.cta.label).toBe("Bientôt disponible")
     expect(byId.pro.trial).toBe("30 jours gratuits")
-    expect(byId.ultime.trial).toBe("30 jours gratuits")
   })
 
   it("Équipe : coming_soon, « Bientôt disponible », aucun CTA de souscription", () => {
@@ -116,9 +116,9 @@ describe("séparation page publique standard vs feature `website`", () => {
 describe("cohérence avec le registre interne (super-admin)", () => {
   it("le registre super-admin n'est pas modifié par la commercialisation Checkout", () => {
     // PLAN_META.purchasable = attribution MANUELLE super-admin ; inchangé. La
-    // vente self-service de BUSINESS passe uniquement par Stripe Checkout + webhook.
+    // phase de lancement : BUSINESS n'est pas vendu en self-service (coming_soon).
     expect(PLAN_META.BUSINESS.purchasable).toBe(false)
-    expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("self_serve")
+    expect(COMMERCIAL_PLANS.find((p) => p.id === "ultime")?.availability).toBe("coming_soon")
   })
 })
 

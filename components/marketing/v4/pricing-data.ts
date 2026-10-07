@@ -1,10 +1,10 @@
 /**
  * Données d'affichage du comparateur de fonctionnalités (marketing only).
  *
- * Ce fichier décrit le PÉRIMÈTRE COMMERCIAL de chaque niveau (ce que la formule
- * inclura). Les offres payantes étant `coming_soon` dans `lib/pricing/plans.ts`,
- * ce tableau communique la trajectoire produit ; la note de bas de section et
- * les CTA « Bientôt disponible » évitent toute promesse d'activation immédiate.
+ * Ce fichier décrit le PÉRIMÈTRE COMMERCIAL de chaque niveau. Essentiel et
+ * Indépendant sont `self_serve` dans `lib/pricing/plans.ts` : leurs colonnes
+ * doivent refléter le backend réel (PLAN_MATRIX + gardes serveur). Performance
+ * et Équipe sont `coming_soon` (trajectoire produit, CTA « Bientôt disponible »).
  *
  * `true`  = inclus dans la formule ·  `false` = non inclus
  * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Essentiel, Indépendant, Performance, Équipe.
@@ -40,11 +40,11 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
     rows: [
       { label: "Lien de réservation à partager", values: all },
       { label: "Réservation en ligne", values: all },
-      { label: "Tarif & durée selon le véhicule", values: proUp },
-      { label: "Options & suppléments", values: proUp },
-      { label: "Codes promo", values: proUp },
-      { label: "Liste d'attente", values: proUp },
-      { label: "Demandes personnalisées", values: proUp },
+      // Aucune FeatureKey ne différencie FREE et PRO sur ces fonctions côté serveur.
+      { label: "Tarif & durée selon le véhicule", values: all },
+      { label: "Options & suppléments", values: all },
+      { label: "Codes promo", values: all },
+      { label: "Demandes personnalisées", values: all },
     ],
   },
   {
@@ -54,22 +54,25 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       { label: "Historique des prestations", values: all },
       { label: "Photos clients / véhicules", values: ultimeUp },
       { label: "Leads / CRM prospects", values: ultimeUp },
-      { label: "Abonnements clients récurrents", values: ultimeUp },
+      // PLAN_MATRIX.FREE inclut `customer_subscriptions`.
+      { label: "Abonnements clients récurrents", values: all },
     ],
   },
   {
     name: "Paiements",
     rows: [
-      { label: "Acompte en ligne", values: proUp },
-      { label: "Paiement intégral en ligne", values: proUp },
-      { label: "Suivi des paiements", values: proUp },
+      // PLAN_MATRIX.FREE inclut `online_payments` (commission Connect, hors frais Stripe).
+      { label: "Acompte en ligne", values: all },
+      { label: "Paiement intégral en ligne", values: all },
+      { label: "Suivi des paiements", values: all },
     ],
   },
   {
     name: "Facturation",
     rows: [
-      { label: "Devis", values: ultimeUp },
-      { label: "Factures", values: ultimeUp },
+      // FREE : 3 devis / 3 factures par mois (limites serveur) ; illimité dès PRO.
+      { label: "Devis (3/mois en Essentiel)", values: all },
+      { label: "Factures (3/mois en Essentiel)", values: all },
       { label: "Avoirs", values: ultimeUp },
     ],
   },

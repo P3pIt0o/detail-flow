@@ -60,11 +60,12 @@ describe("cron /api/cron/customer-subscription-emails", () => {
     expect(sendEmail).toHaveBeenCalledWith({ to: "a@b.fr" })
   })
 
-  it("CRON_SECRET absent → comportement existant : requête acceptée", async () => {
+  it("CRON_SECRET absent → fail-closed 503, aucun traitement", async () => {
     delete process.env.CRON_SECRET
-    const res = await call()
-    expect(res.status).toBe(200)
-    expect(drain).toHaveBeenCalledTimes(1)
+    const res = await call({ authorization: "Bearer anything" })
+    expect(res.status).toBe(503)
+    expect(drain).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 
   it("aucune logique Booking / SMS / photos appelée", async () => {
@@ -75,7 +76,7 @@ describe("cron /api/cron/customer-subscription-emails", () => {
     expect(cleanupOrphanQuotePhotos).not.toHaveBeenCalled()
     const src = readFileSync(join(process.cwd(), "app/api/cron/customer-subscription-emails/route.ts"), "utf8")
     const imports = src.split("\n").filter((line) => line.startsWith("import "))
-    expect(imports).toHaveLength(4)
+    expect(imports).toHaveLength(5)
     for (const line of imports) expect(line).not.toMatch(/bookings|sms|stripe|quote-photos|reminder|schema/i)
   })
 
