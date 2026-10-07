@@ -44,7 +44,8 @@ describe("grant mensuel PRO → allocation AllMySMS", () => {
     await grantMonthlyAndAllocate(1, deps)
     expect(s.granted).toBe(20)
     expect(s.transfers).toBe(1)
-    expect(deps.allocate).toHaveBeenCalledTimes(1)
+    // Retry systématique (delta 0 → aucune opération externe) : un seul transfert réel.
+    expect(deps.allocate).toHaveBeenCalledTimes(2)
   })
 
   it("pas de sous-compte : aucun crash, crédits en attente", async () => {

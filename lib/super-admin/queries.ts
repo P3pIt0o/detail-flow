@@ -191,7 +191,8 @@ export async function listPendingSmsRecharges(): Promise<SmsRechargeRow[]> {
     })
     .from(smsRechargeRequests)
     .innerJoin(companies, eq(companies.id, smsRechargeRequests.companyId))
-    .where(eq(smsRechargeRequests.status, "pending"))
+    // Fallback manuel uniquement : les recharges Stripe sont pilotées par le webhook.
+    .where(and(eq(smsRechargeRequests.status, "pending"), eq(smsRechargeRequests.paymentProvider, "manual")))
     .orderBy(desc(smsRechargeRequests.createdAt))
 }
 

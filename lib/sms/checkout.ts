@@ -5,7 +5,7 @@ import "server-only"
  * création/réutilisation de la session Checkout et dépendances du webhook.
  */
 
-import { and, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies, smsRechargeRequests } from "@/lib/db/schema"
 import { getStripe } from "@/lib/payments/stripe-client"
@@ -20,8 +20,13 @@ import {
   getSmsRechargeById,
   recordStripePaymentIntent,
 } from "./credits"
-import { allocateDeltaToTenant } from "./send"
-import { buildSmsPackCheckoutParams, smsCheckoutIdempotencyKey, type SmsPackWebhookDeps } from "./checkout-core"
+import { allocateDeltaToTenant, tenantHasSmsSubAccount } from "./send"
+import {
+  buildSmsPackCheckoutParams,
+  smsCheckoutIdempotencyKey,
+  startSmsPackCheckoutCore,
+  type SmsPackWebhookDeps,
+} from "./checkout-core"
 
 type CheckoutSession = { id: string; url: string | null; status?: string | null }
 
@@ -39,44 +44,68 @@ export async function startSmsPackCheckout(input: {
   const stripe = getStripe()
   const amountCents = amountForQuantity(input.quantity)
 
-  const [existing] = await db
-    .select({ id: smsRechargeRequests.id, sessionId: smsRechargeRequests.stripeCheckoutSessionId })
-    .from(smsRechargeRequests)
-    .where(
-      and(
-        eq(smsRechargeRequests.companyId, input.companyId),
-        eq(smsRechargeRequests.paymentProvider, "stripe"),
-        eq(smsRechargeRequests.status, "pending"),
-        eq(smsRechargeRequests.quantity, input.quantity),
-        eq(smsRechargeRequests.amountCents, amountCents),
-      ),
-    )
-    .orderBy(smsRechargeRequests.id)
-    .limit(1)
-  if (existing?.sessionId) {
-    const s = (await stripe.checkout.sessions.retrieve(existing.sessionId)) as unknown as CheckoutSession
-    if (s.status === "open" && s.url) return { url: s.url }
-  }
+  const references = new Map<number, string>()
 
-  const reference = await generateRechargeReference()
-  const [recharge] = await db
-    .insert(smsRechargeRequests)
-    .values({ companyId: input.companyId, quantity: input.quantity, amountCents, reference, paymentProvider: "stripe" })
-    .returning({ id: smsRechargeRequests.id })
-
-  const params = buildSmsPackCheckoutParams(
-    { id: recharge.id, companyId: input.companyId, quantity: input.quantity, amountCents, reference },
-    { successUrl: input.successUrl, cancelUrl: input.cancelUrl },
-  )
-  const session = (await stripe.checkout.sessions.create(params as never, {
-    idempotencyKey: smsCheckoutIdempotencyKey(recharge.id),
-  })) as unknown as CheckoutSession
-  await db
-    .update(smsRechargeRequests)
-    .set({ stripeCheckoutSessionId: session.id })
-    .where(eq(smsRechargeRequests.id, recharge.id))
-  if (!session.url) throw new Error("Session Stripe sans URL.")
-  return { url: session.url }
+  return startSmsPackCheckoutCore({
+    async findLatestPending() {
+      const [row] = await db
+        .select({ id: smsRechargeRequests.id, sessionId: smsRechargeRequests.stripeCheckoutSessionId })
+        .from(smsRechargeRequests)
+        .where(
+          and(
+            eq(smsRechargeRequests.companyId, input.companyId),
+            eq(smsRechargeRequests.paymentProvider, "stripe"),
+            eq(smsRechargeRequests.status, "pending"),
+            eq(smsRechargeRequests.quantity, input.quantity),
+            eq(smsRechargeRequests.amountCents, amountCents),
+          ),
+        )
+        .orderBy(desc(smsRechargeRequests.id))
+        .limit(1)
+      return row ?? null
+    },
+    retrieveSession: async (id) => (await stripe.checkout.sessions.retrieve(id)) as unknown as CheckoutSession,
+    async cancelPending(requestId) {
+      await db
+        .update(smsRechargeRequests)
+        .set({ status: "cancelled" })
+        .where(
+          and(
+            eq(smsRechargeRequests.id, requestId),
+            eq(smsRechargeRequests.companyId, input.companyId),
+            eq(smsRechargeRequests.paymentProvider, "stripe"),
+            eq(smsRechargeRequests.status, "pending"),
+          ),
+        )
+    },
+    async insertRecharge() {
+      const reference = await generateRechargeReference()
+      const [recharge] = await db
+        .insert(smsRechargeRequests)
+        .values({ companyId: input.companyId, quantity: input.quantity, amountCents, reference, paymentProvider: "stripe" })
+        .returning({ id: smsRechargeRequests.id })
+      references.set(recharge.id, reference)
+      return recharge
+    },
+    async createSession(requestId) {
+      const params = buildSmsPackCheckoutParams(
+        { id: requestId, companyId: input.companyId, quantity: input.quantity, amountCents, reference: references.get(requestId) ?? "" },
+        { successUrl: input.successUrl, cancelUrl: input.cancelUrl },
+      )
+      return (await stripe.checkout.sessions.create(params as never, {
+        idempotencyKey: smsCheckoutIdempotencyKey(requestId),
+      })) as unknown as CheckoutSession
+    },
+    async attachSession(requestId, sessionId) {
+      await db
+        .update(smsRechargeRequests)
+        .set({ stripeCheckoutSessionId: sessionId })
+        .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.companyId, input.companyId)))
+    },
+    async expireSession(sessionId) {
+      await stripe.checkout.sessions.expire(sessionId)
+    },
+  })
 }
 
 /** Statut d'une recharge Stripe d'un tenant (retour Checkout). Scopé par companyId. */
@@ -96,6 +125,7 @@ export function createSmsPackWebhookDeps(): SmsPackWebhookDeps {
     credit: creditFromRecharge,
     cancel: cancelPendingStripeRecharge,
     allocate: allocateDeltaToTenant,
+    hasSubAccount: tenantHasSmsSubAccount,
     recordPaymentIntent: recordStripePaymentIntent,
     async notifyCredited(companyId, quantity, newBalance) {
       const [company] = await db

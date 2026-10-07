@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { allocateDeltaSerialized, SMS_ALLOCATION_LOCK_CLASS } from "./allocation-core"
 
 /**
  * Provider SMS unique de DetailFlow : AllMySMS.
@@ -611,50 +612,39 @@ export async function allocateDeltaToTenant(
     }
   }
 
+  // Verrou advisory transactionnel par tenant : le delta est relu APRÈS
+  // acquisition, donc deux appels concurrents (cron, activation, webhook,
+  // super-admin) ne transfèrent jamais deux fois le même delta.
+  return allocateDeltaSerialized(companyId, {
+    withTenantLock: (id, fn) =>
+      db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${SMS_ALLOCATION_LOCK_CLASS}::int, ${id}::int)`)
+        return fn()
+      }),
+    async readTotals(id) {
+      const [row] = await db
+        .select({
+          granted: smsCredits.granted,
+          purchased: smsCredits.purchased,
+          allocated: smsCredits.allmysmsCreditsAllocated,
+        })
+        .from(smsCredits)
+        .where(eq(smsCredits.companyId, id))
+        .limit(1)
+      return { granted: row?.granted ?? 0, purchased: row?.purchased ?? 0, allocated: row?.allocated ?? 0 }
+    },
+    transfer: allocateCreditsToTenant,
+  })
+}
+
+/** Le tenant possède-t-il déjà un sous-compte AllMySMS ? (absence = cas normal avant activation) */
+export async function tenantHasSmsSubAccount(companyId: number): Promise<boolean> {
   const [row] = await db
-    .select({
-      granted: smsCredits.granted,
-      purchased: smsCredits.purchased,
-      allocated: smsCredits.allmysmsCreditsAllocated,
-    })
+    .select({ sub: smsCredits.allmysmsSubLogin })
     .from(smsCredits)
     .where(eq(smsCredits.companyId, companyId))
     .limit(1)
-
-  const totalGranted =
-    (row?.granted ?? 0) +
-    (row?.purchased ?? 0)
-
-  const alreadyAllocated =
-    row?.allocated ?? 0
-
-  const delta =
-    totalGranted - alreadyAllocated
-
-  if (delta <= 0) {
-    return {
-      ok: true,
-      allocated: 0,
-      delta: 0,
-      totalGranted,
-      alreadyAllocated,
-    }
-  }
-
-  const result =
-    await allocateCreditsToTenant(
-      companyId,
-      delta,
-    )
-
-  return {
-    ok: result.ok,
-    allocated: result.allocated,
-    delta,
-    totalGranted,
-    alreadyAllocated,
-    error: result.error,
-  }
+  return !!row?.sub
 }
 
 /**

@@ -31,6 +31,7 @@ vi.mock("@/lib/db", () => {
   chain.values = () => chain
   chain.onConflictDoNothing = () => chain
   chain.returning = async () => [{ balance: 0 }]
+  chain.transaction = async (fn: (tx: unknown) => unknown) => fn({ execute: async () => [] })
   return { db: chain }
 })
 

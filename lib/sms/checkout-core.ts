@@ -28,6 +28,67 @@ export function smsCheckoutIdempotencyKey(requestId: number): string {
   return `sms-pack-checkout-${requestId}`
 }
 
+/** Seules les recharges `manual` (Revolut / historique) sont pilotables par le super-admin. */
+export function isManualRechargeProvider(provider: string | null | undefined): boolean {
+  return provider === "manual"
+}
+
+export const SMS_CHECKOUT_COMPLETE_ERROR = "Votre paiement est en cours de confirmation."
+
+export class SmsCheckoutError extends Error {}
+
+export type SmsCheckoutSessionLike = { id: string; url: string | null; status?: string | null }
+
+export interface SmsCheckoutStartDeps {
+  /** Recharge Stripe pending la PLUS RÉCENTE pour ce tenant/quantité/montant. */
+  findLatestPending(): Promise<{ id: number; sessionId: string | null } | null>
+  retrieveSession(sessionId: string): Promise<SmsCheckoutSessionLike>
+  /** Annule une recharge Stripe encore pending (scopée tenant). */
+  cancelPending(requestId: number): Promise<void>
+  insertRecharge(): Promise<{ id: number }>
+  createSession(requestId: number): Promise<SmsCheckoutSessionLike>
+  attachSession(requestId: number, sessionId: string): Promise<void>
+  expireSession(sessionId: string): Promise<void>
+}
+
+/**
+ * Cycle de vie anti double paiement :
+ * open → réutilisée ; complete → refus métier ; expired / sans session → annulée
+ * puis nouvelle tentative. Aucun échec Stripe/DB ne laisse une recharge pending
+ * exploitable ni ne renvoie une URL non rattachée.
+ */
+export async function startSmsPackCheckoutCore(deps: SmsCheckoutStartDeps): Promise<{ url: string }> {
+  const existing = await deps.findLatestPending()
+  if (existing) {
+    if (!existing.sessionId) {
+      await deps.cancelPending(existing.id)
+    } else {
+      const s = await deps.retrieveSession(existing.sessionId)
+      if (s.status === "open" && s.url) return { url: s.url }
+      if (s.status === "complete") throw new SmsCheckoutError(SMS_CHECKOUT_COMPLETE_ERROR)
+      await deps.cancelPending(existing.id)
+    }
+  }
+
+  const recharge = await deps.insertRecharge()
+  let session: SmsCheckoutSessionLike
+  try {
+    session = await deps.createSession(recharge.id)
+  } catch (e) {
+    await deps.cancelPending(recharge.id).catch(() => {})
+    throw e
+  }
+  try {
+    if (!session.url) throw new Error("Session Stripe sans URL.")
+    await deps.attachSession(recharge.id, session.id)
+  } catch (e) {
+    await deps.expireSession(session.id).catch(() => {})
+    await deps.cancelPending(recharge.id).catch(() => {})
+    throw e
+  }
+  return { url: session.url }
+}
+
 export function buildSmsPackCheckoutParams(
   recharge: SmsCheckoutRecharge,
   urls: { successUrl: string; cancelUrl: string },
@@ -125,6 +186,7 @@ export interface SmsPackWebhookDeps {
   credit(requestId: number): Promise<{ ok: true; already: boolean; quantity: number; newBalance: number } | { ok: false; error: string }>
   cancel(requestId: number, companyId: number, sessionId: string): Promise<boolean>
   allocate(companyId: number): Promise<{ ok: boolean; error?: string }>
+  hasSubAccount?(companyId: number): Promise<boolean>
   recordPaymentIntent?(requestId: number, paymentIntentId: string | null): Promise<void>
   notifyCredited?(companyId: number, quantity: number, newBalance: number): Promise<void>
 }
@@ -185,6 +247,11 @@ export async function handleSmsPackWebhookEvent(
       /* l'email ne conditionne jamais le crédit */
     }
   }
+
+  // Pack acheté avant activation SMS : cas normal. Crédits conservés dans
+  // DetailFlow, transférés à l'activation (ensureTenantSubAccount + delta).
+  const hasSub = deps.hasSubAccount ? await deps.hasSubAccount(refs.companyId).catch(() => true) : true
+  if (!hasSub) return ok({ credited: !credited.already, allocationPending: true })
 
   // Allocation AllMySMS basée sur le delta (idempotente). Un échec laisse le
   // crédit DB intact ; 500 → Stripe rejoue, credit() renvoie already=true (0 crédit).
