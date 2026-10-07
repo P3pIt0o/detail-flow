@@ -36,14 +36,16 @@ describe("A. LEGACY (licensePlan = NULL) — aucune restriction ajoutée", () =>
   })
 })
 
-describe("B. FREE — seuils exacts (clients 5, factures/mois 3)", () => {
-  it("client n°5 accepté (comptage 4 -> 5ᵉ), n°6 refusé (comptage 5)", () => {
-    expect(creationAllowed("FREE", "maxCustomers", 4)).toBe(true) // crée le 5ᵉ
-    expect(creationAllowed("FREE", "maxCustomers", 5)).toBe(false) // 6ᵉ refusé
+describe("B. FREE — seuils exacts (clients/véhicules illimités, devis & factures 10/mois)", () => {
+  it("clients et véhicules illimités en FREE", () => {
+    expect(creationAllowed("FREE", "maxCustomers", 100_000)).toBe(true)
+    expect(creationAllowed("FREE", "maxVehicles", 100_000)).toBe(true)
   })
-  it("facture n°3 du mois acceptée (comptage 2 -> 3ᵉ), n°4 refusée (comptage 3)", () => {
-    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 2)).toBe(true) // crée la 3ᵉ
-    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 3)).toBe(false) // 4ᵉ refusée
+  it("facture n°10 acceptée (comptage 9), n°11 refusée (comptage 10) ; idem devis", () => {
+    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 9)).toBe(true)
+    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 10)).toBe(false)
+    expect(creationAllowed("FREE", "maxQuotesPerMonth", 9)).toBe(true)
+    expect(creationAllowed("FREE", "maxQuotesPerMonth", 10)).toBe(false)
   })
 })
 
@@ -66,9 +68,9 @@ describe("D. Isolation du comptage (par tenant)", () => {
   it("la décision ne dépend QUE du comptage passé (scopé companyId serveur)", () => {
     // Entreprise A : 4 clients (autorisé). Les clients d'une autre entreprise
     // ne sont jamais inclus dans ce comptage -> ne changent pas la décision.
-    expect(creationAllowed("FREE", "maxCustomers", 4)).toBe(true)
+    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 9)).toBe(true)
     // Même plan, comptage tenant = 5 (aucune fuite d'un autre tenant) -> refus.
-    expect(creationAllowed("FREE", "maxCustomers", 5)).toBe(false)
+    expect(creationAllowed("FREE", "maxInvoicesPerMonth", 10)).toBe(false)
   })
 })
 

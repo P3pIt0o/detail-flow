@@ -28,11 +28,11 @@ describe("maxQuotesPerMonth — matrice & règle de création", () => {
     expect(isCreationAllowed(limit, 999)).toBe(true)
   })
 
-  it("FREE = 3/mois : le 3ᵉ devis passe (count=2), le 4ᵉ est refusé (count=3)", () => {
+  it("FREE = 10/mois : le 10ᵉ devis passe (count=9), le 11ᵉ est refusé (count=10)", () => {
     const limit = resolveLimit(ctx("FREE"), "maxQuotesPerMonth")
-    expect(limit).toBe(3)
-    expect(isCreationAllowed(limit, 2)).toBe(true) // devis n°3
-    expect(isCreationAllowed(limit, 3)).toBe(false) // devis n°4
+    expect(limit).toBe(10)
+    expect(isCreationAllowed(limit, 9)).toBe(true)
+    expect(isCreationAllowed(limit, 10)).toBe(false)
   })
 
   it("PRO / BUSINESS / FOUNDER => illimité", () => {

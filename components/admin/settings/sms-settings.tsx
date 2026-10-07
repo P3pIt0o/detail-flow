@@ -14,6 +14,7 @@ import { MessageSquare, AlertTriangle } from "lucide-react"
 import {
   saveSmsReminderSettings,
   createRechargeRequest,
+  startSmsPackCheckoutAction,
   type CreateRechargeResult,
 } from "@/app/admin/(dashboard)/parametres/sms-actions"
 import {
@@ -29,6 +30,10 @@ type Props = {
   /** Droit d'activer/utiliser les SMS (feature sms). Défaut true = comportement LEGACY inchangé. */
   featureEnabled?: boolean
   balance: number
+  /** SMS crédités chaque mois par l'offre (source : SMS_MONTHLY_INCLUDED_BY_PLAN). */
+  monthlyIncluded?: number
+  /** Statut de la recharge au retour de Stripe Checkout. */
+  checkoutReturn?: "paid" | "pending" | null
   betaBonusGranted: boolean
   enabled: boolean
   offsetHours: number
@@ -104,10 +109,26 @@ export function SmsSettings(props: Props) {
             <p className="text-xs text-muted-foreground">Rappel</p>
             <p className="text-sm font-medium text-foreground">{offset} h avant</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Votre offre</p>
+            <p className="text-sm font-medium text-foreground">
+              {(props.monthlyIncluded ?? 0) > 0
+                ? `${props.monthlyIncluded} SMS crédités / mois · Packs supplémentaires disponibles`
+                : "0 SMS inclus / mois · Packs SMS disponibles"}
+            </p>
+          </div>
           {props.betaBonusGranted ? (
             <p className="text-xs text-muted-foreground">{SMS_BETA_BONUS} SMS offerts avec votre compte bêta</p>
           ) : null}
         </div>
+
+        {props.checkoutReturn ? (
+          <p role="status" className="mt-4 rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
+            {props.checkoutReturn === "paid"
+              ? "Paiement reçu. Vos SMS sont ajoutés automatiquement."
+              : "Paiement confirmé. La recharge est en cours de validation — actualisez la page dans quelques instants."}
+          </p>
+        ) : null}
 
         {/* Alerte solde faible / épuisé (discrète) */}
         {low ? (
@@ -254,6 +275,20 @@ function RechargeDialog({
     setCustomQty(String(SMS_MIN_CUSTOM_QUANTITY))
   }
 
+  const [selected, setSelected] = useState<number | null>(null)
+
+  /** Parcours standard : Stripe Checkout (le serveur recalcule le montant). */
+  function payWithStripe(quantity: number) {
+    setError(null)
+    start(async () => {
+      const r = await startSmsPackCheckoutAction(quantity)
+      if (!r.ok) return setError(r.error)
+      if (window.self !== window.top) window.open(r.url, "_blank", "noopener")
+      else window.location.assign(r.url)
+    })
+  }
+
+  /** Fallback legacy (Revolut + validation manuelle), conservé pour secours. */
   function submit(quantity: number) {
     setError(null)
     start(async () => {
@@ -289,8 +324,9 @@ function RechargeDialog({
                     key={p.quantity}
                     type="button"
                     disabled={pending}
-                    onClick={() => submit(p.quantity)}
-                    className="flex flex-col items-start rounded-lg border border-border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5 disabled:opacity-60"
+                    onClick={() => setSelected(p.quantity)}
+                    aria-pressed={selected === p.quantity}
+                    className={`flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5 disabled:opacity-60 ${selected === p.quantity ? "border-primary bg-primary/5" : "border-border"}`}
                   >
                     <span className="text-lg font-semibold text-foreground">{p.quantity} SMS</span>
                     <span className="text-sm text-muted-foreground">{formatSmsAmount(p.amountCents)}</span>
@@ -329,22 +365,37 @@ function RechargeDialog({
                     Retour
                   </Button>
                   <Button
-                    onClick={() => submit(customQtyNum)}
+                    onClick={() => payWithStripe(customQtyNum)}
                     disabled={pending || customAmount == null}
                     className="flex-1"
                   >
-                    Valider
+                    Payer avec Stripe
                   </Button>
                 </div>
               </div>
             )}
 
+            {!customMode ? (
+              <Button onClick={() => selected && payWithStripe(selected)} disabled={pending || !selected} className="w-full">
+                {pending ? "Redirection…" : "Payer avec Stripe"}
+              </Button>
+            ) : null}
+
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
             <p className="text-xs text-muted-foreground text-pretty">
-              Les SMS sont facturés par notre opérateur. Les crédits achetés permettent de couvrir leur envoi depuis
-              DetailFlow.
+              Paiement sécurisé par Stripe. Vos SMS sont ajoutés automatiquement après paiement.
             </p>
+            {revolutUrl ? (
+              <button
+                type="button"
+                disabled={pending || !selected}
+                onClick={() => selected && submit(selected)}
+                className="text-xs text-muted-foreground underline underline-offset-2 disabled:opacity-60"
+              >
+                Payer autrement (virement Revolut, validation manuelle)
+              </button>
+            ) : null}
           </>
         ) : (
           <>

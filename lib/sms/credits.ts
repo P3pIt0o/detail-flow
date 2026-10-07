@@ -2,8 +2,9 @@ import "server-only"
 import { randomBytes } from "crypto"
 import { and, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { smsCredits, smsRechargeRequests } from "@/lib/db/schema"
-import { SMS_BETA_BONUS } from "./config"
+import { companies, smsCredits, smsRechargeRequests } from "@/lib/db/schema"
+import { SMS_BETA_BONUS, monthlyIncludedSms } from "./config"
+import { getBusinessMonthKey } from "@/lib/billing/commercial-rules"
 import { canUseFeature } from "@/lib/licensing/enforce"
 
 /* -------------------------------------------------------------------------- */
@@ -54,6 +55,104 @@ export async function grantBetaBonus(companyId: number): Promise<boolean> {
     .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.betaBonusGrantedAt} IS NULL`))
     .returning({ id: smsCredits.id })
   return updated.length > 0
+}
+
+/**
+ * Attribution mensuelle incluse au plan (PRO = 20), EXACTEMENT une fois par
+ * mois civil. Un seul UPDATE conditionnel `monthlyGrantKey IS DISTINCT FROM
+ * monthKey` : sous verrou de ligne Postgres, deux exécutions concurrentes ne
+ * peuvent pas toutes deux gagner (la seconde ré-évalue le WHERE → 0 ligne).
+ * PRO → FREE → PRO dans le même mois : clé déjà posée → aucun second crédit.
+ */
+export async function grantMonthlyIncludedSms(companyId: number, monthKey: string, amount: number): Promise<boolean> {
+  if (!Number.isInteger(amount) || amount <= 0) return false
+  await ensureSmsCreditsRow(companyId)
+  const updated = await db
+    .update(smsCredits)
+    .set({
+      balance: sql`${smsCredits.balance} + ${amount}`,
+      granted: sql`${smsCredits.granted} + ${amount}`,
+      monthlyGrantedTotal: sql`${smsCredits.monthlyGrantedTotal} + ${amount}`,
+      monthlyGrantKey: monthKey,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(smsCredits.companyId, companyId), sql`${smsCredits.monthlyGrantKey} IS DISTINCT FROM ${monthKey}`))
+    .returning({ id: smsCredits.id })
+  return updated.length > 0
+}
+
+/**
+ * Point d'entrée idempotent (cron + ouverture des paramètres SMS) : lit le plan
+ * et le fuseau EN BASE, n'agit que pour un plan avec SMS mensuels inclus (PRO,
+ * trial compris). Ne retire jamais de crédit. Renvoie true si crédité.
+ */
+export async function ensureMonthlySmsGrant(companyId: number, now: Date = new Date()): Promise<boolean> {
+  const [company] = await db
+    .select({ plan: companies.licensePlan, timezone: companies.timezone })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1)
+  const amount = monthlyIncludedSms(company?.plan)
+  if (!company || amount <= 0) return false
+  if (!(await canUseFeature(companyId, "sms"))) return false
+  return grantMonthlyIncludedSms(companyId, getBusinessMonthKey(now, company.timezone), amount)
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Recharges Stripe (packs SMS — compte PLATEFORME)                           */
+/* -------------------------------------------------------------------------- */
+
+export type SmsRechargeRow = {
+  id: number
+  companyId: number
+  quantity: number
+  amountCents: number
+  status: string
+  paymentProvider: string
+  stripeCheckoutSessionId: string | null
+}
+
+export async function getSmsRechargeById(requestId: number): Promise<SmsRechargeRow | null> {
+  const [row] = await db
+    .select({
+      id: smsRechargeRequests.id,
+      companyId: smsRechargeRequests.companyId,
+      quantity: smsRechargeRequests.quantity,
+      amountCents: smsRechargeRequests.amountCents,
+      status: smsRechargeRequests.status,
+      paymentProvider: smsRechargeRequests.paymentProvider,
+      stripeCheckoutSessionId: smsRechargeRequests.stripeCheckoutSessionId,
+    })
+    .from(smsRechargeRequests)
+    .where(eq(smsRechargeRequests.id, requestId))
+    .limit(1)
+  return row ?? null
+}
+
+/** Annule une recharge Stripe ENCORE pending (jamais une recharge payée). */
+export async function cancelPendingStripeRecharge(requestId: number, companyId: number, sessionId: string): Promise<boolean> {
+  const updated = await db
+    .update(smsRechargeRequests)
+    .set({ status: "cancelled" })
+    .where(
+      and(
+        eq(smsRechargeRequests.id, requestId),
+        eq(smsRechargeRequests.companyId, companyId),
+        eq(smsRechargeRequests.stripeCheckoutSessionId, sessionId),
+        eq(smsRechargeRequests.status, "pending"),
+      ),
+    )
+    .returning({ id: smsRechargeRequests.id })
+  return updated.length > 0
+}
+
+/** Mémorise le PaymentIntent (audit) — sans effet sur le crédit. */
+export async function recordStripePaymentIntent(requestId: number, paymentIntentId: string | null): Promise<void> {
+  if (!paymentIntentId) return
+  await db
+    .update(smsRechargeRequests)
+    .set({ stripePaymentIntentId: paymentIntentId })
+    .where(and(eq(smsRechargeRequests.id, requestId), sql`${smsRechargeRequests.stripePaymentIntentId} IS NULL`))
 }
 
 export type ReserveReason = "ok" | "no_credit" | "already_sent" | "unknown"

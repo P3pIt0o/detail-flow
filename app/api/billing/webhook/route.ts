@@ -3,6 +3,7 @@ import { getStripe } from "@/lib/payments/stripe-client"
 import { handleBillingWebhook, type BillingWebhookDeps } from "@/lib/billing/lifetime-webhook"
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 import type { SubscriptionWebhookDeps } from "@/lib/billing/subscription-webhook"
+import { createSmsPackWebhookDeps } from "@/lib/sms/checkout"
 
 /**
  * WEBHOOK STRIPE BILLING — compte PLATEFORME DetailFlow (LOT S3A).
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
         stripe: getStripe() as unknown as SubscriptionWebhookDeps["stripe"],
         store: createPgSubscriptionStore(),
       },
+      smsPacks: createSmsPackWebhookDeps(),
     },
   )
   return NextResponse.json(result.body, { status: result.status })

@@ -17,6 +17,30 @@ export const SMS_MIN_CUSTOM_QUANTITY = 20
 /** Prix unitaire par défaut (en centimes) appliqué à une quantité personnalisée. */
 export const SMS_UNIT_PRICE_CENTS = 12
 
+/** Quantité maximale d'une recharge. */
+export const SMS_MAX_CUSTOM_QUANTITY = 5000
+
+/**
+ * SMS crédités automatiquement chaque mois civil (fuseau du tenant), cumulables.
+ * Source UNIQUE : landing et admin lisent ces valeurs. Les plans absents ne
+ * reçoivent aucune attribution mensuelle automatique dans ce lot.
+ */
+export const SMS_MONTHLY_INCLUDED_BY_PLAN = { FREE: 0, PRO: 20 } as const
+
+export function monthlyIncludedSms(plan: string | null | undefined): number {
+  return plan === "FREE" || plan === "PRO" ? SMS_MONTHLY_INCLUDED_BY_PLAN[plan] : 0
+}
+
+/** Valide une quantité demandée (entier, bornes). Renvoie la quantité ou une erreur. */
+export function validateSmsQuantity(input: unknown): { ok: true; quantity: number } | { ok: false; error: string } {
+  const qty = Number(input)
+  if (!Number.isInteger(qty) || qty < SMS_MIN_CUSTOM_QUANTITY) {
+    return { ok: false, error: `Quantité minimale : ${SMS_MIN_CUSTOM_QUANTITY} SMS.` }
+  }
+  if (qty > SMS_MAX_CUSTOM_QUANTITY) return { ok: false, error: "Quantité trop élevée." }
+  return { ok: true, quantity: qty }
+}
+
 /**
  * Packs proposés à l'achat. `amountCents` est le prix TTC affiché AVANT
  * validation. Modifier librement : c'est la seule source de vérité des tarifs.

@@ -83,9 +83,9 @@ describe("E/F/G — backend inchangé", () => {
     expect(PLAN_MATRIX.FREE.features.online_booking).toBe(true)
     expect(PLAN_MATRIX.FREE.features.online_payments).toBe(true)
     expect(PLAN_MATRIX.FREE.features.customer_subscriptions).toBe(true)
-    expect(PLAN_MATRIX.FREE.limits.maxCustomers).toBe(5)
-    expect(PLAN_MATRIX.FREE.limits.maxQuotesPerMonth).toBe(3)
-    expect(PLAN_MATRIX.FREE.limits.maxInvoicesPerMonth).toBe(3)
+    expect(PLAN_MATRIX.FREE.limits.maxCustomers).toBeNull()
+    expect(PLAN_MATRIX.FREE.limits.maxQuotesPerMonth).toBe(10)
+    expect(PLAN_MATRIX.FREE.limits.maxInvoicesPerMonth).toBe(10)
   })
   it("PRO : online_payments + limites illimitées", () => {
     expect(PLAN_MATRIX.PRO.features.online_payments).toBe(true)

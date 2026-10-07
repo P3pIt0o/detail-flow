@@ -10,7 +10,11 @@ import {
   getSmsBalance,
   generateRechargeReference,
   ensureSmsCreditsRow,
+  ensureMonthlySmsGrant,
 } from "@/lib/sms/credits"
+import { headers } from "next/headers"
+import { withTenant } from "@/lib/tenant-link"
+import { startSmsPackCheckout, getStripeRechargeStatus } from "@/lib/sms/checkout"
 import { ensureTenantSubAccount } from "@/lib/sms/send"
 import {
   SMS_MIN_CUSTOM_QUANTITY,
@@ -278,10 +282,60 @@ export async function createRechargeRequest(
   }
 }
 
-/** Lit le solde SMS du tenant courant. */
+/** Lit le solde SMS du tenant courant (après attribution mensuelle idempotente). */
 export async function getMySmsBalance() {
   const { tenant } =
     await requireCompanyMember()
 
+  try {
+    await ensureMonthlySmsGrant(tenant.id)
+  } catch (e) {
+    console.error("[sms] grant mensuel échoué:", e instanceof Error ? e.message : e)
+  }
   return getSmsBalance(tenant.id)
+}
+
+async function absoluteUrl(path: string): Promise<string> {
+  const h = await headers()
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
+  const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https")
+  return `${proto}://${host}${path}`
+}
+
+/**
+ * Achat d'un pack SMS via Stripe Checkout (compte PLATEFORME).
+ * OWNER uniquement. companyId = session ; montant recalculé serveur.
+ */
+export async function startSmsPackCheckoutAction(
+  quantity: number,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const { tenant } = await requireCompanyMember(["OWNER"])
+  if (!(await canUseFeature(tenant.id, "sms"))) {
+    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  }
+  const qty = Number(quantity)
+  if (!Number.isInteger(qty) || qty < SMS_MIN_CUSTOM_QUANTITY) {
+    return { ok: false, error: `Quantité minimale : ${SMS_MIN_CUSTOM_QUANTITY} SMS.` }
+  }
+  if (qty > 5000) return { ok: false, error: "Quantité trop élevée." }
+
+  try {
+    const { url } = await startSmsPackCheckout({
+      companyId: tenant.id,
+      quantity: qty,
+      successUrl: await absoluteUrl(withTenant("/admin/parametres?sms_session={CHECKOUT_SESSION_ID}#sms", tenant.slug)),
+      cancelUrl: await absoluteUrl(withTenant("/admin/parametres?sms_annule=1#sms", tenant.slug)),
+    })
+    return { ok: true, url }
+  } catch (e) {
+    console.error("[sms-checkout] erreur:", e instanceof Error ? e.message : e)
+    return { ok: false, error: "Le paiement n'a pas pu être initialisé." }
+  }
+}
+
+/** Statut d'une recharge au retour de Stripe (scopé au tenant courant). */
+export async function getSmsCheckoutReturnStatus(sessionId: string): Promise<"paid" | "pending" | null> {
+  const { tenant } = await requireCompanyMember()
+  if (typeof sessionId !== "string" || !sessionId.startsWith("cs_")) return null
+  return getStripeRechargeStatus(tenant.id, sessionId)
 }

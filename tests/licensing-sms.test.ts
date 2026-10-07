@@ -39,17 +39,17 @@ describe("2B lot 2 — SMS : matrice des plans explicites", () => {
     expect(resolveFeature(ctx("FOUNDER"), "sms", NOW)).toBe(true)
   })
 
-  it("FREE / ESSENTIAL / PRO refusent sms", () => {
-    expect(resolveFeature(ctx("FREE"), "sms", NOW)).toBe(false)
+  it("FREE / PRO autorisent le module sms (crédits requis), ESSENTIAL legacy le refuse", () => {
+    expect(resolveFeature(ctx("FREE"), "sms", NOW)).toBe(true)
     expect(resolveFeature(ctx("ESSENTIAL"), "sms", NOW)).toBe(false)
-    expect(resolveFeature(ctx("PRO"), "sms", NOW)).toBe(false)
+    expect(resolveFeature(ctx("PRO"), "sms", NOW)).toBe(true)
   })
 })
 
 describe("2B lot 2 — SMS : override commercial et fail-closed", () => {
   it("un override ENABLED non expiré accorde sms même sur un plan sans sms", () => {
     const ov: ResolvedOverride = { featureKey: "sms", state: "ENABLED", expiresAt: null }
-    expect(resolveFeature(ctx("PRO", [ov]), "sms", NOW)).toBe(true)
+    expect(resolveFeature(ctx("ESSENTIAL", [ov]), "sms", NOW)).toBe(true)
   })
 
   it("un override DISABLED retire sms même sur BUSINESS", () => {
