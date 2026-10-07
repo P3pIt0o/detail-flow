@@ -86,12 +86,10 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
 })
 
 describe("séparation page publique standard vs feature `website`", () => {
-  it("le plan self-service (FREE) n'obtient PAS la feature `website`", () => {
-    // La page publique /p/<slug> et /p/<slug>/reservation sont accessibles à
-    // FREE via la publication (public_page_config), sans la feature `website`
-    // réservée aux vrais sites personnalisés.
-    expect(PLAN_MATRIX[SELF_SERVICE_LICENSE_PLAN].features.website).toBe(false)
-    expect(ALL_COMMERCIAL_PLANS.find((p) => p.id === "starter")?.includedFeatures).not.toContain("website")
+  it("le plan self-service (FREE) obtient la feature `website` et l'offre la déclare", () => {
+    // Offre de découverte : FREE peut personnaliser sa page publique.
+    expect(PLAN_MATRIX[SELF_SERVICE_LICENSE_PLAN].features.website).toBe(true)
+    expect(ALL_COMMERCIAL_PLANS.find((p) => p.id === "starter")?.includedFeatures).toContain("website")
   })
 })
 

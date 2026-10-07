@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { withTenant } from "@/lib/tenant-link"
 import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
@@ -11,10 +12,16 @@ import { EmptyState } from "@/components/admin/customer-subscriptions/ui"
 export const metadata: Metadata = { title: "Modifier la formule" }
 export const dynamic = "force-dynamic"
 
-export default async function EditPlanPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditPlanPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tenant?: string }>
+}) {
   await requireAdmin()
   const companyId = await requireAdminCompanyId()
-  const { id } = await params
+  const [{ id }, { tenant = null }] = await Promise.all([params, searchParams])
   const planId = Number(id)
   if (!Number.isInteger(planId) || planId <= 0) notFound()
 
@@ -31,7 +38,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link href="/admin/abonnements-clients?vue=formules" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link href={withTenant("/admin/abonnements-clients?vue=formules", tenant)} className="text-sm text-muted-foreground hover:text-foreground">
           ← Abonnements clients
         </Link>
         <h1 className="text-2xl font-semibold text-foreground text-balance">{config.name}</h1>

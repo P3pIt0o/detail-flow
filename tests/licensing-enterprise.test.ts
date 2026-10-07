@@ -51,7 +51,7 @@ function effectiveFeatures(plan: LicensePlan): Record<FeatureKey, boolean> {
 
 const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]> = {
   // `customer_subscriptions` = feature de BASE (tous plans), pas premium.
-  FREE: ["customer_subscriptions"],
+  FREE: ["website", "online_booking", "online_payments", "customer_subscriptions"],
   ESSENTIAL: ["business_stats", "expense_management", "customer_subscriptions"],
   PRO: [
     "customer_subscriptions",
@@ -134,10 +134,10 @@ describe("LOT 0 — moteur de licences : plan ENTERPRISE", () => {
     expect(effectiveFeatures("FOUNDER")).toEqual(expect_features(SNAPSHOT.FOUNDER))
   })
 
-  it("F. FREE reste inchangé (droits + limites)", () => {
+  it("F. FREE : site/réservation/paiements/abonnements + limites 5/5", () => {
     expect(effectiveFeatures("FREE")).toEqual(expect_features(SNAPSHOT.FREE))
-    expect(planLimit("FREE", "maxCustomers")).toBe(10)
-    expect(planLimit("FREE", "maxVehicles")).toBe(10)
+    expect(planLimit("FREE", "maxCustomers")).toBe(5)
+    expect(planLimit("FREE", "maxVehicles")).toBe(5)
     expect(planLimit("FREE", "maxQuotesPerMonth")).toBe(3)
     expect(planLimit("FREE", "maxInvoicesPerMonth")).toBe(3)
   })

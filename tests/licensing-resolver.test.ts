@@ -19,13 +19,14 @@ function feature(view: ReturnType<typeof resolveEntitlements>, key: string) {
 }
 
 describe("matrice des plans", () => {
-  it("FREE : aucune feature premium (seule la feature de base customer_subscriptions) + limites strictes", () => {
+  it("FREE : site/réservation/paiements/abonnements uniquement, aucune feature premium + limites strictes", () => {
+    const FREE_ON = ["website", "online_booking", "online_payments", "customer_subscriptions"]
     for (const k of FEATURE_KEYS) {
-      expect(planFeature("FREE", k), k).toBe(k === "customer_subscriptions")
+      expect(planFeature("FREE", k), k).toBe(FREE_ON.includes(k))
     }
     expect(PLAN_MATRIX.FREE.limits).toEqual({
-      maxCustomers: 10,
-      maxVehicles: 10,
+      maxCustomers: 5,
+      maxVehicles: 5,
       maxQuotesPerMonth: 3,
       maxInvoicesPerMonth: 3,
       maxActiveCustomerSubscriptions: 2,
@@ -152,7 +153,7 @@ describe("resolver — vue complète + fail-closed + legacy", () => {
   })
 
   it("limites : FREE plafonnées, PRO illimitées", () => {
-    expect(resolveLimit(ctx("FREE"), "maxCustomers")).toBe(10)
+    expect(resolveLimit(ctx("FREE"), "maxCustomers")).toBe(5)
     expect(resolveLimit(ctx("FREE"), "maxQuotesPerMonth")).toBe(3)
     expect(resolveLimit(ctx("PRO"), "maxCustomers")).toBeNull()
   })
@@ -161,5 +162,16 @@ describe("resolver — vue complète + fail-closed + legacy", () => {
     const view = resolveEntitlements(ctx("FOUNDER"), NOW)
     for (const f of view.features) expect(f.effective).toBe(true)
     expect(feature(view, "early_access").effective).toBe(true)
+  })
+})
+
+describe("offre FREE — découverte limitée (non-régression)", () => {
+  it("FREE n'active aucune feature premium", () => {
+    for (const k of ["sms", "automations", "email_reminders", "review_requests", "business_stats", "expense_management", "profitability_analysis", "advanced_reporting", "marketing", "leads_crm", "early_access"] as const) {
+      expect(PLAN_MATRIX.FREE.features[k], k).toBe(false)
+    }
+  })
+  it("FREE : 5 clients / 5 véhicules, devis/factures/abonnements inchangés", () => {
+    expect(PLAN_MATRIX.FREE.limits).toEqual({ maxCustomers: 5, maxVehicles: 5, maxQuotesPerMonth: 3, maxInvoicesPerMonth: 3, maxActiveCustomerSubscriptions: 2 })
   })
 })

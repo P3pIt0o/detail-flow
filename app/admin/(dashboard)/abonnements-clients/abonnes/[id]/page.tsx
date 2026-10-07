@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { withTenant } from "@/lib/tenant-link"
 import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
@@ -15,10 +16,16 @@ import { ResendPaymentLinkButton } from "@/components/admin/customer-subscriptio
 export const metadata: Metadata = { title: "Abonnement" }
 export const dynamic = "force-dynamic"
 
-export default async function SubscriptionPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SubscriptionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tenant?: string }>
+}) {
   await requireAdmin()
   const companyId = await requireAdminCompanyId()
-  const { id } = await params
+  const [{ id }, { tenant = null }] = await Promise.all([params, searchParams])
   const subscriptionId = Number(id)
   if (!Number.isInteger(subscriptionId) || subscriptionId <= 0) notFound()
   const detail = await getSubscriptionDetail(companyId, subscriptionId)
@@ -35,7 +42,7 @@ export default async function SubscriptionPage({ params }: { params: Promise<{ i
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <Link href="/admin/abonnements-clients?vue=abonnes" className="text-sm text-muted-foreground hover:text-foreground">
+        <Link href={withTenant("/admin/abonnements-clients?vue=abonnes", tenant)} className="text-sm text-muted-foreground hover:text-foreground">
           ← Abonnés
         </Link>
         <div className="flex flex-wrap items-center gap-3">
@@ -50,6 +57,7 @@ export default async function SubscriptionPage({ params }: { params: Promise<{ i
 
       {pendingCancellations.map((c) => (
         <EarlyCancellationCard
+          tenant={tenant}
           key={c.id}
           request={{
             id: c.id,

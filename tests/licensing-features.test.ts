@@ -10,7 +10,7 @@ import type { FeatureKey, LicensePlan } from "@/lib/licensing/types"
  * `hasFeature()` délègue. Aucune écriture DB, aucun accès réseau.
  *
  * Matrice de référence (registre central) pour ces 3 features :
- *   FREE = false, ESSENTIAL = false, PRO/BUSINESS/FOUNDER = true.
+ *   ESSENTIAL = false, FREE/PRO/BUSINESS/FOUNDER = true.
  */
 
 const LOT1: FeatureKey[] = ["website", "online_booking", "online_payments"]
@@ -30,8 +30,8 @@ describe("2B lot 1 — LEGACY (licensePlan = NULL) : comportement inchangé", ()
 })
 
 describe("2B lot 1 — licence explicite : droit selon le plan", () => {
-  it("FREE => les 3 features refusées", () => {
-    for (const key of LOT1) expect(resolveFeature(ctx("FREE"), key, NOW)).toBe(false)
+  it("FREE => les 3 features autorisées (offre de découverte)", () => {
+    for (const key of LOT1) expect(resolveFeature(ctx("FREE"), key, NOW)).toBe(true)
   })
 
   it("ESSENTIAL => les 3 features refusées", () => {
@@ -82,7 +82,7 @@ describe("2B lot 1 — overrides (geste commercial / downgrade)", () => {
 describe("2B lot 1 — isolation : la décision ne dépend que du contexte passé", () => {
   it("deux contextes tenant distincts donnent des droits indépendants", () => {
     const tenantA = ctx("PRO") // a le droit
-    const tenantB = ctx("FREE") // ne l'a pas
+    const tenantB = ctx("ESSENTIAL") // ne l'a pas
     expect(resolveFeature(tenantA, "online_booking", NOW)).toBe(true)
     expect(resolveFeature(tenantB, "online_booking", NOW)).toBe(false)
   })
