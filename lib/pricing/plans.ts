@@ -12,7 +12,7 @@
  *  GAMME COMMERCIALE PUBLIQUE (4 niveaux SaaS) :
  *    Essentiel   0 €          -> plan technique FREE       (self-service actif)
  *    Indépendant 19,90 €/mois -> plan technique PRO         (self_serve via Stripe Checkout)
- *    Performance 34,90 €/mois -> plan technique BUSINESS    (self_serve via Stripe Checkout)
+ *    Performance 34,90 €/mois -> plan technique BUSINESS    (coming_soon — phase de lancement)
  *    Équipe      59,90 €/mois -> plan technique ENTERPRISE  (coming_soon)
  *
  *  L'offre « Équipe » (gestion multi-employés, agendas par collaborateur,
@@ -32,10 +32,12 @@
  *    en self-service MAINTENANT (attribution câblée de bout en bout) ?
  *
  *  RÈGLE ABSOLUE : une offre n'est `self_serve` que si son attribution existe
- *  vraiment. FREE est attribué à la création ; PRO et BUSINESS sont obtenus
- *  via Stripe Checkout depuis /admin/abonnement (licence mise à jour par le
- *  webhook Billing uniquement). `/demarrer?plan=PRO|BUSINESS` ne fait que
- *  mémoriser l'intention : l'espace est toujours créé FREE.
+ *  vraiment. FREE est attribué à la création ; PRO est obtenu via Stripe
+ *  Checkout depuis /admin/abonnement (licence mise à jour par le webhook
+ *  Billing uniquement). BUSINESS / ENTERPRISE restent reconnus par le backend
+ *  (abonnements existants, webhook) mais ne sont plus vendus en self-service.
+ *  `/demarrer?plan=PRO` ne fait que mémoriser l'intention : l'espace est
+ *  toujours créé FREE.
  *  Les offres `coming_soon` NE DOIVENT PAS pointer vers /demarrer.
  *
  *  ESSAI : 30 jours gratuits sur la première souscription éligible
@@ -50,10 +52,11 @@ import type { FeatureKey, LicensePlan } from "@/lib/licensing/types"
  * `provisionCompanyForUser` importe cette constante : marketing, onboarding et
  * attribution partagent ainsi une seule valeur (impossible de dériver).
  *
- * NOTE : la page publique standard `/p/<slug>` et le lien de réservation
- * `/p/<slug>/reservation` sont accessibles à FREE SANS la feature `website`
- * (réservée aux vrais sites personnalisés). Page publique standard ≠ feature
- * `website` : ce sont deux concepts distincts.
+ * NOTE : PLAN_MATRIX.FREE inclut la feature `website` (page professionnelle
+ * standard `/p/<slug>` personnalisable + lien de réservation). Les sites
+ * entièrement sur mesure (`customSiteKey` : Spirit ACS, Rozan, Cleanyzer…) sont
+ * une mécanique DISTINCTE, attribuée séparément, et ne sont PAS une feature
+ * self-service d'aucune offre.
  */
 export const SELF_SERVICE_LICENSE_PLAN: LicensePlan = "FREE"
 
@@ -70,8 +73,9 @@ export type CommercialPlan = {
   /** Ligne de positionnement courte (« Commencez simplement. »). */
   tagline: string
   /**
-   * Plan technique du moteur de licences correspondant, ou `null` quand aucun
-   * plan réel n'existe encore (cas Entreprise : gestion d'équipe non modélisée).
+   * Plan technique du moteur de licences correspondant. Toutes les offres
+   * actuelles ont un plan réel (Équipe -> ENTERPRISE) ; `null` reste permis par
+   * le type pour une future offre sans plan technique.
    */
   licensePlan: LicensePlan | null
   price: string
@@ -84,7 +88,7 @@ export type CommercialPlan = {
    */
   monthlyPriceCents: number
   description: string
-  /** Promesse « 1er mois offert » affichée sur les offres payantes. */
+  /** Promesse d'essai affichée — aujourd'hui Indépendant uniquement (`null` ailleurs). */
   trial?: string | null
   /**
    * Puces d'affichage marketing. Peuvent inclure des capacités NON gated
@@ -94,7 +98,8 @@ export type CommercialPlan = {
   /**
    * Features GATED explicitement promises par l'offre. INVARIANT (vérifié par
    * les tests) : chacune DOIT être `true` dans `PLAN_MATRIX[licensePlan]`.
-   * Vide pour FREE (aucune feature premium) et pour Entreprise (pas de plan).
+   * FREE : website, online_booking, online_payments, customer_subscriptions.
+   * Équipe : vide tant que les modules d'équipe n'existent pas.
    */
   includedFeatures: FeatureKey[]
   availability: PlanAvailability
@@ -112,7 +117,7 @@ export const PRICING_COPY = {
   eyebrow: "Tarifs",
   title: "Une formule pour chaque étape de votre activité",
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
-  trialHeadline: "30 jours gratuits sur Indépendant et Performance.",
+  trialHeadline: "30 jours gratuits sur Indépendant.",
   trialSub: "Vous démarrez l'essai depuis votre espace, après sa création.",
   note: "Prix indiqués hors taxes.",
   comingSoonLabel: "Bientôt disponible",
@@ -122,8 +127,9 @@ export const PRICING_COPY = {
 /**
  * Offres présentées sur la grille principale (4 colonnes).
  *
- * ÉTAT ACTUEL : « Essentiel », « Indépendant » et « Performance » sont
- * `self_serve`. « Équipe » reste `coming_soon` (aucun Checkout, aucun lien).
+ * ÉTAT ACTUEL (lancement) : seuls « Essentiel » et « Indépendant » sont
+ * `self_serve`. « Performance » et « Équipe » sont `coming_soon` (aucun
+ * Checkout, aucun lien).
  */
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
@@ -141,8 +147,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Réservation en ligne & widget à partager",
       "Planning centralisé",
       "Jusqu'à 5 clients",
-      "Jusqu'à 5 véhicules",
-      "Paiements en ligne (commission DetailFlow)",
+      "3 devis et 3 factures par mois",
+      "Paiements en ligne (commission DetailFlow, hors frais Stripe)",
       "Fonctionnalités avancées avec l'offre supérieure",
     ],
     // Features gated réellement ouvertes par PLAN_MATRIX.FREE.
@@ -164,8 +170,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     trial: "30 jours gratuits",
     highlights: [
       "Tout Essentiel",
-      "Réservation avancée (véhicules, options, suppléments)",
-      "Acompte & paiements en ligne",
+      "Clients, devis et factures illimités",
+      "Commission réduite sur les paiements en ligne",
       "Rappels & demandes d'avis automatiques",
       "Statistiques de base",
     ],
@@ -185,7 +191,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     period: "/ mois",
     monthlyPriceCents: 3490,
     description: "Pour développer, automatiser et fidéliser à grande échelle.",
-    trial: "30 jours gratuits",
+    trial: null,
     highlights: [
       "Tout Indépendant",
       "Devis, factures & avoirs",
@@ -204,8 +210,8 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       // LOT 2 — la promesse « Leads / CRM » est désormais adossée à la FeatureKey réelle.
       "leads_crm",
     ],
-    availability: "self_serve",
-    cta: { label: "Essayer 30 jours gratuitement", href: "/demarrer?plan=BUSINESS" },
+    availability: "coming_soon",
+    cta: { label: "Bientôt disponible", href: null },
     highlighted: false,
     badge: null,
   },
@@ -232,7 +238,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Attribution des rendez-vous & RDV simultanés",
       "Permissions & statistiques par employé",
     ],
-    // licensePlan null -> aucune feature ne peut être promise (invariant testé).
+    // Aucune feature d'équipe n'existe encore -> rien n'est promis (invariant testé).
     includedFeatures: [],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },

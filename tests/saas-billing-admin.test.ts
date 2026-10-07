@@ -134,7 +134,7 @@ beforeEach(() => {
 })
 
 describe("Checkout SaaS admin", () => {
-  it.each(["PRO", "BUSINESS", "ENTERPRISE"] as const)("1-2. OWNER tenant A + %s => Checkout du tenant A", async (plan) => {
+  it.each(["PRO"] as const)("1-2. OWNER tenant A + %s => Checkout du tenant A", async (plan) => {
     const { store } = memoryStore([company(A.id), company(B.id)])
     const { stripe, created, raw } = checkoutStripe(priceById)
     const result = await startSaasAdminCheckout({ member: owner(), plan, origin: ORIGIN }, { stripe, store, env: ENV })
@@ -147,7 +147,7 @@ describe("Checkout SaaS admin", () => {
     expect(raw.prices.retrieve).toHaveBeenCalledWith(PRICE_IDS[plan], expect.anything())
   })
 
-  it.each(["FREE", "GOLD", "", null, undefined, 3, { plan: "PRO" }])(
+  it.each(["FREE", "BUSINESS", "ENTERPRISE", "FOUNDER", "GOLD", "pro", "", null, undefined, 3, { plan: "PRO" }])(
     "3-5. formule %s refusée AVANT tout appel Stripe",
     async (plan) => {
       const { store, reads } = memoryStore([company(A.id)])
@@ -162,10 +162,10 @@ describe("Checkout SaaS admin", () => {
     },
   )
 
-  it("parseSaasAdminCheckoutPlan n'accepte que PRO, BUSINESS et ENTERPRISE", () => {
+  it("parseSaasAdminCheckoutPlan n'accepte que PRO (phase de lancement)", () => {
     expect(parseSaasAdminCheckoutPlan("PRO")).toBe("PRO")
-    expect(parseSaasAdminCheckoutPlan("BUSINESS")).toBe("BUSINESS")
-    expect(parseSaasAdminCheckoutPlan("ENTERPRISE")).toBe("ENTERPRISE")
+    expect(() => parseSaasAdminCheckoutPlan("BUSINESS")).toThrow()
+    expect(() => parseSaasAdminCheckoutPlan("ENTERPRISE")).toThrow()
     expect(() => parseSaasAdminCheckoutPlan("pro")).toThrow()
   })
 

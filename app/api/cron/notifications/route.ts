@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { processDueNotifications } from "@/lib/notifications/outbox"
+import { rejectUnauthorizedCron } from "@/lib/cron/auth"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
 export const dynamic = "force-dynamic"
@@ -22,21 +23,15 @@ export const dynamic = "force-dynamic"
  *
  * Sécurité : même garde que le cron existant — en production, Vercel Cron
  * ajoute `Authorization: Bearer <CRON_SECRET>`. Toute requête sans ce jeton est
- * refusée dès qu'un CRON_SECRET est configuré. Le nouvel endpoint est donc
- * protégé au même niveau que l'ancien.
+ * refusée ; sans CRON_SECRET configuré, la route est fermée (503, fail-closed).
  *
  * Envoi RÉEL désactivé par défaut (voir notificationsRealSendEnabled) : en
  * Preview et tant que NOTIFICATIONS_ENABLED n'est pas « true », le fournisseur
  * est simulé — aucun email réel n'est émis.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = request.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ ok: false, error: "Non autorisé" }, { status: 401 })
-    }
-  }
+  const denied = rejectUnauthorizedCron(request)
+  if (denied) return denied
 
   const result = await processDueNotifications(new Date())
   return NextResponse.json({ ok: true, ...result })

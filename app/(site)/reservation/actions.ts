@@ -32,6 +32,8 @@ import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
+import { isBookingRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
+import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 import { randomBytes } from "crypto"
@@ -180,7 +182,7 @@ export type CreateBookingInput = {
 
 export type CreateBookingResult =
   | { ok: true; reference: string; payUrl?: string }
-  | { ok: false; error: string; code?: "slot_taken" | "invalid" | "out_of_range" | "closed" }
+  | { ok: false; error: string; code?: "slot_taken" | "invalid" | "out_of_range" | "closed" | "rate_limited" }
 
 /** Génère une référence lisible du type "DF-20260115-4821". */
 function generateReference(dateStr: string): string {
@@ -220,6 +222,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   // Entreprise (tenant) courante : toutes les lectures/écritures y sont rattachées.
   const tenant = await resolvePublicRequestTenant()
   if (!tenant) notFound()
+
+  // Anti-abus (Vercel Firewall `booking-create`) : avant toute écriture DB,
+  // calcul lourd, Stripe ou email. Aucun détail (seuil, IP, règle) exposé.
+  if (await isBookingRateLimited(await headers())) {
+    return { ok: false, error: BOOKING_RATE_LIMITED_MESSAGE, code: "rate_limited" }
+  }
 
   // Contrôle serveur : une entreprise suspendue/archivée ou n'acceptant pas les
   // réservations (bookingMode = DISABLED) ne peut jamais créer de réservation,

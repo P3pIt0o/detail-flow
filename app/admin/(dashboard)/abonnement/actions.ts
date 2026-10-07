@@ -1,7 +1,7 @@
 "use server"
 
-import { headers } from "next/headers"
 import { requireCompanyMember } from "@/lib/admin"
+import { BillingOriginError, resolveBillingOrigin } from "@/lib/billing/billing-origin"
 import { getStripe } from "@/lib/payments/stripe-client"
 import { openSaasAdminPortal, parseSaasAdminCheckoutPlan, startSaasAdminCheckout } from "@/lib/billing/saas-admin"
 import type { SubscriptionCheckoutStripeClient } from "@/lib/billing/subscription-checkout"
@@ -11,14 +11,16 @@ import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 
 export type SaasBillingActionResult = { ok: true; url: string } | { ok: false; error: string }
 
+/** Origine contrôlée par l'environnement ; Host / x-forwarded-host ignorés. */
 async function requestOrigin(): Promise<string> {
-  const h = await headers()
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
-  const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https")
-  return `${proto}://${host}`
+  return resolveBillingOrigin()
 }
 
 function toResult(error: unknown, fallback: string): SaasBillingActionResult {
+  if (error instanceof BillingOriginError) {
+    console.error("[saas-billing] origine de facturation non configurée")
+    return { ok: false, error: fallback }
+  }
   if (error instanceof SubscriptionError) {
     console.error("[saas-billing]", error.code, error.message)
     return { ok: false, error: error.message }
@@ -27,7 +29,7 @@ function toResult(error: unknown, fallback: string): SaasBillingActionResult {
   return { ok: false, error: fallback }
 }
 
-/** Seul input navigateur accepté : la formule (PRO | BUSINESS | ENTERPRISE), revalidée serveur. */
+/** Seul input navigateur accepté : la formule (PRO uniquement en phase de lancement), revalidée serveur. */
 export async function startSaasCheckoutAction(plan: string): Promise<SaasBillingActionResult> {
   try {
     parseSaasAdminCheckoutPlan(plan)

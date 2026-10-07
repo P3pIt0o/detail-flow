@@ -12,7 +12,7 @@ const code = (p: string) =>
 
 describe("parseDesiredPlan — intention commerciale uniquement", () => {
   it("/demarrer?plan=PRO => PRO", () => expect(parseDesiredPlan("PRO")).toBe("PRO"))
-  it("/demarrer?plan=BUSINESS => BUSINESS", () => expect(parseDesiredPlan("BUSINESS")).toBe("BUSINESS"))
+  it("/demarrer?plan=BUSINESS => null (coming_soon)", () => expect(parseDesiredPlan("BUSINESS")).toBeNull())
   it("/demarrer?plan=ENTERPRISE => null", () => expect(parseDesiredPlan("ENTERPRISE")).toBeNull())
   it("/demarrer?plan=FREE => null", () => expect(parseDesiredPlan("FREE")).toBeNull())
   it("/demarrer?plan=HACK => null", () => expect(parseDesiredPlan("HACK")).toBeNull())
@@ -21,7 +21,8 @@ describe("parseDesiredPlan — intention commerciale uniquement", () => {
     expect(parseDesiredPlan(null)).toBeNull()
     expect(parseDesiredPlan("pro")).toBeNull()
     expect(parseDesiredPlan({ plan: "PRO" })).toBeNull()
-    expect(parseDesiredPlan(["BUSINESS", "PRO"])).toBe("BUSINESS")
+    expect(parseDesiredPlan(["BUSINESS", "PRO"])).toBeNull()
+    expect(parseDesiredPlan(["PRO", "BUSINESS"])).toBe("PRO")
   })
   it("withDesiredPlan n'ajoute rien sans intention", () => {
     expect(withDesiredPlan("/admin/creer-mon-espace", null)).toBe("/admin/creer-mon-espace")
@@ -33,10 +34,9 @@ describe("redirection après création — tenant conservé", () => {
   it("PRO => /admin/abonnement?tenant=<slug>&plan=PRO", () => {
     expect(buildPostCreationRedirect("autocare", "booking", "PRO")).toBe("/admin/abonnement?tenant=autocare&plan=PRO")
   })
-  it("BUSINESS => /admin/abonnement?tenant=<slug>&plan=BUSINESS", () => {
-    expect(buildPostCreationRedirect("autocare", "", "BUSINESS")).toBe(
-      "/admin/abonnement?tenant=autocare&plan=BUSINESS",
-    )
+  it("?plan=BUSINESS/ENTERPRISE => redirection historique (aucune souscription interdite)", () => {
+    expect(buildPostCreationRedirect("autocare", "", parseDesiredPlan("BUSINESS"))).toBe("/admin?tenant=autocare")
+    expect(buildPostCreationRedirect("autocare", "", parseDesiredPlan("ENTERPRISE"))).toBe("/admin?tenant=autocare")
   })
   it("sans plan => redirection historique inchangée", () => {
     expect(buildPostCreationRedirect("autocare", "booking", null)).toBe("/admin?tenant=autocare&start=booking")

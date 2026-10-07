@@ -8,6 +8,7 @@ import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit } from "@/lib/s
 import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { cleanupOrphanQuotePhotos } from "@/lib/quote-photos/server"
+import { rejectUnauthorizedCron } from "@/lib/cron/auth"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
 export const dynamic = "force-dynamic"
@@ -20,17 +21,12 @@ export const dynamic = "force-dynamic"
  * lendemain et dont le rappel n'a pas encore été envoyé.
  *
  * Sécurité : en production, Vercel Cron ajoute l'en-tête
- * `Authorization: Bearer <CRON_SECRET>`. On refuse toute requête sans ce jeton
- * dès lors qu'un CRON_SECRET est configuré.
+ * `Authorization: Bearer <CRON_SECRET>`. On refuse toute requête sans ce jeton ;
+ * sans CRON_SECRET configuré, la route est fermée (503, fail-closed).
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = request.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ ok: false, error: "Non autorisé" }, { status: 401 })
-    }
-  }
+  const denied = rejectUnauthorizedCron(request)
+  if (denied) return denied
 
   // Renvoie la date à J+n au format YYYY-MM-DD (colonne `date` de type date).
   const dateInDays = (days: number) => {

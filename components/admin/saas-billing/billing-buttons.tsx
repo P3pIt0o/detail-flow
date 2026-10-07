@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { SaasAdminCheckoutPlan } from "@/lib/billing/saas-admin"
 import {
   openSaasPortalAction,
   startSaasCheckoutAction,
@@ -32,7 +33,7 @@ function ActionError({ error }: { error: string | null }) {
   )
 }
 
-export function SaasCheckoutButton({ plan, label, featured }: { plan: "PRO" | "BUSINESS" | "ENTERPRISE"; label: string; featured?: boolean }) {
+export function SaasCheckoutButton({ plan, label, featured }: { plan: SaasAdminCheckoutPlan; label: string; featured?: boolean }) {
   const { error, isPending, run } = useRedirectAction()
   return (
     <div className="flex flex-col gap-2">
