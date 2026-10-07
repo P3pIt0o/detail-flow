@@ -24,12 +24,12 @@ import {
 import { createSubscriptionPortalSession, type SubscriptionPortalDeps } from "./subscription-portal"
 import { withTenant } from "../tenant-link"
 
-/** Formules commercialisables depuis l'admin. ENTERPRISE (Équipe) et FREE exclus. */
-export const SAAS_ADMIN_CHECKOUT_PLANS = ["PRO", "BUSINESS"] as const
+/** Formules commercialisables depuis l'admin. FREE exclu, ENTERPRISE (Équipe) autorisé. */
+export const SAAS_ADMIN_CHECKOUT_PLANS = ["PRO", "BUSINESS", "ENTERPRISE"] as const
 export type SaasAdminCheckoutPlan = (typeof SAAS_ADMIN_CHECKOUT_PLANS)[number]
 
 export function parseSaasAdminCheckoutPlan(value: unknown): SaasAdminCheckoutPlan {
-  if (value === "PRO" || value === "BUSINESS") return value
+  if (value === "PRO" || value === "BUSINESS" || value === "ENTERPRISE") return value
   throw new SubscriptionError("PLAN_NOT_SUBSCRIBABLE", "Cette formule n'est pas disponible à la souscription.")
 }
 

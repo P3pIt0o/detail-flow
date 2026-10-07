@@ -38,7 +38,6 @@ export default async function SaasBillingPage({
   const hasSubscription = Boolean(company?.stripeSubscriptionId)
   const trialEligible = company ? isCompanyTrialEligible(company) : true
   const free = getFreePlanDisplay()
-  const team = describeSubscriptionPlan("ENTERPRISE")
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
@@ -145,15 +144,6 @@ export default async function SaasBillingPage({
                   </article>
                 )
               })}
-              <article className="flex flex-col gap-4 rounded-xl border border-dashed border-border p-5 text-muted-foreground">
-                <div className="flex flex-col gap-1">
-                  <h3 className="font-semibold text-foreground">{team.name}</h3>
-                  <p className="text-sm">Plusieurs collaborateurs et agendas.</p>
-                </div>
-                <Badge variant="outline" className="self-start">
-                  Bientôt disponible
-                </Badge>
-              </article>
             </div>
           </section>
 
