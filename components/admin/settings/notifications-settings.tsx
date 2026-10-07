@@ -19,6 +19,8 @@ type Props = {
   canReviews: boolean
   /** Migration LOT D appliquée ? Sinon activation impossible (message clair). */
   migrationApplied: boolean
+  /** Disponibilité globale calculée côté serveur (booléen seul, jamais la config). */
+  runtimeEnabled: boolean
   /** Destinataire pro affiché clairement (email pro configuré). */
   proRecipient: string | null
   proReminderEnabled: boolean
@@ -43,12 +45,39 @@ function LockedBanner() {
   )
 }
 
+function blocksNewActivation(props: Props, licensed: boolean) {
+  return !licensed || !props.migrationApplied || !props.runtimeEnabled
+}
+
 export function NotificationsSettings(props: Props) {
   return (
     <div className="max-w-2xl space-y-8">
+      {!props.runtimeEnabled ? (
+        <Card className="border-border bg-muted/30 p-4">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+            Les automatisations sont en cours d&apos;activation.
+          </p>
+        </Card>
+      ) : null}
       <ProReminderCard {...props} />
       <ReviewRequestCard {...props} />
     </div>
+  )
+}
+
+function StatusBadge({ enabled, runtimeEnabled }: { enabled: boolean; runtimeEnabled: boolean }) {
+  if (enabled && !runtimeEnabled) {
+    return (
+      <Badge variant="secondary" className="shrink-0">
+        En attente
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant={enabled ? "default" : "secondary"} className="shrink-0">
+      {enabled ? "Activé" : "Désactivé"}
+    </Badge>
   )
 }
 
@@ -70,9 +99,11 @@ function ProReminderCard(props: Props) {
           ? { type: "ok", text: "Préférences enregistrées." }
           : { type: "err", text: r.error ?? "Erreur." },
       )
-      if (!r.ok && r.migrationRequired) setEnabled(false)
+      if (!r.ok) setEnabled(props.proReminderEnabled)
     })
   }
+
+  const blocked = blocksNewActivation(props, props.canReminders)
 
   return (
     <div className="space-y-4">
@@ -99,9 +130,7 @@ function ProReminderCard(props: Props) {
               </p>
             </div>
           </div>
-          <Badge variant={enabled ? "default" : "secondary"} className="shrink-0">
-            {enabled ? "Activé" : "Désactivé"}
-          </Badge>
+          <StatusBadge enabled={enabled} runtimeEnabled={props.runtimeEnabled} />
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -111,9 +140,9 @@ function ProReminderCard(props: Props) {
           <Switch
             id="pro-reminder-enabled"
             checked={enabled}
-            disabled={(locked || !props.migrationApplied) && !enabled}
+            disabled={blocked && !enabled}
             onCheckedChange={(v) => {
-              if ((locked || !props.migrationApplied) && v) return
+              if (blocked && v) return
               setEnabled(v)
             }}
           />
@@ -192,7 +221,7 @@ function ReviewRequestCard(props: Props) {
           ? { type: "ok", text: "Préférences enregistrées." }
           : { type: "err", text: r.error ?? "Erreur." },
       )
-      if (!r.ok && r.migrationRequired) setEnabled(false)
+      if (!r.ok) setEnabled(props.reviewRequestEnabled)
     })
   }
 
@@ -211,6 +240,7 @@ function ReviewRequestCard(props: Props) {
   }
 
   const effectiveLink = link.trim() || props.resolvedReviewLink || null
+  const blocked = blocksNewActivation(props, props.canReviews)
 
   return (
     <div className="space-y-4">
@@ -237,9 +267,7 @@ function ReviewRequestCard(props: Props) {
               </p>
             </div>
           </div>
-          <Badge variant={enabled ? "default" : "secondary"} className="shrink-0">
-            {enabled ? "Activé" : "Désactivé"}
-          </Badge>
+          <StatusBadge enabled={enabled} runtimeEnabled={props.runtimeEnabled} />
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -249,9 +277,9 @@ function ReviewRequestCard(props: Props) {
           <Switch
             id="review-enabled"
             checked={enabled}
-            disabled={(locked || !props.migrationApplied) && !enabled}
+            disabled={blocked && !enabled}
             onCheckedChange={(v) => {
-              if ((locked || !props.migrationApplied) && v) return
+              if (blocked && v) return
               setEnabled(v)
             }}
           />

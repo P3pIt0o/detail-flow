@@ -9,6 +9,7 @@ import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { cleanupOrphanQuotePhotos } from "@/lib/quote-photos/server"
 import { rejectUnauthorizedCron } from "@/lib/cron/auth"
+import { processClientEmailReminders } from "@/lib/notifications/client-reminders"
 
 // Toujours dynamique : ne jamais mettre en cache l'exécution du cron.
 export const dynamic = "force-dynamic"
@@ -41,28 +42,39 @@ export async function GET(request: Request) {
   // Date du lendemain (rappel email : toujours à 24 h).
   const target = dateInDays(1)
 
-  const due = await db
-    .select({ id: bookings.id })
-    .from(bookings)
-    .where(
-      and(
-        eq(bookings.date, target),
-        eq(bookings.status, "confirmed"),
-        isNull(bookings.reminderSentAt),
-      ),
-    )
-
-  let sent = 0
-  for (const row of due) {
-    const ok = await sendReminderEmail(row.id)
-    if (ok) {
+  // Rappel EMAIL AU CLIENT (historique, J+1) — distinct du rappel AU PROFESSIONNEL
+  // du LOT D (/api/cron/notifications). Protégé par `email_reminders`, évalué
+  // une fois par companyId (voir lib/notifications/client-reminders.ts).
+  const emailPass = await processClientEmailReminders({
+    listDue: () =>
+      db
+        .select({ id: bookings.id, companyId: bookings.companyId })
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.date, target),
+            eq(bookings.status, "confirmed"),
+            isNull(bookings.reminderSentAt),
+          ),
+        ),
+    canUseFeature: (companyId, key) => canUseFeature(companyId, key),
+    sendReminder: (bookingId) => sendReminderEmail(bookingId),
+    markSent: async (bookingId, companyId) => {
       await db
         .update(bookings)
         .set({ reminderSentAt: new Date() })
-        .where(eq(bookings.id, row.id))
-      sent += 1
-    }
-  }
+        .where(
+          and(
+            eq(bookings.id, bookingId),
+            eq(bookings.companyId, companyId),
+            eq(bookings.status, "confirmed"),
+            isNull(bookings.reminderSentAt),
+          ),
+        )
+    },
+  })
+  const due = { length: emailPass.candidates }
+  const sent = emailPass.sent
 
   /* ------------------------------ Rappels SMS ------------------------------ */
   // Une passe indépendante : chaque entreprise choisit son délai (24 h ou 48 h)

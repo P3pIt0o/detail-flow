@@ -4,8 +4,9 @@ import "server-only"
  * Stockage des oppositions aux demandes d'avis — DÉFENSIF (SQL brut).
  *
  * La table `notification_opt_outs` vit dans la migration additive LOT D. Tant
- * qu'elle n'existe pas : `isReviewOptedOut` renvoie `false` (aucun blocage
- * inattendu) et `recordReviewOptOut` échoue proprement (aucun faux succès).
+ * qu'elle n'existe pas ou en cas d'erreur : `checkReviewOptOut` renvoie
+ * "unavailable" (AUCUN envoi) et `recordReviewOptOut` échoue proprement (aucun
+ * faux succès).
  *
  * SÉCURITÉ : `companyId` est toujours résolu côté serveur par l'appelant (route
  * de désinscription vérifiant le jeton HMAC). L'email est normalisé.
@@ -27,10 +28,16 @@ export async function optOutTableExists(): Promise<boolean> {
   }
 }
 
-/** Le client (email) s'est-il opposé aux demandes d'avis de ce tenant ? */
-export async function isReviewOptedOut(companyId: number, email: string): Promise<boolean> {
+export type OptOutState = "opted_out" | "not_opted_out" | "unavailable"
+
+/**
+ * État d'opposition du client (email) aux demandes d'avis de ce tenant.
+ * Erreur DB ou entrée invalide => "unavailable" : l'appelant NE DOIT PAS envoyer
+ * (une panne de vérification n'est jamais une autorisation d'envoi).
+ */
+export async function checkReviewOptOut(companyId: number, email: string): Promise<OptOutState> {
   const normalized = normalizeEmail(email)
-  if (!Number.isInteger(companyId) || companyId <= 0 || !normalized) return false
+  if (!Number.isInteger(companyId) || companyId <= 0 || !normalized) return "unavailable"
   try {
     const result = await db.execute(
       sql`SELECT 1 FROM notification_opt_outs
@@ -38,12 +45,15 @@ export async function isReviewOptedOut(companyId: number, email: string): Promis
           LIMIT 1`,
     )
     const rows = (result as unknown as { rows?: unknown[] }).rows ?? []
-    return rows.length >= 1
+    return rows.length >= 1 ? "opted_out" : "not_opted_out"
   } catch {
-    // Table absente ou erreur : ne bloque pas (le blocage est ADDITIF, pas une
-    // sécurité). Un envoi éventuel reste soumis aux autres gardes.
-    return false
+    return "unavailable"
   }
+}
+
+/** Compatibilité : fail-closed (true si opposé OU vérification indisponible). */
+export async function isReviewOptedOut(companyId: number, email: string): Promise<boolean> {
+  return (await checkReviewOptOut(companyId, email)) !== "not_opted_out"
 }
 
 export type OptOutResult = { ok: boolean; alreadyOptedOut?: boolean; error?: string }
@@ -66,7 +76,7 @@ export async function recordReviewOptOut(companyId: number, email: string): Prom
     const rowCount = (res as unknown as { rowCount?: number }).rowCount ?? 0
     return { ok: true, alreadyOptedOut: rowCount === 0 }
   } catch (e) {
-    console.log("[v0] recordReviewOptOut error:", e instanceof Error ? e.message : e)
+    console.error("[notifications] record_opt_out_error", { kind: e instanceof Error ? e.name : "unknown" })
     return { ok: false, error: "Erreur lors de l'enregistrement." }
   }
 }

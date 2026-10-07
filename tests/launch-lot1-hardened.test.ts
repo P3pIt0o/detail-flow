@@ -153,14 +153,13 @@ describe("H — crons fail-closed", () => {
     expect(env).toMatch(/^CRON_SECRET=""$/m)
     expect(env).toMatch(/^NOTIFICATIONS_ENABLED=""$/m)
   })
-  it("le cron notifications n'est pas planifié dans vercel.json", () => {
-    let vercel = ""
-    try {
-      vercel = read("vercel.json")
-    } catch {
-      vercel = ""
-    }
-    expect(vercel).not.toMatch(/\/api\/cron\/notifications/)
+  // Lot 2 : le cron notifications est planifié, mais sa route reste fail-closed
+  // (garde cron commune + NOTIFICATIONS_ENABLED !== "true" => no-op sans DB).
+  it("le cron notifications planifié est protégé par la garde cron et le flag global", () => {
+    expect(read("vercel.json")).toMatch(/\/api\/cron\/notifications/)
+    const route = read("app/api/cron/notifications/route.ts")
+    expect(route).toContain("rejectUnauthorizedCron")
+    expect(read("lib/notifications/outbox.ts")).toContain("notificationsRuntimeEnabled()")
   })
 })
 

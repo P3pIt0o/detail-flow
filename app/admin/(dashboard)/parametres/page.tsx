@@ -37,8 +37,9 @@ import { SpiritSiteTexts } from "@/components/admin/settings/spirit-site-texts"
 import { getSpiritSiteTexts } from "./spirit-texts-actions"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
 import { NotificationsSettings } from "@/components/admin/settings/notifications-settings"
-import { getLotDSettings, lotDColumnsExist } from "@/lib/notifications/settings-store"
+import { getLotDSettings, notificationsSchemaReady } from "@/lib/notifications/settings-store"
 import { resolveTenantReviewLink } from "@/lib/notifications/review-resolver"
+import { reviewRequestInfrastructureReady } from "@/lib/notifications/runtime"
 import { PromoSettings } from "@/components/admin/settings/promo-settings"
 import { listPromoCodes } from "./promo-actions"
 import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
@@ -163,7 +164,7 @@ export default async function ParametresPage({
   const [lotDSettings, lotDMigrationApplied, canEmailReminders, canReviewRequests, resolvedReviewLink] =
     await Promise.all([
       getLotDSettings(tenant.id),
-      lotDColumnsExist(),
+      notificationsSchemaReady(),
       canUseFeature(tenant.id, "email_reminders"),
       canUseFeature(tenant.id, "review_requests"),
       resolveTenantReviewLink(tenant.id),
@@ -499,7 +500,8 @@ export default async function ParametresPage({
                   canReminders={canEmailReminders}
                   canReviews={canReviewRequests}
                   migrationApplied={lotDMigrationApplied}
-                  proRecipient={settings.businessEmail ?? tenant.email ?? null}
+                  runtimeEnabled={reviewRequestInfrastructureReady()}
+                  proRecipient={settings.businessEmail ?? null}
                   proReminderEnabled={lotDSettings.proReminderEnabled}
                   proReminderOffsetHours={lotDSettings.proReminderOffsetHours}
                   reviewRequestEnabled={lotDSettings.reviewRequestEnabled}

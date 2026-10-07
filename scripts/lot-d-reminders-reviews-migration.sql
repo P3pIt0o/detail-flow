@@ -33,10 +33,13 @@ ALTER TABLE settings ADD COLUMN IF NOT EXISTS review_request_link text;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS completed_at timestamp;
 
 -- 3) Outbox de notifications (dédup atomique durable) ----------------------
--- Mécanisme minimal prévu/en cours/envoyé/échoué/ignoré, scopé tenant.
--- Déduplication atomique par (companyId, bookingId, type, recipient) via index
--- unique. `schedule_version` gère l'invalidation lors d'un report (l'ancienne
--- ligne devient obsolète, une nouvelle version est planifiée).
+-- Mécanisme minimal en cours/envoyé/échoué/invalide/ignoré, scopé tenant.
+-- Déduplication atomique par (companyId, bookingId, type) via index
+-- unique. Aucun moteur de reprogrammation : un report hors fenêtre n'est pas
+-- renvoyé (éligibilité revérifiée à chaque passe). `schedule_version` est un
+-- champ RÉSERVÉ, non utilisé par le code actuel.
+-- NB : CREATE TABLE IF NOT EXISTS ne répare pas une table partielle existante ;
+-- notificationsSchemaReady() détecte cet état et garde le LOT D indisponible.
 CREATE TABLE IF NOT EXISTS notification_outbox (
   id              serial PRIMARY KEY,
   "companyId"     integer NOT NULL,
@@ -45,12 +48,13 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
   type            text NOT NULL,
   -- destinataire résolu côté serveur (email pro ou client selon le type)
   recipient       text NOT NULL,
-  -- "planned" | "sending" | "sent" | "failed" | "skipped" | "cancelled"
+  -- États réellement écrits par le code : "sending" | "sent" | "failed" | "invalid" | "skipped".
+  -- Terminaux : sent, invalid, skipped. "failed" réessayable dans la fenêtre d'envoi.
+  -- (DEFAULT 'planned' conservé pour compatibilité ; jamais écrit par le code actuel.)
   status          text NOT NULL DEFAULT 'planned',
   -- instant d'envoi théorique (UTC)
   send_at         timestamp,
-  -- version de programmation : incrémentée à chaque report pour invalider
-  -- proprement l'ancienne planification.
+  -- RÉSERVÉ (futur) : non lu ni incrémenté par le code actuel.
   schedule_version integer NOT NULL DEFAULT 1,
   -- id de message fournisseur (idempotence / diagnostic), sans secret
   provider_message_id text,

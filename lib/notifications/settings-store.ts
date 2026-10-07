@@ -24,6 +24,15 @@ import {
   type ReviewOffsetHours,
 } from "./schedule"
 import { validateGoogleReviewLink } from "./review-link"
+import {
+  evaluateNotificationsSchema,
+  LOTD_REQUIRED_COLUMNS,
+  LOTD_REQUIRED_UNIQUE_INDEXES,
+  type SchemaColumnRow,
+  type SchemaIndexRow,
+} from "./schema-requirements"
+
+const MIGRATION_REQUIRED_MESSAGE = "Cette automatisation sera disponible après la mise à jour de la base de données."
 
 export type LotDSettings = {
   proReminderEnabled: boolean
@@ -41,7 +50,40 @@ export const DEFAULT_LOTD_SETTINGS: LotDSettings = {
   reviewRequestLink: null,
 }
 
-/** Les colonnes LOT D existent-elles déjà (migration appliquée) ? */
+/**
+ * SOURCE UNIQUE de disponibilité du LOT D : toutes les colonnes indispensables
+ * (settings, bookings.completed_at, notification_outbox, notification_opt_outs)
+ * ET les deux index uniques de déduplication. Migration partielle ou erreur de
+ * vérification => false (fail-closed).
+ */
+export async function notificationsSchemaReady(): Promise<boolean> {
+  try {
+    const tables = Object.keys(LOTD_REQUIRED_COLUMNS)
+    const [colsRes, idxRes] = await Promise.all([
+      db.execute(
+        sql`SELECT table_name, column_name FROM information_schema.columns
+            WHERE table_schema = ANY(current_schemas(false))
+            AND table_name IN (${sql.join(tables.map((t) => sql`${t}`), sql`, `)})`,
+      ),
+      db.execute(
+        sql`SELECT indexname, indexdef FROM pg_indexes
+            WHERE schemaname = ANY(current_schemas(false))
+            AND indexname IN (${sql.join(LOTD_REQUIRED_UNIQUE_INDEXES.map((n) => sql`${n}`), sql`, `)})`,
+      ),
+    ])
+    const columns = (colsRes as unknown as { rows?: SchemaColumnRow[] }).rows ?? []
+    const indexes = (idxRes as unknown as { rows?: SchemaIndexRow[] }).rows ?? []
+    return evaluateNotificationsSchema(columns, indexes)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Les colonnes LOT D de `settings` existent-elles ? Sert UNIQUEMENT à la lecture
+ * défensive et à la désactivation : ce n'est PAS une preuve que le LOT D est
+ * prêt (utiliser notificationsSchemaReady).
+ */
 export async function lotDColumnsExist(): Promise<boolean> {
   try {
     const result = await db.execute(
@@ -95,7 +137,7 @@ export async function getLotDSettings(companyId: number): Promise<LotDSettings> 
       reviewRequestLink: link,
     }
   } catch (e) {
-    console.log("[v0] getLotDSettings fallback disabled:", e instanceof Error ? e.message : e)
+    console.error("[notifications] settings_read_fallback", { kind: e instanceof Error ? e.name : "unknown" })
     return DEFAULT_LOTD_SETTINGS
   }
 }
@@ -103,8 +145,10 @@ export async function getLotDSettings(companyId: number): Promise<LotDSettings> 
 export type SaveResult = { ok: boolean; error?: string; migrationRequired?: boolean }
 
 /**
- * Écrit les réglages du rappel pro. Refuse l'ACTIVATION si la migration manque
- * (aucun faux succès). Désactiver reste toujours possible (no-op sûr).
+ * Écrit les réglages du rappel pro. ACTIVATION refusée tant que le schéma LOT D
+ * complet n'est pas prêt (notificationsSchemaReady). DÉSACTIVATION toujours
+ * possible : elle ne dépend ni du schéma complet, ni de l'email pro, ni de la
+ * licence (colonnes settings absentes => état par défaut déjà désactivé).
  *
  * Le DROIT de licence est vérifié par l'appelant (action serveur) AVANT d'appeler
  * cette fonction : ici on ne fait que la persistance défensive.
@@ -117,14 +161,12 @@ export async function saveProReminderSettings(
   if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Entreprise invalide." }
   const offset = normalizeReminderOffset(offsetHours)
 
-  if (!(await lotDColumnsExist())) {
-    // Désactiver sans schéma = déjà l'état par défaut : succès silencieux.
-    if (!enabled) return { ok: true }
-    return {
-      ok: false,
-      migrationRequired: true,
-      error: "Cette automatisation sera disponible après la mise à jour de la base de données.",
+  if (enabled) {
+    if (!(await notificationsSchemaReady())) {
+      return { ok: false, migrationRequired: true, error: MIGRATION_REQUIRED_MESSAGE }
     }
+  } else if (!(await lotDColumnsExist())) {
+    return { ok: true }
   }
 
   try {
@@ -137,15 +179,21 @@ export async function saveProReminderSettings(
     if (rowCount === 0) return { ok: false, error: "Configuration du tenant introuvable." }
     return { ok: true }
   } catch (e) {
-    console.log("[v0] saveProReminderSettings error:", e instanceof Error ? e.message : e)
+    console.error("[notifications] save_pro_settings_error", { companyId, kind: e instanceof Error ? e.name : "unknown" })
     return { ok: false, error: "Erreur lors de l'enregistrement." }
   }
 }
 
 /**
- * Écrit les réglages de demande d'avis. Le lien manuel est validé (HTTPS +
- * domaine Google) AVANT stockage ; un lien invalide est refusé. Activation sans
- * schéma refusée. Désactivation toujours possible.
+ * Écrit les réglages de demande d'avis.
+ *
+ * DÉSACTIVATION : toujours possible, AVANT toute validation du lien. Seuls
+ * `enabled=false` et l'offset sont écrits ; le lien existant est conservé
+ * (jamais écrasé par null, jamais refusé parce qu'invalide).
+ *
+ * ACTIVATION : schéma LOT D complet obligatoire ; lien manuel validé (HTTPS +
+ * domaine Google) avant stockage, un lien invalide est refusé. Un champ vide =
+ * pas de lien manuel (repli sur un Place ID Google déjà configuré).
  */
 export async function saveReviewRequestSettings(
   companyId: number,
@@ -156,8 +204,23 @@ export async function saveReviewRequestSettings(
   if (!Number.isInteger(companyId) || companyId <= 0) return { ok: false, error: "Entreprise invalide." }
   const offset = normalizeReviewOffset(offsetHours)
 
-  // Valider le lien manuel s'il est fourni (non vide). Un champ vide = pas de
-  // lien manuel (on pourra retomber sur un Place ID existant à l'envoi).
+  if (!enabled) {
+    if (!(await lotDColumnsExist())) return { ok: true }
+    try {
+      const res = await db.execute(
+        sql`UPDATE settings
+            SET review_request_enabled = false, "updatedAt" = NOW()
+            WHERE "companyId" = ${companyId}`,
+      )
+      const rowCount = (res as unknown as { rowCount?: number }).rowCount ?? 0
+      if (rowCount === 0) return { ok: false, error: "Configuration du tenant introuvable." }
+      return { ok: true }
+    } catch {
+      console.error("[notifications] save_review_settings_error", { companyId })
+      return { ok: false, error: "Erreur lors de l'enregistrement." }
+    }
+  }
+
   let link: string | null = null
   if (typeof manualLink === "string" && manualLink.trim()) {
     const v = validateGoogleReviewLink(manualLink)
@@ -165,13 +228,8 @@ export async function saveReviewRequestSettings(
     link = v.url
   }
 
-  if (!(await lotDColumnsExist())) {
-    if (!enabled) return { ok: true }
-    return {
-      ok: false,
-      migrationRequired: true,
-      error: "Cette automatisation sera disponible après la mise à jour de la base de données.",
-    }
+  if (!(await notificationsSchemaReady())) {
+    return { ok: false, migrationRequired: true, error: MIGRATION_REQUIRED_MESSAGE }
   }
 
   try {
@@ -185,7 +243,7 @@ export async function saveReviewRequestSettings(
     if (rowCount === 0) return { ok: false, error: "Configuration du tenant introuvable." }
     return { ok: true }
   } catch (e) {
-    console.log("[v0] saveReviewRequestSettings error:", e instanceof Error ? e.message : e)
+    console.error("[notifications] save_review_settings_error", { companyId, kind: e instanceof Error ? e.name : "unknown" })
     return { ok: false, error: "Erreur lors de l'enregistrement." }
   }
 }
