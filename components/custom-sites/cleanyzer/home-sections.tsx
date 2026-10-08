@@ -6,7 +6,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck, Star, BadgeCheck } from "lucide-react"
-import { CleanyzerBeforeAfter } from "./before-after-toggle"
+import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
 import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
@@ -171,19 +171,14 @@ export function RealisationsPreview() {
           dark
           eyebrow="Le soin en images"
           title={<>Une différence <span className="clz-accent">qui se voit.</span></>}
-          intro="Touchez la photo ou utilisez les boutons pour comparer l'avant et l'après d'une intervention CLEANYZER."
+          intro="Glissez le curseur pour comparer l'avant et l'après d'une intervention CLEANYZER."
         />
         <div className="mt-12 grid items-center gap-10 lg:grid-cols-2">
-          <div className="mx-auto w-full max-w-md">
-            <CleanyzerBeforeAfter
-              before={{
-                src: "/custom-sites/cleanyzer/isuzu-avant.webp",
-                alt: "ISUZU avant nettoyage : tapis de sol poussiéreux et habitacle sali",
-              }}
-              after={{
-                src: "/custom-sites/cleanyzer/isuzu-apres.webp",
-                alt: "ISUZU après nettoyage : habitacle, moquette et sièges propres",
-              }}
+          <div className="clz-compare">
+            <BeforeAfterSlider
+              before="/custom-sites/cleanyzer/isuzu-avant.webp"
+              after="/custom-sites/cleanyzer/isuzu-apres.webp"
+              alt="Nettoyage intérieur ISUZU : habitacle, moquette et sièges"
             />
           </div>
           <div>

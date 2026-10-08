@@ -21,6 +21,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { QuotePhotoUploader, usePhotoUploads } from "@/components/quote-photo-uploader"
 
+/** Types de demande textile / mobilier : masquent les champs véhicule. */
+const TEXTILE_PATTERN = /textile|canap|mobilier|matelas|tapis|moquette/i
+
 const initialState: DemandeFormState = { status: "idle", message: "" }
 
 function newSubmissionId(): string {
@@ -48,6 +51,8 @@ export function CustomRequestForm({
   const [pending, setPending] = useState(false)
   const [selectedType, setSelectedType] = useState(types[0]?.key ?? "")
   const showFleet = isFleetType(selectedType)
+  const selectedLabel = types.find((t) => t.key === selectedType)?.label ?? ""
+  const isTextile = TEXTILE_PATTERN.test(`${selectedType} ${selectedLabel}`)
 
   const uploader = usePhotoUploads()
   const formRef = useRef<HTMLFormElement>(null)
@@ -213,7 +218,7 @@ export function CustomRequestForm({
             <Input id="vehicleCount" name="vehicleCount" inputMode="numeric" />
           </div>
         </div>
-      ) : (
+      ) : isTextile ? null : (
         <div className="grid gap-5 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="vehicleType">Type de véhicule</Label>
@@ -261,12 +266,23 @@ export function CustomRequestForm({
 
       <div className="space-y-2">
         <Label htmlFor="description">Décrivez votre besoin</Label>
-        <Textarea id="description" name="description" rows={5} required aria-invalid={!!state.errors?.description} />
+        <Textarea
+          id="description"
+          name="description"
+          rows={5}
+          required
+          placeholder={isTextile ? "Type de textile ou mobilier (canapé, matelas, tapis…), quantité, matière, taches éventuelles…" : undefined}
+          aria-invalid={!!state.errors?.description}
+        />
         {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description}</p>}
       </div>
 
       {/* Photos facultatives — commun à tous les tenants, thème hérité. */}
-      <QuotePhotoUploader uploader={uploader} disabled={pending} />
+      <QuotePhotoUploader
+        uploader={uploader}
+        disabled={pending}
+        subject={isTextile ? "du textile ou mobilier" : undefined}
+      />
 
       {/* Honeypot anti-spam */}
       <div className="hidden" aria-hidden="true">
