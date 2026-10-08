@@ -21,7 +21,6 @@ import {
   SMS_PACKS,
   SMS_MIN_CUSTOM_QUANTITY,
   SMS_LOW_BALANCE_THRESHOLD,
-  SMS_BETA_BONUS,
   amountForQuantity,
   formatSmsAmount,
 } from "@/lib/sms/config"
@@ -117,9 +116,6 @@ export function SmsSettings(props: Props) {
                 : "0 SMS inclus / mois · Packs SMS disponibles"}
             </p>
           </div>
-          {props.betaBonusGranted ? (
-            <p className="text-xs text-muted-foreground">{SMS_BETA_BONUS} SMS offerts avec votre compte bêta</p>
-          ) : null}
         </div>
 
         {props.checkoutReturn ? (

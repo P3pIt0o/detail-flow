@@ -491,7 +491,7 @@ export async function allocateCreditsToTenant(
 
   body.set("login", central.login)
   body.set("apiKey", central.apiKey)
-  body.set("subaccount", row.subLogin)
+  body.set("subAccount", row.subLogin)
   body.set("credits", String(quantity))
   body.set("returnformat", "JSON")
 

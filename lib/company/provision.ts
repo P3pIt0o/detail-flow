@@ -29,7 +29,6 @@ import {
 import { isValidSlug, normalizeSlug, tenantPublicUrl, tenantAdminUrl } from "@/lib/tenant-shared"
 import { sendEmail } from "@/lib/email/send"
 import { ownerInvitationEmail } from "@/lib/email/templates"
-import { grantBetaBonus } from "@/lib/sms/credits"
 import { SELF_SERVICE_LICENSE_PLAN } from "@/lib/pricing/plans"
 import { isCanonicalIntent } from "@/lib/onboarding/intent"
 import { isBookingDistributionMode } from "@/lib/admin/primary-action"
@@ -181,9 +180,6 @@ export async function provisionCompany(input: ProvisionInput): Promise<Provision
 
   // 2) Réglages métier par défaut.
   await db.insert(settingsTable).values({ companyId, businessName: input.name.trim() })
-
-  // 2bis) Bonus bêta : 20 SMS offerts, attribués UNE SEULE FOIS (idempotent).
-  await grantBetaBonus(companyId)
 
   // 3) Horaires par défaut.
   await db.insert(businessHours).values(
