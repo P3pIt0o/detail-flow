@@ -88,6 +88,12 @@ export default async function SaasBillingPage({
               </dd>
             </dl>
           ) : null}
+          {company.subscriptionStatus === "trialing" ? (
+            <p role="note" className="text-sm leading-relaxed text-muted-foreground">
+              Ajoutez votre moyen de paiement avant la fin de l&apos;essai depuis l&apos;espace sécurisé Stripe. Sans moyen
+              de paiement, votre espace reviendra à Essentiel.
+            </p>
+          ) : null}
           {isOwner ? (
             <div className="flex flex-col gap-2 border-t border-border pt-5">
               <SaasPortalButton />
@@ -146,6 +152,12 @@ export default async function SaasBillingPage({
                       <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="size-4 text-primary" aria-hidden="true" />
                         {trialEligible ? `${SUBSCRIPTION_TRIAL_DAYS} jours gratuits` : "Essai gratuit déjà utilisé"}
+                      </p>
+                    ) : null}
+                    {purchasable && trialEligible ? (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Sans carte bancaire. Ajoutez un moyen de paiement avant la fin de l&apos;essai pour continuer sur
+                        Indépendant. Sinon, retour à Essentiel.
                       </p>
                     ) : null}
                     <div className="mt-auto">
