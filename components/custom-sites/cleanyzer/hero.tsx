@@ -87,20 +87,20 @@ export function CleanyzerHero() {
         </span>
         {/* Composition imposée en 3 lignes (maquette) : blocs explicites pour
             que le navigateur ne choisisse pas librement les retours. */}
-        <h1 className="clz-display clz-hero-title mt-4 max-w-[16ch] text-white">
+        <h1 className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
           <span className="block">Le détail</span>
           <span className="block">fait toute</span>
           <span className="clz-accent block">la différence.</span>
         </h1>
         {/* Sous-titre : deux lignes tenues (maquette), taille réduite avant tout
             retour supplémentaire — autorisé seulement sur très petits écrans. */}
-        <p className="mt-6 max-w-md text-pretty text-base leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
+        <p className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
           <span className="block">Nettoyage automobile à domicile.</span>
           <span className="block">Intérieur, extérieur &amp; detailing.</span>
         </p>
 
         {/* id observé par la barre sticky mobile (site-shell) pour son apparition. */}
-        <div id="clz-hero-ctas" className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
+        <div id="clz-hero-ctas" className="clz-rise clz-rise-3 mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
           <Link href={`${CLZ_HOME_HREF}#prestations`} className="clz-btn clz-btn-primary !px-6 !py-3 !text-[0.95rem]">
             Découvrir nos prestations
             <ArrowRight className="h-4 w-4" />

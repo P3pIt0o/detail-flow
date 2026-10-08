@@ -19,6 +19,7 @@ import {
   FinalCta,
 } from "./home-sections"
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
+import { ClzReveal } from "./motion"
 
 // Contrat public identique à SpiritAcsHome / RozanHome : le tenant est résolu
 // côté serveur et injecté ici par le dispatch (registry). `data` est OPTIONNEL
@@ -40,6 +41,7 @@ export function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
       <AvisSection />
       <FaqSection />
       <FinalCta />
+      <ClzReveal />
     </CleanyzerShell>
   )
 }
