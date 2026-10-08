@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { usePathname } from "next/navigation"
 import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
 import { BRAND } from "./content"
@@ -89,6 +90,24 @@ export function CleanyzerShell({
     window.addEventListener("scroll", onScroll, { passive: true })
     return () => window.removeEventListener("scroll", onScroll)
   }, [open])
+
+  // Sticky mobile : masquée tant que les CTA du hero sont visibles. Un seul
+  // IntersectionObserver (pas de listener scroll) → un rerender par franchissement.
+  const pathname = usePathname()
+  const [stickyVisible, setStickyVisible] = useState(false)
+  useEffect(() => {
+    const target = document.getElementById("clz-hero-ctas")
+    if (!target || !("IntersectionObserver" in window)) {
+      setStickyVisible(true)
+      return
+    }
+    setStickyVisible(false)
+    const observer = new IntersectionObserver(([entry]) => {
+      setStickyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0)
+    })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [pathname])
 
   const reserverHref = CLZ_BOOKING_HREF
   const devisHref = CLZ_DEMANDE_HREF
@@ -230,13 +249,19 @@ export function CleanyzerShell({
 
       <CleanyzerFooter navItems={navItems} />
 
-      {/* CTA sticky mobile — grande zone tactile, toujours accessible (cahier §3). */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--clz-line)] bg-white/95 px-4 py-3 backdrop-blur-md lg:hidden">
-        <div className="flex gap-2">
-          <Link href={devisHref} className="clz-btn clz-btn-ghost flex-1 !py-3">
+      {/* CTA sticky mobile — apparaît une fois les CTA du hero sortis de l'écran. */}
+      <div
+        inert={!stickyVisible}
+        aria-hidden={!stickyVisible}
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/80 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:hidden ${
+          stickyVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <div className="mx-auto flex max-w-md gap-2">
+          <Link href={devisHref} className="clz-btn clz-btn-ghost min-h-12 flex-1 !bg-white/70 !py-3">
             Devis textile
           </Link>
-          <Link href={reserverHref} className="clz-btn clz-btn-primary flex-[1.4] !py-3">
+          <Link href={reserverHref} className="clz-btn clz-btn-primary min-h-12 flex-[1.4] !py-3">
             Réserver
             <ArrowRight className="h-4 w-4" />
           </Link>

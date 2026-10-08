@@ -12,7 +12,7 @@ import { CleanyzerShell } from "./site-shell"
 import { PageHero } from "./page-primitives"
 import { CleanyzerFaq } from "./faq"
 import { CLZ_NAV_ITEMS } from "./nav"
-import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 import { tenantContactMailto } from "@/lib/tenant-contact"
 import {
   BRAND,
@@ -123,7 +123,7 @@ export function AProposPage() {
           </ul>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href={`${CLZ_PREVIEW_BASE}/reservation`} className="clz-btn clz-btn-primary">Réserver un nettoyage</Link>
-            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost">Demande textile</Link>
+            <Link href={CLZ_DEMANDE_HREF} className="clz-btn clz-btn-ghost">Demande textile</Link>
           </div>
           <p className="mt-6 text-xs text-[var(--clz-muted)]">Éléments biographiques précis : à confirmer avec Tom (aucun détail inventé).</p>
         </div>
@@ -246,7 +246,7 @@ export function TarifsPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link href={`${CLZ_PREVIEW_BASE}/reservation`} className="clz-btn clz-btn-primary">Réserver un nettoyage auto <ArrowRight className="h-4 w-4" /></Link>
-          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost">Demander un devis textile</Link>
+          <Link href={CLZ_DEMANDE_HREF} className="clz-btn clz-btn-ghost">Demander un devis textile</Link>
         </div>
       </section>
     </CleanyzerShell>

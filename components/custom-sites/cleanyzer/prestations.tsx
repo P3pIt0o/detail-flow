@@ -10,7 +10,7 @@ import { Check, ArrowRight } from "lucide-react"
 import { CleanyzerShell } from "./site-shell"
 import { PageHero, DirectAnswer } from "./page-primitives"
 import { CLZ_NAV_ITEMS } from "./nav"
-import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 import {
   VEHICLES,
   formulasFor,
@@ -48,7 +48,7 @@ function FormulaCard({ f }: { f: Formula }) {
       </dl>
 
       <Link
-        href={isCustom ? CLZ_BOOKING_HREF : `${CLZ_PREVIEW_BASE}/reservation`}
+        href={isCustom ? CLZ_DEMANDE_HREF : `${CLZ_PREVIEW_BASE}/reservation`}
         className={`clz-btn mt-6 w-full ${isCustom ? "clz-btn-ghost" : "clz-btn-primary"}`}
       >
         {isCustom ? "Demander un devis sur mesure" : "Réserver cette formule"}
@@ -198,7 +198,7 @@ function CrossCta({ textile }: { textile?: boolean }) {
           </p>
         </div>
         <Link
-          href={textile ? `${CLZ_PREVIEW_BASE}/reservation` : CLZ_BOOKING_HREF}
+          href={textile ? CLZ_DEMANDE_HREF : CLZ_BOOKING_HREF}
           className="clz-btn clz-btn-primary"
         >
           {textile ? "Réserver un nettoyage auto" : "Demander un devis textile"}

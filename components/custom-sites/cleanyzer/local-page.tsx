@@ -13,7 +13,7 @@ import { CleanyzerShell } from "./site-shell"
 import { PageHero, DirectAnswer } from "./page-primitives"
 import { CleanyzerFaq, type FaqEntry } from "./faq"
 import { CLZ_NAV_ITEMS } from "./nav"
-import { CLZ_BOOKING_HREF, CLZ_PREVIEW_BASE } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_PREVIEW_BASE } from "./tokens"
 import { TRAVEL, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
 
 const LOCAL_FAQ: FaqEntry[] = [
@@ -107,7 +107,7 @@ export function LocalPageAnnecy() {
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           <Link href={`${CLZ_PREVIEW_BASE}/reservation`} className="clz-btn clz-btn-primary">Réserver à Annecy <ArrowRight className="h-4 w-4" /></Link>
-          <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost">Devis textile</Link>
+          <Link href={CLZ_DEMANDE_HREF} className="clz-btn clz-btn-ghost">Devis textile</Link>
         </div>
 
         <p className="mt-8 rounded-lg bg-[var(--clz-surface-2)] p-4 text-xs text-[var(--clz-muted)]">

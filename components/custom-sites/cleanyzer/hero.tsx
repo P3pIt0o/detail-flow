@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_HOME_HREF } from "./tokens"
+import { CLZ_DEMANDE_HREF, CLZ_HOME_HREF } from "./tokens"
 
 const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
 
@@ -99,13 +99,14 @@ export function CleanyzerHero() {
           <span className="block">Intérieur, extérieur &amp; detailing.</span>
         </p>
 
-        <div className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
+        {/* id observé par la barre sticky mobile (site-shell) pour son apparition. */}
+        <div id="clz-hero-ctas" className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
           <Link href={`${CLZ_HOME_HREF}#prestations`} className="clz-btn clz-btn-primary !px-6 !py-3 !text-[0.95rem]">
             Découvrir nos prestations
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href={CLZ_BOOKING_HREF}
+            href={CLZ_DEMANDE_HREF}
             className="group inline-flex items-center gap-1.5 text-base font-medium text-white/85 transition hover:text-white"
           >
             Demander un devis
