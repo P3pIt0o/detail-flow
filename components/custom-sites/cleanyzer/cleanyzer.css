@@ -143,7 +143,7 @@
   font-weight: 600;
   font-size: 0.95rem;
   padding: 0.85rem 1.6rem;
-  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
   border: 1px solid transparent;
   text-align: center;
@@ -286,7 +286,53 @@
   --foreground: #f4f7fb;
 }
 
+/* Micro-interaction CTA : flèche finale décalée de 3 px au survol (pointeur fin). */
+.cleanyzer .clz-btn > svg:last-child {
+  transition: transform 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cleanyzer .clz-btn:hover > svg:last-child {
+    transform: translateX(3px);
+  }
+}
+
+/* Hero : apparition unique titre → sous-titre → CTA (CSS seul, sans JS). */
+@keyframes clz-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.cleanyzer .clz-rise {
+  animation: clz-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cleanyzer .clz-rise-2 { animation-delay: 0.12s; }
+.cleanyzer .clz-rise-3 { animation-delay: 0.24s; }
+
+/* Cartes : état masqué posé par JS uniquement (motion.tsx). */
+.cleanyzer .clz-reveal-pending {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.cleanyzer .clz-reveal-pending.clz-reveal-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Galerie réalisations : zoom léger de l'image, ordinateur uniquement. */
+.cleanyzer .clz-zoom img {
+  transition: transform 0.35s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cleanyzer .clz-zoom:hover img {
+    transform: scale(1.03);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .cleanyzer .clz-rise { animation: none; }
+  .cleanyzer .clz-reveal-pending { opacity: 1; transform: none; }
+  .cleanyzer .clz-zoom:hover img,
+  .cleanyzer .clz-btn:hover > svg:last-child { transform: none; }
   .cleanyzer *,
   :root:has(.cleanyzer) {
     animation-duration: 0.001ms !important;

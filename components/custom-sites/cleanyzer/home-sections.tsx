@@ -8,6 +8,7 @@ import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck, Star, BadgeCheck } from "lucide-react"
 import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
+import { ClzCompareHint } from "./motion"
 import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
 
@@ -72,7 +73,7 @@ export function UniversSection() {
       />
       <div className="mt-12 grid gap-6 md:grid-cols-2">
         {cards.map((c) => (
-          <article key={c.tag} className="clz-card group relative overflow-hidden">
+          <article key={c.tag} data-clz-reveal className="clz-card group relative overflow-hidden">
             <div className="relative aspect-[16/10] overflow-hidden">
               <Image
                 src={c.img || "/placeholder.svg"}
@@ -138,7 +139,7 @@ export function PrestationsPreview() {
         <SectionHead eyebrow="Prestations & tarifs" title="Des formules claires, dès le premier euro" />
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {items.map((it) => (
-            <Link key={it.label} href={it.href} className="clz-card group overflow-hidden">
+            <Link key={it.label} href={it.href} data-clz-reveal className="clz-card group overflow-hidden">
               <div className="relative aspect-[4/3] overflow-hidden">
                 <Image src={it.img || "/placeholder.svg"} alt={it.alt} fill loading="lazy" sizes="(max-width:768px) 100vw, 33vw" className={`object-cover ${it.pos} transition-transform duration-500 group-hover:scale-[1.04]`} />
               </div>
@@ -174,13 +175,13 @@ export function RealisationsPreview() {
           intro="Glissez le curseur pour comparer l'avant et l'après d'une intervention CLEANYZER."
         />
         <div className="mt-12 grid items-center gap-10 lg:grid-cols-2">
-          <div className="clz-compare">
+          <ClzCompareHint>
             <BeforeAfterSlider
               before="/custom-sites/cleanyzer/isuzu-avant.webp"
               after="/custom-sites/cleanyzer/isuzu-apres.webp"
               alt="Nettoyage intérieur ISUZU : habitacle, moquette et sièges"
             />
-          </div>
+          </ClzCompareHint>
           <div>
             <h3 className="clz-display clz-h3 text-white">Un intérieur comme neuf</h3>
             <p className="mt-4 leading-relaxed text-[var(--clz-on-dark-muted)]">
@@ -203,8 +204,8 @@ export function RealisationsPreview() {
               pos: "object-[50%_60%]",
             },
           ].map((p) => (
-            <figure key={p.src} className="overflow-hidden rounded-2xl border border-white/10">
-              <div className="relative aspect-[4/3]">
+            <figure key={p.src} className="clz-zoom overflow-hidden rounded-2xl border border-white/10">
+              <div className="relative aspect-[4/3] overflow-hidden">
                 <Image src={p.src} alt={p.alt} fill loading="lazy" sizes="(max-width: 640px) 100vw, 50vw" className={`object-cover ${p.pos}`} />
               </div>
               <figcaption className="px-4 py-3 text-sm font-medium text-[var(--clz-on-dark-muted)]">{p.caption}</figcaption>
@@ -233,7 +234,7 @@ export function ServiceADomicile() {
       />
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {points.map((p) => (
-          <div key={p.title} className="clz-card p-6">
+          <div key={p.title} data-clz-reveal className="clz-card p-6">
             <span className="clz-check h-11 w-11">
               <p.icon className="h-5 w-5" />
             </span>
