@@ -255,6 +255,64 @@ function GrowthJourney() {
   )
 }
 
+/** Comparateur mobile (< sm) : un accordéon par offre, dérivé de getPlanFeatureGroups. */
+function MobileFeatureCompare() {
+  return (
+    <div className="flex flex-col gap-3 border-t border-border p-4 sm:hidden">
+      {COMPARE_COLUMNS.map((col) => {
+        const comingSoon = COMMERCIAL_PLANS.find((p) => p.id === col.id)?.availability === "coming_soon"
+        return (
+          <details key={col.id} className="group/plan rounded-2xl border border-border bg-background">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+              <span className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">{col.name}</span>
+                {comingSoon ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <Clock className="size-3" aria-hidden="true" />
+                    {PRICING_COPY.comingSoonLabel}
+                  </span>
+                ) : null}
+              </span>
+              <ChevronDown
+                className="size-4 shrink-0 text-muted-foreground transition-transform group-open/plan:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-border px-4 pb-4 pt-3">
+              {getPlanFeatureGroups(col.id).map((group) => (
+                <div key={group.name}>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-primary">{group.name}</p>
+                  <ul className="mt-1.5 flex flex-col">
+                    {group.items.map((item) => (
+                      <li
+                        key={item.label}
+                        className="flex items-start gap-2 border-t border-border/60 py-2 text-sm leading-relaxed first:border-t-0"
+                      >
+                        <Check className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 text-pretty text-foreground">
+                          {item.label}
+                          {item.note ? (
+                            <span className="ml-1.5 inline-block rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                              {item.note}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </details>
+        )
+      })}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Certaines fonctionnalités des offres payantes arrivent progressivement.
+      </p>
+    </div>
+  )
+}
+
 /** Comparateur repliable, organisé par catégories — <details> natif. */
 function FeatureCompare() {
   return (
@@ -267,15 +325,14 @@ function FeatureCompare() {
         />
       </summary>
 
-      <div className="border-t border-border px-4 pb-6 pt-2 sm:px-6">
-        {/* Mobile : défilement horizontal limité au tableau ; sm+ : rendu inchangé */}
-        <div className="-mx-4 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y sm:mx-0 sm:overflow-visible">
-          <div className="min-w-180 sm:min-w-0">
+      <MobileFeatureCompare />
+
+      <div className="hidden border-t border-border px-4 pb-6 pt-2 sm:block sm:px-6">
         {/* En-tête de colonnes, sticky pour rester lisible en défilant */}
-        <div className="z-10 grid grid-cols-[13rem_repeat(4,minmax(7.5rem,1fr))] gap-x-1 border-b border-border bg-card/95 py-3 text-[11px] font-semibold text-muted-foreground sm:sticky sm:top-16 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] sm:text-xs sm:backdrop-blur">
-          <span className="sticky left-0 bg-card pl-4 sm:static sm:bg-transparent sm:pl-0">Fonctionnalité</span>
+        <div className="sticky top-16 z-10 -mx-4 grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.5rem,1fr))] gap-x-1 border-b border-border bg-card/95 px-4 py-3 text-[11px] font-semibold text-muted-foreground backdrop-blur sm:mx-0 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] sm:px-0 sm:text-xs">
+          <span className="sr-only sm:not-sr-only">Fonctionnalité</span>
           {COMPARE_COLUMNS.map((c) => (
-            <span key={c.id} className="whitespace-nowrap text-center text-foreground">
+            <span key={c.id} className="text-center text-foreground">
               {c.name}
             </span>
           ))}
@@ -283,14 +340,14 @@ function FeatureCompare() {
 
         {COMPARE_CATEGORIES.map((cat) => (
           <div key={cat.name} className="mt-4">
-            <p className="sticky left-0 w-fit pl-5 text-[11px] font-bold uppercase tracking-wide text-primary sm:static sm:pl-1">{cat.name}</p>
+            <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-primary">{cat.name}</p>
             <div className="mt-1.5">
               {cat.rows.map((row) => (
                 <div
                   key={row.label}
-                  className="grid grid-cols-[13rem_repeat(4,minmax(7.5rem,1fr))] items-center gap-x-1 border-t border-border/60 py-2.5 text-sm sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"
+                  className="grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.5rem,1fr))] items-center gap-x-1 border-t border-border/60 py-2.5 text-sm sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"
                 >
-                  <span className="sticky left-0 self-stretch bg-card pl-4 pr-3 text-pretty text-[13px] leading-snug text-foreground sm:static sm:bg-transparent sm:pl-0 sm:pr-2">{row.label}</span>
+                  <span className="pr-2 text-pretty text-[13px] leading-snug text-foreground">{row.label}</span>
                   {COMPARE_COLUMNS.map((c) => (
                     <span key={c.id} className="flex items-center justify-center">
                       {row.values[c.id] ? (
@@ -311,8 +368,6 @@ function FeatureCompare() {
             </div>
           </div>
         ))}
-          </div>
-        </div>
 
         <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
           Certaines fonctionnalités des offres payantes arrivent progressivement.
