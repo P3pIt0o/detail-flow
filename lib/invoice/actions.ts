@@ -174,7 +174,11 @@ export async function createInvoiceFromBooking(
   const monthCount = Number(monthAgg?.count ?? 0)
   const allowed = await canCreateWithinLimit(companyId, "maxInvoicesPerMonth", monthCount)
   if (!allowed) {
-    return { ok: false, error: LIMIT_REACHED_MESSAGE }
+    return {
+      ok: false,
+      error:
+        "Vous avez atteint les 10 factures mensuelles incluses dans Essentiel. Passez à Indépendant pour créer des factures sans limite.",
+    }
   }
 
   const items = await db.select().from(bookingItems).where(eq(bookingItems.bookingId, bookingId))

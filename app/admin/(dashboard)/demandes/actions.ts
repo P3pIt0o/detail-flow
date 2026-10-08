@@ -92,7 +92,11 @@ export async function sendProposalAction(formData: FormData): Promise<ActionResu
     const allowed = await canCreateWithinLimit(tenant.id, "maxQuotesPerMonth", monthCount)
     if (!allowed) {
       // Aucune modification DB, aucun email envoyé.
-      return { ok: false, error: LIMIT_REACHED_MESSAGE }
+      return {
+        ok: false,
+        error:
+          "Vous avez atteint les 10 devis mensuels inclus dans Essentiel. Passez à Indépendant pour créer des devis sans limite.",
+      }
     }
   }
 

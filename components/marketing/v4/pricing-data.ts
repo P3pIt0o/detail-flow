@@ -9,6 +9,7 @@
  * `true`  = inclus dans la formule ·  `false` = non inclus
  * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Essentiel, Indépendant, Performance, Équipe.
  */
+import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
 
 export type PlanColumn = "starter" | "pro" | "ultime" | "entreprise"
 
@@ -83,7 +84,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       {
         label: "Fiches clients & véhicules",
         values: all,
-        description: "Centralisez les coordonnées clients et les informations de leurs véhicules.", notes: { starter: "Jusqu'à 5 clients", pro: "Illimité" },
+        description: "Centralisez les coordonnées clients et les informations de leurs véhicules.", notes: { starter: "Illimité", pro: "Illimité" },
       },
       {
         label: "Historique des prestations",
@@ -99,7 +100,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       {
         label: "Abonnements clients récurrents",
         values: all,
-        description: "Créez et gérez des formules d’entretien récurrentes pour vos propres clients.",
+        description: "Créez et gérez des formules d’entretien récurrentes pour vos propres clients.", notes: { starter: "2 actifs", pro: "10 actifs" },
       },
     ],
   },
@@ -127,16 +128,16 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
   {
     name: "Facturation",
     rows: [
-      // FREE : 3 devis / 3 factures par mois (limites serveur) ; illimité dès PRO.
+      // FREE : 10 devis / 10 factures par mois (limites serveur) ; illimité dès PRO.
       {
-        label: "Devis (3/mois en Essentiel)",
+        label: "Devis (10/mois en Essentiel)",
         values: all,
-        description: "Créez et suivez vos devis. Essentiel est limité à 3 devis par mois.", cardLabel: "Devis", notes: { starter: "3 devis / mois", pro: "Illimité" },
+        description: "Créez et suivez vos devis. Essentiel est limité à 10 devis par mois.", cardLabel: "Devis", notes: { starter: "10 devis / mois", pro: "Illimité" },
       },
       {
-        label: "Factures (3/mois en Essentiel)",
+        label: "Factures (10/mois en Essentiel)",
         values: all,
-        description: "Créez vos factures depuis DetailFlow. Essentiel est limité à 3 factures par mois.", cardLabel: "Factures", notes: { starter: "3 factures / mois", pro: "Illimité" },
+        description: "Créez vos factures depuis DetailFlow. Essentiel est limité à 10 factures par mois.", cardLabel: "Factures", notes: { starter: "10 factures / mois", pro: "Illimité" },
       },
       // createCreditNote / issueCreditNote : aucune FeatureKey dédiée côté serveur.
       {
@@ -190,9 +191,14 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
         description: "Invitez automatiquement vos clients à laisser un avis après une prestation terminée.",
       },
       {
+        // PLAN_MATRIX : feature sms ouverte dès FREE (crédits requis pour envoyer).
         label: "SMS",
-        values: ultimeUp,
-        description: "Communiquez avec vos clients grâce aux notifications SMS disponibles dans les offres concernées.",
+        values: all,
+        description: "Envoyez des rappels SMS à vos clients. Chaque SMS consomme un crédit.",
+        notes: {
+          starter: `${SMS_MONTHLY_INCLUDED_BY_PLAN.FREE} inclus / mois · packs disponibles`,
+          pro: `${SMS_MONTHLY_INCLUDED_BY_PLAN.PRO} crédités / mois · packs disponibles`,
+        },
       },
       {
         label: "Campagnes & relances clients",

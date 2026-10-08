@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { and, eq, isNull, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { bookings, settings as settingsTable, companies } from "@/lib/db/schema"
+import { bookings, settings as settingsTable, companies, smsCredits } from "@/lib/db/schema"
 import { sendReminderEmail } from "@/lib/email/notifications"
-import { sendSms } from "@/lib/sms/send"
-import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit } from "@/lib/sms/credits"
-import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
+import { sendSms, allocateDeltaToTenant } from "@/lib/sms/send"
+import { grantMonthlyAndAllocate } from "@/lib/sms/allocation-core"
+import { reserveSmsReminder, releaseSmsReminder, confirmSmsDebit, ensureMonthlySmsGrant } from "@/lib/sms/credits"
+import { renderSmsTemplate, SMS_DEFAULT_TEMPLATE, SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { cleanupOrphanQuotePhotos } from "@/lib/quote-photos/server"
 import { rejectUnauthorizedCron } from "@/lib/cron/auth"
@@ -81,6 +82,42 @@ export async function GET(request: Request) {
   // et n'envoie que si la fonctionnalité est activée ET le solde > 0. Le débit
   // du solde ET le marquage smsReminderSentAt sont atomiques/uniques par RDV
   // (protection anti double-envoi), et le SMS n'est jamais tenté deux fois.
+  // Attribution mensuelle incluse (PRO = 20 SMS), idempotente par mois civil.
+  // Une erreur sur un tenant n'interrompt jamais la passe.
+  let smsMonthlyGranted = 0
+  try {
+    const grantPlans = Object.entries(SMS_MONTHLY_INCLUDED_BY_PLAN)
+      .filter(([, n]) => n > 0)
+      .map(([plan]) => plan)
+    const eligible = grantPlans.length
+      ? await db
+          .select({ id: companies.id })
+          .from(companies)
+          .where(inArray(companies.licensePlan, grantPlans as never[]))
+      : []
+    for (const c of eligible) {
+      try {
+        const r = await grantMonthlyAndAllocate(c.id, {
+          grant: ensureMonthlySmsGrant,
+          hasSubAccount: async (id) => {
+            const [row] = await db
+              .select({ sub: smsCredits.allmysmsSubLogin })
+              .from(smsCredits)
+              .where(eq(smsCredits.companyId, id))
+              .limit(1)
+            return !!row?.sub
+          },
+          allocate: allocateDeltaToTenant,
+        })
+        if (r.granted) smsMonthlyGranted += 1
+      } catch (e) {
+        console.error("[cron] grant SMS mensuel échoué:", c.id, e instanceof Error ? e.message : e)
+      }
+    }
+  } catch (e) {
+    console.error("[cron] passe grant SMS mensuel échouée:", e instanceof Error ? e.message : e)
+  }
+
   let smsSent = 0
   let smsSkippedNoCredit = 0
   let smsFailed = 0

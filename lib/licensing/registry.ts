@@ -225,14 +225,15 @@ export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
   FREE: {
     // Offre de découverte : site/page, réservation en ligne, paiements en ligne
     // (avec commission DetailFlow) et abonnements clients (capacité réduite).
-    // Volume limité (clients / véhicules) pour encourager l'upgrade. Aucune
-    // feature premium (SMS, automatisations, stats, marketing, CRM...).
-    features: featuresFrom(["website", "online_booking", "online_payments", "customer_subscriptions"]),
+    // Clients / véhicules illimités ; devis et factures limités à 10/mois.
+    // `sms` = accès au MODULE SMS uniquement (0 SMS inclus, packs payants) —
+    // le solde réel reste la garde d'envoi. Aucune autre feature premium.
+    features: featuresFrom(["website", "online_booking", "online_payments", "customer_subscriptions", "sms"]),
     limits: {
-      maxCustomers: 5,
-      maxVehicles: 5,
-      maxQuotesPerMonth: 3,
-      maxInvoicesPerMonth: 3,
+      maxCustomers: null,
+      maxVehicles: null,
+      maxQuotesPerMonth: 10,
+      maxInvoicesPerMonth: 10,
       maxActiveCustomerSubscriptions: 2,
     },
   },
@@ -266,6 +267,8 @@ export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
       email_reminders: true,
       review_requests: true,
       customer_subscriptions: true,
+      // Module SMS : 20 SMS crédités/mois (SMS_MONTHLY_INCLUDED_BY_PLAN) + packs.
+      sms: true,
     },
     limits: {
       maxCustomers: null,

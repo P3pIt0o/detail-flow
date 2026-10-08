@@ -13,6 +13,7 @@ import {
   type ProvisionResult,
 } from "@/lib/company/provision"
 import { creditFromRecharge } from "@/lib/sms/credits"
+import { isManualRechargeProvider } from "@/lib/sms/checkout-core"
 import { allocateDeltaToTenant } from "@/lib/sms/send"
 import { sendEmail } from "@/lib/email/send"
 import { smsCreditedEmail } from "@/lib/email/templates"
@@ -298,9 +299,22 @@ export async function reopenBetaLeadAction(leadId: number): Promise<ActionState>
  * rechargement ne crédite jamais deux fois. L'email de confirmation n'est
  * envoyé que si le crédit a effectivement eu lieu (already=false).
  */
+const MANUAL_ONLY_ERROR = "Recharge Stripe : gérée automatiquement par le webhook, action manuelle refusée."
+
+/** Défense serveur : relit le provider en base (jamais l'UI) avant toute action manuelle. */
+async function isManualRecharge(requestId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ provider: smsRechargeRequests.paymentProvider })
+    .from(smsRechargeRequests)
+    .where(eq(smsRechargeRequests.id, requestId))
+    .limit(1)
+  return isManualRechargeProvider(row?.provider)
+}
+
 export async function confirmSmsRechargeAction(requestId: number): Promise<ActionState> {
   await requireSuperAdmin()
   try {
+    if (!(await isManualRecharge(requestId))) return { ok: false, error: MANUAL_ONLY_ERROR }
     const res = await creditFromRecharge(requestId)
     if (!res.ok) return { ok: false, error: res.error }
 
@@ -507,10 +521,17 @@ export async function setPublicationFlagAction(
 export async function cancelSmsRechargeAction(requestId: number): Promise<ActionState> {
   await requireSuperAdmin()
   try {
+    if (!(await isManualRecharge(requestId))) return { ok: false, error: MANUAL_ONLY_ERROR }
     await db
       .update(smsRechargeRequests)
       .set({ status: "cancelled" })
-      .where(and(eq(smsRechargeRequests.id, requestId), eq(smsRechargeRequests.status, "pending")))
+      .where(
+        and(
+          eq(smsRechargeRequests.id, requestId),
+          eq(smsRechargeRequests.status, "pending"),
+          eq(smsRechargeRequests.paymentProvider, "manual"),
+        ),
+      )
     revalidatePath("/super-admin")
     return { ok: true, message: "Demande annulée." }
   } catch (e) {

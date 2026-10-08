@@ -981,6 +981,10 @@ export const smsCredits = pgTable(
     // métier DetailFlow, qui reste `balance`.
     allmysmsCreditsAllocated: integer("allmysmsCreditsAllocated").notNull().default(0),
     allmysmsLastAllocationAt: timestamp("allmysmsLastAllocationAt"),
+    // Dernier mois civil (YYYY-MM, fuseau tenant) crédité par l'attribution
+    // mensuelle incluse au plan — garde idempotente (1 attribution / mois).
+    monthlyGrantKey: text("monthlyGrantKey"),
+    monthlyGrantedTotal: integer("monthlyGrantedTotal").notNull().default(0),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => ({
@@ -1008,10 +1012,15 @@ export const smsRechargeRequests = pgTable(
     status: text("status").notNull().default("pending"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     validatedAt: timestamp("validatedAt"),
+    // manual (Revolut, legacy) | stripe (Checkout plateforme, crédit automatique)
+    paymentProvider: text("paymentProvider").notNull().default("manual"),
+    stripeCheckoutSessionId: text("stripeCheckoutSessionId"),
+    stripePaymentIntentId: text("stripePaymentIntentId"),
   },
   (t) => ({
     byCompany: index("sms_recharge_requests_companyId_idx").on(t.companyId),
     byStatus: index("sms_recharge_requests_status_idx").on(t.status),
+    uniqStripeSession: uniqueIndex("sms_recharge_requests_stripe_session_key").on(t.stripeCheckoutSessionId),
   }),
 )
 

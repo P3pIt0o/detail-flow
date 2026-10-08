@@ -37,6 +37,14 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Combien coûte DetailFlow ?",
-    a: "L'offre Essentiel est gratuite et disponible dès maintenant. Les offres Indépendant, Performance et Lifetime sont présentées dans la section Tarifs et seront activées prochainement.",
+    a: "Essentiel est gratuit et disponible dès maintenant. Indépendant coûte 19,90 €/mois avec 30 jours gratuits et est également disponible. Les offres Performance et Équipe sont présentées dans la section Tarifs et seront bientôt disponibles.",
+  },
+  {
+    q: "Les SMS sont-ils inclus ?",
+    a: "Essentiel n'inclut aucun SMS mensuel, mais vous pouvez acheter des packs SMS. Indépendant crédite 20 SMS chaque mois, avec la possibilité d'acheter des packs supplémentaires.",
+  },
+  {
+    q: "Comment fonctionne la commission DetailFlow ?",
+    a: "Vous ne payez une commission DetailFlow que lorsque vous encaissez en ligne. Essentiel : 2 %, plafonnée à 19,90 €/mois. Indépendant : 1 %, plafonnée à 5 €/mois. Les frais Stripe restent distincts.",
   },
 ]

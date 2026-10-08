@@ -44,7 +44,9 @@ import { PromoSettings } from "@/components/admin/settings/promo-settings"
 import { listPromoCodes } from "./promo-actions"
 import { PaymentsSettings } from "@/components/admin/settings/payments-settings"
 import { getTenantPaymentConfig } from "@/lib/payments/config"
-import { getSmsBalance } from "@/lib/sms/credits"
+import { getSmsBalance, ensureMonthlySmsGrant } from "@/lib/sms/credits"
+import { getStripeRechargeStatus } from "@/lib/sms/checkout"
+import { monthlyIncludedSms } from "@/lib/sms/config"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
@@ -64,11 +66,12 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; tenant?: string }>
+  searchParams: Promise<{ tab?: string; tenant?: string; sms_session?: string }>
 }) {
   const { tenant, role, isSuperAdmin } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
-  const { tab, tenant: tenantParam } = await searchParams
+  const { tab, tenant: tenantParam, sms_session } = await searchParams
+  const smsSession = typeof sms_session === "string" && sms_session.startsWith("cs_") ? sms_session : null
 
   // Site Spirit ACS : shell 100 % personnalisé. On masque UNIQUEMENT pour lui les
   // réglages du site standard sans effet (couleurs, ordre des sections, logo
@@ -98,6 +101,14 @@ export default async function ParametresPage({
   const activeTab = activeCategory && tab ? tab : undefined
   const CategoryIcon = activeCategory?.icon
   const visibleSubTabs = activeCategory?.subTabs ?? []
+
+  // Attribution mensuelle SMS incluse (idempotente) : un nouvel abonné PRO n'attend pas le cron.
+  try {
+    await ensureMonthlySmsGrant(tenant.id)
+  } catch (e) {
+    console.error("[sms] grant mensuel échoué:", e instanceof Error ? e.message : e)
+  }
+  const smsCheckoutReturn = smsSession ? await getStripeRechargeStatus(tenant.id, smsSession) : null
 
   const [
     settings,
@@ -484,6 +495,8 @@ export default async function ParametresPage({
                 <SmsSettings
                   featureEnabled={smsFeatureEnabled}
                   balance={smsBalance.balance}
+                  monthlyIncluded={monthlyIncludedSms(tenant.licensePlan)}
+                  checkoutReturn={smsCheckoutReturn}
                   betaBonusGranted={Boolean(smsCreditRow[0]?.betaBonusGrantedAt)}
                   enabled={settings.smsRemindersEnabled}
                   offsetHours={settings.smsReminderOffsetHours}

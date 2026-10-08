@@ -10,8 +10,12 @@ import {
   getSmsBalance,
   generateRechargeReference,
   ensureSmsCreditsRow,
+  ensureMonthlySmsGrant,
 } from "@/lib/sms/credits"
-import { ensureTenantSubAccount } from "@/lib/sms/send"
+import { BillingOriginError, resolveBillingOrigin } from "@/lib/billing/billing-origin"
+import { withTenant } from "@/lib/tenant-link"
+import { startSmsPackCheckout, getStripeRechargeStatus } from "@/lib/sms/checkout"
+import { ensureTenantSubAccount, allocateDeltaToTenant } from "@/lib/sms/send"
 import {
   SMS_MIN_CUSTOM_QUANTITY,
   amountForQuantity,
@@ -163,6 +167,16 @@ export async function saveSmsReminderSettings(input: {
         tenant.id,
       )
     }
+
+    // Transfert des crédits DetailFlow en attente (grant mensuel, packs) —
+    // idempotent via le delta. Un échec ne bloque pas l'activation ni ne
+    // modifie le solde DB ; il sera rejoué au prochain appel.
+    try {
+      const alloc = await allocateDeltaToTenant(tenant.id)
+      if (!alloc.ok) console.error("[sms] allocation delta échouée:", tenant.id, alloc.error ?? "erreur inconnue")
+    } catch (e) {
+      console.error("[sms] allocation delta échouée:", tenant.id, e instanceof Error ? e.message : e)
+    }
   }
 
   revalidatePath("/admin/parametres")
@@ -278,10 +292,58 @@ export async function createRechargeRequest(
   }
 }
 
-/** Lit le solde SMS du tenant courant. */
+/** Lit le solde SMS du tenant courant (après attribution mensuelle idempotente). */
 export async function getMySmsBalance() {
   const { tenant } =
     await requireCompanyMember()
 
+  try {
+    await ensureMonthlySmsGrant(tenant.id)
+  } catch (e) {
+    console.error("[sms] grant mensuel échoué:", e instanceof Error ? e.message : e)
+  }
   return getSmsBalance(tenant.id)
+}
+
+/**
+ * Achat d'un pack SMS via Stripe Checkout (compte PLATEFORME).
+ * OWNER uniquement. companyId = session ; montant recalculé serveur.
+ */
+export async function startSmsPackCheckoutAction(
+  quantity: number,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const { tenant } = await requireCompanyMember(["OWNER"])
+  if (!(await canUseFeature(tenant.id, "sms"))) {
+    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  }
+  const qty = Number(quantity)
+  if (!Number.isInteger(qty) || qty < SMS_MIN_CUSTOM_QUANTITY) {
+    return { ok: false, error: `Quantité minimale : ${SMS_MIN_CUSTOM_QUANTITY} SMS.` }
+  }
+  if (qty > 5000) return { ok: false, error: "Quantité trop élevée." }
+
+  try {
+    const origin = resolveBillingOrigin()
+    const { url } = await startSmsPackCheckout({
+      companyId: tenant.id,
+      quantity: qty,
+      successUrl: origin + withTenant("/admin/parametres?sms_session={CHECKOUT_SESSION_ID}#sms", tenant.slug),
+      cancelUrl: origin + withTenant("/admin/parametres?sms_annule=1#sms", tenant.slug),
+    })
+    return { ok: true, url }
+  } catch (e) {
+    if (e instanceof BillingOriginError) {
+      console.error("[sms-checkout] origine Billing invalide")
+      return { ok: false, error: e.message }
+    }
+    console.error("[sms-checkout] erreur:", e instanceof Error ? e.message : e)
+    return { ok: false, error: "Le paiement n'a pas pu être initialisé." }
+  }
+}
+
+/** Statut d'une recharge au retour de Stripe (scopé au tenant courant). */
+export async function getSmsCheckoutReturnStatus(sessionId: string): Promise<"paid" | "pending" | null> {
+  const { tenant } = await requireCompanyMember()
+  if (typeof sessionId !== "string" || !sessionId.startsWith("cs_")) return null
+  return getStripeRechargeStatus(tenant.id, sessionId)
 }

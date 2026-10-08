@@ -146,10 +146,11 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Page professionnelle personnalisable",
       "Réservation en ligne & widget à partager",
       "Planning centralisé",
-      "Jusqu'à 5 clients",
-      "3 devis et 3 factures par mois",
-      "Paiements en ligne (commission DetailFlow, hors frais Stripe)",
-      "Fonctionnalités avancées avec l'offre supérieure",
+      "Clients & véhicules illimités",
+      "10 devis et 10 factures / mois",
+      "Jusqu'à 2 abonnements clients actifs",
+      "Paiements en ligne : 2 % de commission DetailFlow, plafonnée à 19,90 €/mois (frais Stripe distincts)",
+      "SMS disponibles en option via packs",
     ],
     // Features gated réellement ouvertes par PLAN_MATRIX.FREE.
     includedFeatures: ["website", "online_booking", "online_payments", "customer_subscriptions"],
@@ -171,9 +172,11 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     highlights: [
       "Tout Essentiel",
       "Clients, devis et factures illimités",
-      "Commission réduite sur les paiements en ligne",
+      "10 abonnements clients actifs",
       "Rappels & demandes d'avis automatiques",
       "Statistiques de base",
+      "20 SMS crédités chaque mois · packs supplémentaires disponibles",
+      "Paiements en ligne : 1 % de commission DetailFlow, plafonnée à 5 €/mois (frais Stripe distincts)",
     ],
     // Toutes garanties true dans PLAN_MATRIX.PRO.
     includedFeatures: ["online_booking", "online_payments", "email_reminders", "review_requests", "business_stats"],

@@ -33,6 +33,7 @@ import {
   type LifetimeDeps,
 } from "./lifetime-server"
 import { isSubscriptionCheckoutSession } from "./subscription-core"
+import { handleSmsPackWebhookEvent, isSmsPackSession, type SmsPackWebhookDeps } from "@/lib/sms/checkout-core"
 import {
   handleSubscriptionWebhookEvent,
   isSubscriptionWebhookEventType,
@@ -47,6 +48,8 @@ export interface BillingWebhookDeps extends LifetimeDeps {
   env?: Record<string, string | undefined>
   /** Moteur d'abonnements (même endpoint, même secret). */
   subscriptions?: SubscriptionWebhookDeps
+  /** Packs SMS payés via Checkout plateforme (même endpoint, même secret). */
+  smsPacks?: SmsPackWebhookDeps
 }
 
 export interface BillingWebhookResponse {
@@ -137,6 +140,14 @@ export async function handleBillingWebhook(
     case "checkout.session.expired":
     case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session
+      // Packs SMS : routés AVANT Lifetime / abonnements (metadata detailflow_kind).
+      if (isSmsPackSession(session)) {
+        if (!deps.smsPacks) {
+          console.error("[billing-webhook] packs SMS non configurés")
+          return { status: 500, body: { error: "Packs SMS non configurés" } }
+        }
+        return await handleSmsPackWebhookEvent(event.type, session as never, deps.smsPacks)
+      }
       if (!isLifetimeCheckoutSession(session)) {
         if (event.type === "checkout.session.completed" && isSubscriptionCheckoutSession(session)) {
           return routeSubscriptionEvent(event, deps)
