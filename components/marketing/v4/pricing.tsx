@@ -268,11 +268,14 @@ function FeatureCompare() {
       </summary>
 
       <div className="border-t border-border px-4 pb-6 pt-2 sm:px-6">
+        {/* Mobile : défilement horizontal limité au tableau ; sm+ : rendu inchangé */}
+        <div className="-mx-4 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y sm:mx-0 sm:overflow-visible">
+          <div className="min-w-180 sm:min-w-0">
         {/* En-tête de colonnes, sticky pour rester lisible en défilant */}
-        <div className="sticky top-16 z-10 -mx-4 grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.5rem,1fr))] gap-x-1 border-b border-border bg-card/95 px-4 py-3 text-[11px] font-semibold text-muted-foreground backdrop-blur sm:mx-0 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] sm:px-0 sm:text-xs">
-          <span className="sr-only sm:not-sr-only">Fonctionnalité</span>
+        <div className="z-10 grid grid-cols-[13rem_repeat(4,minmax(7.5rem,1fr))] gap-x-1 border-b border-border bg-card/95 py-3 text-[11px] font-semibold text-muted-foreground sm:sticky sm:top-16 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] sm:text-xs sm:backdrop-blur">
+          <span className="sticky left-0 bg-card pl-4 sm:static sm:bg-transparent sm:pl-0">Fonctionnalité</span>
           {COMPARE_COLUMNS.map((c) => (
-            <span key={c.id} className="text-center text-foreground">
+            <span key={c.id} className="whitespace-nowrap text-center text-foreground">
               {c.name}
             </span>
           ))}
@@ -280,14 +283,14 @@ function FeatureCompare() {
 
         {COMPARE_CATEGORIES.map((cat) => (
           <div key={cat.name} className="mt-4">
-            <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-primary">{cat.name}</p>
+            <p className="sticky left-0 w-fit pl-5 text-[11px] font-bold uppercase tracking-wide text-primary sm:static sm:pl-1">{cat.name}</p>
             <div className="mt-1.5">
               {cat.rows.map((row) => (
                 <div
                   key={row.label}
-                  className="grid grid-cols-[minmax(0,1fr)_repeat(4,minmax(2.5rem,1fr))] items-center gap-x-1 border-t border-border/60 py-2.5 text-sm sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"
+                  className="grid grid-cols-[13rem_repeat(4,minmax(7.5rem,1fr))] items-center gap-x-1 border-t border-border/60 py-2.5 text-sm sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"
                 >
-                  <span className="pr-2 text-pretty text-[13px] leading-snug text-foreground">{row.label}</span>
+                  <span className="sticky left-0 self-stretch bg-card pl-4 pr-3 text-pretty text-[13px] leading-snug text-foreground sm:static sm:bg-transparent sm:pl-0 sm:pr-2">{row.label}</span>
                   {COMPARE_COLUMNS.map((c) => (
                     <span key={c.id} className="flex items-center justify-center">
                       {row.values[c.id] ? (
@@ -308,6 +311,8 @@ function FeatureCompare() {
             </div>
           </div>
         ))}
+          </div>
+        </div>
 
         <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
           Certaines fonctionnalités des offres payantes arrivent progressivement.

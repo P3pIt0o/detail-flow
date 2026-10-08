@@ -73,7 +73,7 @@ describe("Tarifs — offres commerciales inchangées", () => {
   })
 
   it("essai uniquement sur Indépendant", () => {
-    expect(byId.pro.trial).toBe("30 jours gratuits")
+    expect(byId.pro.trial).toBe("30 jours gratuits, sans carte bancaire")
     for (const id of ["starter", "ultime", "entreprise"]) expect(byId[id].trial).toBeNull()
   })
 })

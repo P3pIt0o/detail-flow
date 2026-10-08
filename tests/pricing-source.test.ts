@@ -81,7 +81,8 @@ describe("self-service : ce qui est sélectionnable == ce qui est réellement at
     expect(byId.ultime.availability).toBe("coming_soon")
     expect(byId.ultime.cta.href).toBeNull()
     expect(byId.ultime.cta.label).toBe("Bientôt disponible")
-    expect(byId.pro.trial).toBe("30 jours gratuits")
+    expect(byId.pro.trial).toBe("30 jours gratuits, sans carte bancaire")
+    expect(PRICING_COPY.trialHeadline).toMatch(/30 jours gratuits.*sans carte bancaire/)
   })
 
   it("Équipe : coming_soon, « Bientôt disponible », aucun CTA de souscription", () => {
