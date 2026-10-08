@@ -73,14 +73,25 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
       })
       mapRef.current = map
 
-      // Fond sombre sobre (CARTO dark, sans clé API, attribution obligatoire).
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 18,
-        subdomains: "abcd",
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      }).addTo(map)
+      // Pas de tuiles tierces : les basemaps CARTO renvoyaient un filigrane
+      // « API KEY » (usage non autorisé sans licence). Fond bleu nuit en CSS
+      // (.clz-zone-map), rendu 100 % local — aucune clé, aucun abonnement.
+      map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer">Leaflet</a>')
+      map.attributionControl.addAttribution("Carte illustrative — positions approximatives")
+      map.setMinZoom(9)
+      map.setMaxZoom(14)
 
       const radius = ZONE.visualRadiusKm * 1000
+      for (const km of [5, 10, 15]) {
+        L.circle([ZONE.base.lat, ZONE.base.lng], {
+          radius: km * 1000,
+          color: "#ffffff",
+          opacity: 0.08,
+          weight: 1,
+          fill: false,
+          interactive: false,
+        }).addTo(map)
+      }
       const circle = L.circle([ZONE.base.lat, ZONE.base.lng], {
         radius: reduce ? radius : 0,
         color: BLUE,

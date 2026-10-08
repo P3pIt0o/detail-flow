@@ -5,8 +5,8 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, ArrowUpRight, Car, Sofa, MapPin, Clock, Home, Sparkles, ShieldCheck, Star, UserRound, BadgeCheck } from "lucide-react"
-import { BeforeAfterSlider } from "@/components/before-after-slider"
+import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck, Star, BadgeCheck } from "lucide-react"
+import { CleanyzerBeforeAfter } from "./before-after-toggle"
 import { CleanyzerFaq } from "./faq"
 import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
@@ -57,7 +57,8 @@ export function UniversSection() {
       tag: "Textile & mobilier",
       title: "Demandez un devis textile",
       text: "Canapé, matelas, tapis, moquette. Aspiration, shampoing, désinfection et traitement des odeurs.",
-      img: "/custom-sites/cleanyzer/service-textile.png",
+      img: "/custom-sites/cleanyzer/textile-canape.webp",
+      alt: "Canapé en tissu gris clair nettoyé par CLEANYZER",
       href: CLZ_DEMANDE_HREF,
       cta: "Faire une demande",
     },
@@ -75,7 +76,7 @@ export function UniversSection() {
             <div className="relative aspect-[16/10] overflow-hidden">
               <Image
                 src={c.img || "/placeholder.svg"}
-                alt={c.title}
+                alt={"alt" in c && c.alt ? c.alt : c.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
@@ -106,9 +107,30 @@ export function PrestationsPreview() {
   const extMin = Math.min(...EXTERIEUR_FORMULAS.flatMap((f) => Object.values(f.prices).filter((p): p is number => p != null)))
   const txtMin = Math.min(...TEXTILE_ITEMS.map((t) => t.price).filter((p): p is number => p != null))
   const items = [
-    { label: "Nettoyage intérieur", from: intMin, href: CLZ_BOOKING_HREF, img: "/custom-sites/cleanyzer/service-interieur.png" },
-    { label: "Nettoyage extérieur", from: extMin, href: CLZ_BOOKING_HREF, img: "/custom-sites/cleanyzer/service-exterieur.png" },
-    { label: "Canapé & textile", from: txtMin, href: CLZ_DEMANDE_HREF, img: "/custom-sites/cleanyzer/service-textile.png" },
+    {
+      label: "Nettoyage intérieur",
+      from: intMin,
+      href: CLZ_BOOKING_HREF,
+      img: "/custom-sites/cleanyzer/interieur-audi.webp",
+      alt: "Habitacle d'Audi nettoyé : volant, tableau de bord et sièges en cuir",
+      pos: "object-[50%_45%]",
+    },
+    {
+      label: "Nettoyage extérieur",
+      from: extMin,
+      href: CLZ_BOOKING_HREF,
+      img: "/custom-sites/cleanyzer/exterieur-mercedes.webp",
+      alt: "Mercedes noire brillante photographiée en extérieur après lavage",
+      pos: "object-[55%_62%]",
+    },
+    {
+      label: "Canapé & textile",
+      from: txtMin,
+      href: CLZ_DEMANDE_HREF,
+      img: "/custom-sites/cleanyzer/textile-canape.webp",
+      alt: "Canapé en tissu gris clair après nettoyage textile",
+      pos: "object-center",
+    },
   ]
   return (
     <section className="bg-[var(--clz-surface-2)]">
@@ -118,7 +140,7 @@ export function PrestationsPreview() {
           {items.map((it) => (
             <Link key={it.label} href={it.href} className="clz-card group overflow-hidden">
               <div className="relative aspect-[4/3] overflow-hidden">
-                <Image src={it.img || "/placeholder.svg"} alt={it.label} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                <Image src={it.img || "/placeholder.svg"} alt={it.alt} fill loading="lazy" sizes="(max-width:768px) 100vw, 33vw" className={`object-cover ${it.pos} transition-transform duration-500 group-hover:scale-[1.04]`} />
               </div>
               <div className="flex items-center justify-between p-5">
                 <div>
@@ -149,14 +171,19 @@ export function RealisationsPreview() {
           dark
           eyebrow="Le soin en images"
           title={<>Une différence <span className="clz-accent">qui se voit.</span></>}
-          intro="Glissez le curseur pour comparer l'avant et l'après d'une intervention CLEANYZER."
+          intro="Touchez la photo ou utilisez les boutons pour comparer l'avant et l'après d'une intervention CLEANYZER."
         />
         <div className="mt-12 grid items-center gap-10 lg:grid-cols-2">
-          <div className="clz-compare">
-            <BeforeAfterSlider
-              before="/custom-sites/cleanyzer/avant.png"
-              after="/custom-sites/cleanyzer/apres.png"
-              alt="Nettoyage intérieur véhicule"
+          <div className="mx-auto w-full max-w-md">
+            <CleanyzerBeforeAfter
+              before={{
+                src: "/custom-sites/cleanyzer/isuzu-avant.webp",
+                alt: "ISUZU avant nettoyage : tapis de sol poussiéreux et habitacle sali",
+              }}
+              after={{
+                src: "/custom-sites/cleanyzer/isuzu-apres.webp",
+                alt: "ISUZU après nettoyage : habitacle, moquette et sièges propres",
+              }}
             />
           </div>
           <div>
@@ -170,6 +197,30 @@ export function RealisationsPreview() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
+        </div>
+
+        <div className="mt-14 grid gap-6 sm:grid-cols-2">
+          {[
+            {
+              src: "/custom-sites/cleanyzer/porsche-interieur.webp",
+              alt: "Porsche cabriolet vue du dessus, intérieur cuir marron nettoyé",
+              caption: "Porsche — intérieur cuir",
+              pos: "object-[50%_70%]",
+            },
+            {
+              src: "/custom-sites/cleanyzer/porsche-lavage.webp",
+              alt: "Porsche rouge recouverte de mousse pendant le lavage extérieur",
+              caption: "Porsche — lavage extérieur",
+              pos: "object-[50%_60%]",
+            },
+          ].map((p) => (
+            <figure key={p.src} className="overflow-hidden rounded-2xl border border-white/10">
+              <div className="relative aspect-[4/3]">
+                <Image src={p.src} alt={p.alt} fill loading="lazy" sizes="(max-width: 640px) 100vw, 50vw" className={`object-cover ${p.pos}`} />
+              </div>
+              <figcaption className="px-4 py-3 text-sm font-medium text-[var(--clz-on-dark-muted)]">{p.caption}</figcaption>
+            </figure>
+          ))}
         </div>
       </div>
     </section>
@@ -209,45 +260,42 @@ export function ServiceADomicile() {
 /* Zone d'intervention : module dédié (zone-section.tsx), réexporté ici. */
 export { ZoneSection } from "./zone-section"
 
-/* Section « Derrière CLEANYZER » (brief §9). Portrait réel de Tom à venir :
-   emplacement propre aux bonnes dimensions, aucun portrait IA. */
+/* Section « Derrière CLEANYZER » (brief §9) — portrait réel de Tom. */
 export function AProposSection() {
   return (
     <section id="apropos" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
       <div className="grid items-center gap-12 md:grid-cols-[minmax(0,340px)_1fr] md:gap-16">
         <div className="mx-auto w-full max-w-[340px]">
-          {/* Emplacement portrait — ratio 4/5. Remplacer par la vraie photo de
-              Tom sans toucher à la mise en page (mêmes dimensions). */}
           <div className="clz-portrait relative aspect-[4/5] w-full overflow-hidden">
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-              <span className="clz-check h-14 w-14">
-                <UserRound className="h-6 w-6" />
-              </span>
-              <span className="px-6 text-sm text-[var(--clz-muted)]">
-                Portrait de {BRAND.ownerFullName} à venir
-              </span>
-            </div>
+            <Image
+              src="/custom-sites/cleanyzer/portrait-tom.webp"
+              alt={`${BRAND.ownerFirstName}, fondateur de CLEANYZER, devant le garage`}
+              fill
+              loading="lazy"
+              sizes="340px"
+              className="object-cover object-[50%_22%]"
+            />
           </div>
         </div>
         <div>
           <SectionHead
-            eyebrow="Derrière CLEANYZER"
+            eyebrow={`Derrière CLEANYZER, découvrez ${BRAND.ownerFirstName}`}
             title={
               <>
-                {BRAND.ownerFullName}, detailer professionnel{" "}
+                {BRAND.ownerFirstName}, professionnel du detailing{" "}
                 <span className="clz-accent">à Annecy.</span>
               </>
             }
             intro="Un professionnel à votre écoute, pour votre véhicule comme pour vos textiles."
           />
 
-          <p className="clz-eyebrow mt-10">{BRAND.ownerFullName} — {BRAND.name}</p>
+          <p className="clz-eyebrow mt-10">{BRAND.ownerFirstName} — {BRAND.name}</p>
           <p className="clz-display clz-h3 mt-2 text-[var(--clz-fg)]">
             Le souci <span className="clz-accent">du détail.</span>
           </p>
           <div className="mt-5 space-y-4 text-pretty leading-relaxed text-[var(--clz-muted)]">
             <p>
-              À Annecy et aux alentours, {BRAND.ownerFullName} vous accompagne dans
+              À Annecy et aux alentours, {BRAND.ownerFirstName} vous accompagne dans
               votre projet de nettoyage automobile ou textile à domicile.
             </p>
             <p>
