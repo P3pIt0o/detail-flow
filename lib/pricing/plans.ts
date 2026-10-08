@@ -117,7 +117,7 @@ export const PRICING_COPY = {
   eyebrow: "Tarifs",
   title: "Une formule pour chaque étape de votre activité",
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
-  trialHeadline: "30 jours gratuits sur Indépendant.",
+  trialHeadline: "30 jours gratuits sur Indépendant, sans carte bancaire.",
   trialSub: "Vous démarrez l'essai depuis votre espace, après sa création.",
   note: "Prix indiqués hors taxes.",
   comingSoonLabel: "Bientôt disponible",
@@ -168,7 +168,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     period: "/ mois",
     monthlyPriceCents: 1990,
     description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
-    trial: "30 jours gratuits",
+    trial: "30 jours gratuits, sans carte bancaire",
     highlights: [
       "Tout Essentiel",
       "Clients, devis et factures illimités",
