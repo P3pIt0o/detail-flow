@@ -118,7 +118,8 @@ export const PRICING_COPY = {
   title: "Une formule pour chaque étape de votre activité",
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
   trialHeadline: "30 jours gratuits sur Indépendant, sans carte bancaire.",
-  trialSub: "Vous démarrez l'essai depuis votre espace, après sa création.",
+  trialSub:
+    "Ajoutez un moyen de paiement avant la fin de l'essai pour continuer sur Indépendant à 19,90 €/mois. Sinon, votre espace repasse automatiquement sur Essentiel.",
   note: "Prix indiqués hors taxes.",
   comingSoonLabel: "Bientôt disponible",
   compareLabel: "Comparer les fonctionnalités",
