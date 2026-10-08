@@ -339,9 +339,12 @@ function StatusBadge({ item }: { item: PhotoItem }) {
 export function QuotePhotoUploader({
   uploader,
   disabled = false,
+  subject = "du véhicule",
 }: {
   uploader: UsePhotoUploads
   disabled?: boolean
+  /** Complément du libellé (« du véhicule », « du textile ou mobilier »). */
+  subject?: string
 }) {
   const { items, addFiles, removeItem, cancelItem, retryItem, liveMessage } = uploader
   const inputRef = useRef<HTMLInputElement>(null)
@@ -358,10 +361,10 @@ export function QuotePhotoUploader({
     <div className="space-y-3">
       <div>
         <span id="quote-photos-label" className="text-sm font-medium text-foreground">
-          Photos du véhicule — facultatif
+          Photos {subject} — facultatif
         </span>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ajoutez quelques photos pour nous aider à mieux évaluer l&apos;état du véhicule et votre demande.
+          Ajoutez quelques photos pour nous aider à mieux évaluer l&apos;état {subject} et votre demande.
         </p>
       </div>
 
@@ -401,7 +404,7 @@ export function QuotePhotoUploader({
           multiple
           // `capture` laissé au navigateur : sur mobile il propose photo/galerie.
           className="sr-only"
-          aria-label="Ajouter des photos du véhicule"
+          aria-label={`Ajouter des photos ${subject}`}
           disabled={disabled}
           onChange={(e) => {
             if (e.target.files?.length) addFiles(e.target.files)
