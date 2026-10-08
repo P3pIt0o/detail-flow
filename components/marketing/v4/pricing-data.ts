@@ -100,7 +100,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       {
         label: "Abonnements clients récurrents",
         values: all,
-        description: "Créez et gérez des formules d’entretien récurrentes pour vos propres clients.", notes: { starter: "2 actifs", pro: "10 actifs" },
+        description: "Créez et gérez des formules d’entretien récurrentes pour vos propres clients.", notes: { starter: "2 actifs · 7 % de commission", pro: "10 actifs · 3 % de commission" },
       },
     ],
   },

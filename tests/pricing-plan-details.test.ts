@@ -41,7 +41,7 @@ describe("Tarifs — volet détaillé par offre", () => {
 
   it("limites Essentiel affichées et conformes à PLAN_MATRIX.FREE", () => {
     const notes = getPlanFeatureGroups("starter").flatMap((g) => g.items.map((i) => i.note).filter(Boolean))
-    expect(notes).toEqual(expect.arrayContaining(["Illimité", "10 devis / mois", "10 factures / mois", "2 actifs", "0 inclus / mois · packs disponibles"]))
+    expect(notes).toEqual(expect.arrayContaining(["Illimité", "10 devis / mois", "10 factures / mois", "2 actifs · 7 % de commission", "0 inclus / mois · packs disponibles"]))
     expect(PLAN_MATRIX.FREE.limits.maxCustomers).toBeNull()
     expect(PLAN_MATRIX.FREE.limits.maxQuotesPerMonth).toBe(10)
     expect(PLAN_MATRIX.FREE.limits.maxInvoicesPerMonth).toBe(10)
