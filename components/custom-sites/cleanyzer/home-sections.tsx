@@ -48,7 +48,7 @@ export function UniversSection() {
       tag: "Automobile",
       title: "Réservez votre nettoyage auto",
       text: "Intérieur ou extérieur, du lavage Éco au détail Excellence. Parcours guidé, prix en direct.",
-      img: "/custom-sites/cleanyzer/service-interieur.png",
+      img: "/custom-sites/cleanyzer/porsche-interieur.webp",
       href: CLZ_BOOKING_HREF,
       cta: "Réserver un nettoyage",
     },
@@ -196,12 +196,6 @@ export function RealisationsPreview() {
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2">
           {[
-            {
-              src: "/custom-sites/cleanyzer/porsche-interieur.webp",
-              alt: "Porsche cabriolet vue du dessus, intérieur cuir marron nettoyé",
-              caption: "Porsche — intérieur cuir",
-              pos: "object-[50%_70%]",
-            },
             {
               src: "/custom-sites/cleanyzer/porsche-lavage.webp",
               alt: "Porsche rouge recouverte de mousse pendant le lavage extérieur",
