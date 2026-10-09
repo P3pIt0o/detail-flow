@@ -119,6 +119,20 @@ export default async function AbonnementsClientsPage({ searchParams }: { searchP
         ))}
       </dl>
 
+      {capacity.limitReached && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-relaxed text-foreground">Vous avez atteint la limite de votre formule.</p>
+          <Button
+            render={<Link href={withTenant("/admin/abonnement?plan=PRO", tenant)} />}
+            nativeButton={false}
+            size="sm"
+            className="w-full sm:w-auto"
+          >
+            Passer à Indépendant
+          </Button>
+        </div>
+      )}
+
       <PublicModeCard mode={company.publicMode} canPublish={paymentsReady && hasActivePlan} />
 
       <nav aria-label="Sections">

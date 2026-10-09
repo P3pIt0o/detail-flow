@@ -6,7 +6,7 @@ import type { CustomerSubscriptionErrorCode } from "./errors"
 
 export const ERROR_MESSAGES: Record<CustomerSubscriptionErrorCode, string> = {
   FEATURE_DISABLED: "Les abonnements clients ne sont pas inclus dans votre offre DetailFlow actuelle.",
-  LIMIT_REACHED: "Vous avez atteint le nombre maximum d'abonnés de votre offre. Les abonnements en cours continuent normalement.",
+  LIMIT_REACHED: "Vous avez atteint la limite d’abonnements clients de votre offre. Passez à Indépendant pour augmenter votre capacité. Les abonnements en cours continuent normalement.",
   FORBIDDEN: "Seuls le propriétaire et les administrateurs peuvent faire cette modification.",
   INVALID_PLAN: "Certaines informations de la formule sont incomplètes ou incorrectes.",
   PLAN_NOT_ACTIVE: "Cette formule n'est pas publiée. Publiez-la avant de continuer.",
