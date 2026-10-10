@@ -904,3 +904,90 @@ describe("17. mêmes montants DB / PDF / XML", () => {
     expect(errors).toContainEqual(expect.objectContaining({ code: "AMOUNT_MISMATCH", rule: "BR-CO-16" }))
   })
 })
+
+describe("Validation externe Factur-X EN16931", () => {
+  it("valide le XML avec XSD et Schematron", async () => {
+    const { check } = await import("@stafyniaksacha/facturx")
+    const xml = xmlOf(buildFacturXXml({
+      invoice: frInvoice(),
+      items: ITEMS,
+    }))
+    const result = await check({ xml, schematron: true })
+    console.log("VALIDATION EXTERNE :", JSON.stringify(result))
+    expect(result.valid).toBe(true)
+    expect(result.schematronValid).toBe(true)
+  })
+})
+
+describe("Lot B - PDF Factur-X de test", () => {
+  it("intègre et récupère le XML dans un PDF", async () => {
+    const { createElement } = await import("react")
+    const { Document, Page, Text, Font, renderToBuffer } =
+      await import("@react-pdf/renderer")
+    const { generate, extract } =
+      await import("@stafyniaksacha/facturx")
+
+    const xml = xmlOf(buildFacturXXml({
+      invoice: frInvoice(),
+      items: ITEMS,
+    }))
+
+    const { resolve } = await import("node:path")
+    const assets = resolve(process.cwd(), "public/facturx-assets")
+
+    Font.register({
+      family: "FacturXLato",
+      fonts: [
+        { src: resolve(assets, "Lato-Regular.ttf"), fontWeight: 400 },
+        { src: resolve(assets, "Lato-Bold.ttf"), fontWeight: 700 },
+      ],
+    })
+
+    const source = await renderToBuffer(
+      createElement(Document, null,
+        createElement(Page, { size: "A4" },
+          createElement(Text, { style: { fontFamily: "FacturXLato" } },
+            "TEST - FAC-2026-0042 - 180 EUR - NE PAS ENVOYER"
+          )
+        )
+      )
+    )
+
+
+    // Prototype : copie du PDF fictif uniquement.
+    const { PDFDocument, PDFName, PDFString } = await import("pdf-lib")
+    const workingPdf = await PDFDocument.load(source)
+    workingPdf.context.trailerInfo.ID = undefined
+
+    const icc = readFileSync(
+      resolve(assets, "sRGB-v2-magic.icc")
+    )
+
+    const iccStream = workingPdf.context.stream(icc, {
+      N: 3,
+      Length: icc.length,
+    })
+
+    const outputIntent = workingPdf.context.obj({
+      Type: "OutputIntent",
+      S: "GTS_PDFA1",
+      OutputConditionIdentifier: PDFString.of("sRGB"),
+      DestOutputProfile: workingPdf.context.register(iccStream),
+    })
+
+    const outputRef = workingPdf.context.register(outputIntent)
+    workingPdf.catalog.set(
+      PDFName.of("OutputIntents"),
+      workingPdf.context.obj([outputRef])
+    )
+
+    const pdf = await generate({ pdf: workingPdf, xml })
+    await (await import("node:fs/promises")).writeFile("/sdcard/Download/detailflow-facturx-test.pdf", pdf)
+    const extracted = await extract({ pdf })
+
+    expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe("%PDF-")
+
+    expect(Buffer.from(extracted.xml).toString("utf8").trim().replace(/^<\?xml version="1\.0" encoding="utf-8"\?>/, '<?xml version="1.0" encoding="UTF-8"?>'))
+      .toBe(xml.trim())
+  }, 30000)
+})
