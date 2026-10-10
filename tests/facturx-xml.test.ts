@@ -982,7 +982,6 @@ describe("Lot B - PDF Factur-X de test", () => {
     )
 
     const pdf = await generate({ pdf: workingPdf, xml })
-    await (await import("node:fs/promises")).writeFile("/sdcard/Download/detailflow-facturx-test.pdf", pdf)
     const extracted = await extract({ pdf })
 
     expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe("%PDF-")
