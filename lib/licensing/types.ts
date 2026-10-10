@@ -40,6 +40,9 @@ export const FEATURE_KEYS = [
   // Abonnements d'entretien vendus par le tenant à SES clients (Stripe Connect).
   // Fonctionnalité de BASE (tous les plans) : capacité différenciée par
   // `maxActiveCustomerSubscriptions` + commission (lib/customer-subscriptions).
+  "invoice_logo",
+  "invoice_template_choice",
+  "invoice_photo",
   "customer_subscriptions",
 ] as const
 export type FeatureKey = (typeof FEATURE_KEYS)[number]

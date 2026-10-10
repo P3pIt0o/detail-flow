@@ -63,6 +63,7 @@ const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]
     "profitability_analysis",
     "email_reminders",
     "review_requests",
+    "invoice_logo",
   ],
   BUSINESS: [
     "website",
@@ -78,6 +79,9 @@ const SNAPSHOT: Record<Exclude<LicensePlan, "ENTERPRISE">, readonly FeatureKey[]
     "advanced_reporting",
     "marketing",
     "leads_crm",
+    "invoice_logo",
+    "invoice_template_choice",
+    "invoice_photo",
     "customer_subscriptions",
   ],
   // FOUNDER = toutes les features de sa génération (aujourd'hui : toutes).

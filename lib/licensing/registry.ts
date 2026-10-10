@@ -75,6 +75,21 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   // LOT 2 — CRM prospects (leads).
   leads_crm: { key: "leads_crm", label: "CRM prospects", generation: "LIFETIME_V1" },
   early_access: { key: "early_access", label: "Accès anticipé", generation: "LIFETIME_V1" },
+  invoice_logo: {
+    key: "invoice_logo",
+    label: "Logo de facture",
+    generation: "LIFETIME_V1",
+  },
+  invoice_template_choice: {
+    key: "invoice_template_choice",
+    label: "Modèles de facture",
+    generation: "LIFETIME_V1",
+  },
+  invoice_photo: {
+    key: "invoice_photo",
+    label: "Photo sur facture",
+    generation: "LIFETIME_V1",
+  },
   customer_subscriptions: {
     key: "customer_subscriptions",
     label: "Abonnements clients",
@@ -176,6 +191,9 @@ export const BUSINESS_FEATURES: readonly FeatureKey[] = [
   "marketing",
   // LOT 2 — CRM prospects : fonctionnalité de l'offre « Ultime » (BUSINESS).
   "leads_crm",
+  "invoice_logo",
+  "invoice_template_choice",
+  "invoice_photo",
   // Fonctionnalité de base (tous plans) — capacité illimitée pour BUSINESS.
   "customer_subscriptions",
 ]
@@ -263,6 +281,7 @@ export const PLAN_MATRIX: Record<LicensePlan, PlanEntitlements> = {
       // (founderFeatures) les obtiennent automatiquement ; Essential/Free non.
       email_reminders: true,
       review_requests: true,
+      invoice_logo: true,
       customer_subscriptions: true,
     },
     limits: {
