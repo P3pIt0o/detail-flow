@@ -118,4 +118,77 @@ describe("Factur-X C2 - PDF visuel fictif", () => {
       })
     ).rejects.toThrow("FACTURX_INVALID_SNAPSHOT")
   })
+
+  it("Factur-X C3 - facture longue de 40 prestations", async () => {
+    const items = Array.from({ length: 40 }, (_, i) => ({
+      ...input.items[0],
+      label: "Prestation detailing " + String(i + 1).padStart(2, "0"),
+      description: "Nettoyage complet et preparation du vehicule",
+      quantity: 1,
+      unitPriceCents: 10000,
+      sortOrder: i,
+    }))
+
+    const data: BuildFacturXXmlInput = {
+      invoice: {
+        ...input.invoice,
+        number: "FAC-C3-LONGUE",
+        itemsTotalCents: 400000,
+        netCents: 400000,
+        vatCents: 80000,
+        totalCents: 480000,
+        balanceCents: 477000,
+      },
+      items,
+    }
+
+    const pdf = await renderFacturXPrototypePdf(data)
+    const { PDFDocument } = await import("pdf-lib")
+    const doc = await PDFDocument.load(pdf)
+
+    expect(doc.getPageCount()).toBeGreaterThan(1)
+
+    const extracted = await extract({ pdf })
+    const xml = Buffer.from(extracted.xml).toString("utf8")
+
+    expect(
+      (xml.match(/<ram:IncludedSupplyChainTradeLineItem>/g) ?? []).length
+    ).toBe(40)
+
+    if (process.env.FACTURX_C3_LONG_OUTPUT) {
+      writeFileSync(process.env.FACTURX_C3_LONG_OUTPUT, pdf)
+    }
+  }, 30000)
+
+  it("Factur-X C3 - remise de 15 euros", async () => {
+    const data: BuildFacturXXmlInput = {
+      ...input,
+      invoice: {
+        ...input.invoice,
+        number: "FAC-C3-REMISE",
+        discountCents: 1500,
+        netCents: 13500,
+        vatCents: 2700,
+        totalCents: 16200,
+        balanceCents: 13200,
+      },
+    }
+
+    const pdf = await renderFacturXPrototypePdf(data)
+    const extracted = await extract({ pdf })
+    const xml = Buffer.from(extracted.xml).toString("utf8")
+
+    const { check } = await import("@stafyniaksacha/facturx")
+    const validation = await check({
+      xml,
+      schematron: true,
+    })
+
+    expect(validation.valid).toBe(true)
+    expect(validation.schematronValid).toBe(true)
+
+    if (process.env.FACTURX_C3_DISCOUNT_OUTPUT) {
+      writeFileSync(process.env.FACTURX_C3_DISCOUNT_OUTPUT, pdf)
+    }
+  }, 30000)
 })

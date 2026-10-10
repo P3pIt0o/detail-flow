@@ -23,6 +23,8 @@ import {
   embedFacturXXmlInPdf,
 } from "@/lib/invoice/facturx-pdfa"
 
+import type { InvoiceTemplate } from "./template-policy"
+
 type Input = BuildFacturXXmlInput
 
 const styles = StyleSheet.create({
@@ -106,10 +108,55 @@ const styles = StyleSheet.create({
   },
 })
 
+
+const templateStyles = {
+  basic: StyleSheet.create({
+    ...styles,
+    page: { ...styles.page, color: "#18181b", padding: 38 },
+    title: { ...styles.title, color: "#18181b", fontSize: 19 },
+    heading: { ...styles.heading, color: "#52525b" },
+    header: { ...styles.header, backgroundColor: "#f4f4f5" },
+    balance: { ...styles.balance, backgroundColor: "#f4f4f5" },
+    row: { ...styles.row, borderBottomColor: "#d4d4d8" },
+  }),
+  business_pro: styles,
+  signature_premium: StyleSheet.create({
+    ...styles,
+    page: { ...styles.page, color: "#242424", padding: 45 },
+    title: {
+      ...styles.title,
+      color: "#ae8950",
+      fontSize: 27,
+      letterSpacing: 2,
+    },
+    heading: {
+      ...styles.heading,
+      color: "#ae8950",
+      letterSpacing: 1,
+    },
+    name: { ...styles.name, fontSize: 14 },
+    header: {
+      ...styles.header,
+      backgroundColor: "#eee8db",
+      paddingVertical: 4,
+    },
+    row: { ...styles.row, borderBottomColor: "#c9b895" },
+    balance: {
+      ...styles.balance,
+      backgroundColor: "#eee8db",
+      borderTopWidth: 2,
+      borderTopColor: "#ae8950",
+    },
+    footer: { ...styles.footer, color: "#ae8950" },
+  }),
+}
+
 function PrototypeDocument({
   invoice: inv,
   items,
-}: Input) {
+  template = "business_pro",
+}: Input & { template?: InvoiceTemplate }) {
+  const design = templateStyles[template]
   const money = (n: number) =>
     centsToDecimal(n).replace(".", ",") +
     " " + inv.currencyCode
@@ -123,43 +170,43 @@ function PrototypeDocument({
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.top}>
+      <Page size="A4" style={design.page}>
+        <View style={design.top}>
           <View>
-            <Text style={styles.name}>
+            <Text style={design.name}>
               {inv.issuerName}
             </Text>
             {inv.issuerAddress ? (
               <Text>{inv.issuerAddress}</Text>
             ) : null}
-            <Text style={styles.muted}>
+            <Text style={design.muted}>
               {inv.issuerCountry}
             </Text>
             {inv.issuerEmail ? (
-              <Text style={styles.muted}>
+              <Text style={design.muted}>
                 {inv.issuerEmail}
               </Text>
             ) : null}
           </View>
           <View>
-            <Text style={styles.title}>
+            <Text style={design.title}>
               FACTURE
             </Text>
             <Text>{inv.number}</Text>
-            <Text style={styles.muted}>
+            <Text style={design.muted}>
               Émise le {date(inv.issueDate)}
             </Text>
             {inv.dueDate ? (
-              <Text style={styles.muted}>
+              <Text style={design.muted}>
                 Échéance : {date(inv.dueDate)}
               </Text>
             ) : null}
           </View>
         </View>
 
-        <View style={styles.cols}>
-          <View style={styles.col}>
-            <Text style={styles.heading}>
+        <View style={design.cols}>
+          <View style={design.col}>
+            <Text style={design.heading}>
               ÉMETTEUR
             </Text>
             {inv.issuerLegalRegistrationNumber ? (
@@ -172,27 +219,27 @@ function PrototypeDocument({
             ) : null}
           </View>
 
-          <View style={styles.col}>
-            <Text style={styles.heading}>
+          <View style={design.col}>
+            <Text style={design.heading}>
               FACTURÉ À
             </Text>
-            <Text style={styles.name}>
+            <Text style={design.name}>
               {inv.customerName}
             </Text>
             {inv.customerAddress ? (
               <Text>{inv.customerAddress}</Text>
             ) : null}
-            <Text style={styles.muted}>
+            <Text style={design.muted}>
               {inv.customerCountry}
             </Text>
             {inv.customerEmail ? (
-              <Text style={styles.muted}>
+              <Text style={design.muted}>
                 {inv.customerEmail}
               </Text>
             ) : null}
             {inv.customerType === "business" &&
              inv.customerLegalRegistrationNumber ? (
-              <Text style={styles.muted}>
+              <Text style={design.muted}>
                 Identifiant légal : {inv.customerLegalRegistrationNumber}
               </Text>
             ) : null}
@@ -205,7 +252,7 @@ function PrototypeDocument({
           </Text>
         ) : null}
 
-        <View style={[styles.row, styles.header]}>
+        <View style={[design.row, design.header]}>
           <Text style={{ width: "47%" }}>Prestation</Text>
           <Text style={{ width: "10%" }}>Qté</Text>
           <Text style={{ width: "20%" }}>Prix HT</Text>
@@ -215,13 +262,13 @@ function PrototypeDocument({
         {sortedItems.map((it, index) => (
           <View
             key={index}
-            style={styles.row}
+            style={design.row}
             wrap={false}
           >
             <View style={{ width: "47%" }}>
               <Text>{it.label}</Text>
               {it.description ? (
-                <Text style={styles.muted}>
+                <Text style={design.muted}>
                   {it.description}
                 </Text>
               ) : null}
@@ -238,25 +285,25 @@ function PrototypeDocument({
           </View>
         ))}
 
-        <View style={styles.totals}>
-          <View style={styles.total}>
+        <View style={design.totals}>
+          <View style={design.total}>
             <Text>Sous-total HT</Text>
             <Text>{money(inv.itemsTotalCents)}</Text>
           </View>
 
           {inv.discountCents > 0 ? (
-            <View style={styles.total}>
+            <View style={design.total}>
               <Text>Remise</Text>
               <Text>-{money(inv.discountCents)}</Text>
             </View>
           ) : null}
 
-          <View style={styles.total}>
+          <View style={design.total}>
             <Text>Net HT</Text>
             <Text>{money(inv.netCents)}</Text>
           </View>
 
-          <View style={styles.total}>
+          <View style={design.total}>
             <Text>
               {inv.vatEnabled
                 ? `TVA (${inv.vatRate} %)`
@@ -265,26 +312,26 @@ function PrototypeDocument({
             <Text>{money(inv.vatCents)}</Text>
           </View>
 
-          <View style={styles.total}>
+          <View style={design.total}>
             <Text>Total TTC</Text>
             <Text>{money(inv.totalCents)}</Text>
           </View>
 
           {inv.depositCents > 0 ? (
-            <View style={styles.total}>
+            <View style={design.total}>
               <Text>Acompte réglé</Text>
               <Text>-{money(inv.depositCents)}</Text>
             </View>
           ) : null}
 
           {inv.paidCents > 0 ? (
-            <View style={styles.total}>
+            <View style={design.total}>
               <Text>Paiements reçus</Text>
               <Text>-{money(inv.paidCents)}</Text>
             </View>
           ) : null}
 
-          <View style={styles.balance}>
+          <View style={design.balance}>
             <Text>RESTE À RÉGLER</Text>
             <Text>{money(inv.balanceCents)}</Text>
           </View>
@@ -305,7 +352,7 @@ function PrototypeDocument({
           </View>
         ) : null}
 
-        <Text style={styles.footer} fixed>
+        <Text style={design.footer} fixed>
           PROTOTYPE FACTUR-X — DOCUMENT DE TEST — NE PAS ENVOYER
         </Text>
       </Page>
@@ -319,8 +366,13 @@ function PrototypeDocument({
  * Aucun avoir autorisé dans ce prototype.
  */
 export async function renderFacturXPrototypePdf(
-  input: Input
+  input: Input,
+  options: { template?: InvoiceTemplate } = {}
 ): Promise<Buffer> {
+  const template = options.template ?? "business_pro"
+  if (!Object.prototype.hasOwnProperty.call(templateStyles, template)) {
+    throw new Error("FACTURX_TEMPLATE_INVALID")
+  }
   if (input.invoice.documentType !== "invoice") {
     throw new Error("FACTURX_C2_INVOICE_ONLY")
   }
@@ -355,7 +407,7 @@ export async function renderFacturXPrototypePdf(
   })
 
   const source = await renderToBuffer(
-    <PrototypeDocument {...input} />
+    <PrototypeDocument {...input} template={template} />
   )
 
   return embedFacturXXmlInPdf({
