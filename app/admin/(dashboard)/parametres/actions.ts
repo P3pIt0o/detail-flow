@@ -5,6 +5,8 @@ import { and, eq, gte, lte, inArray } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { settings, businessHours, timeOff, bookings, companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
+import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
+import { canChangeInvoiceLogo } from "@/lib/invoice/logo-access"
 import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
@@ -52,6 +54,29 @@ export async function saveInvoicingSettings(input: {
   const { tenant } = await requireCompanyMember()
   await ensureSettingsRow(tenant.id)
 
+  if (input.invoiceLogoPathname !== null &&
+      typeof input.invoiceLogoPathname !== "string") {
+    return { ok: false, error: "Logo invalide." }
+  }
+
+  const [currentLogo] = await db
+    .select({ pathname: settings.invoiceLogoPathname })
+    .from(settings)
+    .where(eq(settings.companyId, tenant.id))
+    .limit(1)
+
+  const savedLogo = currentLogo?.pathname ?? null
+  const requestedLogo = input.invoiceLogoPathname || null
+
+  if (requestedLogo !== savedLogo) {
+    const enabled = await canUseFeature(tenant.id, "invoice_logo")
+    if (!canChangeInvoiceLogo(
+      requestedLogo, savedLogo, tenant.id, enabled
+    )) {
+      return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+    }
+  }
+
   const rate = Number.parseFloat(input.vatRate.replace(",", "."))
   if (input.vatEnabled && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
     return { ok: false, error: "Taux de TVA invalide (0 à 100)." }
@@ -74,7 +99,7 @@ export async function saveInvoicingSettings(input: {
       invoiceLegalMentions: input.invoiceLegalMentions.trim() || null,
       invoiceEmailSubject: input.invoiceEmailSubject.trim() || null,
       invoiceEmailBody: input.invoiceEmailBody.trim() || null,
-      invoiceLogoPathname: input.invoiceLogoPathname || null,
+      invoiceLogoPathname: requestedLogo,
       updatedAt: new Date(),
     })
     .where(eq(settings.companyId, tenant.id))
