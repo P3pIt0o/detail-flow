@@ -924,8 +924,10 @@ describe("Lot B - PDF Factur-X de test", () => {
     const { createElement } = await import("react")
     const { Document, Page, Text, Font, renderToBuffer } =
       await import("@react-pdf/renderer")
-    const { generate, extract } =
+    const { extract } =
       await import("@stafyniaksacha/facturx")
+    const { embedFacturXXmlInPdf } =
+      await import("@/lib/invoice/facturx-pdfa")
 
     const xml = xmlOf(buildFacturXXml({
       invoice: frInvoice(),
@@ -954,34 +956,10 @@ describe("Lot B - PDF Factur-X de test", () => {
     )
 
 
-    // Prototype : copie du PDF fictif uniquement.
-    const { PDFDocument, PDFName, PDFString } = await import("pdf-lib")
-    const workingPdf = await PDFDocument.load(source)
-    workingPdf.context.trailerInfo.ID = undefined
-
-    const icc = readFileSync(
-      resolve(assets, "sRGB-v2-magic.icc")
-    )
-
-    const iccStream = workingPdf.context.stream(icc, {
-      N: 3,
-      Length: icc.length,
+    const pdf = await embedFacturXXmlInPdf({
+      sourcePdf: source,
+      xml,
     })
-
-    const outputIntent = workingPdf.context.obj({
-      Type: "OutputIntent",
-      S: "GTS_PDFA1",
-      OutputConditionIdentifier: PDFString.of("sRGB"),
-      DestOutputProfile: workingPdf.context.register(iccStream),
-    })
-
-    const outputRef = workingPdf.context.register(outputIntent)
-    workingPdf.catalog.set(
-      PDFName.of("OutputIntents"),
-      workingPdf.context.obj([outputRef])
-    )
-
-    const pdf = await generate({ pdf: workingPdf, xml })
     const extracted = await extract({ pdf })
 
     expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe("%PDF-")
