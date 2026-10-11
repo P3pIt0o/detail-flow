@@ -5,7 +5,7 @@ type RolloutEnv = {
 
 export function canUseFacturX(
   companyId: number,
-  env: RolloutEnv = process.env
+  env: RolloutEnv = { FACTURX_INVOICES_ENABLED: process.env.FACTURX_INVOICES_ENABLED, FACTURX_PILOT_COMPANY_IDS: process.env.FACTURX_PILOT_COMPANY_IDS }
 ): boolean {
   if (env.FACTURX_INVOICES_ENABLED !== "true") {
     return false
