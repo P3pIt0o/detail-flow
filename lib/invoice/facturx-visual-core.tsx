@@ -3,6 +3,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   Font,
   StyleSheet,
   renderToBuffer,
@@ -25,6 +26,9 @@ import {
 
 import type { InvoiceTemplate } from "./template-policy"
 
+import type { buildFacturXPresentation } from "./facturx-presentation"
+
+type Presentation = ReturnType<typeof buildFacturXPresentation>
 type Input = BuildFacturXXmlInput
 
 const styles = StyleSheet.create({
@@ -155,7 +159,11 @@ function PrototypeDocument({
   invoice: inv,
   items,
   template = "business_pro",
-}: Input & { template?: InvoiceTemplate }) {
+  presentation,
+}: Input & {
+  template?: InvoiceTemplate
+  presentation?: Presentation
+}) {
   const design = templateStyles[template]
   const money = (n: number) =>
     centsToDecimal(n).replace(".", ",") +
@@ -173,11 +181,27 @@ function PrototypeDocument({
       <Page size="A4" style={design.page}>
         <View style={design.top}>
           <View>
+            {presentation?.logoDataUrl ? (
+              <Image
+                src={presentation.logoDataUrl}
+                style={{
+                  width: 100,
+                  maxHeight: 40,
+                  objectFit: "contain",
+                  marginBottom: 6,
+                }}
+              />
+            ) : null}
             <Text style={design.name}>
               {inv.issuerName}
             </Text>
             {inv.issuerAddress ? (
               <Text>{inv.issuerAddress}</Text>
+            ) : null}
+            {presentation?.issuerPhone ? (
+              <Text style={design.muted}>
+                Tél. : {presentation.issuerPhone}
+              </Text>
             ) : null}
             <Text style={design.muted}>
               {inv.issuerCountry}
@@ -237,6 +261,11 @@ function PrototypeDocument({
                 {inv.customerEmail}
               </Text>
             ) : null}
+            {presentation?.customerPhone ? (
+              <Text style={design.muted}>
+                Tél. : {presentation.customerPhone}
+              </Text>
+            ) : null}
             {inv.customerType === "business" &&
              inv.customerLegalRegistrationNumber ? (
               <Text style={design.muted}>
@@ -250,6 +279,21 @@ function PrototypeDocument({
           <Text style={{ marginBottom: 14 }}>
             Date de prestation : {date(inv.serviceDate)}
           </Text>
+        ) : null}
+
+        {(presentation?.vehicle ||
+          presentation?.vehiclePlate) ? (
+          <View style={{ marginBottom: 15 }}>
+            <Text style={design.heading}>VÉHICULE</Text>
+            {presentation.vehicle ? (
+              <Text>{presentation.vehicle}</Text>
+            ) : null}
+            {presentation.vehiclePlate ? (
+              <Text style={design.muted}>
+                Immatriculation : {presentation.vehiclePlate}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
 
         <View style={[design.row, design.header]}>
@@ -352,6 +396,18 @@ function PrototypeDocument({
           </View>
         ) : null}
 
+        {presentation?.footerNote ? (
+          <Text style={{ marginTop: 15, fontSize: 8 }}>
+            {presentation.footerNote}
+          </Text>
+        ) : null}
+
+        {presentation?.legalMentions ? (
+          <Text style={{ marginTop: 7, fontSize: 8 }}>
+            {presentation.legalMentions}
+          </Text>
+        ) : null}
+
         <Text style={design.footer} fixed>
           PROTOTYPE FACTUR-X — DOCUMENT DE TEST — NE PAS ENVOYER
         </Text>
@@ -367,7 +423,10 @@ function PrototypeDocument({
  */
 export async function renderFacturXPrototypePdf(
   input: Input,
-  options: { template?: InvoiceTemplate } = {}
+  options: {
+    template?: InvoiceTemplate
+    presentation?: Presentation
+  } = {}
 ): Promise<Buffer> {
   const template = options.template ?? "business_pro"
   if (!Object.prototype.hasOwnProperty.call(templateStyles, template)) {
@@ -407,7 +466,11 @@ export async function renderFacturXPrototypePdf(
   })
 
   const source = await renderToBuffer(
-    <PrototypeDocument {...input} template={template} />
+    <PrototypeDocument
+      {...input}
+      template={template}
+      presentation={options.presentation}
+    />
   )
 
   return embedFacturXXmlInPdf({
