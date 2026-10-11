@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getCompanyMemberContext } from "@/lib/admin"
 import { getInvoiceDetail } from "@/lib/invoice/queries"
-import { renderInvoicePdf } from "@/lib/invoice/pdf"
+import { renderInvoicePdfSafe } from "@/lib/invoice/facturx-invoice"
 import { getLogoDataUrl } from "@/lib/invoice/logo"
 
 // @react-pdf/renderer nécessite le runtime Node.
@@ -32,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const originalRef = data.originalInvoice
     ? { number: data.originalInvoice.number, issueDate: data.originalInvoice.issueDate }
     : null
-  const pdf = await renderInvoicePdf({ invoice: data.invoice, items: data.items, logoDataUrl, originalRef })
+  const pdf = await renderInvoicePdfSafe({ companyId: ctx.tenant.id, invoice: data.invoice, items: data.items, logoDataUrl, originalRef })
 
   const filename = `${data.invoice.number || `facture-${numId}`}.pdf`
   return new NextResponse(pdf as unknown as BodyInit, {
