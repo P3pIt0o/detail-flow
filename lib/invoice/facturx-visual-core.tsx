@@ -160,9 +160,11 @@ function PrototypeDocument({
   items,
   template = "business_pro",
   presentation,
+  showPrototypeMark = true,
 }: Input & {
   template?: InvoiceTemplate
   presentation?: Presentation
+  showPrototypeMark?: boolean
 }) {
   const design = templateStyles[template]
   const money = (n: number) =>
@@ -408,9 +410,11 @@ function PrototypeDocument({
           </Text>
         ) : null}
 
-        <Text style={design.footer} fixed>
-          PROTOTYPE FACTUR-X — DOCUMENT DE TEST — NE PAS ENVOYER
-        </Text>
+        {showPrototypeMark ? (
+          <Text style={design.footer} fixed>
+            PROTOTYPE FACTUR-X — DOCUMENT DE TEST — NE PAS ENVOYER
+          </Text>
+        ) : null}
       </Page>
     </Document>
   )
@@ -421,11 +425,12 @@ function PrototypeDocument({
  * La validation du XML précède toute génération.
  * Aucun avoir autorisé dans ce prototype.
  */
-export async function renderFacturXPrototypePdf(
+async function renderFacturXDocumentPdf(
   input: Input,
   options: {
     template?: InvoiceTemplate
     presentation?: Presentation
+    showPrototypeMark?: boolean
   } = {}
 ): Promise<Buffer> {
   const template = options.template ?? "business_pro"
@@ -470,11 +475,37 @@ export async function renderFacturXPrototypePdf(
       {...input}
       template={template}
       presentation={options.presentation}
+      showPrototypeMark={options.showPrototypeMark ?? true}
     />
   )
 
   return embedFacturXXmlInPdf({
     sourcePdf: source,
     xml: xmlResult.xml,
+  })
+}
+
+
+export async function renderFacturXPrototypePdf(
+  input: Input,
+  options: {
+    template?: InvoiceTemplate
+    presentation?: Presentation
+  } = {}
+): Promise<Buffer> {
+  return renderFacturXDocumentPdf(input, {
+    ...options,
+    showPrototypeMark: true,
+  })
+}
+
+export async function renderFacturXBusinessProPdf(
+  input: Input,
+  presentation?: Presentation
+): Promise<Buffer> {
+  return renderFacturXDocumentPdf(input, {
+    template: "business_pro",
+    presentation,
+    showPrototypeMark: false,
   })
 }
