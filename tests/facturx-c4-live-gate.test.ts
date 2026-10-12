@@ -66,4 +66,20 @@ describe("Factur-X C4 - branchement reel fail closed", () => {
     expect(validation.valid).toBe(true)
     expect(validation.schematronValid).toBe(true)
   }, 30000)
+
+  it("trace le repli sans journaliser le snapshot client", async () => {
+    enablePilot()
+    vi.stubEnv("FACTURX_C4_FINAL_RENDERER_ENABLED", "true")
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const final = vi.fn(async () => {
+      throw new Error("FACTURX_INVALID_SNAPSHOT: " + JSON.stringify({ customerName: "SECRET" }))
+    })
+    expect(await renderInvoicePdfSafe(data, { legacy, final })).toBe(legacyPdf)
+    expect(warn).toHaveBeenCalledWith("FACTURX_PILOT_FALLBACK", {
+      companyId: 77,
+      invoiceId: data.invoice.id,
+      reason: "FACTURX_INVALID_SNAPSHOT",
+    })
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET")
+  })
 })

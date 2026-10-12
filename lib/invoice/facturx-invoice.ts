@@ -48,6 +48,12 @@ export async function renderInvoicePdfSafe(
     const readiness = checkFacturXReadiness(input)
 
     if (!readiness.eligible) {
+      console.warn("FACTURX_PILOT_FALLBACK", {
+        companyId,
+        invoiceId: data.invoice.id,
+        reason: "INELIGIBLE",
+        codes: readiness.codes,
+      })
       return fallback()
     }
 
@@ -72,8 +78,14 @@ export async function renderInvoicePdfSafe(
     }
 
     return pdf
-  } catch {
-    console.warn("FACTURX_PILOT_FALLBACK")
+  } catch (error) {
+    // Message tronqué au code : ne pas journaliser le snapshot (données client).
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn("FACTURX_PILOT_FALLBACK", {
+      companyId,
+      invoiceId: data.invoice.id,
+      reason: message.split(":")[0].slice(0, 80),
+    })
     return fallback()
   }
 }
