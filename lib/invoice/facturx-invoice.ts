@@ -35,9 +35,11 @@ export async function renderInvoicePdfSafe(
     return fallback()
   }
 
-  // Aucun moteur final raccorde pour le moment.
-  // Le prototype de test est interdit ici.
-  if (!renderers.final) {
+  // Second verrou explicite pour le moteur reel : désactivé par défaut.
+  // Les injections de tests restent possibles uniquement dans le pilote.
+  const liveRendererEnabled =
+    process.env.FACTURX_C4_FINAL_RENDERER_ENABLED === "true"
+  if (!renderers.final && !liveRendererEnabled) {
     return fallback()
   }
 
@@ -54,7 +56,13 @@ export async function renderInvoicePdfSafe(
       data.logoDataUrl ?? null
     )
 
-    const pdf = await renderers.final(input, presentation)
+    // Import Node/PDF lourd seulement après les contrôles pilote + éligibilité.
+    // Ne jamais importer le prototype dans le flux de facturation réel.
+    const renderFinal = renderers.final ?? (
+      await import("./facturx-visual-core")
+    ).renderFacturXBusinessProPdf
+
+    const pdf = await renderFinal(input, presentation)
 
     if (
       !Buffer.isBuffer(pdf) ||
