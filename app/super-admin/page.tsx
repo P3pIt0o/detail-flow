@@ -8,7 +8,9 @@ import { SmsRechargesSection } from "@/components/super-admin/sms-recharges-sect
 
 export const dynamic = "force-dynamic"
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null
+// Sur un Preview Vercel, ne jamais générer de liens vers le domaine de production.
+const ROOT_DOMAIN =
+  process.env.VERCEL_ENV === "preview" ? null : (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null)
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (

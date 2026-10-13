@@ -21,7 +21,12 @@ export default function NewCompanyPage() {
           données de démonstration complet.
         </p>
       </div>
-      <CreateCompanyForm rootDomain={process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null} />
+      {/* Sur un Preview Vercel, ne jamais générer de liens vers le domaine de production. */}
+      <CreateCompanyForm
+        rootDomain={
+          process.env.VERCEL_ENV === "preview" ? null : (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? null)
+        }
+      />
     </div>
   )
 }

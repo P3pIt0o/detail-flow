@@ -92,7 +92,14 @@ export function middleware(req: NextRequest) {
   // (`getTenantFromMembership`). Le site public, lui, conserve le défaut : cette
   // exception ne concerne que l'espace admin. Les sous-domaines et ?tenant=
   // (explicites) restent prioritaires, ainsi que le repli super-admin existant.
-  if (!hasExplicitTenant && path.startsWith("/admin")) {
+  //
+  // Même règle pour les API authentifiées appelées DEPUIS l'espace admin
+  // (liste fermée, toutes protégées par getCompanyMemberContext) : sans cela,
+  // un lien relatif comme /api/factures/{id}/pdf retombait sur le tenant par
+  // défaut au lieu de l'entreprise du membre. Les API publiques ne sont PAS
+  // dans cette liste et conservent le défaut. N'affecte que l'aperçu sans
+  // tenant explicite (la production est toujours root/tenant).
+  if (!hasExplicitTenant && (path.startsWith("/admin") || isMemberApiPath(path))) {
     slug = ""
   }
 
@@ -134,6 +141,18 @@ export function middleware(req: NextRequest) {
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } })
+}
+
+const MEMBER_API_PREFIXES = [
+  "/api/admin/",
+  "/api/factures/",
+  "/api/gallery-upload",
+  "/api/photo-gallery-upload",
+  "/api/quote-photos/view",
+]
+
+function isMemberApiPath(path: string): boolean {
+  return MEMBER_API_PREFIXES.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p))
 }
 
 export const config = {
