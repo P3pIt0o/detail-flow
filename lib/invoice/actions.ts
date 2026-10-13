@@ -192,8 +192,21 @@ export async function createInvoiceFromBooking(
     .from(settingsTable)
     .where(eq(settingsTable.companyId, companyId))
     .limit(1)
-  const vatEnabled = settings?.vatEnabled ?? false
-  const vatRate = settings?.vatRate ?? "0"
+  // Traitement fiscal initial : UNIQUEMENT depuis le statut TVA explicite du
+  // vendeur (settings.vatStatus). Aucune inférence pays/client/n° TVA/taux.
+  // Statut inconnu/null => null (legacy, comportement historique conservé).
+  const sellerVatStatus = (settings?.vatStatus ?? "").trim().toLowerCase()
+  const draftTaxTreatment: TaxTreatment | null =
+    sellerVatStatus === "subject" ? "STANDARD" : sellerVatStatus === "exempt" ? "EXEMPT" : null
+  const draftTaxLegalMention =
+    draftTaxTreatment === "EXEMPT" ? settings?.vatExemptNote?.trim() || null : null
+  const draftTax = resolveTaxCalculation({
+    taxTreatment: draftTaxTreatment,
+    legacyVatEnabled: settings?.vatEnabled ?? false,
+    vatRate: Number(settings?.vatRate ?? "0"),
+  })
+  const vatEnabled = draftTax.vatEnabled
+  const vatRate = draftTax.vatRate
   // Devise figée dès le brouillon (réutilise `settings` déjà chargé, aucune
   // requête supplémentaire) : évite tout écart devise aperçu DRAFT vs ISSUED.
   const draftCurrency = resolveDraftCurrency(settings?.billingProfileConfirmedAt != null, settings?.defaultCurrency)
@@ -249,7 +262,7 @@ export async function createInvoiceFromBooking(
     lines: lines.map((l) => ({ kind: l.kind, quantity: l.quantity, unitPriceCents: l.unitPriceCents })),
     discountCents: 0,
     vatEnabled,
-    vatRate: Number(vatRate),
+    vatRate,
     depositCents: booking.depositCents,
     paidCents: 0,
   })
@@ -275,6 +288,8 @@ export async function createInvoiceFromBooking(
         netCents: totals.netCents,
         vatEnabled,
         vatRate: String(vatRate),
+        taxTreatment: draftTaxTreatment,
+        taxLegalMention: draftTaxLegalMention,
         vatCents: totals.vatCents,
         totalCents: totals.totalCents,
         depositCents: booking.depositCents,
