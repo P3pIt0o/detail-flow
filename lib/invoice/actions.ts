@@ -603,6 +603,12 @@ export async function issueInvoice(invoiceId: number): Promise<ActionResult<{ nu
   // DetailFlow n'invente aucune mention automatique.
   const draftTaxTreatment = normalizeTaxTreatment(inv.taxTreatment)
 
+  // Pays acheteur requis pour Factur-X (EN16931 BT-55), uniquement sur les
+  // brouillons au nouveau modèle fiscal. Jamais déduit ; legacy (null) inchangé.
+  if (draftTaxTreatment !== null && !inv.customerCountry?.trim()) {
+    return { ok: false, error: "Renseignez le pays du client avant d'émettre la facture." }
+  }
+
   // Validation minimale de l'émetteur : sans identification de l'entreprise la
   // facture n'est pas valable. On réutilise les champs déjà présents dans les
   // paramètres de facturation (mêmes que ceux snapshotés à l'émission).
