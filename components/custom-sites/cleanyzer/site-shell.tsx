@@ -13,8 +13,9 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
-import { BRAND } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, type ClzNavItem } from "./tokens"
+import { BRAND, TRAVEL } from "./content"
+import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "./seo-content"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, clzPath, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
@@ -36,14 +37,20 @@ const clzSans = Inter({
   display: "swap",
 })
 
+/** Coordonnées publiques RÉELLES du tenant (DetailFlow), affichées si présentes. */
+export type ClzContact = { phone: string | null; phoneRaw: string | null; email: string | null }
+
 export function CleanyzerShell({
   children,
   navItems,
   active,
   immersive = false,
+  contact = null,
 }: {
   children: ReactNode
   navItems: ClzNavItem[]
+  /** Coordonnées réelles (téléphone / e-mail) pour le pied de page (NAP). */
+  contact?: ClzContact | null
   /** libellé de la page courante (pour surbrillance éventuelle) */
   active?: string
   /**
@@ -247,7 +254,7 @@ export function CleanyzerShell({
 
       <main>{children}</main>
 
-      <CleanyzerFooter navItems={navItems} />
+      <CleanyzerFooter navItems={navItems} contact={contact} preview={pathname?.startsWith(CLZ_PREVIEW_BASE) ?? false} />
 
       {/* CTA sticky mobile — apparaît une fois les CTA du hero sortis de l'écran. */}
       <div
@@ -273,7 +280,20 @@ export function CleanyzerShell({
   )
 }
 
-function CleanyzerFooter({ navItems }: { navItems: ClzNavItem[] }) {
+function CleanyzerFooter({
+  navItems,
+  contact,
+  preview,
+}: {
+  navItems: ClzNavItem[]
+  contact: ClzContact | null
+  preview: boolean
+}) {
+  // Maillage interne : pages de prestations + zone (URL indexables).
+  const pages = [
+    ...CLZ_SERVICE_PAGES.map((p) => ({ href: clzPath(`/prestations/${p.slug}`), label: p.h1.replace(/ à domicile à Annecy$/, "") })),
+    { href: clzPath(`/${CLZ_ZONE_PAGE.slug}`), label: "Zone d'intervention autour d'Annecy" },
+  ]
   return (
     <footer className="clz-dark relative overflow-hidden">
       <Image
@@ -285,7 +305,7 @@ function CleanyzerFooter({ navItems }: { navItems: ClzNavItem[] }) {
         className="clz-watermark -right-20 bottom-0 w-[min(70%,720px)]"
       />
       <div className="relative mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-10 md:grid-cols-[1.3fr_1fr_1.2fr_1fr]">
           <div>
             <Image src={LOGO || "/placeholder.svg"} alt={BRAND.name} width={170} height={38} className="h-8 w-auto" />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-[var(--clz-on-dark-muted)]">
@@ -311,19 +331,50 @@ function CleanyzerFooter({ navItems }: { navItems: ClzNavItem[] }) {
           </div>
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--clz-on-dark-muted)]">
+              Prestations
+            </h3>
+            <ul className="mt-4 space-y-2 text-sm">
+              {pages.map((p) => (
+                <li key={p.href}>
+                  <Link href={p.href} className="text-[var(--clz-on-dark)]/90 transition-colors hover:text-white">
+                    {p.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--clz-on-dark-muted)]">
               Disponibilités
             </h3>
             <ul className="mt-4 space-y-2 text-sm text-[var(--clz-on-dark)]/90">
-              <li>Lundi au dimanche</li>
-              <li>7 h 30 à 20 h 30</li>
+              <li>{TRAVEL.daysLabel}</li>
+              <li>{TRAVEL.hoursLabel}</li>
               <li>Service à domicile — {BRAND.area}</li>
-              <li className="text-[var(--clz-on-dark-muted)]">Téléphone & e-mail : à confirmer</li>
+              {contact?.phone && contact.phoneRaw && (
+                <li>
+                  <a href={`tel:${contact.phoneRaw}`} className="transition-colors hover:text-white">
+                    {contact.phone}
+                  </a>
+                </li>
+              )}
+              {contact?.email && (
+                <li>
+                  <a href={`mailto:${contact.email}`} className="break-all transition-colors hover:text-white">
+                    {contact.email}
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
         </div>
         <div className="mt-12 flex flex-col gap-2 border-t border-[var(--clz-line-dark)] pt-6 text-xs text-[var(--clz-on-dark-muted)] md:flex-row md:items-center md:justify-between">
           <span>© {new Date().getFullYear()} {BRAND.name}. Tous droits réservés.</span>
-          <span>Maquette de validation — Phase 1 (non indexée).</span>
+          {preview ? (
+            <span>Maquette de validation — Phase 1 (non indexée).</span>
+          ) : (
+            <span>{BRAND.subtitle}</span>
+          )}
         </div>
       </div>
     </footer>

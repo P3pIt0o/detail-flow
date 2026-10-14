@@ -8,11 +8,13 @@
 import "./zone.css"
 import { CleanyzerZoneModule } from "./zone-module"
 import { ZONE_COMMUNES, joinNames } from "./zones"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
+import Link from "next/link"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, clzPath } from "./tokens"
+import { CLZ_ZONE_PAGE } from "./seo-content"
 
 const allNames = joinNames(ZONE_COMMUNES.map((c) => c.name))
 
-export function ZoneSection() {
+export function ZoneSection({ linkToZonePage = true }: { linkToZonePage?: boolean } = {}) {
   return (
     <section id="zone" className="clz-zone" aria-labelledby="clz-zone-title">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
@@ -37,6 +39,11 @@ export function ZoneSection() {
             Cette liste est indicative. La faisabilité et les frais de déplacement éventuels sont calculés à partir de
             votre adresse complète et précisés avant toute confirmation.
           </p>
+          {linkToZonePage && (
+            <p>
+              <Link href={clzPath(`/${CLZ_ZONE_PAGE.slug}`)}>Voir toute la zone d&apos;intervention et les frais de déplacement</Link>
+            </p>
+          )}
         </div>
       </div>
     </section>

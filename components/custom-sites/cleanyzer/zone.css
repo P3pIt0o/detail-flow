@@ -125,3 +125,4 @@
 .cleanyzer .clz-zone-seo { margin-top: 44px; padding-top: 26px; border-top: 1px solid var(--clz-line); max-width: 70ch; }
 .cleanyzer .clz-zone-seo h3 { font-family: var(--font-clz-display), Georgia, serif; font-weight: 400; font-size: 28px; margin: 0 0 12px; }
 .cleanyzer .clz-zone-seo p { color: var(--clz-muted); margin: 0 0 12px; }
+.cleanyzer .clz-zone-seo a { color: var(--clz-blue); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
