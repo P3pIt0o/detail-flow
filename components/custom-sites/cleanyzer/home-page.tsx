@@ -22,6 +22,7 @@ import {
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { ClzReveal } from "./motion"
 import { PrestationsFilm } from "./prestations-film"
+import { Visit3D } from "./visit-3d"
 import { RealisationsTom } from "./realisations-tom"
 import { CLZ_FAQ } from "./faq-content"
 import { buildFaqJsonLd } from "@/lib/seo/structured-data"
@@ -50,6 +51,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
       <CleanyzerHero />
+      <Visit3D />
       <UniversSection />
       <PrestationsPreview />
       <PrestationsFilm />

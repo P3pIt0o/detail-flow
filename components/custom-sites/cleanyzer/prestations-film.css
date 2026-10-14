@@ -259,3 +259,6 @@
     transition: none;
   }
 }
+.cleanyzer .clz-film-3d{align-self:flex-start;font-size:.85rem;font-weight:600;color:#6fb6ff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.cleanyzer .clz-film-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.25rem;margin-top:4px}
+.cleanyzer .clz-film-actions .clz-film-cta{margin-top:0}

@@ -20,7 +20,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
+import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
+import { goFilm, goVisit, noteStep, registerFilm, useJourney } from "./journey-nav"
+import { clzPath } from "./tokens"
 import "./prestations-film.css"
 
 const FILM_BASE = "/custom-sites/cleanyzer/film"
@@ -31,7 +33,9 @@ const PER_STRIP = 8
 const STEP_VH = 160
 
 type Row = { label: string; detail: string; formula?: Formula; fixed?: string }
-type Step = { clip: string; strips: number; tag: string; title: ReactNode; text: string; rows: Row[] }
+type Seq = (typeof FILM_SEQUENCES)[number]
+type Step = Seq & { tag: string; title: ReactNode; text: string; rows: Row[] }
+const seq = (id: FilmStepId): Seq => FILM_SEQUENCES[filmIndex(id)]
 
 const byKey = (list: Formula[], key: string) => list.find((f) => f.key === key)
 const EXT = (key: string) => byKey(EXTERIEUR_FORMULAS, key)
@@ -39,8 +43,7 @@ const INT = (key: string) => byKey(INTERIEUR_FORMULAS, key)
 
 const STEPS: Step[] = [
   {
-    clip: "mousse",
-    strips: 8,
+    ...seq("exterieur"),
     tag: "Extérieur",
     title: <>Lavage <span className="clz-accent">extérieur</span></>,
     text: "Lavage complet de la carrosserie et des roues, séchage à la main, brillant pneus.",
@@ -50,8 +53,7 @@ const STEPS: Step[] = [
     ],
   },
   {
-    clip: "tapis",
-    strips: 6,
+    ...seq("tapis"),
     tag: "Intérieur",
     title: <>Tapis &amp; <span className="clz-accent">moquettes</span></>,
     text: "Chaque tapis est brossé à la main, puis traité selon la formule choisie.",
@@ -62,8 +64,7 @@ const STEPS: Step[] = [
     ],
   },
   {
-    clip: "audi",
-    strips: 6,
+    ...seq("habitacle"),
     tag: "Intérieur",
     title: <>L&apos;habitacle, <span className="clz-accent">en entier</span></>,
     text: "Aspiration complète de l'habitacle et du coffre, plastiques, tableau de bord, portières, seuils, volant, commandes et vitres intérieures.",
@@ -73,24 +74,21 @@ const STEPS: Step[] = [
     ],
   },
   {
-    clip: "volant",
-    strips: 4,
+    ...seq("sieges"),
     tag: "Intérieur",
     title: <>Sièges, désinfection, <span className="clz-accent">anti-UV</span></>,
     text: "Tout le Premium, plus shampoing des sièges et des tapis, désinfection complète, traitement anti-UV des plastiques et des odeurs tenaces.",
     rows: [{ label: "Excellence", detail: "Le nettoyage intérieur le plus complet", formula: INT("excellence") }],
   },
   {
-    clip: "moteur",
-    strips: 5,
+    ...seq("moteur"),
     tag: "Option",
     title: <>Compartiment <span className="clz-accent">moteur</span></>,
     text: "Nettoyage du compartiment moteur, en complément d'une formule extérieure.",
     rows: [{ label: "Nettoyage du compartiment moteur", detail: "Option extérieure", fixed: "Sur demande" }],
   },
   {
-    clip: "macan",
-    strips: 6,
+    ...seq("diamond"),
     tag: "Sur mesure",
     title: <>Diamond, <span className="clz-accent">sur mesure</span></>,
     text: "Une prestation entièrement personnalisée selon le véhicule, son état et vos besoins, à l'intérieur, à l'extérieur ou les deux.",
@@ -203,6 +201,7 @@ export function PrestationsFilm() {
       if (c !== cur) {
         cur = c
         setActive(c)
+        if (r.top <= 0 && r.bottom >= window.innerHeight) noteStep(STEPS[c].id)
       }
       barsRef.current.forEach((b, j) => {
         if (b) b.style.transform = `scaleX(${j < cur ? 1 : j === cur ? prog : 0})`
@@ -228,14 +227,51 @@ export function PrestationsFilm() {
     window.addEventListener("resize", onResize)
     fit()
     update()
+
+    // Ouvre la séquence exacte (maquette film.js : clzFilmGo, +30 % dans l'étape).
+    const unregister = registerFilm((id) => {
+      start()
+      const i = Math.max(0, filmIndex(id))
+      const span = section.offsetHeight - window.innerHeight
+      window.scrollTo({
+        top: section.getBoundingClientRect().top + window.scrollY + span * ((i + 0.3) / STEPS.length),
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      })
+    })
+
+    // Lien profond depuis une page de prestation : #video=<étape>&from=<slug> ou #zone=<zone>&from=<slug>.
+    const params = new URLSearchParams(window.location.hash.slice(1))
+    const from = params.get("from")
+    const origin = from ? ({ kind: "page", slug: from } as const) : null
+    const video = params.get("video") as FilmStepId | null
+    const zoneParam = params.get("zone") as ZoneKey | null
+    const deepLink = window.setTimeout(() => {
+      if (video && filmIndex(video) >= 0) goFilm(video, origin)
+      else if (zoneParam && zoneParam in JOURNEY_ZONES) goVisit(zoneParam, origin)
+    }, 150)
+
     return () => {
       disposed = true
+      unregister()
+      window.clearTimeout(deepLink)
       io?.disconnect()
       if (raf) cancelAnimationFrame(raf)
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onResize)
     }
   }, [])
+
+  const journey = useJourney()
+  const o = journey.origin
+  const back =
+    o?.kind === "visit"
+      ? {
+          label: o.zone === "final" ? "Retour au choix de formule" : `Retour à la zone ${JOURNEY_ZONES[o.zone].name.toLowerCase()}`,
+          go: () => goVisit(o.zone, null),
+        }
+      : o?.kind === "page"
+        ? { label: "Retour à la prestation", go: () => window.location.assign(clzPath(`/prestations/${o.slug}`)) }
+        : null
 
   const chooseVeh = (v: VehicleKey) => {
     setVeh(v)
@@ -247,7 +283,7 @@ export function PrestationsFilm() {
   }
 
   return (
-    <div className="clz-film-root clz-dark-strong">
+    <div className="clz-film-root clz-dark-strong" id={CLZ_FILM_ANCHOR}>
       <div className="mx-auto max-w-6xl px-4 pt-20 md:px-6 md:pt-28">
         <span className="clz-eyebrow">Prestations en images</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-white">
@@ -300,14 +336,25 @@ export function PrestationsFilm() {
                     )
                   })}
                 </div>
-                <Link
-                  href={s.clip === "macan" || s.clip === "moteur" ? CLZ_DEMANDE_HREF : CLZ_BOOKING_HREF}
-                  className="clz-btn clz-btn-primary clz-film-cta"
-                  tabIndex={i === active ? 0 : -1}
-                >
-                  {s.clip === "macan" || s.clip === "moteur" ? "Faire une demande" : "Réserver"}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                <div className="clz-film-actions">
+                  <Link href={s.action.href} className="clz-btn clz-btn-primary clz-film-cta" tabIndex={i === active ? 0 : -1}>
+                    {s.action.label}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <button
+                    type="button"
+                    className="clz-film-3d"
+                    tabIndex={i === active ? 0 : -1}
+                    onClick={() => goVisit(s.zone ?? "final", { kind: "film", step: s.id })}
+                  >
+                    {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} en 3D` : "Choisir sa formule en 3D"}
+                  </button>
+                  {back && (
+                    <button type="button" className="clz-film-3d" tabIndex={i === active ? 0 : -1} onClick={back.go}>
+                      ← {back.label}
+                    </button>
+                  )}
+                </div>
               </article>
             ))}
           </div>

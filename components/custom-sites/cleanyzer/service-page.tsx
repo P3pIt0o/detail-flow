@@ -22,6 +22,7 @@ import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { FormulaCard, CrossCta } from "./prestations"
 import { PAIRS } from "./realisations-tom"
 import { ZoneSection } from "./zone-section"
+import { JOURNEY_ZONES, filmDeepLink, visitDeepLink, zonesForSide } from "./journey"
 import { ZONE_COMMUNES, ZONE_SECTORS, joinNames } from "./zones"
 import {
   BRAND,
@@ -162,6 +163,28 @@ function KeyFacts() {
   )
 }
 
+function ZoneJourney({ kind, slug }: { kind: "interieur" | "exterieur"; slug: string }) {
+  const zones = zonesForSide(kind === "interieur" ? "int" : "ext")
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+      <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Zone par zone, en vidéo et en 3D</h2>
+      <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {zones.map((k) => (
+          <li key={k} className="clz-card flex flex-col gap-3 p-5">
+            <h3 className="font-semibold text-[var(--clz-fg)]">{JOURNEY_ZONES[k].title}</h3>
+            <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={filmDeepLink(JOURNEY_ZONES[k].film, slug)}>
+              ▶ Voir en vidéo
+            </Link>
+            <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={visitDeepLink(k, slug)}>
+              Voir la zone sur la Porsche 3D
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Page prestation                                                            */
 /* -------------------------------------------------------------------------- */
@@ -236,6 +259,7 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
       </section>
 
       {page.kind === "textile" ? <TextileBody /> : <AutoBody kind={page.kind} />}
+      {page.kind !== "textile" && <ZoneJourney kind={page.kind} slug={page.slug} />}
 
       {pairs.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
