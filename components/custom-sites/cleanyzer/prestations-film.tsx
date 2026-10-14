@@ -267,7 +267,7 @@ export function PrestationsFilm() {
     o?.kind === "visit"
       ? {
           label: o.zone === "final" ? "Retour au choix de formule" : `Retour à la zone ${JOURNEY_ZONES[o.zone].name.toLowerCase()}`,
-          go: () => goVisit(o.zone, null),
+          go: () => goVisit(o.zone, { kind: "film", step: STEPS[active].id }),
         }
       : o?.kind === "page"
         ? { label: "Retour à la prestation", go: () => window.location.assign(clzPath(`/prestations/${o.slug}`)) }
