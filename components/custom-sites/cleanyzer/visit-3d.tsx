@@ -99,6 +99,7 @@ export function Visit3D() {
   const ringArcRef = useRef<SVGCircleElement>(null)
   const ringValRef = useRef<HTMLElement>(null)
   const barRef = useRef<HTMLElement>(null)
+  const cardRef = useRef<HTMLElement>(null)
   const formRef = useRef<FormulaRef>("excellence")
 
   const [status, setStatus] = useState<string | null>("Chargement de la voiture…")
@@ -512,7 +513,18 @@ export function Visit3D() {
         const W0 = cv!.clientWidth
         const H0 = cv!.clientHeight
         const lift = W0 < 700 ? 0.13 * (1 - clamp(kf / 0.7)) : 0
-        if (lift > 0.002) cam.setViewOffset(W0, H0, 0, -lift * H0, W0, H0)
+        // Mobile : la carte de zone occupe le bas de l'écran. On recentre la vue
+        // 3D dans l'espace libre AU-DESSUS de la carte, pour que la zone
+        // éclairée reste visible (décalage progressif autour de chaque zone).
+        let shift = 0
+        const card = cardRef.current
+        if (W0 < 700 && card && zoneW > 0) {
+          const cardTop = card.getBoundingClientRect().top - cv!.getBoundingClientRect().top
+          const freeCenter = (56 + cardTop) / 2
+          shift = Math.max(0, H0 / 2 - freeCenter) * zoneW
+        }
+        const offY = shift - lift * H0
+        if (Math.abs(offY) > 0.5) cam.setViewOffset(W0, H0, 0, offY, W0, H0)
         else if (cam.view?.enabled) cam.clearViewOffset()
         R.render(scene, cam)
       }
@@ -604,7 +616,7 @@ export function Visit3D() {
           ))}
         </ol>
 
-        <article key={zone ?? "none"} className={`v3-card clz-card ${z ? "in" : "off"}`} aria-live="polite">
+        <article ref={cardRef} key={zone ?? "none"} className={`v3-card clz-card ${z ? "in" : "off"}`} aria-live="polite">
           {z && zone && (
             <>
               {fromFilm && (

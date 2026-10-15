@@ -60,7 +60,17 @@
 .v3-credit a{text-decoration:underline}
 @media (max-width:760px){
   .v3-intro{top:18%}
-  .v3-card{bottom:calc(1rem + env(safe-area-inset-bottom,0px));padding:1.1rem 1.1rem 1rem}
+  .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.85rem 1rem .9rem}
+  /* Carte compacte : elle laisse plus de place à la zone éclairée au-dessus. */
+  .v3-card .clz-rule{display:none}
+  .v3-card h3{font-size:1.3rem;margin:.2rem 0 0}
+  .v3-num{font-size:.62rem}
+  .v3-list{margin:.5rem 0;gap:.3rem}
+  .v3-list li{font-size:.8rem;gap:.45rem}
+  .v3-list li b{font-size:.62rem;padding:2px 8px}
+  .v3-more{font-size:.78rem}
+  .v3-actions{margin-top:.55rem;gap:.4rem .7rem}
+  .v3-actions .clz-btn{padding:.5rem .8rem;font-size:.8rem}
   .v3-ring{top:5rem;width:60px;height:60px}
   .v3-ring b{font-size:1.05rem}
   .v3-credit{display:none}
