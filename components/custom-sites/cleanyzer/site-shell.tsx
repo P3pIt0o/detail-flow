@@ -15,6 +15,7 @@ import { Fraunces, Inter } from "next/font/google"
 import { Menu, X, ArrowRight } from "lucide-react"
 import { BRAND, TRAVEL } from "./content"
 import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "./seo-content"
+import { CLZ_FILM_ANCHOR, CLZ_VISIT_ANCHOR } from "./journey"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, clzPath, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
@@ -115,6 +116,29 @@ export function CleanyzerShell({
     observer.observe(target)
     return () => observer.disconnect()
   }, [pathname])
+
+  // Sticky mobile MASQUÉE pendant la visite 3D et le film (maquette validée :
+  // les boutons y masquaient la voiture et les cartes, qui ont leurs propres
+  // CTA). Section « active » = elle couvre le milieu de l'écran.
+  const [inImmersive, setInImmersive] = useState(false)
+  useEffect(() => {
+    const els = [CLZ_VISIT_ANCHOR, CLZ_FILM_ANCHOR]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null)
+    setInImmersive(false)
+    if (!els.length || !("IntersectionObserver" in window)) return
+    const on = new Set<Element>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => (e.isIntersecting ? on.add(e.target) : on.delete(e.target)))
+        setInImmersive(on.size > 0)
+      },
+      { rootMargin: "-45% 0px -45% 0px" },
+    )
+    els.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [pathname])
+  const showSticky = stickyVisible && !inImmersive
 
   const reserverHref = CLZ_BOOKING_HREF
   const devisHref = CLZ_DEMANDE_HREF
@@ -258,10 +282,10 @@ export function CleanyzerShell({
 
       {/* CTA sticky mobile — apparaît une fois les CTA du hero sortis de l'écran. */}
       <div
-        inert={!stickyVisible}
-        aria-hidden={!stickyVisible}
+        inert={!showSticky}
+        aria-hidden={!showSticky}
         className={`fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/80 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:hidden ${
-          stickyVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
+          showSticky ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
         }`}
       >
         <div className="mx-auto flex max-w-md gap-2">

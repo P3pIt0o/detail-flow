@@ -42,11 +42,14 @@ const MESH_RE: Record<ZoneKey, RegExp> = {
   mats: /^rugs_all/,
   seats: /^leather_all_leather_perforated/,
   vents: /^plastic_all_interior_grid/,
-  leather: /^plast_leather_all|^steering_wheel|^leather_door/,
+  // Volant + garnitures INTÉRIEURES des deux portières (cuir, cuir/plastique,
+  // plastique intérieur). `plast_leather_all` (montants, planche de bord) en
+  // est exclu : c'est lui qui éclairait le montant de pare-brise à tort.
+  leather: /^steering_wheel|^leather_door_|^leathplast_door_|^leath_plast_door_|^plastic_door_\d_bl_pl_M_int/,
 }
 const HIDE = /logo|LOGO|number_plate|invisible_all/
 const KEEP =
-  /^(upholstery_all|leather_all|rugs_all|plastic_all|plast_leather_all|steering_wheel|chrome_int|carbon_all|monitors|belts_all|wheel_rim|discs|brakes|AO_tire|metal_parts|glossy_plastic|dynamics_all)/
+  /^(leather_all|rugs_all|plastic_all|plast_leather_all|steering_wheel|chrome_int|carbon_all|monitors|belts_all|wheel_rim|discs|brakes|AO_tire|metal_parts|glossy_plastic|dynamics_all)/
 const FRONT = /^headlights_flash|^lights_pattern_all/
 const BACK = /^red_light_back/
 
@@ -324,6 +327,9 @@ export function Visit3D() {
             shell.push(m)
             if (zk) {
               zoneMats[zk][zoneMats[zk].length - 1] = m
+              // Pièce de zone située dans la coque (ex. portières) : elle reste
+              // visible quand sa zone est active, au lieu d'être fantôme.
+              m.userData.zone = zk
               m.emissiveMap = null
               m.emissive = new THREE.Color("#0a84ff")
               m.emissiveIntensity = 0
@@ -363,7 +369,8 @@ export function Visit3D() {
           { p: A.mats.clone().add(v(-0.25, 1.1, 2.8)), t: A.mats.clone().add(v(-0.45, -0.3, 0)), x: 1 },
           { p: A.seats.clone().add(v(0.55, 0.85, 2.45)), t: A.seats.clone(), x: 1 },
           { p: A.vents.clone().add(v(-1.15, 0.3, 0.12)), t: A.vents.clone(), x: 1 },
-          { p: A.leather.clone().add(v(-1.15, 0.35, 0.55)), t: A.leather.clone(), x: 1 },
+          // Cadrage volant + garniture de la portière conducteur (visée décalée vers la portière).
+          { p: A.leather.clone().add(v(-0.42, 0.32, 0.68)), t: A.leather.clone().add(v(0, -0.12, -0.2)), x: 1 },
           { p: v(hl * 1.9, H * 3.6, hw * 4.9), t: v(-hl * 0.05, -H * 1.7, 0), x: 0.7 },
         ]
         // Moteur arrière (911) : volume holographique, le modèle n'a pas de moteur modélisé.
@@ -435,6 +442,9 @@ export function Visit3D() {
         cam.lookAt(curT.getPoint(u))
         const xr = lerp(KEYS[ki].x, KEYS[ki + 1].x, sm(fr))
         const op = lerp(1, 0.045, xr)
+        const nearK = Math.round(kf)
+        const actZone = KEY_ORDER[nearK] ?? null
+        const zoneW = actZone ? clamp(1 - Math.abs(kf - nearK) / 0.32) : 0
         for (const m of shell) {
           const ghost = xr > 0.01
           const tr = ghost ? true : m.userData.tr
@@ -442,8 +452,10 @@ export function Visit3D() {
             m.transparent = tr
             m.needsUpdate = true
           }
-          m.opacity = ghost ? Math.min(m.userData.op, op) : m.userData.op
-          m.depthWrite = xr < 0.3
+          const ghostOp = ghost ? Math.min(m.userData.op, op) : m.userData.op
+          const w = m.userData.zone && m.userData.zone === actZone ? zoneW : 0
+          m.opacity = lerp(ghostOp, Math.max(ghostOp, 0.85 * m.userData.op), w)
+          m.depthWrite = xr < 0.3 || w > 0.5
         }
         cabin.intensity = xr * 0.6
         car.rotation.y = Math.sin(t * 0.25) * 0.35 * (1 - clamp(kf))
