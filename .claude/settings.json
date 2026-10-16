@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
+  },
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(node .claude/hooks/lot.mjs *)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm exec vitest run *)",
+      "Bash(pnpm exec tsc --noEmit)",
+      "Bash(pnpm exec tsc --noEmit *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git branch --show-current)",
+      "Bash(git switch lot/*)",
+      "Bash(git switch -c lot/*)",
+      "Bash(git add *)",
+      "Bash(git commit -m *)"
+    ],
+    "ask": [
+      "Bash(pnpm add *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm install)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm update *)",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git tag *)",
+      "Bash(git remote add *)",
+      "Bash(git remote set-url *)",
+      "Bash(git config *)",
+      "Bash(git -c *)",
+      "Bash(gh *)",
+      "Bash(vercel *)",
+      "Bash(stripe *)",
+      "Bash(neonctl *)",
+      "Bash(psql *)",
+      "Bash(pg_dump *)",
+      "Bash(pg_restore *)",
+      "Bash(*drizzle-kit*)",
+      "Bash(*prisma migrate*)",
+      "Bash(*prisma db*)",
+      "Bash(npx *)",
+      "Bash(pnpm dlx *)",
+      "Bash(pnpm run *)",
+      "Bash(tsx *)",
+      "Bash(*node .claude/hooks/dfguard.mjs*)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(sudo *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(printenv*)",
+      "Bash(env)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.development)",
+      "Read(.env.development.local)",
+      "Read(.env.production)",
+      "Read(.env.production.local)",
+      "Read(.env.test)",
+      "Read(.env.test.local)",
+      "Read(.env.preview)",
+      "Read(.env.preview.local)",
+      "Read(!.env.example)",
+      "Edit(.env)",
+      "Edit(.env.local)",
+      "Edit(.env.development)",
+      "Edit(.env.development.local)",
+      "Edit(.env.production)",
+      "Edit(.env.production.local)",
+      "Edit(.env.test)",
+      "Edit(.env.test.local)",
+      "Edit(.env.preview)",
+      "Edit(.env.preview.local)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.config/detailflow-guard/**)",
+      "Read(~/.config/stripe/**)",
+      "Read(~/.config/neonctl/**)",
+      "Read(~/.local/share/com.vercel.cli/**)",
+      "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
+      "Read(~/.npmrc)",
+      "Read(~/.pgpass)",
+      "Read(~/.claude/.credentials.json)",
+      "Read(./.vercel/**)",
+      "Edit(./.claude/**)",
+      "Edit(./CLAUDE.md)",
+      "Edit(./.git/**)",
+      "mcp__*"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org"
+      ],
+      "deniedDomains": [
+        "github.com",
+        "*.github.com",
+        "*.githubusercontent.com",
+        "vercel.com",
+        "*.vercel.com",
+        "*.vercel.app",
+        "*.vercel-storage.com",
+        "stripe.com",
+        "*.stripe.com",
+        "neon.tech",
+        "*.neon.tech",
+        "resend.com",
+        "*.resend.com",
+        "allmysms.com",
+        "*.allmysms.com",
+        "detailflow.fr",
+        "*.detailflow.fr"
+      ]
+    },
+    "filesystem": {
+      "denyRead": [
+        "./.env",
+        "./.env.local",
+        "./.env.development",
+        "./.env.development.local",
+        "./.env.production",
+        "./.env.production.local",
+        "./.env.test",
+        "./.env.test.local",
+        "./.env.preview",
+        "./.env.preview.local",
+        "./.vercel",
+        "~/.config/detailflow-guard"
+      ]
+    },
+    "credentials": {
+      "files": [
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/detailflow-guard",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/stripe",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/neonctl",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.local/share/com.vercel.cli",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.vercel",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.netrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.npmrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.pgpass",
+          "mode": "deny"
+        }
+      ],
+      "envVars": [
+        {
+          "name": "DATABASE_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "NEON_DATABASE_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "NEON_DATABASE_URL_UNPOOLED",
+          "mode": "deny"
+        },
+        {
+          "name": "POSTGRES_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "POSTGRES_PRISMA_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "POSTGRES_URL_NON_POOLING",
+          "mode": "deny"
+        },
+        {
+          "name": "PGPASSWORD",
+          "mode": "deny"
+        },
+        {
+          "name": "PGHOST",
+          "mode": "deny"
+        },
+        {
+          "name": "PGUSER",
+          "mode": "deny"
+        },
+        {
+          "name": "PGDATABASE",
+          "mode": "deny"
+        },
+        {
+          "name": "CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL",
+          "mode": "deny"
+        },
+        {
+          "name": "CUSTOMER_SUBSCRIPTIONS_STRIPE_TEST_SECRET_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "mode": "deny"
+        },
+        {
+          "name": "STRIPE_BILLING_WEBHOOK_SECRET",
+          "mode": "deny"
+        },
+        {
+          "name": "STRIPE_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "BETTER_AUTH_SECRET",
+          "mode": "deny"
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "ALLMYSMS_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "ALLMYSMS_LOGIN",
+          "mode": "deny"
+        },
+        {
+          "name": "CRON_SECRET",
+          "mode": "deny"
+        },
+        {
+          "name": "GOOGLE_MAPS_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "BLOB_READ_WRITE_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_ENTERPRISE_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "VERCEL_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "VERCEL_OIDC_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "NEON_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "NPM_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "NODE_AUTH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "V0_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "mode": "deny"
+        }
+      ]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.mjs"
+            ],
+            "timeout": 20,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.mjs",
+              "--session-start"
+            ],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
