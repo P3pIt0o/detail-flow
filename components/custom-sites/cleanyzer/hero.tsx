@@ -85,19 +85,21 @@ export function CleanyzerHero() {
         <span className="clz-eyebrow">
           {BRAND.name} — {BRAND.area}
         </span>
-        {/* Composition imposée en 3 lignes (maquette) : blocs explicites pour
-            que le navigateur ne choisisse pas librement les retours. */}
-        <h1 className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
-          <span className="block">Le détail</span>
-          <span className="block">fait toute</span>
+        {/* Signature visuelle (composition imposée en 3 lignes, maquette).
+            SEO : ce n'est PAS le titre de la page — le H1 est la ligne
+            descriptive ci-dessous (mots-clés « nettoyage automobile à
+            domicile » + « Annecy »), sans aucun changement visuel. */}
+        <p className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
+          <span className="block">Le détail</span>{" "}
+          <span className="block">fait toute</span>{" "}
           <span className="clz-accent block">la différence.</span>
-        </h1>
-        {/* Sous-titre : deux lignes tenues (maquette), taille réduite avant tout
-            retour supplémentaire — autorisé seulement sur très petits écrans. */}
-        <p className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
-          <span className="block">Nettoyage automobile à domicile.</span>
-          <span className="block">Intérieur, extérieur &amp; detailing.</span>
         </p>
+        {/* H1 : deux lignes tenues (maquette), taille réduite avant tout
+            retour supplémentaire — autorisé seulement sur très petits écrans. */}
+        <h1 className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base font-normal leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
+          <span className="block">Nettoyage automobile à domicile à Annecy.</span>{" "}
+          <span className="block">Intérieur, extérieur &amp; detailing.</span>
+        </h1>
 
         {/* id observé par la barre sticky mobile (site-shell) pour son apparition. */}
         <div id="clz-hero-ctas" className="clz-rise clz-rise-3 mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">

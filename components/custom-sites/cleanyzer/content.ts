@@ -207,9 +207,10 @@ export const TRAVEL = {
   daysLabel: "Lundi au dimanche",
   hoursLabel: "7 h 30 à 20 h 30",
   base: "Annecy et alentours",
-  // Point de référence carte = Annecy (cahier §9). La zone incluse est un RAYON
-  // de 20 km autour d'Annecy, PAS une liste de communes (règle Tom). Ces
-  // coordonnées ne servent qu'à centrer la carte de zone.
+  // La zone incluse est un RAYON de 20 km à l'aller pris depuis l'adresse de
+  // CLEANYZER à Choisy (74330), PAS une liste de communes (règle Tom). Le
+  // calcul réel est fait côté serveur depuis l'adresse du tenant. Ces
+  // coordonnées (Annecy) ne servent qu'au centrage historique de la carte.
   annecy: { lat: 45.8992, lng: 6.1294 },
 } as const
 
