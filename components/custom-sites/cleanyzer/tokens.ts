@@ -47,6 +47,24 @@ export function clzPath(path: string): string {
  */
 export const CLZ_BOOKING_HREF = publicReservationPath(CLEANYZER_TENANT_SLUG)
 
+/**
+ * Identifiants réels (table `services`, tenant CLEANYZER) vérifiés dans Neon.
+ * Diamond : sur devis, volontairement absent (aucune présélection).
+ */
+export const CLZ_SERVICE_IDS: Record<"interieur" | "exterieur", Partial<Record<string, number>>> = {
+  interieur: { eco: 143, premium: 144, excellence: 145 },
+  exterieur: { eco: 146, premium: 157, excellence: 147 },
+}
+
+/**
+ * Lien BookingV2 avec présélection via le mécanisme existant `?service=<id>`.
+ * Formule inconnue → parcours BookingV2 normal, sans présélection.
+ */
+export function clzBookingHref(kind: "interieur" | "exterieur", formulaKey: string): string {
+  const id = CLZ_SERVICE_IDS[kind][formulaKey]
+  return id ? `${CLZ_BOOKING_HREF}?service=${id}` : CLZ_BOOKING_HREF
+}
+
 /** Accueil public officiel du site personnalisé CLEANYZER (production). */
 export const CLZ_HOME_HREF = clzPath("/")
 

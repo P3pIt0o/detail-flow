@@ -42,7 +42,7 @@ import {
   type ClzFaq,
   type ClzServicePage,
 } from "./seo-content"
-import { CLEANYZER_TENANT_SLUG, CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzPath } from "./tokens"
+import { CLEANYZER_TENANT_SLUG, CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzBookingHref, clzPath } from "./tokens"
 import "./prestations-film.css"
 
 /* -------------------------------------------------------------------------- */
@@ -308,7 +308,7 @@ function AutoBody({ kind }: { kind: "interieur" | "exterieur" }) {
           </p>
           <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {formulasFor(kind).map((f) => (
-              <FormulaCard key={f.key} f={f} reserveHref={CLZ_BOOKING_HREF} />
+              <FormulaCard key={f.key} f={f} reserveHref={clzBookingHref(kind, f.key)} />
             ))}
           </div>
         </div>
