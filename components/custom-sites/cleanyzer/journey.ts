@@ -10,7 +10,7 @@
  */
 
 import { EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, type Formula } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzPath } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzBookingHref, clzPath } from "./tokens"
 
 export type ZoneKey = "body" | "rims" | "engine" | "mats" | "seats" | "vents" | "leather"
 export type FormulaRef = "eco_int" | "premium" | "excellence" | "eco_ext" | "exc_ext" | "diamond"
@@ -83,7 +83,8 @@ export const FILM_SEQUENCES: { id: FilmStepId; clip: string; strips: number; zon
   { id: "exterieur", clip: "mousse", strips: 8, zone: "body", action: BOOK },
   { id: "tapis", clip: "tapis", strips: 6, zone: "mats", action: BOOK },
   { id: "habitacle", clip: "audi", strips: 6, zone: "vents", action: BOOK },
-  { id: "sieges", clip: "volant", strips: 4, zone: "seats", action: BOOK },
+  // Seule séquence à formule unique (Intérieur Excellence) : présélection BookingV2.
+  { id: "sieges", clip: "volant", strips: 4, zone: "seats", action: { label: "Réserver", href: clzBookingHref("interieur", "excellence") } },
   { id: "moteur", clip: "moteur", strips: 5, zone: "engine", action: ASK },
   { id: "diamond", clip: "macan", strips: 6, zone: null, action: ASK },
 ]
