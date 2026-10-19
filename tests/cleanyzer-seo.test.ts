@@ -76,17 +76,39 @@ describe("Cleanyzer — URL canoniques sous /p/cleanyzer", () => {
 describe("Cleanyzer — sitemap et catalogue", () => {
   const urls = sitemap().map((e) => e.url)
 
-  it("liste l'accueil, les 3 prestations et la page zone", () => {
-    expect(urls).toContain(BASE)
-    for (const p of CLZ_SERVICE_PAGES) expect(urls).toContain(`${BASE}/prestations/${p.slug}`)
-    expect(urls).toContain(`${BASE}/${CLZ_ZONE_PAGE.slug}`)
+  it("prépublication V1 : aucune URL Cleanyzer dans le sitemap", () => {
+    for (const u of urls) {
+      expect(u.startsWith(BASE)).toBe(false)
+      expect(u).not.toContain("tenant=cleanyzer")
+    }
   })
 
-  it("aucune URL ?tenant=cleanyzer, réservation, demande ou maquette", () => {
-    for (const u of urls) {
-      expect(u).not.toContain("tenant=cleanyzer")
-      if (u.startsWith(BASE)) expect(u).not.toMatch(/\/reservation|\/demande|cleanyzer-preview/)
+  it("le catalogue reste prêt : accueil, 3 prestations et page zone", () => {
+    const paths = listSitemapPaths(getPublicSiteCatalog("cleanyzer")!).map((e) => e.path)
+    expect(paths).toContain("/")
+    for (const p of CLZ_SERVICE_PAGES) expect(paths).toContain(`/prestations/${p.slug}`)
+    expect(paths).toContain(`/${CLZ_ZONE_PAGE.slug}`)
+    for (const p of paths) expect(p).not.toMatch(/\/reservation|\/demande|cleanyzer-preview/)
+  })
+
+  it("Spirit ACS et Rozan restent dans le sitemap", () => {
+    for (const key of ["spirit-acs", "rozan"] as const) {
+      const catalog = getPublicSiteCatalog(key)!
+      const id = tenantSeoIdentity({
+        slug: catalog.tenantSlug,
+        publicDomain: tenantCanonicalHost(catalog.tenantSlug),
+        publicPathPrefix: tenantCanonicalPathPrefix(catalog.tenantSlug),
+      })
+      for (const { path: p } of listSitemapPaths(catalog)) expect(urls).toContain(tenantCanonicalUrl(p, id))
     }
+  })
+
+  it("noindex, follow appliqué à Cleanyzer seul dans les deux points d'entrée", () => {
+    const src = read("lib/seo/tenant-seo.server.ts")
+    expect(src).toContain('const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set(["cleanyzer"])')
+    expect(src).toContain("{ index: false, follow: true }")
+    expect(src).toContain("if (isPrepublicationSite(tenant.customSiteKey)) return PREPUBLICATION_ROBOTS")
+    expect(src).toContain("robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots")
   })
 
   it("chaque chemin du catalogue est servi par une route", () => {

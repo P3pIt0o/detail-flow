@@ -116,10 +116,24 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
  * tolérantes à l'absence de config (repli non-publié). Mémoïsé par requête via
  * les helpers sous-jacents.
  */
+/**
+ * Prépublication V1 Cleanyzer (validation par Tom) : indexation temporairement
+ * désactivée, liens suivis. À retirer lors de la mise en ligne officielle.
+ */
+const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set(["cleanyzer"])
+const PREPUBLICATION_ROBOTS: Metadata["robots"] = { index: false, follow: true }
+
+function isPrepublicationSite(customSiteKey: string | null | undefined): boolean {
+  const key = customSiteKey?.trim()
+  return Boolean(key && PREPUBLICATION_NOINDEX_SITE_KEYS.has(key))
+}
+
 export async function resolvePublicPageRobots(): Promise<Metadata["robots"] | undefined> {
   const seo = await resolveTenantSeo()
   if (!seo.tenant) return undefined
   const tenant = seo.tenant
+
+  if (isPrepublicationSite(tenant.customSiteKey)) return PREPUBLICATION_ROBOTS
 
   const isCustomSite = Boolean(tenant.customSiteKey?.trim())
 
@@ -201,7 +215,7 @@ export async function buildTenantMetadata(args: {
     imageUrl,
     imageAlt: share ? share.ogAlt : seo.siteName,
     icons: share ? { icon: share.icon, apple: share.icon } : undefined,
-    robots: args.robots,
+    robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots,
   })
 }
 
