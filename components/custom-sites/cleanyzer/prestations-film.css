@@ -262,3 +262,71 @@
 .cleanyzer .clz-film-3d{align-self:flex-start;font-size:.85rem;font-weight:600;color:#6fb6ff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
 .cleanyzer .clz-film-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.25rem;margin-top:4px}
 .cleanyzer .clz-film-actions .clz-film-cta{margin-top:0}
+
+/* Comparateur avant / après (compare-slider.tsx) : un seul cadre, deux photos
+   superposées, découpe pilotée par --clz-cmp (aucun recalcul de layout). */
+.cleanyzer .clz-cmp {
+  --clz-cmp: 50%;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--clz-radius);
+  background: var(--clz-surface-2);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cleanyzer .clz-cmp-img {
+  object-fit: cover;
+  pointer-events: none;
+}
+.cleanyzer .clz-cmp-before {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--clz-cmp)) 0 0);
+}
+.cleanyzer .clz-cmp-after-label {
+  left: auto;
+  right: 8px;
+}
+.cleanyzer .clz-cmp-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--clz-cmp);
+  width: 2px;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+.cleanyzer .clz-cmp-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--clz-blue);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+.cleanyzer .clz-cmp-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.cleanyzer .clz-cmp:has(.clz-cmp-range:focus-visible) {
+  outline: 3px solid var(--clz-blue);
+  outline-offset: 3px;
+}

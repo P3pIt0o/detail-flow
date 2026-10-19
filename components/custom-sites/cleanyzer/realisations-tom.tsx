@@ -6,7 +6,12 @@
  */
 
 import Image from "next/image"
+import Link from "next/link"
+import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_OPTIONS } from "./content"
+import { ClzCompareSlider } from "./compare-slider"
+import { CLZ_OPTIQUES_SLUG } from "./seo-content"
+import { clzPath } from "./tokens"
 import "./prestations-film.css"
 
 const BASE = "/custom-sites/cleanyzer/realisations"
@@ -14,24 +19,43 @@ const BASE = "/custom-sites/cleanyzer/realisations"
 /** Prix de l'option « Rénovation optiques de phares » (barème, content.ts). */
 const OPTIQUES = EXTERIEUR_OPTIONS.find((o) => o.key === "renovation-optiques")?.price
 
-export const PAIRS = [
+const OPTIQUES_LINK = { label: "Découvrir la rénovation des phares", href: clzPath(`/prestations/${CLZ_OPTIQUES_SLUG}`) }
+
+export type ClzPair = {
+  before: string
+  after: string
+  altBefore: string
+  altAfter: string
+  title: string
+  detail: string
+  kind: "interieur" | "exterieur"
+  /** Prestation à page dédiée illustrée par cette paire. */
+  service?: "optiques"
+  link?: { label: string; href: string }
+}
+
+export const PAIRS: ClzPair[] = [
   {
     before: "phare-avant-1",
     after: "phare-apres-1",
-    altBefore: "Optique de phare jaunie et opaque avant rénovation",
-    altAfter: "Même optique de phare redevenue transparente après rénovation",
+    altBefore: "Phare avant jauni et opaque, avant rénovation",
+    altAfter: "Même phare redevenu transparent après rénovation",
     title: "Rénovation des optiques de phares",
     detail: `Option extérieure · ${OPTIQUES} €`,
     kind: "exterieur",
+    service: "optiques",
+    link: OPTIQUES_LINK,
   },
   {
     before: "phare-avant-2",
     after: "phare-apres-2",
     altBefore: "Phare LED voilé sur une citadine noire, avant rénovation",
-    altAfter: "Phare LED transparent après rénovation, carrosserie noire brillante",
+    altAfter: "Même phare LED transparent après rénovation, carrosserie noire brillante",
     title: "Rénovation des optiques de phares",
     detail: `Option extérieure · ${OPTIQUES} €`,
     kind: "exterieur",
+    service: "optiques",
+    link: OPTIQUES_LINK,
   },
   {
     before: "siege-avant",
@@ -43,6 +67,32 @@ export const PAIRS = [
     kind: "interieur",
   },
 ]
+
+export const pairSrc = (name: string) => `${BASE}/${name}.webp`
+
+/** Carte avant / après : comparateur + titre + détail + lien éventuel (HTML natif). */
+export function ClzPairCard({ pair, showLink = true, sizes }: { pair: ClzPair; showLink?: boolean; sizes?: string }) {
+  return (
+    <article data-clz-reveal className="grid gap-2.5">
+      <ClzCompareSlider
+        before={pairSrc(pair.before)}
+        after={pairSrc(pair.after)}
+        altBefore={pair.altBefore}
+        altAfter={pair.altAfter}
+        label={pair.title}
+        sizes={sizes}
+      />
+      <h3 className="mt-1 font-semibold text-[var(--clz-fg)]">{pair.title}</h3>
+      <p className="text-sm text-[var(--clz-muted)]">{pair.detail}</p>
+      {showLink && pair.link && (
+        <Link href={pair.link.href} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--clz-blue)] hover:underline">
+          {pair.link.label}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      )}
+    </article>
+  )
+}
 
 const GALLERY = [
   { src: "jante-rs6", alt: "Jante bicolore et étrier rouge d'une Audi RS6 grise", caption: "Audi RS6 · jantes" },
@@ -57,32 +107,19 @@ const GALLERY = [
 
 export function RealisationsTom() {
   return (
-    <section className="bg-[var(--clz-bg)]">
+    <section id="avant-apres" className="scroll-mt-20 bg-[var(--clz-bg)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <span className="clz-eyebrow">Avant / après</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-[var(--clz-fg)]">
           Des résultats <span className="clz-accent">qui se voient</span>
         </h2>
         <p className="mt-4 max-w-2xl text-pretty leading-relaxed text-[var(--clz-muted)]">
-          De vraies interventions, chez de vrais clients autour d&apos;Annecy.
+          Le résultat en images.
         </p>
 
         <div className="mt-12 grid gap-8 md:grid-cols-3">
           {PAIRS.map((p) => (
-            <article key={p.before} data-clz-reveal className="grid gap-2.5">
-              <div className="clz-pair-duo">
-                <figure>
-                  <span className="clz-pair-label">Avant</span>
-                  <Image src={`${BASE}/${p.before}.webp`} alt={p.altBefore} fill loading="lazy" sizes="(max-width:768px) 50vw, 17vw" className="object-cover" />
-                </figure>
-                <figure>
-                  <span className="clz-pair-label is-after">Après</span>
-                  <Image src={`${BASE}/${p.after}.webp`} alt={p.altAfter} fill loading="lazy" sizes="(max-width:768px) 50vw, 17vw" className="object-cover" />
-                </figure>
-              </div>
-              <h3 className="mt-1 font-semibold text-[var(--clz-fg)]">{p.title}</h3>
-              <p className="text-sm text-[var(--clz-muted)]">{p.detail}</p>
-            </article>
+            <ClzPairCard key={p.before} pair={p} />
           ))}
         </div>
 

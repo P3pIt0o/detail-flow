@@ -31,12 +31,14 @@ const BASE = "/custom-sites/cleanyzer/3d/"
 const THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0"
 
 /** Ordre des images clés de la caméra (maquette : KEYS après insertion du moteur). */
-const KEY_ORDER: (ZoneKey | null)[] = [null, "body", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
+const KEY_ORDER: (ZoneKey | null)[] = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
 const NK = KEY_ORDER.length
 const STEPS = KEY_ORDER.filter((z): z is ZoneKey => z !== null)
 
 const MESH_RE: Record<ZoneKey, RegExp> = {
   body: /^body_|^body__/,
+  // Optiques avant : glace (flash) + bague chromée des deux phares.
+  optics: /^headlights_flash|^headlights_plastics_headlights_plastic_ring/,
   rims: /^wheel_rim|^discs|^metal_parts/,
   engine: /^$^/,
   mats: /^rugs_all/,
@@ -369,6 +371,19 @@ export function Visit3D() {
         A.rims = fw.clone()
         A.body = new THREE.Vector3(0, H * 0.55, hw)
         if (!steer.isEmpty()) A.leather = steer.getCenter(new THREE.Vector3())
+        // Les deux phares forment un seul maillage : on vise le centre du phare
+        // côté caméra (+z), à un rayon de bague du bord extérieur.
+        {
+          const b = new THREE.Box3()
+          root.traverse((o: Any) => {
+            if (o.isMesh && /^headlights_plastics_headlights_plastic_ring/.test(o.name)) b.expandByObject(o)
+          })
+          if (b.isEmpty()) A.optics = new THREE.Vector3(hl * 0.88, H * 0.5, hw * 0.75)
+          else {
+            const r = (b.max.y - b.min.y) / 2
+            A.optics = new THREE.Vector3(lerp((b.min.x + b.max.x) / 2, b.max.x, 0.6), (b.min.y + b.max.y) / 2, b.max.z - r)
+          }
+        }
         ZONE_KEYS.forEach((k) => {
           if (A[k]) zoneAnchor[k] = A[k]
         })
@@ -376,6 +391,8 @@ export function Visit3D() {
         KEYS = [
           { p: v(hl * 1.85, H * 1.7, hw * 4.6), t: v(-hl * 0.15 - 0.75, H * 0.35, 0.75), x: 0 },
           { p: v(hl * 0.1, H * 0.95, hw * 5.3), t: v(-hl * 0.05, H * 0.05, 0), x: 0 },
+          // Optiques : trois-quarts avant, à hauteur de phare.
+          { p: A.optics.clone().add(v(1.55, 0.3, 1.25)), t: A.optics.clone(), x: 0 },
           { p: fw.clone().add(v(1.4, 0.3, 1.7)), t: fw.clone(), x: 0 },
           { p: v(hl * 1.0, H * 1.35, hw * 3.4), t: v(0, H * 0.45, 0), x: 0.85 },
           { p: A.mats.clone().add(v(-0.25, 1.1, 2.8)), t: A.mats.clone().add(v(-0.45, -0.3, 0)), x: 1 },
@@ -414,7 +431,7 @@ export function Visit3D() {
           holo = { fill, line }
           zoneAnchor.engine = new THREE.Vector3((ex0 + ex1) / 2, ey1, 0)
         }
-        KEYS.splice(3, 0, { p: v(-hl * 2.15, H * 1.75, hw * 2.9), t: v(-hl * 0.62, H * 0.38, 0), x: 0.8 })
+        KEYS.splice(4, 0, { p: v(-hl * 2.15, H * 1.75, hw * 2.9), t: v(-hl * 0.62, H * 0.38, 0), x: 0.8 })
         curP = new THREE.CatmullRomCurve3(KEYS.map((k) => k.p), false, "centripetal")
         curT = new THREE.CatmullRomCurve3(KEYS.map((k) => k.t), false, "centripetal")
         cabin.position.set(0, H * 0.8, 0)
@@ -607,9 +624,11 @@ export function Visit3D() {
               {STEPS.map((k) => (
                 <li key={k}>
                   <b>{JOURNEY_ZONES[k].name}</b>
-                  <button type="button" className="v3-link" onClick={() => goFilm(JOURNEY_ZONES[k].film, { kind: "visit", zone: k })}>
-                    Voir en vidéo
-                  </button>
+                  {JOURNEY_ZONES[k].film && (
+                    <button type="button" className="v3-link" onClick={() => goFilm(JOURNEY_ZONES[k].film!, { kind: "visit", zone: k })}>
+                      Voir en vidéo
+                    </button>
+                  )}
                   <Link className="v3-link" href={zoneAction(k).href}>
                     {zoneAction(k).label}
                   </Link>
@@ -683,6 +702,7 @@ export function Visit3D() {
                 Zone {String(step + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
               </div>
               <h3 className="clz-display clz-h3">{z.title}</h3>
+              {z.description && <p className="v3-desc">{z.description}</p>}
               <ul className="v3-list">
                 {zf.map((k) => (
                   <li key={k} className={k === "diamond" ? "dia" : undefined}>
@@ -705,9 +725,11 @@ export function Visit3D() {
                 </Link>
               )}
               <div className="v3-actions">
-                <button type="button" className="clz-btn" onClick={() => goFilm(z.film, { kind: "visit", zone })}>
-                  ▶ Voir la prestation en vidéo
-                </button>
+                {z.film && (
+                  <button type="button" className="clz-btn" onClick={() => goFilm(z.film!, { kind: "visit", zone })}>
+                    ▶ Voir la prestation en vidéo
+                  </button>
+                )}
                 <Link className="clz-btn clz-btn-primary" href={zoneAction(zone).href}>
                   {zoneAction(zone).label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>

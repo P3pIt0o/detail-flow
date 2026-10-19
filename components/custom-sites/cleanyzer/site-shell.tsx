@@ -315,7 +315,7 @@ function CleanyzerFooter({
 }) {
   // Maillage interne : pages de prestations + zone (URL indexables).
   const pages = [
-    ...CLZ_SERVICE_PAGES.map((p) => ({ href: clzPath(`/prestations/${p.slug}`), label: p.h1.replace(/ à domicile à Annecy$/, "") })),
+    ...CLZ_SERVICE_PAGES.map((p) => ({ href: clzPath(`/prestations/${p.slug}`), label: p.linkLabel ?? p.h1.replace(/ à domicile à Annecy$/, "") })),
     { href: clzPath(`/${CLZ_ZONE_PAGE.slug}`), label: "Zone d'intervention autour d'Annecy" },
   ]
   return (

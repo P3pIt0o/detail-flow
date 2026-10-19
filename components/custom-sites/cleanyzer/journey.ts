@@ -9,10 +9,10 @@
  * défilement (pas de vidéo à timecodes). La séquence exacte = l'index d'étape.
  */
 
-import { EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, type Formula } from "./content"
+import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, type Formula } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzBookingHref, clzPath } from "./tokens"
 
-export type ZoneKey = "body" | "rims" | "engine" | "mats" | "seats" | "vents" | "leather"
+export type ZoneKey = "body" | "optics" | "rims" | "engine" | "mats" | "seats" | "vents" | "leather"
 export type FormulaRef = "eco_int" | "premium" | "excellence" | "eco_ext" | "exc_ext" | "diamond"
 export type FilmStepId = "exterieur" | "tapis" | "habitacle" | "sieges" | "moteur" | "diamond"
 export type Side = "int" | "ext" | "both"
@@ -60,16 +60,32 @@ export type JourneyZone = {
   /** Ce que chaque formule fait sur cette zone (maquette CLZ_VISIT_DATA.Z). */
   formulas: Partial<Record<FormulaRef, string>>
   options: { label: string; price: string }[]
-  film: FilmStepId
+  /** Séquence du film ; `null` quand aucune séquence ne montre la zone. */
+  film: FilmStepId | null
+  description?: string
+  /** Page de prestation dédiée : remplace l'action par défaut de la zone. */
+  link?: ClzAction
 }
 
 const optPrice = (key: string) => {
-  const o = INTERIEUR_OPTIONS.find((x) => x.key === key)
+  const o = [...INTERIEUR_OPTIONS, ...EXTERIEUR_OPTIONS].find((x) => x.key === key)
   return o ? (o.priceLabel ?? `${o.price} €`) : "Sur demande"
 }
 
+export const CLZ_OPTIQUES_PAGE = clzPath("/prestations/renovation-optiques-phares-annecy")
+
 export const JOURNEY_ZONES: Record<ZoneKey, JourneyZone> = {
   body: { name: "Carrosserie", title: "Carrosserie", side: "ext", film: "exterieur", options: [], formulas: { eco_ext: "Lavage complet de la carrosserie, séchage à la main", exc_ext: "+ détails au pinceau et double séchage", diamond: "Sur devis" } },
+  optics: {
+    name: "Optiques",
+    title: "Rénovation des optiques",
+    side: "ext",
+    film: null,
+    description: "Des phares jaunis ou ternis ? Redonnez de la transparence à vos optiques et améliorez l'apparence de votre véhicule.",
+    options: [{ label: "Rénovation optiques de phares", price: optPrice("renovation-optiques") }],
+    formulas: {},
+    link: { label: "Découvrir la rénovation des phares", href: CLZ_OPTIQUES_PAGE },
+  },
   rims: { name: "Jantes", title: "Jantes", side: "ext", film: "exterieur", options: [], formulas: { exc_ext: "Jantes approfondies", diamond: "Sur devis" } },
   engine: { name: "Moteur", title: "Compartiment moteur", side: "ext", film: "moteur", options: [{ label: "Nettoyage moteur", price: "Sur demande" }], formulas: {} },
   mats: { name: "Tapis", title: "Tapis & moquettes", side: "int", film: "tapis", options: [{ label: "Shampoing moquettes", price: optPrice("shampoing-moquettes") }, { label: "Imperméabilisation tapis", price: optPrice("imper-tapis") }], formulas: { premium: "Tapis", excellence: "Shampoing et traitement des tapis", diamond: "Sur devis" } },
@@ -95,6 +111,8 @@ export const filmIndex = (id: FilmStepId) => FILM_SEQUENCES.findIndex((s) => s.i
 export const zoneFormulas = (z: ZoneKey) => Object.keys(JOURNEY_ZONES[z].formulas) as FormulaRef[]
 
 export function zoneAction(z: ZoneKey): ClzAction {
+  const link = JOURNEY_ZONES[z].link
+  if (link) return link
   return zoneFormulas(z).some((k) => k !== "diamond") ? BOOK : ASK
 }
 

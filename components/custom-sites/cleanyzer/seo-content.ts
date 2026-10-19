@@ -90,13 +90,15 @@ export const CLZ_HOME_META = {
 /*  Pages de prestations                                                       */
 /* -------------------------------------------------------------------------- */
 
-export type ClzServiceKind = "interieur" | "exterieur" | "textile"
+export type ClzServiceKind = "interieur" | "exterieur" | "textile" | "optiques"
 
 export type ClzServicePage = {
   slug: string
   kind: ClzServiceKind
   /** Libellé court (navigation, fil d'Ariane, cartes, pied de page). */
   label: string
+  /** Libellé des liens internes quand le H1 ne suit pas le motif « … à domicile à Annecy ». */
+  linkLabel?: string
   metaTitle: string
   metaDescription: string
   eyebrow: string
@@ -128,6 +130,11 @@ const canape = (key: string) => {
   if (!t) throw new Error(`[cleanyzer] article textile inconnu : ${key}`)
   return t.priceLabel
 }
+
+export const CLZ_OPTIQUES_SLUG = "renovation-optiques-phares-annecy"
+
+/** Prix de l'option « renovation-optiques » (barème `content.ts`). */
+export const CLZ_OPTIQUES_PRICE = optionPrice("renovation-optiques")
 
 export const CLZ_SERVICE_PAGES: ClzServicePage[] = [
   {
@@ -233,6 +240,41 @@ export const CLZ_SERVICE_PAGES: ClzServicePage[] = [
       {
         q: "Comment demander le nettoyage d'un canapé, d'un matelas ou d'un tapis ?",
         a: "Le textile passe par une demande personnalisée : décrivez l'article (type, dimensions, matière, taches). Les prix des canapés sont indiqués ci-dessus ; matelas, tapis et moquette sont établis sur devis.",
+      },
+    ],
+    sitemapPriority: 0.8,
+  },
+  {
+    slug: CLZ_OPTIQUES_SLUG,
+    kind: "optiques",
+    label: "Rénovation des phares",
+    linkLabel: "Rénovation des optiques de phares",
+    metaTitle: `Rénovation de phares à domicile à Annecy | ${BRAND.name}`,
+    metaDescription:
+      "Phares jaunis ou opaques ? Rénovation des optiques à domicile à Annecy et alentours. Photos avant/après et tarif en ligne.",
+    eyebrow: "Nettoyage automobile · optiques",
+    h1: "Rénovation des optiques de phares à domicile, à Annecy et alentours",
+    intro: `Vos phares sont jaunis, ternis ou devenus opaques ? Tom, de ${BRAND.name}, intervient à votre domicile à Annecy et alentours pour rénover vos optiques et leur redonner de la transparence, selon leur état.`,
+    answer: {
+      q: "Quel est le prix de la rénovation des optiques ?",
+      a: `La rénovation des optiques de phares coûte ${CLZ_OPTIQUES_PRICE} €. C'est une option qui s'ajoute à une formule de lavage extérieur, réservable en ligne. Le déplacement est inclus dans un rayon de ${TRAVEL.includedKmOneWay} km.`,
+    },
+    serviceName: "Rénovation des optiques de phares à domicile",
+    serviceType: "Rénovation d'optiques de phares",
+    image: "/custom-sites/cleanyzer/realisations/phare-apres-1.webp",
+    imageAlt: "Phare avant redevenu transparent après rénovation par CLEANYZER",
+    faq: [
+      {
+        q: "Pourquoi les phares deviennent-ils jaunes ou opaques ?",
+        a: "Avec le temps, la surface extérieure des optiques vieillit : exposition au soleil, intempéries, projections de la route et lavages répétés l'altèrent peu à peu. Elle peut alors jaunir, se ternir ou devenir opaque. L'état réel de chaque phare est apprécié sur place.",
+      },
+      {
+        q: "La rénovation des phares peut-elle aider avant le contrôle technique ?",
+        a: "Elle peut contribuer à améliorer la transparence des optiques lorsque l'opacité vient de leur surface extérieure. Elle ne garantit ni la conformité de l'éclairage ni la réussite du contrôle technique : réglage, défauts électriques, fissures ou dommages internes relèvent d'un diagnostic adapté.",
+      },
+      {
+        q: "Intervenez-vous à domicile à Annecy et alentours ?",
+        a: `Oui, l'intervention a lieu à votre domicile, ${HOURS_SENTENCE}. ${ZONE_SENTENCE}`,
       },
     ],
     sitemapPriority: 0.8,

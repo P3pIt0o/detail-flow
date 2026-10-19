@@ -25,7 +25,7 @@ import { PageHero, DirectAnswer } from "./page-primitives"
 import { CleanyzerFaq } from "./faq"
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { FormulaCard, CrossCta } from "./prestations"
-import { PAIRS } from "./realisations-tom"
+import { ClzPairCard, PAIRS } from "./realisations-tom"
 import { ZoneSection } from "./zone-section"
 import { JOURNEY_ZONES, filmDeepLink, visitDeepLink, zonesForSide } from "./journey"
 import { ZONE_COMMUNES, ZONE_SECTORS, joinNames } from "./zones"
@@ -41,6 +41,7 @@ import {
 } from "./content"
 import {
   CLZ_AREA_SERVED,
+  CLZ_OPTIQUES_PRICE,
   CLZ_PRICES,
   CLZ_SERVICE_PAGES,
   CLZ_ZONE_PAGE,
@@ -84,6 +85,8 @@ function faqJsonLd(entries: ClzFaq[]) {
 
 /** Offres à prix fixe publiés d'une prestation (les « sur devis » sont exclus). */
 export function clzServiceOffers(page: ClzServicePage): { name: string; price: number }[] {
+  // Optiques : option d'un lavage extérieur, non réservable seule → pas d'Offer autonome.
+  if (page.kind === "optiques") return []
   if (page.kind === "textile") {
     return TEXTILE_ITEMS.filter((t) => t.price != null && !t.priceLabel.startsWith("à partir")).map((t) => ({
       name: t.label,
@@ -106,13 +109,15 @@ function Related({ current }: { current?: string }) {
   const items = [
     ...CLZ_SERVICE_PAGES.filter((p) => p.slug !== current).map((p) => ({
       href: clzPath(`/prestations/${p.slug}`),
-      label: p.h1.replace(/ à domicile à Annecy$/, ""),
+      label: p.linkLabel ?? p.h1.replace(/ à domicile à Annecy$/, ""),
       sub:
         p.kind === "interieur"
           ? `à partir de ${CLZ_PRICES.interieurMin} €`
           : p.kind === "exterieur"
             ? `à partir de ${CLZ_PRICES.exterieurMin} €`
-            : `canapé à partir de ${CLZ_PRICES.textileMin} €`,
+            : p.kind === "optiques"
+              ? `option à ${CLZ_OPTIQUES_PRICE} €`
+              : `canapé à partir de ${CLZ_PRICES.textileMin} €`,
     })),
     ...(current === CLZ_ZONE_PAGE.slug
       ? []
@@ -128,7 +133,7 @@ function Related({ current }: { current?: string }) {
     <section className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-16">
         <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Nos autres prestations à domicile</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {items.map((s) => (
             <Link key={s.href} href={s.href} className="clz-card group flex items-center justify-between gap-4 p-5">
               <span>
@@ -177,9 +182,17 @@ function ZoneJourney({ kind, slug }: { kind: "interieur" | "exterieur"; slug: st
         {zones.map((k) => (
           <li key={k} className="clz-card flex flex-col gap-3 p-5">
             <h3 className="font-semibold text-[var(--clz-fg)]">{JOURNEY_ZONES[k].title}</h3>
-            <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={filmDeepLink(JOURNEY_ZONES[k].film, slug)}>
-              ▶ Voir en vidéo
-            </Link>
+            {JOURNEY_ZONES[k].film ? (
+              <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={filmDeepLink(JOURNEY_ZONES[k].film, slug)}>
+                ▶ Voir en vidéo
+              </Link>
+            ) : (
+              JOURNEY_ZONES[k].link && (
+                <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={JOURNEY_ZONES[k].link.href}>
+                  {JOURNEY_ZONES[k].link.label}
+                </Link>
+              )
+            )}
             <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={visitDeepLink(k, slug)}>
               Voir la zone sur la Porsche 3D
             </Link>
@@ -217,7 +230,8 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
     offers: clzServiceOffers(page),
   })
 
-  const pairs = PAIRS.filter((p) => p.kind === page.kind)
+  // La page optiques affiche ses paires dans son propre corps (pas de doublon).
+  const pairs = page.kind === "optiques" ? [] : PAIRS.filter((p) => p.kind === page.kind)
 
   return (
     <CleanyzerShell navItems={CLZ_SITE_NAV_ITEMS} active="Prestations" contact={contact}>
@@ -246,6 +260,16 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
                   Demander un devis textile
                   <ArrowRight className="h-4 w-4" />
                 </Link>
+              ) : page.kind === "optiques" ? (
+                <>
+                  <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary">
+                    Réserver avec un lavage extérieur
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link href={clzPath(`/prestations/${EXTERIOR_SLUG}`)} className="clz-btn">
+                    Voir le lavage extérieur
+                  </Link>
+                </>
               ) : (
                 <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary">
                   Réserver en ligne
@@ -267,8 +291,14 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
         </div>
       </section>
 
-      {page.kind === "textile" ? <TextileBody /> : <AutoBody kind={page.kind} />}
-      {page.kind !== "textile" && <ZoneJourney kind={page.kind} slug={page.slug} />}
+      {page.kind === "textile" ? (
+        <TextileBody />
+      ) : page.kind === "optiques" ? (
+        <OptiquesBody />
+      ) : (
+        <AutoBody kind={page.kind} />
+      )}
+      {(page.kind === "interieur" || page.kind === "exterieur") && <ZoneJourney kind={page.kind} slug={page.slug} />}
 
       {pairs.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
@@ -278,20 +308,7 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
           </h2>
           <div className="mt-10 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {pairs.map((p) => (
-              <article key={p.before} className="grid gap-2.5">
-                <div className="clz-pair-duo">
-                  <figure>
-                    <span className="clz-pair-label">Avant</span>
-                    <Image src={`/custom-sites/cleanyzer/realisations/${p.before}.webp`} alt={p.altBefore} fill loading="lazy" sizes="(max-width:768px) 50vw, 17vw" className="object-cover" />
-                  </figure>
-                  <figure>
-                    <span className="clz-pair-label is-after">Après</span>
-                    <Image src={`/custom-sites/cleanyzer/realisations/${p.after}.webp`} alt={p.altAfter} fill loading="lazy" sizes="(max-width:768px) 50vw, 17vw" className="object-cover" />
-                  </figure>
-                </div>
-                <h3 className="mt-1 font-semibold text-[var(--clz-fg)]">{p.title}</h3>
-                <p className="text-sm text-[var(--clz-muted)]">{p.detail}</p>
-              </article>
+              <ClzPairCard key={p.before} pair={p} />
             ))}
           </div>
         </section>
@@ -340,6 +357,108 @@ function AutoBody({ kind }: { kind: "interieur" | "exterieur" }) {
             </li>
           ))}
         </ul>
+      </section>
+    </>
+  )
+}
+
+const EXTERIOR_SLUG = CLZ_SERVICE_PAGES.find((p) => p.kind === "exterieur")!.slug
+
+/** Communes citées sur la page optiques : déjà publiées sur la page zone. */
+const OPTIQUES_COMMUNES = ["annecy", "seynod", "cran-gevrier", "annecy-le-vieux"]
+  .map((slug) => ZONE_COMMUNES.find((c) => c.slug === slug)?.name)
+  .filter((n): n is string => Boolean(n))
+
+const OPTIQUES_BENEFITS = [
+  "Atténuer le jaunissement et l'opacité de surface.",
+  "Retrouver de la transparence, selon l'état des optiques.",
+  "Améliorer l'apparence générale du véhicule.",
+  "Contribuer à une meilleure diffusion de la lumière, lorsque l'opacité extérieure est en cause.",
+  "Préparer le véhicule avant le contrôle technique.",
+]
+
+function OptiquesBody() {
+  const pairs = PAIRS.filter((p) => p.service === "optiques")
+  return (
+    <>
+      <section className="bg-[var(--clz-surface-2)]">
+        <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+          <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Pourquoi rénover ses phares ?</h2>
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {OPTIQUES_BENEFITS.map((b) => (
+              <li key={b} className="clz-card flex items-start gap-3 bg-[var(--clz-surface)] p-5 text-[var(--clz-fg)]">
+                <span className="clz-check mt-0.5 h-5 w-5 flex-none"><Check className="h-3 w-3" /></span>
+                <span className="leading-relaxed">{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
+        <h2 className="clz-display clz-h2 text-balance text-[var(--clz-fg)]">
+          Des phares opaques peuvent poser problème au contrôle technique
+        </h2>
+        <p className="mt-4 text-pretty leading-relaxed text-[var(--clz-fg)]">
+          Des optiques fortement ternis peuvent affecter la qualité de l&apos;éclairage. Selon le défaut constaté, cela
+          peut entraîner une défaillance lors du contrôle technique, voire une contre-visite. La rénovation des surfaces
+          extérieures peut contribuer à améliorer la transparence des phares, sans garantir la conformité de l&apos;ensemble
+          du système d&apos;éclairage.
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-[var(--clz-muted)]">
+          Les défauts électriques, les problèmes de réglage, les fissures importantes et les dommages internes nécessitent
+          un diagnostic ou une intervention adaptée.
+        </p>
+      </section>
+
+      {pairs.length > 0 && (
+        <section className="bg-[var(--clz-surface-2)]">
+          <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+            <span className="clz-eyebrow">Avant / après</span>
+            <h2 className="clz-display clz-h2 mt-3 text-[var(--clz-fg)]">
+              Des résultats <span className="clz-accent">qui se voient</span>
+            </h2>
+            <p className="mt-3 max-w-2xl text-[var(--clz-muted)]">Découvrez la différence avant et après rénovation.</p>
+            <div className="mt-10 grid gap-8 md:grid-cols-2">
+              {pairs.map((p) => (
+                <ClzPairCard key={p.before} pair={p} showLink={false} sizes="(max-width:768px) 100vw, 50vw" />
+              ))}
+            </div>
+            <Link href={`${CLZ_HOME_HREF}#avant-apres`} className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--clz-blue)] hover:underline">
+              Voir toutes les réalisations avant / après <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      <section className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
+        <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Tarif de la rénovation des optiques</h2>
+        <div className="clz-card mt-8 flex items-center justify-between gap-4 p-5">
+          <span className="text-[var(--clz-fg)]">
+            Rénovation des optiques de phares
+            <span className="block text-sm text-[var(--clz-muted)]">Option d&apos;une formule de lavage extérieur</span>
+          </span>
+          <span className="whitespace-nowrap text-lg font-semibold text-[var(--clz-fg)]">{CLZ_OPTIQUES_PRICE} €</span>
+        </div>
+        <p className="mt-4 leading-relaxed text-[var(--clz-muted)]">
+          La rénovation s&apos;ajoute à une formule de{" "}
+          <Link href={clzPath(`/prestations/${EXTERIOR_SLUG}`)} className="font-semibold text-[var(--clz-blue)] hover:underline">
+            lavage extérieur
+          </Link>{" "}
+          lors de la réservation en ligne. Le total, déplacement compris, s&apos;affiche avant validation.
+        </p>
+        <h3 className="mt-10 font-semibold text-[var(--clz-fg)]">Une intervention à domicile</h3>
+        <p className="mt-2 leading-relaxed text-[var(--clz-muted)]">
+          Tom se déplace chez vous, par exemple à {joinNames(OPTIQUES_COMMUNES)}. Le détail des communes et des
+          conditions de déplacement figure sur la page{" "}
+          <Link href={clzPath(`/${CLZ_ZONE_PAGE.slug}`)} className="font-semibold text-[var(--clz-blue)] hover:underline">
+            Zone d&apos;intervention
+          </Link>
+          .
+        </p>
+        <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary mt-8">
+          Réserver un lavage extérieur <ArrowRight className="h-4 w-4" />
+        </Link>
       </section>
     </>
   )
