@@ -81,6 +81,13 @@ const sm = (x: number) => x * x * (3 - 2 * x)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
+function liteDevice() {
+  const n = navigator as Navigator & { connection?: { saveData?: boolean }; deviceMemory?: number }
+  if (n.connection?.saveData) return true
+  if (typeof n.deviceMemory === "number" && n.deviceMemory <= 2) return true
+  return typeof n.hardwareConcurrency === "number" && n.hardwareConcurrency > 0 && n.hardwareConcurrency <= 2
+}
+
 function scrollToKey(section: HTMLElement, zone: ZoneKey | "final") {
   const k = zone === "final" ? NK - 1 : KEY_ORDER.indexOf(zone)
   const f = k < 0 ? 0 : k / (NK - 1)
@@ -107,6 +114,10 @@ export function Visit3D() {
   const [finalOn, setFinalOn] = useState(false)
   const [form, setForm] = useState<FormulaRef>("excellence")
   const [veh, setVeh] = useState<VehicleKey>("citadine")
+  // Appareil peu puissant / économie de données : alternative légère tant que
+  // le visiteur n'a pas demandé la 3D (Three.js + modèle non téléchargés).
+  const [lite, setLite] = useState(false)
+  const launchRef = useRef<(() => void) | null>(null)
   const journey = useJourney()
 
   useEffect(() => {
@@ -537,16 +548,23 @@ export function Visit3D() {
       }
     }
 
+    const isLite = liteDevice()
+    setLite(isLite)
+    let booted = false
+    const bootOnce = () => {
+      if (booted) return
+      booted = true
+      io.disconnect()
+      boot()
+    }
+    launchRef.current = bootOnce
     const io = new IntersectionObserver(
       (e) => {
-        if (e[0].isIntersecting) {
-          io.disconnect()
-          boot()
-        }
+        if (e[0].isIntersecting && !isLite) bootOnce()
       },
-      { rootMargin: "150% 0px" },
+      { rootMargin: "100% 0px" },
     )
-    io.observe(section)
+    if (!isLite) io.observe(section)
     return () => {
       disposed = true
       io.disconnect()
@@ -574,11 +592,47 @@ export function Visit3D() {
   const formZones = ZONE_KEYS.filter((k) => zoneFormulas(k).includes(form))
 
   return (
-    <section ref={sectionRef} id={CLZ_VISIT_ANCHOR} className="v3" aria-label="Visite 3D : ce que chaque formule traite, zone par zone">
+    <section ref={sectionRef} id={CLZ_VISIT_ANCHOR} className={lite ? "v3 v3-is-lite" : "v3"} aria-label="Visite 3D : ce que chaque formule traite, zone par zone">
       <div className="v3-stage">
         <canvas ref={canvasRef} id="v3-gl" aria-hidden="true" />
         <div className="v3-vig" />
-        {status && <div className="v3-load">{status}</div>}
+        {status && !lite && <div className="v3-load">{status}</div>}
+        {lite && (
+          <div className="v3-lite">
+            <span className="clz-eyebrow">Visite 3D</span>
+            <h2 className="clz-display clz-h2">
+              Ce qu&apos;on traite, <span className="clz-accent">zone par zone.</span>
+            </h2>
+            <ul>
+              {STEPS.map((k) => (
+                <li key={k}>
+                  <b>{JOURNEY_ZONES[k].name}</b>
+                  <button type="button" className="v3-link" onClick={() => goFilm(JOURNEY_ZONES[k].film, { kind: "visit", zone: k })}>
+                    Voir en vidéo
+                  </button>
+                  <Link className="v3-link" href={zoneAction(k).href}>
+                    {zoneAction(k).label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <div className="row">
+              <button
+                className="clz-btn clz-btn-primary"
+                type="button"
+                onClick={() => {
+                  setLite(false)
+                  launchRef.current?.()
+                }}
+              >
+                Lancer la visite 3D
+              </button>
+              <a className="skip" href="#prestations">
+                Voir les prestations
+              </a>
+            </div>
+          </div>
+        )}
         <div className="v3-intro" ref={heroRef}>
           <span className="clz-eyebrow">Visite 3D</span>
           <h2 className="clz-display clz-h2">

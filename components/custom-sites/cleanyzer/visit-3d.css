@@ -75,6 +75,17 @@
   .v3-ring b{font-size:1.05rem}
   .v3-credit{display:none}
 }
+/* Alternative légère (économie de données / appareil peu puissant) : sans 3D. */
+.v3.v3-is-lite{height:auto}
+.v3-is-lite .v3-stage{position:relative;height:auto;min-height:100svh}
+.v3-is-lite .v3-stage>:not(.v3-lite){display:none}
+.v3-lite{position:relative;max-width:40rem;margin:0 auto;padding:5rem 1.25rem 4rem}
+.v3-lite h2{color:#fff;margin:.75rem 0 1.5rem}
+.v3-lite ul{list-style:none;margin:0 0 2rem;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.v3-lite li{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1rem;padding:.75rem 0;border-bottom:1px solid rgba(111,182,255,.18);font-size:.9rem}
+.v3-lite li b{flex:1 1 100%;color:#fff;font-weight:600}
+.v3-lite .row{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center}
+.v3-lite .row a.skip{font-size:.875rem;color:rgba(255,255,255,.75);text-decoration:underline;text-underline-offset:4px}
 @media (prefers-reduced-motion:reduce){.v3-hot i::after{animation:none}.v3-card.in{animation:none}}
 .v3-actions{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;margin-top:.85rem}
 .v3-actions .clz-btn{padding:.6rem .95rem;font-size:.85rem}
