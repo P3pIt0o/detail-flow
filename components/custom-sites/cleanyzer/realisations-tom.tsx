@@ -64,7 +64,7 @@ export function RealisationsTom() {
           Des résultats <span className="clz-accent">qui se voient</span>
         </h2>
         <p className="mt-4 max-w-2xl text-pretty leading-relaxed text-[var(--clz-muted)]">
-          Photos prises par Tom, avant et après son passage.
+          De vraies interventions, chez de vrais clients autour d&apos;Annecy.
         </p>
 
         <div className="mt-12 grid gap-8 md:grid-cols-3">
