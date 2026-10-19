@@ -161,7 +161,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const isCleanyzer = tenant?.customSiteKey?.trim() === "cleanyzer"
   const localBusinessJsonLd = tenant
     ? await buildTenantLocalBusiness(
-        isCleanyzer ? { areaServed: CLZ_AREA_SERVED, priceRange: CLZ_PRICE_RANGE } : undefined,
+        isCleanyzer
+          ? { areaServed: CLZ_AREA_SERVED, priceRange: CLZ_PRICE_RANGE, withStableId: true }
+          : undefined,
       )
     : null
 

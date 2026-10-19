@@ -30,7 +30,12 @@ export type OpeningHoursDay = {
   to: string | null
 }
 
+/** Fragment du `@id` stable de l'établissement (`<accueil canonique>#business`). */
+export const LOCAL_BUSINESS_ID_FRAGMENT = "#business"
+
 export type LocalBusinessInput = {
+  /** `@id` stable optionnel ; omis par défaut (sortie inchangée). */
+  id?: string | null
   /** Type Schema.org (défaut « AutoWash »). */
   type?: string
   name: string
@@ -162,6 +167,7 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
   return {
     "@context": "https://schema.org",
     "@type": input.type ?? "AutoWash",
+    ...(clean(input.id) ? { "@id": clean(input.id) } : {}),
     name: input.name,
     ...(clean(input.alternateName) ? { alternateName: clean(input.alternateName) } : {}),
     ...(clean(input.url) ? { url: clean(input.url) } : {}),
@@ -190,7 +196,7 @@ export type ServiceInput = {
   /** Type de service (ex. « Nettoyage automobile »). */
   serviceType?: string | null
   /** Prestataire : nom + URL canonique de l'accueil. */
-  provider: { name: string; url: string; type?: string }
+  provider: { name: string; url: string; type?: string; id?: string }
   areaServed?: string[] | null
   image?: string | null
   /** Offres à prix FIXE publiés ; les prix « sur devis » sont exclus. */
@@ -213,7 +219,12 @@ export function buildServiceJsonLd(input: ServiceInput): Record<string, unknown>
     ...(clean(input.description) ? { description: clean(input.description) } : {}),
     url: input.url,
     ...(clean(input.serviceType) ? { serviceType: clean(input.serviceType) } : {}),
-    provider: { "@type": input.provider.type ?? "AutoWash", name: input.provider.name, url: input.provider.url },
+    provider: {
+      "@type": input.provider.type ?? "AutoWash",
+      ...(clean(input.provider.id) ? { "@id": clean(input.provider.id) } : {}),
+      name: input.provider.name,
+      url: input.provider.url,
+    },
     ...(area.length ? { areaServed: area.map((name) => ({ "@type": "City", name })) } : {}),
     ...(clean(input.image) ? { image: clean(input.image) } : {}),
     ...(offers.length

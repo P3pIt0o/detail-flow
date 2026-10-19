@@ -30,7 +30,7 @@ import {
 } from "./tenant-url"
 import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
 import { buildTenantPageMetadata } from "./tenant-metadata"
-import { buildLocalBusinessJsonLd, type LocalBusinessInput } from "./structured-data"
+import { buildLocalBusinessJsonLd, LOCAL_BUSINESS_ID_FRAGMENT, type LocalBusinessInput } from "./structured-data"
 import { resolvePublicRobots } from "./robots"
 import { hasFeature } from "@/lib/licensing/server"
 import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
@@ -232,6 +232,8 @@ export async function buildTenantLocalBusiness(args?: {
   areaServed?: string[] | null
   /** Fourchette de prix publiée (ex. « 30 € – 160 € »), si connue. */
   priceRange?: string | null
+  /** Émet un `@id` stable `<accueil canonique>#business` (opt-in, défaut : non). */
+  withStableId?: boolean
 }): Promise<Record<string, unknown> | null> {
   const seo = await resolveTenantSeo()
   if (!seo.identity || !seo.tenant) return null
@@ -265,11 +267,13 @@ export async function buildTenantLocalBusiness(args?: {
   const biz = seo.isSpirit ? SPIRIT_BUSINESS : null
   const share = resolveShareAssets(seo)
 
+  const homeUrl = await tenantCanonical("/")
   const input: LocalBusinessInput = {
+    id: args?.withStableId ? `${homeUrl}${LOCAL_BUSINESS_ID_FRAGMENT}` : null,
     type: "AutoWash",
     name: biz?.name ?? seo.siteName,
     alternateName: biz?.alternateName ?? null,
-    url: await tenantCanonical("/"),
+    url: homeUrl,
     telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,
     logo: logoAbsolute,

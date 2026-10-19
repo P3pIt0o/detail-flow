@@ -13,7 +13,12 @@ import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, Check, MapPin, Clock } from "lucide-react"
 import { SEO_BASE, resolveTenantOrigin, tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
-import { buildBreadcrumbJsonLd, buildFaqJsonLd, buildServiceJsonLd } from "@/lib/seo/structured-data"
+import {
+  buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
+  buildServiceJsonLd,
+  LOCAL_BUSINESS_ID_FRAGMENT,
+} from "@/lib/seo/structured-data"
 import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
 import { CleanyzerShell, type ClzContact } from "./site-shell"
 import { PageHero, DirectAnswer } from "./page-primitives"
@@ -202,7 +207,11 @@ export function CleanyzerServicePage({ page, contact }: { page: ClzServicePage; 
     description: page.metaDescription,
     url: clzCanonical(path),
     serviceType: page.serviceType,
-    provider: { name: BRAND.name, url: clzCanonical("/") },
+    provider: {
+      name: BRAND.name,
+      url: clzCanonical("/"),
+      id: `${clzCanonical("/")}${LOCAL_BUSINESS_ID_FRAGMENT}`,
+    },
     areaServed: CLZ_AREA_SERVED,
     image: `${ASSET_ORIGIN}${page.image}`,
     offers: clzServiceOffers(page),
