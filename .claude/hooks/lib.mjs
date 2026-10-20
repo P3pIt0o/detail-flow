@@ -207,3 +207,46 @@ export function hostOfDbUrl(url) {
     return u.hostname ? u.hostname.toLowerCase() : null
   } catch { return null }
 }
+
+// ------------------------------------------------------------------ baseline TypeScript (kit 2.1.3)
+export const TYPECHECK_BASELINE_VERSION = 2
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+// Clé stable d'une erreur tsc : « chemin/relatif: TSxxxx: message », sans numéro de ligne ni de colonne,
+// sans chemin absolu (copie de référence, copie de travail, liens symboliques résolus), espaces normalisés.
+// `cwd` : dossier où tsc a tourné ; `roots` : racines équivalentes (dossier analysé, dépôt, et leurs chemins réels).
+export function tscErrorKeys(output, cwd, roots = []) {
+  const rs = [...new Set([cwd, ...roots].filter(Boolean))].sort((a, b) => b.length - a.length)
+  const strip = (s) => rs.reduce((acc, r) => acc.replace(new RegExp(`${escapeRe(r)}[\\\\/]?`, "g"), ""), s)
+  const rel = (p) => strip(path.isAbsolute(p) ? p : path.join(cwd, p)).split(path.sep).join("/").replace(/^\.\//, "")
+  const keys = []
+  for (const raw of String(output).split(/\r?\n/)) {
+    const l = raw.trim()
+    let m = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/.exec(l)
+    if (m) { keys.push(`${rel(m[1])}: ${m[4]}: ${strip(m[5]).replace(/\s+/g, " ").trim()}`); continue }
+    m = /^error (TS\d+): (.*)$/.exec(l)
+    if (m) keys.push(`(global): ${m[1]}: ${strip(m[2]).replace(/\s+/g, " ").trim()}`)
+  }
+  return keys
+}
+
+// Erreurs présentes dans `current` et absentes de `base`, en multiensemble (une erreur répétée en plus est nouvelle).
+export function newTypecheckErrors(current, base) {
+  const left = new Map()
+  for (const k of base) left.set(k, (left.get(k) || 0) + 1)
+  const fresh = []
+  for (const k of current) { const n = left.get(k) || 0; if (n > 0) left.set(k, n - 1); else fresh.push(k) }
+  return fresh
+}
+
+export const isValidTypecheckBaseline = (b) =>
+  !!b && b.v === TYPECHECK_BASELINE_VERSION && typeof b.head === "string" && Array.isArray(b.errors) && b.errors.every((e) => typeof e === "string")
+
+// Verdict de typecheck pour verify. Toute baseline absente ou invalide est BLOQUANTE.
+export function typecheckVerdict(tc, baseline) {
+  if (!tc.errors) return { block: `typecheck : ${tc.summary}`, fresh: [], old: 0 }
+  if (!isValidTypecheckBaseline(baseline)) return { block: "typecheck : baseline TypeScript indisponible ou invalide, comparaison impossible", fresh: [], old: 0 }
+  const fresh = newTypecheckErrors(tc.errors, baseline.errors)
+  return { block: fresh.length ? `typecheck : ${fresh.length} NOUVELLE(S) erreur(s)` : null, fresh, old: tc.errors.length - fresh.length }
+}
