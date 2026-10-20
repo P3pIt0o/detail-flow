@@ -93,7 +93,12 @@ export async function validatePromoCodeAction(input: {
     quote,
     promotions: data.promotions,
     equivalences: data.equivalences,
-    code: { code: res.normalizedCode, discountCents: res.discountCents, targetServiceIds: res.targetServiceIds },
+    code: {
+      code: res.normalizedCode,
+      discountCents: res.discountCents,
+      targetServiceIds: res.targetServiceIds,
+      percent: res.discountType === "percent" ? res.discountValue : null,
+    },
   })
   if (p.codeStatus === "rejected_not_combinable") return { ok: false, reason: "not_combinable" }
   if (p.codeStatus !== "applied") return { ok: false, reason: "no_eligible_amount" }
@@ -329,7 +334,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   // 3b. Revalidation serveur du code promo (le navigateur n'est jamais cru).
   //     La remise et le total sont recalculés ici depuis la base.
   let appliedPromo: AppliedPromo | null = null
-  let codeInput: { code: string; discountCents: number; targetServiceIds: number[] | null } | null = null
+  let codeInput: { code: string; discountCents: number; targetServiceIds: number[] | null; percent: number | null } | null = null
   if (promoCode?.trim()) {
     const promoRes = await validatePromoCode({
       companyId,
@@ -343,7 +348,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           : "Code promo invalide ou indisponible."
       return { ok: false, error: msg, code: "invalid" }
     }
-    codeInput = { code: promoRes.normalizedCode, discountCents: promoRes.discountCents, targetServiceIds: promoRes.targetServiceIds }
+    codeInput = {
+      code: promoRes.normalizedCode,
+      discountCents: promoRes.discountCents,
+      targetServiceIds: promoRes.targetServiceIds,
+      percent: promoRes.discountType === "percent" ? promoRes.discountValue : null,
+    }
     appliedPromo = {
       promoCodeId: promoRes.promoCodeId,
       code: promoRes.normalizedCode,
@@ -357,8 +367,20 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   //     calcul historique exact. Un code écarté n'est ni appliqué ni consommé.
   const pricing = priceBooking({ quote, promotions: promoData.promotions, equivalences: promoData.equivalences, code: codeInput })
   if (appliedPromo) {
-    if (pricing.codeStatus === "applied") appliedPromo = { ...appliedPromo, discountCents: pricing.codeDiscountCents }
-    else appliedPromo = null
+    // Code saisi mais écarté (offre plus avantageuse ou plus rien à remiser,
+    // ex. panier modifié depuis l'aperçu) : refus explicite, jamais un montant
+    // différent de celui annoncé au client. Le code n'est pas consommé.
+    if (pricing.codeStatus === "rejected_not_combinable") {
+      return {
+        ok: false,
+        error: "Ce code promo ne se cumule pas avec l'offre déjà appliquée, plus avantageuse. Retirez le code pour finaliser votre réservation.",
+        code: "invalid",
+      }
+    }
+    if (pricing.codeStatus !== "applied") {
+      return { ok: false, error: "Ce code promo ne s'applique plus à votre sélection. Retirez-le pour finaliser votre réservation.", code: "invalid" }
+    }
+    appliedPromo = { ...appliedPromo, discountCents: pricing.codeDiscountCents }
   }
   const billedLines = pricing.lines
   if (!billedLines.length) return { ok: false, error: "Prestations invalides.", code: "invalid" }

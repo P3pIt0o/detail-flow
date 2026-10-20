@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { normalizedLines, priceBooking, quoteToCart, vehicleKeyOf } from "@/lib/booking/promotions-apply"
+import { priceBooking, quoteToCart } from "@/lib/booking/promotions-apply"
 import type { EquivalenceRule } from "@/lib/booking/promotions"
 import type { QuoteLine } from "@/lib/booking/types"
 import { CLZ, fixedTotal, multiServices } from "./helpers/promotions-fixtures"
@@ -80,31 +80,24 @@ describe("L20 — offres appliquées", () => {
 })
 
 describe("L20 — même traitement jamais facturé deux fois (équivalence)", () => {
-  it("lavage + option phares 98 et prestation phares 158 sur le même véhicule : 158 retirée, durée comprise", () => {
-    const q = quoteOf([line("v:l1", CLZ.lavageExterieurEco, 3000, 60, [[CLZ.pharesOption, 5000, 30]]), line("v:l2", CLZ.pharesService, 6500, 45)])
-    const p = priceBooking({ quote: q, promotions: [], equivalences: [phares], code: null, now: NOW })
-    expect(p.lines.map((l) => l.serviceId)).toEqual([CLZ.lavageExterieurEco])
-    expect(p.lines[0].options.map((o) => o.optionId)).toEqual([CLZ.pharesOption])
-    expect(p.subtotalCents).toBe(8000)
-    expect(p.totalDurationMin).toBe(90)
-    expect(p.adjustments).toHaveLength(1)
-    expect(p.snapshot!.adjustments[0]).toMatchObject({ kind: "equivalence_resolved", removed: { type: "service", id: CLZ.pharesService } })
-  })
-  it("prestation phares seule avec l'option phares : la prestation est gardée (jamais d'option sans prestation)", () => {
+  it("prestation phares avec l'option phares sur le même véhicule : facturée une fois (prestation gardée, jamais d'option seule)", () => {
     const q = quoteOf([line("v", CLZ.pharesService, 6500, 45, [[CLZ.pharesOption, 5000, 30]])])
     const p = priceBooking({ quote: q, promotions: [], equivalences: [phares], code: null, now: NOW })
     expect(p.lines).toHaveLength(1)
     expect(p.lines[0]).toMatchObject({ serviceId: CLZ.pharesService, options: [], lineTotalCents: 6500, lineDurationMin: 45 })
+    expect(p).toMatchObject({ subtotalCents: 6500, totalDurationMin: 45 })
+    expect(p.snapshot!.adjustments[0]).toMatchObject({ kind: "equivalence_resolved", removed: { type: "option", id: CLZ.pharesOption } })
   })
   it("véhicules différents : les deux formes restent facturées (règle par véhicule)", () => {
     const q = quoteOf([line("a", CLZ.pharesService, 6500, 45), line("b", CLZ.lavageExterieurEco, 3000, 60, [[CLZ.pharesOption, 5000, 30]])])
     expect(priceBooking({ quote: q, promotions: [], equivalences: [phares], code: null, now: NOW }).subtotalCents).toBe(14500)
   })
-  it("option d'une ligne retirée rattachée à la ligne conservée du même véhicule", () => {
-    const lines = [line("v:l1", 1, 8000, 60), line("v:l2", 1, 8000, 60, [[90, 1000, 10]])]
-    const out = normalizedLines(lines, { vehicles: [{ key: "v", services: [{ serviceId: 1, priceCents: 8000 }], options: [{ optionId: 90, priceCents: 1000 }] }] })
-    expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ uid: "v:l1", lineTotalCents: 9000, lineDurationMin: 70 })
+  it("anti-fraude : un identifiant de ligne commun envoyé par le navigateur ne fusionne jamais deux véhicules", () => {
+    const q = quoteOf([line("x:1", CLZ.lavageExterieurEco, 3000, 60, [[CLZ.pharesOption, 5000, 30]]), line("x:2", CLZ.pharesService, 6500, 45), line("x:3", CLZ.lavageExterieurEco, 3000, 60)])
+    const p = priceBooking({ quote: q, promotions: [], equivalences: [phares], code: null, now: NOW })
+    expect(p.subtotalCents).toBe(17500)
+    expect(p.lines).toHaveLength(3)
+    expect(p.adjustments).toEqual([])
   })
 })
 
@@ -129,11 +122,31 @@ describe("L20 — code promo et offres", () => {
 })
 
 describe("L20 — clés véhicule", () => {
-  it("ancien tunnel « véhicule:ligne » et uid Booking V2 ; « | » neutralisé", () => {
-    expect(vehicleKeyOf("abc:l1")).toBe("abc")
-    expect(vehicleKeyOf("abc")).toBe("abc")
-    expect(vehicleKeyOf("a|b")).toBe("a-b")
-    expect(vehicleKeyOf("")).toBe("v")
-    expect(quoteToCart([line("x:1", 1, 100, 1), line("x:2", 2, 200, 1), line("y", 1, 100, 1)]).vehicles.map((v) => v.key)).toEqual(["x", "y"])
+  it("une ligne = un véhicule, clé tirée du rang (jamais de l'uid du navigateur)", () => {
+    expect(quoteToCart([line("x:1", 1, 100, 1), line("x:1", 2, 200, 1), line("a|b", 1, 100, 1)]).vehicles.map((v) => v.key)).toEqual(["l1", "l2", "l3"])
+  })
+})
+
+describe("L20 — code en pourcentage calculé sur le montant réellement facturé", () => {
+  const pct = (percent: number, discountCents: number, targetServiceIds: number[] | null = null) => ({ code: "DIX", discountCents, targetServiceIds, percent })
+  it("équivalence : 10 % du prix facturé (65 €), pas du catalogue (115 €)", () => {
+    const q = quoteOf([line("v", CLZ.pharesService, 6500, 45, [[CLZ.pharesOption, 5000, 30]])])
+    const p = priceBooking({ quote: q, promotions: [], equivalences: [phares], code: pct(10, 1150), now: NOW })
+    expect(p).toMatchObject({ codeStatus: "applied", codeDiscountCents: 650, discountCents: 650 })
+  })
+  it("offre cumulable : le pourcentage porte sur le reste après l'offre", () => {
+    const q = quoteOf([line("a", 1, 8000, 60), line("b", 2, 6000, 45)])
+    const p = priceBooking({ quote: q, promotions: [multiServices({ stackableWithPromoCode: true })], equivalences: [], code: pct(10, 1400), now: NOW })
+    expect(p).toMatchObject({ promotionDiscountCents: 1400, codeDiscountCents: 1260, discountCents: 2660 })
+  })
+  it("code ciblé : seules les prestations visées, après l'offre cumulable", () => {
+    const q = quoteOf([line("a", 1, 8000, 60), line("b", 2, 6000, 45)])
+    const p = priceBooking({ quote: q, promotions: [multiServices({ stackableWithPromoCode: true })], equivalences: [], code: pct(10, 600, [2]), now: NOW })
+    expect(p).toMatchObject({ codeDiscountCents: 540, discountCents: 1940 })
+  })
+  it("code fixe : montant validé inchangé (plafonné au reste)", () => {
+    const q = quoteOf([line("a", 1, 8000, 60), line("b", 2, 6000, 45)])
+    const p = priceBooking({ quote: q, promotions: [multiServices({ stackableWithPromoCode: true })], equivalences: [], code: { code: "F", discountCents: 1000, targetServiceIds: null, percent: null }, now: NOW })
+    expect(p.codeDiscountCents).toBe(1000)
   })
 })

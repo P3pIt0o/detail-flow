@@ -92,6 +92,28 @@ describe("L20 — activation revérifiée", () => {
   })
 })
 
+describe("L20 — droits (OWNER / ADMIN uniquement)", () => {
+  it("administrateur : activation et complément autorisés", async () => {
+    session.role = "ADMIN"
+    store.listForAdmin.mockResolvedValueOnce({ ready: true, promotions: [offer()], equivalences: [], upsells: [] } as never)
+    expect(await actions.setPromotionActiveAction(5, true)).toEqual({ ok: true, id: 5 })
+    expect(await actions.saveUpsell({ whenServiceId: 1, suggest: [{ type: "option", id: 98 }] })).toMatchObject({ ok: true })
+  })
+  it("employé : toute écriture refusée, y compris équivalences et compléments (activation, suppression)", async () => {
+    session.role = "EMPLOYEE"
+    for (const c of [
+      () => actions.setEquivalenceActiveAction(1, true),
+      () => actions.deleteEquivalenceAction(1),
+      () => actions.setUpsellActiveAction(1, true),
+      () => actions.deleteUpsellAction(1),
+      () => actions.savePromotion({ name: "x", kind: "multi_services", tiers: [], eligibleServiceIds: null }, 5),
+    ]) await expect(c()).rejects.toThrow("NEXT_NOT_FOUND")
+    expect(store.setActive).not.toHaveBeenCalled()
+    expect(store.deleteRow).not.toHaveBeenCalled()
+    expect(store.updatePromotion).not.toHaveBeenCalled()
+  })
+})
+
 describe("L20 — données du navigateur reconstruites et plafonnées", () => {
   it("paliers : seuls minQuantity et value sont conservés", async () => {
     const tiers = [{ minQuantity: 2, value: { type: "percent", bps: 1000, junk: "x" }, junk: "y" }]

@@ -58,23 +58,26 @@ export type BookingPricing = {
   adjustments: CartAdjustment[]
 }
 
-/** Véhicule d'une ligne : l'ancien tunnel envoie `véhicule:ligne`, Booking V2 un uid par véhicule. */
-export function vehicleKeyOf(uid: string): string {
-  const k = String(uid ?? "").split(":")[0].replace(/\|/g, "-").trim()
-  return k || "v"
-}
+/**
+ * Clé véhicule d'une ligne : son RANG dans le devis, jamais l'identifiant envoyé
+ * par le navigateur. Un client ne peut donc pas déclarer deux voitures comme une
+ * seule pour faire disparaître une prestation (doublon, équivalence). Booking V2
+ * envoie une ligne par véhicule ; l'ancien tunnel (plusieurs lignes par véhicule)
+ * ne reçoit aucune offre (Spirit ACS, Rozan). Le regroupement de plusieurs
+ * prestations sur un même véhicule (L17-E) exigera une identité de véhicule
+ * contrôlée côté serveur.
+ */
+export const vehicleKeyAt = (index: number): string => `l${index + 1}`
 
-/** Devis → panier du moteur, véhicule par véhicule, dans l'ordre des lignes. */
+/** Devis → panier du moteur : une ligne = un véhicule. */
 export function quoteToCart(lines: QuoteLine[]): Cart {
-  const byKey = new Map<string, Cart["vehicles"][number]>()
-  for (const l of lines) {
-    const key = vehicleKeyOf(l.uid)
-    let v = byKey.get(key)
-    if (!v) byKey.set(key, (v = { key, services: [], options: [] }))
-    v.services.push({ serviceId: l.serviceId, priceCents: l.priceCents })
-    for (const o of l.options) v.options.push({ optionId: o.optionId, priceCents: o.priceCents })
+  return {
+    vehicles: lines.map((l, i) => ({
+      key: vehicleKeyAt(i),
+      services: [{ serviceId: l.serviceId, priceCents: l.priceCents }],
+      options: l.options.map((o) => ({ optionId: o.optionId, priceCents: o.priceCents })),
+    })),
   }
-  return { vehicles: [...byKey.values()] }
 }
 
 const take = (bag: Map<number, number>, id: number): boolean => {
@@ -93,27 +96,20 @@ const withTotals = (l: QuoteLine, options: QuoteLine["options"]): QuoteLine => (
 
 /**
  * Lignes du devis réduites au panier normalisé : un élément retiré par le
- * moteur (doublon, équivalence) n'est ni enregistré, ni facturé, ni compté
- * dans la durée. Une option dont la ligne a disparu est rattachée à la
- * première ligne conservée du même véhicule.
+ * moteur (doublon, équivalence) n'est ni enregistré, ni facturé, ni compté dans
+ * la durée. Une ligne = un véhicule ; le moteur ne retire jamais la seule
+ * prestation d'un véhicule (jamais d'option sans prestation).
  */
 export function normalizedLines(lines: QuoteLine[], cart: Cart): QuoteLine[] {
+  const byKey = new Map(cart.vehicles.map((v) => [v.key, v]))
   const out: QuoteLine[] = []
-  for (const v of cart.vehicles) {
-    const services = new Map<number, number>()
-    const options = new Map<number, number>()
-    for (const s of v.services) services.set(s.serviceId, (services.get(s.serviceId) ?? 0) + 1)
-    for (const o of v.options) options.set(o.optionId, (options.get(o.optionId) ?? 0) + 1)
-    const kept: QuoteLine[] = []
-    const orphans: QuoteLine["options"] = []
-    for (const l of lines.filter((x) => vehicleKeyOf(x.uid) === v.key)) {
-      const opts = l.options.filter((o) => take(options, o.optionId))
-      if (take(services, l.serviceId)) kept.push(withTotals(l, opts))
-      else orphans.push(...opts)
-    }
-    if (orphans.length && kept.length) kept[0] = withTotals(kept[0], [...kept[0].options, ...orphans])
-    out.push(...kept)
-  }
+  lines.forEach((l, i) => {
+    const v = byKey.get(vehicleKeyAt(i))
+    if (!v || !v.services.some((x) => x.serviceId === l.serviceId)) return
+    const bag = new Map<number, number>()
+    for (const o of v.options) bag.set(o.optionId, (bag.get(o.optionId) ?? 0) + 1)
+    out.push(withTotals(l, l.options.filter((o) => take(bag, o.optionId))))
+  })
   return out
 }
 
@@ -139,15 +135,39 @@ function snapshotOf(r: PricingResult, code: PromoCodeInput | null, now: Date): P
   }
 }
 
+/** Code promo validé par lib/promo/service.ts. `percent` : taux 1..100 d'un code en pourcentage (null : montant fixe). */
+export type BookingPromoCode = PromoCodeInput & { percent?: number | null }
+
+/**
+ * Montant d'un code en POURCENTAGE calculé sur ce qui est réellement facturé :
+ * panier normalisé (équivalences, doublons) et après les offres cumulables avec
+ * les codes, sur les seuls éléments visés par le code. Même arrondi que
+ * lib/promo (à l'euro-centime inférieur). Code fixe : montant inchangé.
+ */
+function codeCentsOnBilled(cart: Cart, promotions: Promotion[], equivalences: EquivalenceRule[], code: BookingPromoCode, now: Date): number {
+  const pct = code.percent
+  if (pct == null) return code.discountCents
+  if (!Number.isInteger(pct) || pct < 1 || pct > 100) return 0
+  const pre = priceCart({ cart, promotions: promotions.filter((p) => p.stackableWithPromoCode), equivalences, now })
+  const used: Record<string, number> = {}
+  for (const p of pre.promotions) for (const [k, c] of Object.entries(p.allocations)) used[k] = (used[k] ?? 0) + c
+  const targets = code.targetServiceIds ? new Set(code.targetServiceIds) : null
+  const base = pre.units
+    .filter((u) => (targets ? u.type === "service" && targets.has(u.id) : true))
+    .reduce((s, u) => s + Math.max(0, u.priceCents - (used[u.key] ?? 0)), 0)
+  return Math.max(0, Math.min(Math.floor((base * pct) / 100), base))
+}
+
 /**
  * Prix d'une réservation avec offres, équivalences et code promo (déjà validé
- * par lib/promo/service.ts, montant calculé sur le prix catalogue).
+ * par lib/promo/service.ts sur le prix catalogue ; un code en pourcentage est
+ * recalculé ici sur le montant réellement facturé).
  */
 export function priceBooking(input: {
   quote: Pick<Quote, "lines" | "subtotalCents" | "eligibleSubtotalCents" | "totalDurationMin">
   promotions: Promotion[]
   equivalences: EquivalenceRule[]
-  code: PromoCodeInput | null
+  code: BookingPromoCode | null
   now?: Date
 }): BookingPricing {
   const { quote, code } = input
@@ -170,7 +190,11 @@ export function priceBooking(input: {
     }
   }
 
-  const r = priceCart({ cart: quoteToCart(quote.lines), promotions: input.promotions, equivalences: input.equivalences, promoCode: code, now })
+  const cart = quoteToCart(quote.lines)
+  const engineCode: PromoCodeInput | null = code
+    ? { code: code.code, discountCents: codeCentsOnBilled(cart, input.promotions, input.equivalences, code, now), targetServiceIds: code.targetServiceIds }
+    : null
+  const r = priceCart({ cart, promotions: input.promotions, equivalences: input.equivalences, promoCode: engineCode, now })
   const lines = normalizedLines(quote.lines, r.cart)
   const subtotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0)
   const codeDiscountCents = r.promoCode.status === "applied" ? r.promoCode.discountCents : 0

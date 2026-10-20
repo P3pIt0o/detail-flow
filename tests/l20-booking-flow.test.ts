@@ -19,6 +19,8 @@ const { st, inserts, promo, promoStore } = vi.hoisted(() => ({
     tenant: { id: 104, customSiteKey: "cleanyzer" as string | null },
     depositType: "percent" as string,
     depositValue: 30,
+    /** Lieu : atelier (sans frais) ou domicile (déplacement facturé). */
+    workshop: true,
   },
   inserts: [] as { table: string; values: unknown }[],
   promo: {
@@ -66,8 +68,10 @@ vi.mock("@/lib/booking/queries", () => ({
   getServicePrices: async () => [],
 }))
 vi.mock("@/lib/booking/location", () => ({ getLocationConfig: async () => ({}), setBookingLocationType: async () => {}, getBookingLocationType: async () => "workshop" }))
-vi.mock("@/lib/booking/location-shared", () => ({ toPublicLocation: () => ({ workshopAddress: "1 rue de l'Atelier, Annecy" }), resolveLocationType: () => "workshop" }))
-vi.mock("@/lib/booking/travel", () => ({ computeTravel: async () => ({ ok: false, error: "x" }) }))
+vi.mock("@/lib/booking/location-shared", () => ({ toPublicLocation: () => ({ workshopAddress: "1 rue de l'Atelier, Annecy" }), resolveLocationType: () => (st.workshop ? "workshop" : "client") }))
+vi.mock("@/lib/booking/travel", () => ({
+  computeTravel: async (address: string) => ({ ok: true, address, lat: 45.9, lng: 6.1, distanceKm: 12, billedDistanceKm: 12, feeCents: 1500 }),
+}))
 vi.mock("@/lib/booking/availability", () => ({
   getAvailability: async () => [],
   timeToMinutes: (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)),
@@ -81,7 +85,7 @@ vi.mock("@/lib/payments/mode", () => ({ willRequireOnlinePayment: () => false })
 vi.mock("@/lib/licensing/enforce", () => ({ canUseFeature: async () => true }))
 vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => false, BOOKING_RATE_LIMITED_MESSAGE: "Trop de demandes." }))
 
-import { createBookingAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
+import { createBookingAction, getQuoteAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 
 const sel = (uid: string, serviceId: number, optionIds: number[] = []) => ({ uid, serviceId, vehicleTypeId: 1, optionIds, brand: "Peugeot", model: "208" })
 const input = (selections: ReturnType<typeof sel>[], promoCode?: string) => ({
@@ -107,6 +111,9 @@ beforeEach(() => {
   promo.validatePromoCode.mockResolvedValue({ valid: true, promoCodeId: 9, normalizedCode: "BIENVENUE", discountType: "fixed", discountValue: 10, discountCents: 1000, targetServiceIds: null })
   promo.consumePromoCode.mockResolvedValue(true)
   st.tenant = { id: 104, customSiteKey: "cleanyzer" }
+  st.depositType = "percent"
+  st.depositValue = 30
+  st.workshop = true
 })
 
 describe("L20 — sans offre : réservation strictement identique à avant", () => {
@@ -134,18 +141,47 @@ describe("L20 — offres automatiques", () => {
     expect(cents).toBe(700)
     expect(snap).toMatchObject({ v: 1, promotionDiscountCents: 700, totalDiscountCents: 700, promotions: [{ id: 1, discountCents: 700 }] })
   })
-  it("même traitement deux fois sur un véhicule : facturé une fois, au moins cher, durée comprise", async () => {
+  it("même traitement deux fois sur un véhicule : facturé une fois, durée comprise", async () => {
     withData([], [phares])
-    await createBookingAction(input([sel("v:l1", CLZ.lavageExterieurEco, [CLZ.pharesOption]), sel("v:l2", CLZ.pharesService)]))
-    expect(items().map((i) => i.serviceId)).toEqual([CLZ.lavageExterieurEco])
-    expect(booking()).toMatchObject({ subtotalCents: 8000, totalCents: 8000, totalDurationMin: 90, endTime: "10:30" })
-    expect(inserts.filter((i) => i.table === "booking_item_options")).toHaveLength(1)
+    await createBookingAction(input([sel("v", CLZ.pharesService, [CLZ.pharesOption])]))
+    expect(items().map((i) => i.serviceId)).toEqual([CLZ.pharesService])
+    expect(booking()).toMatchObject({ subtotalCents: 6500, optionsCents: 0, totalCents: 6500, totalDurationMin: 45, endTime: "09:45" })
+    expect(inserts.filter((i) => i.table === "booking_item_options")).toHaveLength(0)
   })
-  it("offre plus avantageuse que le code : code ni appliqué ni consommé", async () => {
+  it("anti-fraude : deux véhicules au même identifiant de ligne restent deux véhicules facturés", async () => {
+    withData([], [phares])
+    await createBookingAction(input([sel("x:1", CLZ.lavageExterieurEco, [CLZ.pharesOption]), sel("x:1", CLZ.pharesService)]))
+    expect(booking()).toMatchObject({ subtotalCents: 14500, totalCents: 14500 })
+    expect(items()).toHaveLength(2)
+  })
+  it("offre plus avantageuse que le code : réservation refusée avec le motif, code non consommé, rien n'est écrit", async () => {
     withData([multiServices({ tiers: [{ minQuantity: 2, value: { type: "percent", bps: 2000 } }] })])
-    await createBookingAction(input([sel("a", CLZ.lavageExterieurEco), sel("b", CLZ.lavageInterieurEco)], "bienvenue"))
-    expect(booking()).toMatchObject({ discountCents: 1400, totalCents: 5600, promoCodeId: null, promoCodeSnapshot: null })
+    const r = await createBookingAction(input([sel("a", CLZ.lavageExterieurEco), sel("b", CLZ.lavageInterieurEco)], "bienvenue"))
+    expect(r).toMatchObject({ ok: false, code: "invalid" })
+    if (!r.ok) expect(r.error).toMatch(/ne se cumule pas avec l'offre déjà appliquée/)
     expect(promo.consumePromoCode).not.toHaveBeenCalled()
+    expect(inserts).toHaveLength(0)
+  })
+  it("code en pourcentage : calculé sur le montant réellement facturé (équivalence)", async () => {
+    withData([], [phares])
+    promo.validatePromoCode.mockResolvedValue({ valid: true, promoCodeId: 9, normalizedCode: "DIX", discountType: "percent", discountValue: 10, discountCents: 1150, targetServiceIds: null })
+    await createBookingAction(input([sel("v", CLZ.pharesService, [CLZ.pharesOption])], "dix"))
+    expect(booking()).toMatchObject({ subtotalCents: 6500, discountCents: 650, totalCents: 5850, promoCodeSnapshot: { code: "DIX", discountCents: 650 } })
+  })
+  it("code ciblé + offre : seule la prestation visée compte pour le code", async () => {
+    withData([multiServices({ stackableWithPromoCode: true })])
+    promo.validatePromoCode.mockResolvedValue({ valid: true, promoCodeId: 9, normalizedCode: "DIX", discountType: "percent", discountValue: 10, discountCents: 400, targetServiceIds: [CLZ.lavageInterieurEco] })
+    await createBookingAction(input([sel("a", CLZ.lavageExterieurEco), sel("b", CLZ.lavageInterieurEco)], "dix"))
+    // Offre −10 % : 300 + 400 ; code 10 % sur le reste de l'intérieur (3600) : 360.
+    expect(booking()).toMatchObject({ discountCents: 1060, totalCents: 5940 })
+  })
+  it("déplacement facturé en entier et acompte fixe : remise sur les prestations seulement", async () => {
+    withData([multiServices()])
+    st.workshop = false
+    st.depositType = "fixed"
+    st.depositValue = 2000
+    await createBookingAction({ ...input([sel("a", CLZ.lavageExterieurEco), sel("b", CLZ.lavageInterieurEco)]), address: "12 avenue de Genève, Annecy" })
+    expect(booking()).toMatchObject({ travelFeeCents: 1500, subtotalCents: 7000, discountCents: 700, totalCents: 7800, depositCents: 2000 })
   })
   it("code plus avantageux : code seul, consommé, montant du moteur", async () => {
     withData([multiServices()])
@@ -173,6 +209,19 @@ describe("L20 — base et tenants", () => {
     await createBookingAction(input([sel("a", CLZ.lavageExterieurEco)]))
     expect(promoStore.loadPromotionData).toHaveBeenCalledWith(expect.objectContaining({ id: 22 }))
     expect(booking()).toMatchObject({ companyId: 22 })
+  })
+})
+
+describe("L20 — aperçu serveur = montant enregistré", () => {
+  it("getQuoteAction annonce le total et l'acompte que createBookingAction enregistre", async () => {
+    withData([multiServices()])
+    const selections = [sel("a", CLZ.lavageExterieurEco, [CLZ.pharesOption]), sel("b", CLZ.lavageInterieurEco)]
+    const q = await getQuoteAction(selections)
+    await createBookingAction(input(selections))
+    expect(q.promotions).toMatchObject({ discountCents: booking().discountCents, totalCents: booking().totalCents, depositCents: booking().depositCents, totalDurationMin: booking().totalDurationMin })
+  })
+  it("sans offre : aucun aperçu de remise (champ null)", async () => {
+    expect((await getQuoteAction([sel("a", CLZ.lavageExterieurEco)])).promotions).toBeNull()
   })
 })
 
