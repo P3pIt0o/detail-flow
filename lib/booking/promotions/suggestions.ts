@@ -4,7 +4,7 @@
  */
 
 import { cartUnits, normalizeCart } from "./cart"
-import { evaluatePromotion, tierFor } from "./engine"
+import { evaluatePromotion } from "./engine"
 import { isPromotionLive, validateEquivalence } from "./validate"
 import type { Cart, EquivalenceRule, ItemRef, Promotion, Suggestion } from "./types"
 
@@ -35,9 +35,16 @@ export function suggestUpsells(input: {
       const type = p.kind === "multi_services" ? "service" : "option"
       const ids = p.kind === "multi_services" ? p.eligibleServiceIds : p.eligibleOptionIds
       const quantity = units.filter((u) => u.type === type && u.priceCents > 0 && (ids === null || ids.includes(u.id))).length
-      const current = tierFor(p.tiers, quantity)
-      const next = [...p.tiers].filter((t) => t.minQuantity > quantity).sort((a, b) => a.minQuantity - b.minQuantity)[0]
-      if (next && (!current || next.minQuantity > current.minQuantity)) {
+      const reached = p.tiers.filter((t) => t.minQuantity <= quantity)
+      // Paliers incohérents (D-B1 a) : on ne suggère un palier en pourcentage ou en
+      // euros que s'il est réellement plus avantageux que le meilleur déjà atteint.
+      const bestBps = Math.max(0, ...reached.map((t) => (t.value.type === "percent" ? t.value.bps : 0)))
+      const bestCents = Math.max(0, ...reached.map((t) => (t.value.type === "amount" ? t.value.cents : 0)))
+      const next = [...p.tiers]
+        .filter((t) => t.minQuantity > quantity)
+        .sort((a, b) => a.minQuantity - b.minQuantity)
+        .find((t) => (t.value.type === "percent" ? t.value.bps > bestBps : t.value.type === "amount" ? t.value.cents > bestCents : true))
+      if (next) {
         out.push({
           s: { kind: "next_tier", promotionId: p.id, name: p.name.trim(), missingQuantity: next.minQuantity - quantity, itemType: type, nextTier: next },
           score: 1000 - (next.minQuantity - quantity),

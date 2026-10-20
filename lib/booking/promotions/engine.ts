@@ -43,6 +43,37 @@ export function tierFor(tiers: PromotionTier[], quantity: number): PromotionTier
   return best
 }
 
+type Candidate = { tier: PromotionTier; base: CartUnit[]; discount: number }
+
+/**
+ * Paliers atteints (minQuantity ≤ quantité), chacun avec sa borne haute : un
+ * palier couvre jusqu'au palier suivant − 1 ; le dernier est ouvert (« ou plus »).
+ */
+export function reachedTiers(tiers: PromotionTier[], quantity: number): { tier: PromotionTier; cap: number }[] {
+  const sorted = [...tiers].sort((a, b) => a.minQuantity - b.minQuantity)
+  return sorted
+    .map((tier, i) => ({ tier, cap: i + 1 < sorted.length ? sorted[i + 1].minQuantity - 1 : Number.POSITIVE_INFINITY }))
+    .filter((x) => x.tier.minQuantity <= quantity)
+}
+
+/** Les `n` éléments au montant le plus élevé (ordre d'origine conservé à égalité). */
+function mostExpensive(units: CartUnit[], amounts: Amounts, n: number): CartUnit[] {
+  return units
+    .map((u, i) => ({ u, i, c: amounts[u.key] ?? 0 }))
+    .sort((a, b) => b.c - a.c || a.i - b.i)
+    .slice(0, n)
+    .sort((a, b) => a.i - b.i)
+    .map((x) => x.u)
+}
+
+/** Meilleure remise ; à égalité, le palier le plus élevé (celui du nombre réel d'éléments). */
+function pickBetter(current: Candidate | null, next: Candidate): Candidate {
+  if (!current) return next
+  if (next.discount > current.discount) return next
+  if (next.discount === current.discount && next.tier.minQuantity > current.tier.minQuantity) return next
+  return current
+}
+
 function result(
   p: Promotion,
   tier: PromotionTier,
@@ -70,30 +101,39 @@ export function evaluatePromotion(p: Promotion, units: CartUnit[], amounts: Amou
       const eligible = units.filter(
         (u) => u.type === "service" && u.priceCents > 0 && (p.eligibleServiceIds === null || p.eligibleServiceIds.includes(u.id)),
       )
-      const tier = tierFor(p.tiers, eligible.length)
-      if (!tier) return null
-      const vehicles = new Set(eligible.map((u) => u.vehicleKey))
-      const base = p.includeOptions
-        ? [...eligible, ...units.filter((u) => u.type === "option" && u.priceCents > 0 && vehicles.has(u.vehicleKey))]
-        : eligible
-      const eligibleCents = base.reduce((s, u) => s + (amounts[u.key] ?? 0), 0)
-      let discount = 0
-      if (tier.value.type === "percent") discount = percentOf(eligibleCents, tier.value.bps)
-      else if (tier.value.type === "fixed_total") discount = Math.max(0, eligibleCents - tier.value.cents)
-      return result(p, tier, eligible.length, base, amounts, discount)
+      // D-B1 (a) : parmi les paliers ATTEINTS, celui qui donne le meilleur prix au client.
+      let best: Candidate | null = null
+      for (const { tier, cap } of reachedTiers(p.tiers, eligible.length)) {
+        // Prix total fixe d'un palier inférieur : il ne couvre que son nombre
+        // de prestations (les plus chères, au bénéfice du client) ; les autres
+        // restent au tarif normal. Un pourcentage s'applique à toutes.
+        const services = tier.value.type === "fixed_total" && eligible.length > cap ? mostExpensive(eligible, amounts, cap) : eligible
+        const vehicles = new Set(services.map((u) => u.vehicleKey))
+        const base = p.includeOptions
+          ? [...services, ...units.filter((u) => u.type === "option" && u.priceCents > 0 && vehicles.has(u.vehicleKey))]
+          : services
+        const baseCents = base.reduce((s, u) => s + (amounts[u.key] ?? 0), 0)
+        let discount = 0
+        if (tier.value.type === "percent") discount = percentOf(baseCents, tier.value.bps)
+        else if (tier.value.type === "fixed_total") discount = Math.max(0, baseCents - tier.value.cents)
+        best = pickBetter(best, { tier, base, discount })
+      }
+      return best ? result(p, best.tier, eligible.length, best.base, amounts, best.discount) : null
     }
 
     case "multi_options": {
       const eligible = units.filter(
         (u) => u.type === "option" && u.priceCents > 0 && (p.eligibleOptionIds === null || p.eligibleOptionIds.includes(u.id)),
       )
-      const tier = tierFor(p.tiers, eligible.length)
-      if (!tier) return null
       const eligibleCents = eligible.reduce((s, u) => s + (amounts[u.key] ?? 0), 0)
-      let discount = 0
-      if (tier.value.type === "percent") discount = percentOf(eligibleCents, tier.value.bps)
-      else if (tier.value.type === "amount") discount = Math.min(tier.value.cents, eligibleCents)
-      return result(p, tier, eligible.length, eligible, amounts, discount)
+      let best: Candidate | null = null
+      for (const { tier } of reachedTiers(p.tiers, eligible.length)) {
+        let discount = 0
+        if (tier.value.type === "percent") discount = percentOf(eligibleCents, tier.value.bps)
+        else if (tier.value.type === "amount") discount = Math.min(tier.value.cents, eligibleCents)
+        best = pickBetter(best, { tier, base: eligible, discount })
+      }
+      return best ? result(p, best.tier, eligible.length, best.base, amounts, best.discount) : null
     }
 
     case "service_option": {
