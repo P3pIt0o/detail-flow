@@ -223,6 +223,10 @@ export function priceCart(input: PriceCartInput): PricingResult {
       promotions = B.applied
       codeCents = bCode
       promoCode = { status: "applied", code: code.code, discountCents: bCode, allocations: codeAlloc }
+    } else if (bCode === 0) {
+      // Rien à remiser pour ce code (aucun élément visé facturé, ou déjà
+      // entièrement remisé) : ce n'est pas un conflit d'offres.
+      promoCode = { status: "rejected_no_eligible_amount", code: code.code }
     } else {
       promoCode = { status: "rejected_not_combinable", code: code.code, promotionDiscountCents: aTotal, codeDiscountCents: bCode }
     }

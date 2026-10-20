@@ -65,13 +65,23 @@ export type EquivalenceRule = {
 
 /** Trace d'une correction automatique du panier (affichée au client et au pro). */
 export type CartAdjustment =
-  | { kind: "duplicate_merged"; vehicleKey: string; item: ItemRef }
+  | {
+      kind: "duplicate_merged"
+      vehicleKey: string
+      item: ItemRef
+      /** Prix de l'exemplaire retiré (non facturé). */
+      removedPriceCents: number
+    }
   | {
       kind: "equivalence_resolved"
       vehicleKey: string
       ruleId: number
       kept: ItemRef
       removed: ItemRef
+      /** Prix facturé de la forme conservée (le traitement reste réalisé). */
+      keptPriceCents: number
+      /** Prix de la forme retirée : montant que le client ne paie pas. */
+      removedPriceCents: number
       reason: string
     }
 
@@ -176,6 +186,8 @@ export type PromoCodeOutcome =
   | { status: "applied"; code: string; discountCents: number; allocations: Record<string, number> }
   /** Code écarté : une promotion non cumulable avec les codes est au moins aussi avantageuse. */
   | { status: "rejected_not_combinable"; code: string; promotionDiscountCents: number; codeDiscountCents: number }
+  /** Code écarté : aucun montant restant à remiser sur les éléments qu'il vise. */
+  | { status: "rejected_no_eligible_amount"; code: string }
 
 export type PricingResult = {
   /** Panier après fusion des doublons et résolution des équivalences. */

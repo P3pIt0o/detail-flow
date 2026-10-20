@@ -21,8 +21,12 @@ const MODE_LABEL: Record<PromotionValue["type"], string> = {
   fixed_total: "prix total fixe",
 }
 
+/** Date seule « AAAA-MM-JJ » : ambiguë (fuseau, fin de journée exclue) → refusée. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
 function toTime(d: string | Date | null | undefined): number | null {
   if (d == null || d === "") return null
+  if (typeof d === "string" && DATE_ONLY.test(d.trim())) return Number.NaN
   const t = d instanceof Date ? d.getTime() : Date.parse(d)
   return Number.isNaN(t) ? Number.NaN : t
 }
@@ -55,7 +59,9 @@ export function validatePromotion(p: Promotion): ValidationResult {
 
   const start = toTime(p.startsAt)
   const end = toTime(p.endsAt)
-  if (Number.isNaN(start) || Number.isNaN(end)) errors.push("Date de validité invalide.")
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    errors.push("Date de validité invalide : indiquez une date ET une heure (fuseau de l'entreprise), par exemple 2026-10-31T23:59:59+01:00.")
+  }
   else if (start != null && end != null && end < start) errors.push("La date de fin doit suivre la date de début.")
 
   const allowed = ALLOWED_MODES[p.kind]

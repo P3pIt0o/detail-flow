@@ -165,7 +165,7 @@ describe("cumul et priorité", () => {
   })
   it("offres désactivées, hors dates ou invalides ignorées", () => {
     const now = new Date("2026-10-20T12:00:00Z")
-    const promos: Promotion[] = [fixedTotal({ active: false }), fixedTotal({ id: 8, endsAt: "2026-10-01" }), fixedTotal({ id: 9, tiers: [] })]
+    const promos: Promotion[] = [fixedTotal({ active: false }), fixedTotal({ id: 8, endsAt: "2026-10-01T00:00:00Z" }), fixedTotal({ id: 9, tiers: [] })]
     expect(priceCart({ cart: c, promotions: promos, now }).totalDiscountCents).toBe(0)
   })
 })
@@ -197,6 +197,10 @@ describe("codes promo", () => {
     expect(r.promotionDiscountCents).toBe(4500)
     expect(r.promoCode).toMatchObject({ status: "applied", discountCents: 10000 })
     expect(r.finalCents).toBe(0)
+  })
+  it("code visant une prestation absente : écarté pour « aucun montant », pas pour conflit d'offres", () => {
+    expect(priceCart({ cart: c, promoCode: code(1000, [99]) }).promoCode).toEqual({ status: "rejected_no_eligible_amount", code: "TEST" })
+    expect(priceCart({ cart: c, promotions: [fixedTotal()], promoCode: code(1000, [99]) }).promoCode.status).toBe("rejected_no_eligible_amount")
   })
   it("code ciblé : seulement sur les prestations visées, sur leur reste", () => {
     const r = priceCart({ cart: c, promotions: [multiServices({ stackableWithPromoCode: true })], promoCode: code(99999, [2]) })

@@ -89,13 +89,13 @@ export function normalizeCart(
     const services: CartVehicle["services"] = []
     for (const s of v.services) {
       if (services.some((x) => x.serviceId === s.serviceId)) {
-        adjustments.push({ kind: "duplicate_merged", vehicleKey: v.key, item: { type: "service", id: s.serviceId } })
+        adjustments.push({ kind: "duplicate_merged", vehicleKey: v.key, item: { type: "service", id: s.serviceId }, removedPriceCents: s.priceCents })
       } else services.push({ serviceId: s.serviceId, priceCents: s.priceCents })
     }
     const options: CartVehicle["options"] = []
     for (const o of v.options) {
       if (options.some((x) => x.optionId === o.optionId)) {
-        adjustments.push({ kind: "duplicate_merged", vehicleKey: v.key, item: { type: "option", id: o.optionId } })
+        adjustments.push({ kind: "duplicate_merged", vehicleKey: v.key, item: { type: "option", id: o.optionId }, removedPriceCents: o.priceCents })
       } else options.push({ optionId: o.optionId, priceCents: o.priceCents })
     }
     let current: CartVehicle = { key: v.key, services, options }
@@ -104,14 +104,48 @@ export function normalizeCart(
     for (const rule of rules) {
       if (has(current, rule.a) && has(current, rule.b)) {
         const { kept, removed } = chooseKept(current, rule.a, rule.b)
+        const keptPriceCents = priceOf(current, kept)
+        const removedPriceCents = priceOf(current, removed)
         current = without(current, removed)
-        adjustments.push({ kind: "equivalence_resolved", vehicleKey: v.key, ruleId: rule.id, kept, removed, reason: rule.reason.trim() })
+        adjustments.push({
+          kind: "equivalence_resolved",
+          vehicleKey: v.key,
+          ruleId: rule.id,
+          kept,
+          removed,
+          keptPriceCents,
+          removedPriceCents,
+          reason: rule.reason.trim(),
+        })
       }
     }
     return current
   })
 
   return { cart: { vehicles }, adjustments }
+}
+
+/** 6500 → « 65 € », 6550 → « 65,50 € » (espaces simples, résultat identique serveur/client). */
+export function formatEuros(cents: number): string {
+  const sign = cents < 0 ? "−" : ""
+  const abs = Math.abs(Math.trunc(cents))
+  const euros = Math.floor(abs / 100)
+  const rest = abs % 100
+  const int = String(euros).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+  return `${sign}${int}${rest ? `,${String(rest).padStart(2, "0")}` : ""} €`
+}
+
+/**
+ * Explication en français d'une correction automatique, à afficher au client
+ * AVANT validation (récapitulatif) et au pro (détail de la réservation).
+ * `label` fournit le nom de l'élément tel qu'affiché dans le catalogue.
+ */
+export function describeAdjustment(adj: CartAdjustment, label: (ref: ItemRef) => string): string {
+  if (adj.kind === "duplicate_merged") {
+    return `« ${label(adj.item)} » était ajouté deux fois pour le même véhicule : il n'est compté et facturé qu'une seule fois.`
+  }
+  const saving = adj.removedPriceCents > 0 ? ` Vous ne payez pas ${formatEuros(adj.removedPriceCents)} en double.` : ""
+  return `« ${label(adj.removed)} » et « ${label(adj.kept)} » correspondent au même traitement (${adj.reason.replace(/[.\s]+$/, "")}). Il est réalisé une seule fois et facturé ${formatEuros(adj.keptPriceCents)} au titre de « ${label(adj.kept)} ».${saving}`
 }
 
 /** Liste à plat des éléments facturables, dans un ordre stable. */

@@ -43,19 +43,25 @@ describe("validatePromotion", () => {
       validatePromotion(serviceOption({ tiers: [{ minQuantity: 1, value: { type: "amount", cents: 1 } }, { minQuantity: 2, value: { type: "amount", cents: 2 } }] })).ok,
     ).toBe(false)
   })
+  it("dates seules (sans heure) refusées : ambiguës, la fin de journée serait exclue", () => {
+    expect(validatePromotion(multiServices({ endsAt: "2026-10-31" })).ok).toBe(false)
+    expect(validatePromotion(multiServices({ endsAt: "2026-10-31T23:59:59+01:00" })).ok).toBe(true)
+    // Le 31 à 10 h (Paris), une offre valable « jusqu'au 31 inclus » est bien en vigueur.
+    expect(isPromotionLive(multiServices({ endsAt: "2026-10-31T23:59:59+01:00" }), new Date("2026-10-31T10:00:00+01:00"))).toBe(true)
+  })
   it("dates : fin après début, dates illisibles refusées", () => {
-    expect(validatePromotion(multiServices({ startsAt: "2026-11-02", endsAt: "2026-11-01" })).ok).toBe(false)
+    expect(validatePromotion(multiServices({ startsAt: "2026-11-02T00:00:00Z", endsAt: "2026-11-01T00:00:00Z" })).ok).toBe(false)
     expect(validatePromotion(multiServices({ startsAt: "pas une date" })).ok).toBe(false)
   })
 })
 
 describe("isPromotionLive", () => {
   const now = new Date("2026-10-20T12:00:00Z")
-  it("active et dans ses dates", () => expect(isPromotionLive(multiServices({ startsAt: "2026-10-01", endsAt: "2026-10-31" }), now)).toBe(true))
+  it("active et dans ses dates", () => expect(isPromotionLive(multiServices({ startsAt: "2026-10-01T00:00:00Z", endsAt: "2026-10-31T23:59:59Z" }), now)).toBe(true))
   it("désactivée", () => expect(isPromotionLive(multiServices({ active: false }), now)).toBe(false))
   it("pas encore commencée / terminée", () => {
-    expect(isPromotionLive(multiServices({ startsAt: "2026-10-21" }), now)).toBe(false)
-    expect(isPromotionLive(multiServices({ endsAt: "2026-10-19" }), now)).toBe(false)
+    expect(isPromotionLive(multiServices({ startsAt: "2026-10-21T00:00:00Z" }), now)).toBe(false)
+    expect(isPromotionLive(multiServices({ endsAt: "2026-10-19T23:59:59Z" }), now)).toBe(false)
   })
   it("invalide → jamais en vigueur", () => expect(isPromotionLive(multiServices({ tiers: [] }), now)).toBe(false))
 })
