@@ -9,7 +9,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
-const session = { role: "OWNER" as "OWNER" | "ADMIN" | "EMPLOYEE", tenant: { id: 11, timezone: "Europe/Paris" } }
+// vi.hoisted : ces objets existent AVANT l'exécution des fabriques vi.mock (hissées).
+const { session, owned, last, store } = vi.hoisted(() => ({
+  session: { role: "OWNER" as "OWNER" | "ADMIN" | "EMPLOYEE", tenant: { id: 11, timezone: "Europe/Paris" } },
+  /** Ids appartenant au tenant 11 : prestations 1, 2 ; options 98. */
+  owned: { services: [1, 2], options: [98] } as Record<"services" | "options", number[]>,
+  last: { table: "" },
+  store: {
+    insertPromotion: vi.fn(async (_companyId: number, _p: unknown) => 42 as number | null),
+    updatePromotion: vi.fn(async (_companyId: number, _id: number, _p: unknown) => true),
+    duplicatePromotion: vi.fn(async (_companyId: number, _id: number) => 43 as number | null),
+    setActive: vi.fn(async (_t: string, _companyId: number, _id: number, _a: boolean) => true),
+    deleteRow: vi.fn(async (_t: string, _companyId: number, _id: number) => true),
+    insertEquivalence: vi.fn(async (_companyId: number, _r: unknown) => 7 as number | null),
+    insertUpsell: vi.fn(async (_companyId: number, _u: unknown) => 8 as number | null),
+    listForAdmin: vi.fn(async (_companyId: number) => ({ ready: true, promotions: [] as { id: number }[], equivalences: [], upsells: [] })),
+    zonedDayBoundary: (d: string, _tz: string, e: string) => (e === "start" ? `${d}T00:00:00.000Z` : `${d}T23:59:59.999Z`),
+  },
+}))
 vi.mock("@/lib/admin", () => ({
   requireCompanyMember: async () => ({ tenant: session.tenant, role: session.role }),
   requireCompanyRole: async (roles: string[]) => {
@@ -18,9 +35,6 @@ vi.mock("@/lib/admin", () => ({
   },
 }))
 
-/** Ids appartenant au tenant 11 : prestations 1, 2 ; options 98. */
-const owned = { services: [1, 2], options: [98] }
-let lastTable = ""
 vi.mock("@/lib/db/schema", () => ({ services: { id: "s.id", companyId: "s.companyId", __t: "services" }, options: { id: "o.id", companyId: "o.companyId", __t: "options" } }))
 vi.mock("drizzle-orm", () => ({
   and: (...a: unknown[]) => a,
@@ -32,9 +46,9 @@ vi.mock("@/lib/db", () => ({
     select: () => ({
       from: (t: { __t: string }) => ({
         where: async (w: [{ v: number }, { v: number[] }]) => {
-          lastTable = t.__t
+          last.table = t.__t
           const [{ v: companyId }, { v: wanted }] = w
-          const pool = companyId === 11 ? owned[t.__t as "services" | "options"] : []
+          const pool = companyId === 11 ? owned[t.__t as "services" | "options"] : ([] as number[])
           return wanted.filter((id) => pool.includes(id)).map((id) => ({ id }))
         },
       }),
@@ -42,25 +56,14 @@ vi.mock("@/lib/db", () => ({
   },
 }))
 
-const store = {
-  insertPromotion: vi.fn(async () => 42),
-  updatePromotion: vi.fn(async () => true),
-  duplicatePromotion: vi.fn(async () => 43),
-  setActive: vi.fn(async () => true),
-  deleteRow: vi.fn(async () => true),
-  insertEquivalence: vi.fn(async () => 7),
-  insertUpsell: vi.fn(async () => 8),
-  listForAdmin: vi.fn(async () => ({ ready: true, promotions: [], equivalences: [], upsells: [] })),
-  zonedDayBoundary: (d: string, _tz: string, e: string) => (e === "start" ? `${d}T00:00:00.000Z` : `${d}T23:59:59.999Z`),
-}
 vi.mock("@/lib/booking/promotions-store", () => store)
 
-const actions = await import("@/app/admin/(dashboard)/offres/actions")
+import * as actions from "@/app/admin/(dashboard)/offres/actions"
 const valid = { name: "2 prestations", kind: "multi_services" as const, tiers: [{ minQuantity: 2, value: { type: "percent" as const, bps: 1000 } }], eligibleServiceIds: [1, 2] }
 
 beforeEach(() => {
   session.role = "OWNER"
-  for (const f of Object.values(store)) if (typeof f === "function" && "mockClear" in f) (f as { mockClear: () => void }).mockClear()
+  vi.clearAllMocks()
 })
 
 describe("L19 — droits", () => {
@@ -101,7 +104,7 @@ describe("L19 — anti-IDOR et validation", () => {
     const r = await actions.saveEquivalence({ a: { type: "service", id: 1 }, b: { type: "option", id: 555 }, reason: "Même traitement" })
     expect(r).toMatchObject({ ok: false })
     expect(store.insertEquivalence).not.toHaveBeenCalled()
-    expect(lastTable).toBe("options")
+    expect(last.table).toBe("options")
   })
   it("offre invalide refusée avec les messages du moteur", async () => {
     const r = await actions.savePromotion({ ...valid, tiers: [] })

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 vi.mock("@/lib/db", () => ({ db: {} }))
 
-const { rowToPromotion, promotionToColumns, rowToEquivalence, rowToUpsell, zonedDayBoundary } = await import("@/lib/booking/promotions-store")
+import { rowToPromotion, promotionToColumns, rowToEquivalence, rowToUpsell, zonedDayBoundary } from "@/lib/booking/promotions-store"
 
 const row = (over: Record<string, unknown> = {}) => ({
   id: 7,
