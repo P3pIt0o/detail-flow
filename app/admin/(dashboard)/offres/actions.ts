@@ -48,7 +48,19 @@ export type OfferActionResult =
   | { ok: true; id?: number; warnings?: TierWarning[] }
   | { ok: false; error: string; errors?: string[] }
 
-const UNAVAILABLE: OfferActionResult = { ok: false, error: "Fonctionnalité bientôt disponible (mise à jour de la base en attente)." }
+const UNAVAILABLE: OfferActionResult = { ok: false, error: "Cette fonctionnalité sera bientôt disponible." }
+
+/** Nombre maximal de compléments suggérés pour une prestation. */
+const MAX_UPSELL_ITEMS = 5
+
+/** Palier reconstruit champ par champ : aucune donnée du navigateur n'est stockée telle quelle. */
+function cleanTier(t: unknown): PromotionTier {
+  const o = (t && typeof t === "object" ? t : {}) as { minQuantity?: unknown; value?: { type?: unknown; bps?: unknown; cents?: unknown } }
+  const v = o.value && typeof o.value === "object" ? o.value : {}
+  const value =
+    v.type === "percent" ? { type: "percent" as const, bps: Number(v.bps) } : { type: (v.type === "fixed_total" ? "fixed_total" : "amount") as "amount" | "fixed_total", cents: Number(v.cents) }
+  return { minQuantity: Number(o.minQuantity), value } as PromotionTier
+}
 
 function revalidate() {
   revalidatePath("/admin/offres")
@@ -124,7 +136,7 @@ function buildPromotion(input: PromotionInput, id: number, active: boolean, time
     priority: Number.isInteger(input.priority) ? (input.priority as number) : 0,
     stackable: input.stackable === true,
     stackableWithPromoCode: input.stackableWithPromoCode === true,
-    tiers: Array.isArray(input.tiers) ? input.tiers : [],
+    tiers: Array.isArray(input.tiers) ? input.tiers.slice(0, 11).map(cleanTier) : [],
   }
   switch (input.kind) {
     case "multi_services":
@@ -174,6 +186,7 @@ export async function savePromotion(input: PromotionInput, id?: number): Promise
   if (!(await ownsOptions(tenant.id, ids(refs.optionIds)))) return { ok: false, error: "Une option sélectionnée est invalide." }
 
   if (editing) {
+    // L'état actif n'est pas réécrit par la modification (voir updatePromotion).
     if (!(await updatePromotion(tenant.id, id as number, built))) return { ok: false, error: "Offre introuvable." }
     revalidate()
     return { ok: true, id, warnings: analyzeTiers(built) }
@@ -202,6 +215,11 @@ export async function setPromotionActiveAction(id: number, active: boolean): Pro
     const current = lists.promotions.find((p) => p.id === id)
     if (!current) return { ok: false, error: "Offre introuvable." }
     if ("invalid" in current) return { ok: false, error: "Cette offre est incomplète : modifiez-la avant de l'activer." }
+    // Les prestations et options citées existent toujours dans CE tenant (supprimées entre-temps : refus).
+    const refs = referencedIds(current)
+    if (!(await ownsServices(tenant.id, ids(refs.serviceIds))) || !(await ownsOptions(tenant.id, ids(refs.optionIds)))) {
+      return { ok: false, error: "Une prestation ou une option de cette offre n'existe plus : modifiez l'offre avant de l'activer." }
+    }
   }
   if (!(await setActive("promotions", tenant.id, id, active === true))) return { ok: false, error: "Offre introuvable." }
   revalidate()
@@ -222,7 +240,11 @@ export async function deletePromotionAction(id: number): Promise<OfferActionResu
 
 export async function saveEquivalence(input: { a: ItemRef; b: ItemRef; reason: string }): Promise<OfferActionResult> {
   const { tenant } = await requireCompanyRole([...WRITE_ROLES])
-  const rule = { id: 1, a: input?.a, b: input?.b, reason: String(input?.reason ?? "") }
+  const ref = (r: unknown): ItemRef => {
+    const o = (r && typeof r === "object" ? r : {}) as { type?: unknown; id?: unknown }
+    return { type: o.type as ItemRef["type"], id: Number(o.id) } // validé juste après (validateEquivalence)
+  }
+  const rule = { id: 1, a: ref(input?.a), b: ref(input?.b), reason: String(input?.reason ?? "").trim().slice(0, 200) }
   const v = validateEquivalence(rule)
   if (!v.ok) return { ok: false, error: "Règle invalide.", errors: v.errors }
   if (!(await ownsItems(tenant.id, [rule.a, rule.b]))) return { ok: false, error: "Un élément sélectionné est invalide." }
@@ -253,9 +275,17 @@ export async function deleteEquivalenceAction(id: number): Promise<OfferActionRe
 export async function saveUpsell(input: { whenServiceId: number; suggest: ItemRef[]; message?: string | null }): Promise<OfferActionResult> {
   const { tenant } = await requireCompanyRole([...WRITE_ROLES])
   const whenServiceId = Number(input?.whenServiceId)
-  const suggest = (Array.isArray(input?.suggest) ? input.suggest : []).filter(
-    (i) => i && (i.type === "service" || i.type === "option") && Number.isInteger(i.id) && i.id > 0 && !(i.type === "service" && i.id === whenServiceId),
-  )
+  const seen = new Set<string>()
+  const suggest: ItemRef[] = []
+  for (const i of Array.isArray(input?.suggest) ? input.suggest : []) {
+    if (!i || (i.type !== "service" && i.type !== "option") || !Number.isSafeInteger(i.id) || i.id <= 0) continue
+    if (i.type === "service" && i.id === whenServiceId) continue
+    const key = `${i.type}:${i.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    suggest.push({ type: i.type, id: i.id })
+  }
+  if (suggest.length > MAX_UPSELL_ITEMS) return { ok: false, error: `Choisissez au plus ${MAX_UPSELL_ITEMS} compléments.` }
   if (!Number.isInteger(whenServiceId) || whenServiceId <= 0) return { ok: false, error: "Choisissez la prestation concernée." }
   if (suggest.length === 0) return { ok: false, error: "Choisissez au moins un complément." }
   if (!(await ownsItems(tenant.id, [{ type: "service", id: whenServiceId }, ...suggest]))) return { ok: false, error: "Un élément sélectionné est invalide." }

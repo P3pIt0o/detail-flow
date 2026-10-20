@@ -37,6 +37,10 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type PromotionsSchemaState = "ready" | "absent" | "error"
 let readyCache: { value: boolean; at: number } | null = null
+/** Toute erreur de requête invalide l'état mis en cache (tables supprimées, retour arrière). */
+export function resetPromotionsSchemaCache(): void {
+  readyCache = null
+}
 const NEGATIVE_TTL_MS = 30_000
 
 export async function promotionsSchemaState(): Promise<PromotionsSchemaState> {
@@ -71,8 +75,16 @@ const posInt = (v: unknown): number | null => {
   const n = typeof v === "string" ? Number(v) : v
   return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : null
 }
-const idList = (v: unknown): number[] | null =>
-  v === null || v === undefined ? null : Array.isArray(v) ? v.map(posInt).filter((n): n is number => n !== null) : null
+/**
+ * Liste d'ids du périmètre. SEUL un `null` JSON explicite vaut « tous » ; clé
+ * absente, mauvais type ou élément invalide → `undefined` (ligne rejetée).
+ */
+const idList = (v: unknown): number[] | null | undefined => {
+  if (v === null) return null
+  if (!Array.isArray(v) || v.length === 0) return undefined
+  const out = v.map(posInt)
+  return out.every((n): n is number => n !== null) ? out : undefined
+}
 const iso = (v: unknown): string | null => {
   if (v == null) return null
   const d = v instanceof Date ? v : new Date(String(v))
@@ -113,12 +125,18 @@ export function rowToPromotion(r: Row): Promotion | null {
   }
   let p: Promotion
   switch (r.kind as PromotionKind) {
-    case "multi_services":
-      p = { ...base, kind: "multi_services", eligibleServiceIds: idList(scope.eligibleServiceIds), includeOptions: scope.includeOptions === true }
+    case "multi_services": {
+      const eligibleServiceIds = idList(scope.eligibleServiceIds)
+      if (eligibleServiceIds === undefined) return null
+      p = { ...base, kind: "multi_services", eligibleServiceIds, includeOptions: scope.includeOptions === true }
       break
-    case "multi_options":
-      p = { ...base, kind: "multi_options", eligibleOptionIds: idList(scope.eligibleOptionIds) }
+    }
+    case "multi_options": {
+      const eligibleOptionIds = idList(scope.eligibleOptionIds)
+      if (eligibleOptionIds === undefined) return null
+      p = { ...base, kind: "multi_options", eligibleOptionIds }
       break
+    }
     case "service_option": {
       const t = asObject(scope.trigger)
       if (!t) return null
@@ -269,6 +287,7 @@ export async function loadPromotionData(
       upsells: rowsOf(u).map(rowToUpsell).filter((x): x is UpsellSuggestion => x !== null),
     }
   } catch {
+    resetPromotionsSchemaCache()
     return { ok: false }
   }
 }
@@ -286,12 +305,19 @@ export async function getPromotionData(tenant: { id: number; customSiteKey: stri
 export type AdminLists = { ready: boolean; promotions: (Promotion | { id: number; invalid: true; name: string })[]; equivalences: EquivalenceRule[]; upsells: UpsellSuggestion[] }
 
 export async function listForAdmin(companyId: number): Promise<AdminLists> {
-  if ((await promotionsSchemaState()) !== "ready") return { ready: false, promotions: [], equivalences: [], upsells: [] }
-  const [p, e, u] = await Promise.all([
-    db.execute(sql`SELECT * FROM "promotions" WHERE "companyId" = ${companyId} ORDER BY "priority" DESC, "id" ASC`),
-    db.execute(sql`SELECT * FROM "cart_rules" WHERE "companyId" = ${companyId} ORDER BY "id" ASC`),
-    db.execute(sql`SELECT * FROM "upsell_suggestions" WHERE "companyId" = ${companyId} ORDER BY "id" ASC`),
-  ])
+  const notReady: AdminLists = { ready: false, promotions: [], equivalences: [], upsells: [] }
+  if ((await promotionsSchemaState()) !== "ready") return notReady
+  let p: unknown, e: unknown, u: unknown
+  try {
+    ;[p, e, u] = await Promise.all([
+      db.execute(sql`SELECT * FROM "promotions" WHERE "companyId" = ${companyId} ORDER BY "priority" DESC, "id" ASC`),
+      db.execute(sql`SELECT * FROM "cart_rules" WHERE "companyId" = ${companyId} ORDER BY "id" ASC`),
+      db.execute(sql`SELECT * FROM "upsell_suggestions" WHERE "companyId" = ${companyId} ORDER BY "id" ASC`),
+    ])
+  } catch {
+    resetPromotionsSchemaCache()
+    return notReady
+  }
   return {
     ready: true,
     // Une ligne invalide reste visible du pro (pour la corriger), jamais transmise au moteur.
@@ -315,13 +341,17 @@ export async function insertPromotion(companyId: number, p: Promotion): Promise<
   return posInt(rowsOf(res)[0]?.id)
 }
 
-/** Mise à jour bornée au tenant. `false` si l'offre n'existe pas pour ce tenant. */
+/**
+ * Mise à jour bornée au tenant. `false` si l'offre n'existe pas pour ce tenant.
+ * L'état actif n'est JAMAIS modifié ici (action dédiée) : pas de réactivation
+ * involontaire si l'offre a été désactivée pendant l'édition.
+ */
 export async function updatePromotion(companyId: number, id: number, p: Promotion): Promise<boolean> {
   if ((await promotionsSchemaState()) !== "ready") return false
   const c = promotionToColumns(p)
   const res = await db.execute(sql`
     UPDATE "promotions" SET
-      "name" = ${c.name}, "kind" = ${c.kind}, "active" = ${c.active}, "startsAt" = ${c.startsAt}, "endsAt" = ${c.endsAt},
+      "name" = ${c.name}, "kind" = ${c.kind}, "startsAt" = ${c.startsAt}, "endsAt" = ${c.endsAt},
       "priority" = ${c.priority}, "stackable" = ${c.stackable}, "stackableWithPromoCode" = ${c.stackableWithPromoCode},
       "scope" = ${c.scope}::jsonb, "tiers" = ${c.tiers}::jsonb, "updatedAt" = now()
     WHERE "id" = ${id} AND "companyId" = ${companyId}
@@ -368,8 +398,9 @@ export async function deleteRow(table: Table, companyId: number, id: number): Pr
 export async function insertEquivalence(companyId: number, rule: Omit<EquivalenceRule, "id">): Promise<number | null> {
   if ((await promotionsSchemaState()) !== "ready") return null
   const res = await db.execute(sql`
-    INSERT INTO "cart_rules" ("companyId", "kind", "itemA", "itemB", "reason")
-    VALUES (${companyId}, 'equivalence', ${JSON.stringify(rule.a)}::jsonb, ${JSON.stringify(rule.b)}::jsonb, ${rule.reason.trim()})
+    INSERT INTO "cart_rules" ("companyId", "kind", "itemA", "itemB", "reason", "active")
+    VALUES (${companyId}, 'equivalence', ${JSON.stringify({ type: rule.a.type, id: rule.a.id })}::jsonb,
+            ${JSON.stringify({ type: rule.b.type, id: rule.b.id })}::jsonb, ${rule.reason.trim()}, false)
     RETURNING "id"
   `)
   return posInt(rowsOf(res)[0]?.id)
@@ -381,8 +412,8 @@ export async function insertUpsell(
 ): Promise<number | null> {
   if ((await promotionsSchemaState()) !== "ready") return null
   const res = await db.execute(sql`
-    INSERT INTO "upsell_suggestions" ("companyId", "whenServiceId", "suggest", "message")
-    VALUES (${companyId}, ${u.whenServiceId}, ${JSON.stringify(u.suggest)}::jsonb, ${u.message})
+    INSERT INTO "upsell_suggestions" ("companyId", "whenServiceId", "suggest", "message", "active")
+    VALUES (${companyId}, ${u.whenServiceId}, ${JSON.stringify(u.suggest.map((i) => ({ type: i.type, id: i.id })))}::jsonb, ${u.message}, false)
     RETURNING "id"
   `)
   return posInt(rowsOf(res)[0]?.id)
@@ -390,6 +421,9 @@ export async function insertUpsell(
 
 /** Réservé au lot de branchement (détail figé sur la réservation). Borné au tenant. */
 export async function setBookingPromotionSnapshot(tx: Tx, companyId: number, bookingId: number, cents: number, snapshot: unknown): Promise<void> {
+  // Colonnes absentes (migration non appliquée) : rien à écrire, jamais d'échec de la réservation.
+  if ((await promotionsSchemaState()) !== "ready") return
+  if (!Number.isSafeInteger(cents) || cents < 0) throw new Error("promotionDiscountCents invalide")
   await tx.execute(sql`
     UPDATE "bookings" SET "promotionDiscountCents" = ${cents}, "promotionSnapshot" = ${JSON.stringify(snapshot)}::jsonb
     WHERE "id" = ${bookingId} AND "companyId" = ${companyId}

@@ -33,6 +33,8 @@ import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { isBookingRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
+import { getPromotionData, loadPromotionData, setBookingPromotionSnapshot } from "@/lib/booking/promotions-store"
+import { priceBooking } from "@/lib/booking/promotions-apply"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
@@ -46,7 +48,15 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
   const settings = await getSettings()
   const travel = address && address.trim().length >= 5 ? await computeTravel(address, settings) : null
   const quote = await buildQuote(selections, settings, travel)
-  return { quote, depositType: settings.depositType, depositValue: settings.depositValue }
+  // L20 : offres automatiques du tenant (aperçu tolérant : indisponibles = aucune).
+  const tenant = await resolveRequestTenant()
+  const data = tenant ? await getPromotionData(tenant) : { promotions: [], equivalences: [] }
+  const p = priceBooking({ quote, promotions: data.promotions, equivalences: data.equivalences, code: null })
+  const totalCents = p.subtotalCents + quote.travelFeeCents - p.discountCents
+  const promotions = p.engineUsed
+    ? { discountCents: p.discountCents, totalCents, depositCents: computeDeposit(totalCents, settings), totalDurationMin: p.totalDurationMin, applied: p.snapshot?.promotions ?? [], adjustments: p.adjustments }
+    : null
+  return { quote, depositType: settings.depositType, depositValue: settings.depositValue, promotions }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -77,12 +87,22 @@ export async function validatePromoCodeAction(input: {
     quote,
   })
   if (!res.valid) return { ok: false, reason: res.reason }
+  // L20 : arbitrage avec les offres automatiques (même calcul que la réservation).
+  const data = await getPromotionData(tenant)
+  const p = priceBooking({
+    quote,
+    promotions: data.promotions,
+    equivalences: data.equivalences,
+    code: { code: res.normalizedCode, discountCents: res.discountCents, targetServiceIds: res.targetServiceIds },
+  })
+  if (p.codeStatus === "rejected_not_combinable") return { ok: false, reason: "not_combinable" }
+  if (p.codeStatus !== "applied") return { ok: false, reason: "no_eligible_amount" }
   return {
     ok: true,
     code: res.normalizedCode,
     discountType: res.discountType,
     discountValue: res.discountValue,
-    discountCents: res.discountCents,
+    discountCents: p.codeDiscountCents,
   }
 }
 
@@ -298,10 +318,18 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   const quote = await buildQuote(selections, settings, travel)
   if (!quote.lines.length) return { ok: false, error: "Prestations invalides.", code: "invalid" }
 
+  // 3a. Offres automatiques du tenant (L20). Base de promotions en erreur alors
+  //     que les tables existent : refus, plutôt qu'un montant différent de
+  //     l'aperçu. Migration absente ou Spirit/Rozan : aucune offre.
+  const promoData = await loadPromotionData(tenant)
+  if (!promoData.ok) {
+    return { ok: false, error: "La réservation est momentanément indisponible. Merci de réessayer dans quelques instants.", code: "invalid" }
+  }
+
   // 3b. Revalidation serveur du code promo (le navigateur n'est jamais cru).
   //     La remise et le total sont recalculés ici depuis la base.
   let appliedPromo: AppliedPromo | null = null
-  let discountCents = 0
+  let codeInput: { code: string; discountCents: number; targetServiceIds: number[] | null } | null = null
   if (promoCode?.trim()) {
     const promoRes = await validatePromoCode({
       companyId,
@@ -315,23 +343,37 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           : "Code promo invalide ou indisponible."
       return { ok: false, error: msg, code: "invalid" }
     }
-    discountCents = Math.max(0, Math.min(promoRes.discountCents, quote.eligibleSubtotalCents))
+    codeInput = { code: promoRes.normalizedCode, discountCents: promoRes.discountCents, targetServiceIds: promoRes.targetServiceIds }
     appliedPromo = {
       promoCodeId: promoRes.promoCodeId,
       code: promoRes.normalizedCode,
       discountType: promoRes.discountType,
       discountValue: promoRes.discountValue,
-      discountCents,
+      discountCents: 0,
     }
   }
+
+  // 3c. Arbitrage offres + code (moteur L17-B). Sans offre ni équivalence :
+  //     calcul historique exact. Un code écarté n'est ni appliqué ni consommé.
+  const pricing = priceBooking({ quote, promotions: promoData.promotions, equivalences: promoData.equivalences, code: codeInput })
+  if (appliedPromo) {
+    if (pricing.codeStatus === "applied") appliedPromo = { ...appliedPromo, discountCents: pricing.codeDiscountCents }
+    else appliedPromo = null
+  }
+  const billedLines = pricing.lines
+  if (!billedLines.length) return { ok: false, error: "Prestations invalides.", code: "invalid" }
+  const servicesCents = billedLines.reduce((s, l) => s + l.priceCents, 0)
+  const optionsCents = billedLines.reduce((s, l) => s + l.options.reduce((a, o) => a + o.priceCents, 0), 0)
+  const discountCents = pricing.discountCents
+
   // Totaux finaux (jamais négatifs) recalculés avec la remise validée.
-  const finalTotalCents = quote.subtotalCents + quote.travelFeeCents - discountCents
+  const finalTotalCents = pricing.subtotalCents + quote.travelFeeCents - discountCents
   const finalDepositCents = computeDeposit(finalTotalCents, settings)
 
   const startMin = timeToMinutes(startTime)
-  const endMin = startMin + quote.totalDurationMin
+  const endMin = startMin + pricing.totalDurationMin
   const endTime = minutesToTime(endMin)
-  const vehicleCount = quote.lines.length
+  const vehicleCount = billedLines.length
 
   // 4. Transaction atomique + verrou par date pour empêcher les doublons.
   try {
@@ -393,9 +435,9 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           distanceKm: String(travel.distanceKm),
           billedDistanceKm: String(travel.billedDistanceKm),
           travelFeeCents: travel.feeCents,
-          servicesCents: quote.servicesCents,
-          optionsCents: quote.optionsCents,
-          subtotalCents: quote.subtotalCents,
+          servicesCents,
+          optionsCents,
+          subtotalCents: pricing.subtotalCents,
           promoCodeId: appliedPromo?.promoCodeId ?? null,
           promoCodeSnapshot: appliedPromo
             ? {
@@ -411,7 +453,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
           date,
           startTime,
           endTime,
-          totalDurationMin: quote.totalDurationMin,
+          totalDurationMin: pricing.totalDurationMin,
           status,
           notes: notes?.trim() || null,
         })
@@ -422,8 +464,13 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         selections.map((s) => [s.uid, { brand: s.brand, model: s.model, plate: s.plate }]),
       )
 
-      // Lignes (véhicules) + options.
-      for (const line of quote.lines) {
+      // Détail figé des offres appliquées (colonnes L19 ; sans migration : rien).
+      if (pricing.snapshot) {
+        await setBookingPromotionSnapshot(tx, companyId, inserted.id, pricing.promotionDiscountCents, pricing.snapshot)
+      }
+
+      // Lignes (véhicules) + options — panier normalisé (même traitement jamais facturé deux fois).
+      for (const line of billedLines) {
         const details = detailsByUid.get(line.uid)
         const [item] = await tx
           .insert(bookingItems)
