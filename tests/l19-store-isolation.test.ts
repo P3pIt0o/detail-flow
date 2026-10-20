@@ -76,7 +76,7 @@ describe("L19 — isolation tenant A / B", () => {
       expect(q.params).toContain(A)
       expect(q.params).not.toContain(B)
     }
-    for (const q of data().filter((x) => /^\s*(update|delete)/i.test(x.sql) || /insert.*select/is.test(x.sql))) {
+    for (const q of data().filter((x) => /^\s*(update|delete)/i.test(x.sql) || /insert[\s\S]*select/i.test(x.sql))) {
       expect(q.sql).toMatch(/"id" = \$\d+ and "companyId" = \$\d+/i)
     }
   })
