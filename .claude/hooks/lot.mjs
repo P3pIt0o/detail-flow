@@ -4,11 +4,13 @@
 // Appelé par Claude via : node .claude/hooks/lot.mjs <commande> <LOT> [options]
 // Il ne peut NI approuver un lot, NI remettre à zéro les compteurs : c'est dfguard.mjs (humain).
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import {
   POLICY, approvalPath, git, isEnvFile, matchesAny, maxRisk, planDeclaredRisk, planFiles, planPath,
   readJson, repoInfo, riskOf, riskRank, sha256, sha256File, stateDir, statePath, lotIdFromBranch,
+  TYPECHECK_BASELINE_VERSION, isValidTypecheckBaseline, tscErrorKeys, typecheckVerdict,
 } from "./lib.mjs"
 
 const PHASES = ["AUDIT", "PLAN_READY", "IMPLEMENTING", "IMPLEMENTED", "REVIEWED", "FIXING", "VERIFIED", "DONE", "BLOCKED"]
@@ -31,7 +33,7 @@ if (!cmd || cmd === "help" || cmd === "--help") {
     "Usage : node .claude/hooks/lot.mjs <commande> <LOT>",
     "  status L1          état, cohérence git et prochaine action",
     "  start L1           crée l'état du lot (sur la branche lot/L1-<slug>)",
-    "  baseline L1        mémorise les tests déjà en échec AVANT tout changement",
+    "  baseline L1        mémorise les tests et erreurs TypeScript déjà en échec AVANT tout changement",
     "  plan-ready L1      vérifie le plan .lot-state/L1.plan.md et calcule son risque",
     "  begin L1           passe en implémentation (exige l'approbation humaine)",
     "  verify L1 [--quick] contrôles automatiques + typecheck + tests",
@@ -189,13 +191,41 @@ function bin(name) {
   return existsSync(p) ? p : null
 }
 
-function runTypecheck() {
+const realOr = (p) => { try { return realpathSync(p) } catch { return p } }
+
+// dir : dossier analysé. --pretty false : format de sortie fixe ; --incremental false : aucun tsconfig.tsbuildinfo écrit.
+function runTypecheck(dir = top) {
   const tsc = bin("tsc")
-  if (!tsc) return { ok: false, summary: "tsc introuvable : dépendances non installées (le développeur doit lancer pnpm install)" }
-  const r = spawnSync(tsc, ["--noEmit", "-p", "tsconfig.json"], { cwd: top, env: scrubbedEnv(), encoding: "utf8", timeout: 15 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 })
+  if (!tsc) return { ok: false, summary: "tsc introuvable : dépendances non installées (le développeur doit lancer pnpm install)", errors: null }
+  const r = spawnSync(tsc, ["--noEmit", "--pretty", "false", "--incremental", "false", "-p", "tsconfig.json"], { cwd: dir, env: scrubbedEnv(), encoding: "utf8", timeout: 15 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 })
   const outp = `${r.stdout || ""}${r.stderr || ""}`
-  const errs = outp.split("\n").filter((l) => /error TS\d+/.test(l))
-  return { ok: r.status === 0, summary: r.status === 0 ? "OK" : `${errs.length} erreur(s)`, details: errs.slice(0, 15) }
+  const errors = tscErrorKeys(outp, dir, [realOr(dir), top, realOr(top)])
+  if (r.status === 0 && !errors.length) return { ok: true, summary: "OK", errors }
+  // Échec sans erreur lisible (plantage, délai dépassé, format inconnu) : jamais assimilé à « 0 erreur ».
+  if (!errors.length) return { ok: false, summary: `tsc a échoué sans erreur exploitable (code ${r.status ?? r.signal})`, errors: null, details: outp.split("\n").slice(-10) }
+  return { ok: false, summary: `${errors.length} erreur(s)`, errors, details: errors.slice(0, 15) }
+}
+
+// Typecheck d'un commit dans une copie temporaire (git worktree) : contenu versionné uniquement.
+// Seul node_modules est relié ; aucun cache (.next, tsbuildinfo) n'est partagé avec la copie de travail.
+// Base et branche passent par la même fonction : comparaison symétrique.
+function typecheckAtCommit(commit) {
+  const tmp = mkdtempSync(path.join(tmpdir(), "df-tsc-"))
+  const wt = path.join(tmp, "wt")
+  const g = (args) => spawnSync("git", ["-C", top, ...args], { encoding: "utf8", timeout: 5 * 60 * 1000 })
+  try {
+    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) return { ok: false, summary: `impossible d'extraire ${short(commit)}`, errors: null }
+    if (existsSync(path.join(top, "node_modules"))) symlinkSync(path.join(top, "node_modules"), path.join(wt, "node_modules"))
+    return runTypecheck(wt)
+  } finally {
+    g(["worktree", "remove", "--force", wt]); g(["worktree", "prune"])
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+function computeTypecheckBaseline(commit) {
+  const r = typecheckAtCommit(commit)
+  return r.errors ? { v: TYPECHECK_BASELINE_VERSION, at: now(), head: commit, errors: r.errors } : { error: r.summary }
 }
 
 function runTests(mode, relatedFiles) {
@@ -279,9 +309,11 @@ function baselineCmd() {
   if (changed.size) fail("la baseline doit être prise AVANT toute modification (des changements existent déjà)")
   const t = runTests("full", [])
   st.baseline = { at: now(), head: head(), summary: t.summary, failed: t.failed, ok: t.ok }
+  const tb = computeTypecheckBaseline(head())
+  if (tb.error) delete st.typecheckBaseline; else st.typecheckBaseline = tb
   log(st, "baseline")
   save(st)
-  out([`Baseline : ${t.summary}`, ...(t.failed.length ? ["Déjà en échec AVANT le lot (ne pas les corriger sans accord) :", ...t.failed.slice(0, 20).map((x) => `  - ${x}`)] : [])])
+  out([`Baseline : ${t.summary} | Typecheck : ${tb.error ? `INDISPONIBLE (${tb.error}) : verify échouera tant qu'elle ne pourra pas être calculée` : `${tb.errors.length} erreur(s) préexistante(s)`}`, ...(t.failed.length ? ["Déjà en échec AVANT le lot (ne pas les corriger sans accord) :", ...t.failed.slice(0, 20).map((x) => `  - ${x}`)] : [])])
 }
 
 function planReadyCmd() {
@@ -339,8 +371,22 @@ function verifyCmd() {
   const dirty = (git(top, ["status", "--porcelain"]) || "").split("\n").filter((l) => l && !l.includes(".lot-state/"))
   if (dirty.length && !quick) F.push(`${dirty.length} modification(s) non committée(s) : committer avant la vérification complète`)
 
-  const tc = runTypecheck()
-  if (!tc.ok) F.push(`typecheck : ${tc.summary}`)
+  // Vérification complète : HEAD dans une copie propre, comme la base (rapide : copie de travail, indicatif).
+  const tc = quick ? runTypecheck() : typecheckAtCommit(head())
+  let tcNew = []
+  if (!tc.ok) {
+    if (tc.errors && !isValidTypecheckBaseline(st.typecheckBaseline)) {
+      // Absente (lot démarré avant 2.1.3) ou invalide : recalculée sur le commit de base, jamais ignorée.
+      const tb = computeTypecheckBaseline(st.base)
+      if (tb.error) F.push(`typecheck : baseline TypeScript indisponible (${tb.error})`)
+      else st.typecheckBaseline = tb
+    }
+    const v = typecheckVerdict(tc, st.typecheckBaseline)
+    if (v.block && !F.some((x) => x.startsWith("typecheck :"))) F.push(v.block)
+    if (v.old) W.push(`${v.old} erreur(s) TypeScript déjà présente(s) avant le lot (baseline)`)
+    tcNew = v.fresh
+    if (tc.errors) tc.details = v.fresh.slice(0, 15)
+  }
   const related = [...files.keys()].filter((f) => /\.(ts|tsx)$/.test(f) && existsSync(path.join(top, f)))
   const tests = runTests(quick ? "quick" : "full", related)
   const base = new Set(st.baseline?.failed || [])
@@ -353,7 +399,7 @@ function verifyCmd() {
 
   const result = F.length ? "ECHEC" : "OK"
   const h = head()
-  const rep = { at: now(), head: h, quick, result, risk, F, W, typecheck: tc.summary, tests: tests.summary, newFails, files: [...files.keys()] }
+  const rep = { at: now(), head: h, quick, result, risk, F, W, typecheck: tc.summary, typecheckNew: tcNew, tests: tests.summary, newFails, files: [...files.keys()] }
   writeFileSync(path.join(stateDir(top), `${LOT}.verify.json`), JSON.stringify(rep, null, 2) + "\n")
   if (!quick) {
     st.lastVerify = { head: h, result, at: rep.at }
@@ -372,7 +418,7 @@ function verifyCmd() {
     ...F.map((x) => `  BLOQUANT ${x}`),
     ...W.map((x) => `  ATTENTION ${x}`),
     ...newFails.slice(0, 15).map((x) => `  échec : ${x}`),
-    ...(tc.details && !tc.ok ? tc.details.slice(0, 8).map((x) => `  ${x}`) : []),
+    ...(tc.details && !tc.ok ? tc.details.slice(0, 8).map((x) => `  erreur TS : ${x}`) : []),
     `Phase : ${st.phase}. Prochaine action : ${nextAction(st)}`,
   ])
   process.exit(result === "OK" ? 0 : 1)
