@@ -21,6 +21,8 @@ import {
   toVehicleSelections,
   addExtraService,
   removeExtraService,
+  isPlateValid,
+  needsPlate,
   type PaymentPlan,
   type V2Vehicle,
 } from "@/lib/booking/v2"
@@ -157,13 +159,15 @@ export function BookingV2(props: BookingV2Props) {
   )
   const stepValid = [
     serviceId != null,
-    vehicles.length > 0 && vehicles.every(isV2VehicleComplete),
+    vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId)),
     Boolean(date && startTime && locationReady),
     contactValid,
   ]
   const stepHint = [
     null,
-    "Renseignez le type, la marque et le modèle.",
+    vehicles.some((v) => needsPlate(v, serviceId) && !isPlateValid(v.plate))
+      ? "Indiquez l'immatriculation des véhicules à plusieurs prestations."
+      : "Renseignez le type, la marque et le modèle.",
     locationType === null
       ? "Choisissez où réaliser la prestation."
       : !locationReady
@@ -201,7 +205,7 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   // Aperçu serveur (étapes véhicule et récapitulatif) : montant réel, explications, suggestions.
-  const vehiclesComplete = vehicles.length > 0 && vehicles.every(isV2VehicleComplete)
+  const vehiclesComplete = vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId))
   const quoteAddress = !atWorkshop && travel?.ok ? address : undefined
   useEffect(() => {
     if (serviceId == null || !vehiclesComplete || (step !== 1 && step !== 3)) return

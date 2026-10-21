@@ -90,7 +90,7 @@ vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => f
 
 import { createBookingAction, getQuoteAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 
-const line = (uid: string, serviceId: number, optionIds: number[] = [], over: Record<string, unknown> = {}) => ({ uid, serviceId, vehicleTypeId: 1, optionIds, brand: "Peugeot", model: "208", ...over })
+const line = (uid: string, serviceId: number, optionIds: number[] = [], over: Record<string, unknown> = {}) => ({ uid, serviceId, vehicleTypeId: 1, optionIds, brand: "Peugeot", model: "208", plate: "AB-123-CD" as string | undefined, ...over })
 const input = (selections: ReturnType<typeof line>[], promoCode?: string) => ({
   selections,
   date: "2026-11-12",
@@ -106,7 +106,7 @@ const withData = (promotions: unknown[], equivalences: unknown[] = [], upsells: 
   promoStore.getPromotionData.mockResolvedValue({ promotions, equivalences, upsells } as never)
 }
 // Une voiture : lavage extérieur + option phares, et la prestation phares ajoutée (même identité).
-const oneCar = () => [line("a:main", CLZ.lavageExterieurEco, [CLZ.pharesOption]), line(`a:x${CLZ.pharesService}`, CLZ.pharesService), line("b:main", CLZ.lavageInterieurEco, [], { brand: "Renault", model: "Clio" })]
+const oneCar = () => [line("a:main", CLZ.lavageExterieurEco, [CLZ.pharesOption]), line(`a:x${CLZ.pharesService}`, CLZ.pharesService), line("b:main", CLZ.lavageInterieurEco, [], { brand: "Renault", model: "Clio", plate: undefined })]
 
 beforeEach(() => {
   inserts.length = 0
@@ -200,6 +200,21 @@ describe("L22 — conditions du code vérifiées sur le panier réellement factu
   it("catalogue des suggestions chargé pour le tenant de la session (companyId explicite)", () => {
     const src = readFileSync(join(process.cwd(), "app/(site)/reservation/actions.ts"), "utf8")
     expect(src).toContain("getServices(tenant.id), getOptions(tenant.id), getServicePrices(tenant.id)")
+  })
+})
+
+describe("L22 — immatriculation", () => {
+  it("véhicule à plusieurs prestations sans immatriculation : rien n'est regroupé, tout est facturé", async () => {
+    withData([], [phares])
+    const noPlate = oneCar().map((l) => ({ ...l, plate: undefined }))
+    await createBookingAction(input(noPlate))
+    expect(booking()).toMatchObject({ subtotalCents: 3000 + 5000 + 6500 + 4000 })
+  })
+  it("immatriculation enregistrée sur chaque ligne du véhicule (visible du pro)", async () => {
+    withData([], [phares])
+    await createBookingAction(input(oneCar()))
+    const items = inserts.filter((i) => i.table === "booking_items").map((i) => i.values as Record<string, unknown>)
+    expect(items[0]).toMatchObject({ vehiclePlate: "AB-123-CD" })
   })
 })
 

@@ -14,7 +14,7 @@ const line = (uid: string, serviceId: number, priceCents: number, durationMin: n
   lineTotalCents: priceCents + options.reduce((s, o) => s + o[1], 0),
   lineDurationMin: durationMin + options.reduce((s, o) => s + o[2], 0),
 })
-const id = (uid: string, over: Partial<LineIdentity> = {}): LineIdentity => ({ uid, vehicleTypeId: 1, brand: "Peugeot", model: "308", ...over })
+const id = (uid: string, over: Partial<LineIdentity> = {}): LineIdentity => ({ uid, vehicleTypeId: 1, brand: "Peugeot", model: "308", plate: "AB-123-CD", ...over })
 const quoteOf = (lines: QuoteLine[]) => {
   const subtotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0)
   return { lines, subtotalCents, eligibleSubtotalCents: subtotalCents, totalDurationMin: lines.reduce((s, l) => s + l.lineDurationMin, 0) }
@@ -30,7 +30,7 @@ describe("L22 — clés de véhicule", () => {
     expect(vehicleUidOfKey(k[0])).toBe("a")
   })
   it("même préfixe mais immatriculation, modèle ou type différent : véhicules distincts", () => {
-    for (const other of [id("a:x158", { plate: "AB-123-CD" }), id("a:x158", { model: "208" }), id("a:x158", { vehicleTypeId: 2 })]) {
+    for (const other of [id("a:x158", { plate: "ZZ-999-ZZ" }), id("a:x158", { model: "208" }), id("a:x158", { vehicleTypeId: 2 })]) {
       const lines = [line("a:main", 143, 3000, 60), line("a:x158", 158, 6500, 45, [], other.vehicleTypeId)]
       const k = trustedVehicleKeys(lines, [id("a:main"), other])
       expect(k[0]).not.toBe(k[1])
@@ -40,6 +40,16 @@ describe("L22 — clés de véhicule", () => {
     expect(new Set(trustedVehicleKeys([line("a", 143, 1, 1), line("b", 143, 1, 1)], [id("a"), id("b")])).size).toBe(2)
     expect(new Set(trustedVehicleKeys([line("a:1", 143, 1, 1), line("a:2", 143, 1, 1)], [])).size).toBe(2)
     expect(new Set(trustedVehicleKeys([line("a:1", 143, 1, 1), line("a:1", 158, 1, 1)], [id("a:1"), id("a:1")])).size).toBe(2)
+  })
+  it("immatriculation absente ou invalide : jamais de regroupement (chaque prestation facturée)", () => {
+    for (const plate of [undefined, "", "AB", "!!!"]) {
+      const k = trustedVehicleKeys([line("a:main", 143, 1, 1), line("a:x158", 158, 1, 1)], [id("a:main", { plate }), id("a:x158", { plate })])
+      expect(k[0]).not.toBe(k[1])
+    }
+  })
+  it("immatriculation normalisée (« ab-123 cd » = « AB123CD »)", () => {
+    const k = trustedVehicleKeys([line("a:main", 143, 1, 1), line("a:x158", 158, 1, 1)], [id("a:main", { plate: "ab-123 cd" }), id("a:x158", { plate: "AB123CD" })])
+    expect(k[0]).toBe(k[1])
   })
   it("le type annoncé doit être celui recalculé par le serveur", () => {
     const k = trustedVehicleKeys([line("a:main", 143, 1, 1, [], 1), line("a:x158", 158, 1, 1, [], 1)], [id("a:main"), id("a:x158", { vehicleTypeId: 2 })])

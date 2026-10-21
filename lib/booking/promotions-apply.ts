@@ -91,7 +91,8 @@ const V2_LINE_UID = /^([^:]+):(?:main|x\d+)$/
 const norm = (v: unknown) => String(v ?? "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ")
 
 /**
- * Regroupement de CONFIANCE des lignes par véhicule (L22). Deux lignes ne sont un
+ * Regroupement de CONFIANCE des lignes par véhicule (L22). Immatriculation valide
+ * obligatoire. Deux lignes ne sont un
  * même véhicule que si elles partagent le préfixe d'identifiant Booking V2
  * (`véhicule:main` / `véhicule:x<id>`)
  * ET exactement le même type, la même marque, le même modèle et la même
@@ -110,9 +111,12 @@ export function trustedVehicleKeys(lines: Pick<QuoteLine, "uid" | "vehicleTypeId
     // Format Booking V2 UNIQUEMENT (`<véhicule>:main` / `<véhicule>:x<id>`) : l'ancien
     // tunnel (`<véhicule>:<ligne>`, Spirit ACS / Rozan) garde une ligne = un véhicule.
     const m = V2_LINE_UID.exec(l.uid)
-    if (!id || !m || id.vehicleTypeId !== l.vehicleTypeId) return vehicleKeyAt(i)
+    // Immatriculation exigée pour regrouper (demandée par Booking V2 dès qu'un véhicule a
+    // plusieurs prestations) : sans elle, chaque ligne reste un véhicule, facturé en entier.
+    const plate = String(id?.plate ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+    if (!id || !m || id.vehicleTypeId !== l.vehicleTypeId || !/^[A-Z0-9]{4,12}$/.test(plate)) return vehicleKeyAt(i)
     const prefix = m[1].replace(/[|~]/g, "-")
-    const sig = [prefix, l.vehicleTypeId, norm(id.brand), norm(id.model), norm(id.plate)].join("\u0000")
+    const sig = [prefix, l.vehicleTypeId, norm(id.brand), norm(id.model), plate].join("\u0000")
     const known = seen.get(sig)
     if (known) return known
     const n = (perPrefix.get(prefix) ?? 0) + 1

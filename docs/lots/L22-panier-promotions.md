@@ -38,7 +38,12 @@ Risque : **critique** (montant présenté et facturé). Plan approuvé : `.lot-s
 
 ## Point ouvert (décision du propriétaire)
 - **Capacité par véhicule (D5).** Aujourd'hui, une voiture avec 2 prestations occupe 2 places de `maxVehiclesPerDay`. Compter les véhicules demande une décision et une colonne supplémentaire, donc une migration.
-- **Identité déclarée par le client.** Le regroupement repose sur le type, la marque et le modèle saisis. Booking V2 ne demande pas l'immatriculation. Un appel trafiqué peut présenter deux voitures identiques (même modèle) comme une seule, et ainsi obtenir une offre « prestation + option sur le même véhicule » ou ne payer qu'une fois un même traitement.
-  - L'effet est borné à la valeur de l'offre ou de l'équivalence configurée par le pro.
-  - La réservation enregistrée décrit alors un seul véhicule.
-  - Option : demander l'immatriculation dès qu'un véhicule a plusieurs prestations.
+- ~~Identité déclarée par le client~~ → **traité (décision du 21/10)** : l'immatriculation est demandée **uniquement** pour un véhicule qui reçoit plusieurs prestations. Le serveur ne regroupe jamais des lignes sans immatriculation valide (4 à 12 lettres ou chiffres) et l'enregistre sur chaque ligne, où le pro la voit. Les réservations classiques (une prestation par véhicule) sont inchangées.
+
+## Non-régression par tenant (`tests/l22-tenants-non-regression.test.ts`, vrai stockage)
+- **Spirit ACS, Rozan** : aucune requête sur les promotions, montants historiques à l'identique (ancien tunnel, plusieurs prestations par véhicule).
+- **Cleanyzer** :
+  - offre et équivalence 158 ↔ 98 appliquées pour son seul tenant ;
+  - sans offre : montants historiques ;
+  - réservation classique : rien n'est regroupé.
+- Suites existantes Spirit ACS et Cleanyzer : résultats identiques avant et après L22.

@@ -37,6 +37,23 @@ export type V2Vehicle = {
   optionIds: number[]
   /** Prestations ajoutées à ce véhicule (sans doublon, jamais la prestation principale). Absent = aucune (brouillons antérieurs). */
   extraServiceIds?: number[]
+  /** Immatriculation : demandée UNIQUEMENT quand le véhicule a plusieurs prestations. */
+  plate?: string
+}
+
+/** « ab-123 cd » → « AB123CD ». */
+export function normalizePlate(plate: string | null | undefined): string {
+  return String(plate ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+}
+
+/** Immatriculation exploitable : 4 à 12 lettres ou chiffres (formats français et étrangers). */
+export function isPlateValid(plate: string | null | undefined): boolean {
+  return /^[A-Z0-9]{4,12}$/.test(normalizePlate(plate))
+}
+
+/** Le véhicule porte-t-il plusieurs prestations (seul cas où l'immatriculation est demandée) ? */
+export function needsPlate(v: V2Vehicle, mainServiceId: number | null): boolean {
+  return (v.extraServiceIds ?? []).some((id) => id !== mainServiceId)
 }
 
 function uid(): string {
@@ -79,7 +96,8 @@ export function extraServiceCandidates<T extends { id: number }>(services: T[], 
 export function toSelectionsPayload(vehicles: V2Vehicle[], serviceId: number | null) {
   if (serviceId == null) return []
   return vehicles.flatMap((v) => {
-    const common = { vehicleTypeId: v.vehicleTypeId as number, brand: v.brand.trim(), model: v.model.trim() }
+    const plate = needsPlate(v, serviceId) ? normalizePlate(v.plate) : ""
+    const common = { vehicleTypeId: v.vehicleTypeId as number, brand: v.brand.trim(), model: v.model.trim(), ...(plate ? { plate } : {}) }
     return [
       { uid: `${v.uid}:main`, serviceId, optionIds: v.optionIds, ...common },
       ...(v.extraServiceIds ?? []).filter((id) => id !== serviceId).map((id) => ({ uid: `${v.uid}:x${id}`, serviceId: id, optionIds: [] as number[], ...common })),
@@ -87,8 +105,10 @@ export function toSelectionsPayload(vehicles: V2Vehicle[], serviceId: number | n
   })
 }
 
-export function isV2VehicleComplete(v: V2Vehicle): boolean {
-  return v.vehicleTypeId != null && v.brand.trim().length > 0 && v.model.trim().length > 0
+export function isV2VehicleComplete(v: V2Vehicle, mainServiceId: number | null = null): boolean {
+  const base = v.vehicleTypeId != null && v.brand.trim().length > 0 && v.model.trim().length > 0
+  // Réservation classique (une prestation) : inchangée, aucune immatriculation demandée.
+  return base && (!needsPlate(v, mainServiceId) || isPlateValid(v.plate))
 }
 
 /** Conversion vers le format partagé du moteur (brouillon + payload serveur). */
@@ -98,6 +118,7 @@ export function toVehicleSelections(vehicles: V2Vehicle[], serviceId: number | n
     vehicleTypeId: v.vehicleTypeId,
     brand: v.brand,
     model: v.model,
+    ...(v.plate ? { plate: v.plate } : {}),
     services: [
       { ...newServiceLine(serviceId), lid: `${v.uid}-l`, optionIds: v.optionIds },
       ...(v.extraServiceIds ?? []).map((id) => ({ ...newServiceLine(id), lid: `${v.uid}-x${id}`, optionIds: [] as number[] })),
@@ -117,6 +138,7 @@ export function fromVehicleSelections(selections: VehicleSelection[]): {
     model: s.model ?? "",
     optionIds: Array.isArray(s.services?.[0]?.optionIds) ? s.services[0].optionIds : [],
     extraServiceIds: [] as number[],
+    ...(s.plate ? { plate: s.plate } : {}),
   }))
   const serviceId = selections.flatMap((s) => s.services ?? []).find((l) => l.serviceId != null)?.serviceId ?? null
   selections.forEach((s, i) => {

@@ -3,7 +3,7 @@
 import { Check, Plus, Sparkles, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDuration } from "@/lib/format"
-import { addExtraService, extraServiceCandidates, formatPriceCompact, newV2Vehicle, removeExtraService, type V2Vehicle } from "@/lib/booking/v2"
+import { addExtraService, extraServiceCandidates, formatPriceCompact, isPlateValid, needsPlate, newV2Vehicle, removeExtraService, type V2Vehicle } from "@/lib/booking/v2"
 import { resolvePrice, type OptionRow, type PriceMap, type ServiceRow, type VehicleRow } from "@/components/booking/shared"
 import type { BookingSuggestion } from "@/lib/booking/promotions-apply"
 import { SectionLabel, bv2InputClass, bv2LabelClass } from "./step-header"
@@ -151,6 +151,26 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
                   )
                 })}
               </ul>
+              {needsPlate(v, serviceId) && (
+                <div className="mt-3">
+                  <label htmlFor={`plate-${v.uid}`} className={bv2LabelClass}>
+                    Immatriculation
+                  </label>
+                  <input
+                    id={`plate-${v.uid}`}
+                    value={v.plate ?? ""}
+                    onChange={(e) => update(v.uid, { plate: e.target.value.toUpperCase() })}
+                    placeholder="Ex. AB-123-CD"
+                    autoComplete="off"
+                    required
+                    aria-invalid={Boolean(v.plate) && !isPlateValid(v.plate)}
+                    className={cn(bv2InputClass, "bg-background uppercase placeholder:normal-case")}
+                  />
+                  <p className="mt-1 text-[11.5px] text-muted-foreground">
+                    Demandée car ce véhicule reçoit plusieurs prestations : elle permet de ne jamais vous facturer deux fois le même traitement.
+                  </p>
+                </div>
+              )}
               {extraServiceCandidates(services, v, serviceId).length > 0 && placesLeft <= 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Nombre maximal de prestations par réservation atteint. Pour en ajouter d&apos;autres, contactez directement le professionnel.

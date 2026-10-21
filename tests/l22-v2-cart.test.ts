@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  isPlateValid,
+  isV2VehicleComplete,
+  needsPlate,
   addExtraService,
   bookingEstimate,
   extraServiceCandidates,
@@ -34,12 +37,31 @@ describe("L22 — prestations ajoutées", () => {
   })
 })
 
+describe("L22 — immatriculation demandée seulement si nécessaire", () => {
+  it("réservation classique (une prestation par véhicule) : aucune immatriculation exigée", () => {
+    expect(needsPlate(vehicle(), 143)).toBe(false)
+    expect(isV2VehicleComplete(vehicle(), 143)).toBe(true)
+  })
+  it("véhicule à plusieurs prestations : immatriculation valide exigée", () => {
+    const v = vehicle({ extraServiceIds: [158] })
+    expect(needsPlate(v, 143)).toBe(true)
+    expect(isV2VehicleComplete(v, 143)).toBe(false)
+    expect(isV2VehicleComplete({ ...v, plate: "AB" }, 143)).toBe(false)
+    expect(isV2VehicleComplete({ ...v, plate: "ab-123-cd" }, 143)).toBe(true)
+    expect(isPlateValid("1234 ab 56")).toBe(true)
+  })
+  it("prestation ajoutée identique à la principale : ne compte pas", () => {
+    expect(needsPlate(vehicle({ extraServiceIds: [143] }), 143)).toBe(false)
+  })
+})
+
 describe("L22 — lignes envoyées au serveur", () => {
   it("une ligne par prestation, même identité de véhicule sur toutes les lignes", () => {
-    const lines = toSelectionsPayload([vehicle({ optionIds: [98], extraServiceIds: [158] }), vehicle({ uid: "b", brand: "Renault", model: "Clio" })], 143)
+    const lines = toSelectionsPayload([vehicle({ optionIds: [98], extraServiceIds: [158], plate: "ab-123 cd" }), vehicle({ uid: "b", brand: "Renault", model: "Clio", plate: "XX-000-XX" })], 143)
     expect(lines).toEqual([
-      { uid: "a:main", serviceId: 143, optionIds: [98], vehicleTypeId: 2, brand: "Peugeot", model: "308" },
-      { uid: "a:x158", serviceId: 158, optionIds: [], vehicleTypeId: 2, brand: "Peugeot", model: "308" },
+      { uid: "a:main", serviceId: 143, optionIds: [98], vehicleTypeId: 2, brand: "Peugeot", model: "308", plate: "AB123CD" },
+      { uid: "a:x158", serviceId: 158, optionIds: [], vehicleTypeId: 2, brand: "Peugeot", model: "308", plate: "AB123CD" },
+      // Une seule prestation : l'immatriculation n'est ni demandée ni envoyée.
       { uid: "b:main", serviceId: 143, optionIds: [], vehicleTypeId: 2, brand: "Renault", model: "Clio" },
     ])
   })

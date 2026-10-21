@@ -243,6 +243,7 @@ export function StepContact(props: Props) {
                     value={
                       <>
                         {[v.brand, v.model].filter((s) => s.trim()).join(" ")}
+                        {extras.length > 0 && v.plate?.trim() && <span className="text-muted-foreground"> · {v.plate.trim().toUpperCase()}</span>}
                         {type && <span className="text-muted-foreground"> · {type.name}</span>}
                         {vehicles.length > 1 && (
                           <span className="block font-semibold">{formatPriceCompact(est.priceCents)}</span>
