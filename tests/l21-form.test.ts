@@ -76,6 +76,14 @@ describe("L21 — formulaire ↔ offre", () => {
       expect(r.errors).toContain("La date de fin doit suivre la date de début.")
     }
   })
+  it("plus de 10 paliers, quantités en double ou non numériques : refusés avant envoi", () => {
+    const tiers = Array.from({ length: 11 }, (_, k) => ({ minQuantity: String(k + 1), value: "5" }))
+    expect(formToPayload({ ...emptyForm(), name: "x", tiers })).toMatchObject({ ok: false })
+    const dup = formToPayload({ ...emptyForm(), name: "x", tiers: [{ minQuantity: "2", value: "5" }, { minQuantity: "2", value: "10" }] })
+    expect(dup.ok).toBe(false)
+    if (!dup.ok) expect(dup.errors).toContain("Deux paliers ne peuvent pas avoir le même nombre minimal.")
+    for (const q of ["1e1", "0x10", "2.5", " "]) expect(formToPayload({ ...emptyForm(), name: "x", tiers: [{ minQuantity: q, value: "5" }] }).ok).toBe(false)
+  })
   it("mode incompatible avec le type refusé (prix total fixe sur des options)", () => {
     expect(formToPayload({ ...emptyForm("multi_options"), name: "x", mode: "fixed_total", tiers: [{ minQuantity: "2", value: "10" }] })).toMatchObject({ ok: false })
   })

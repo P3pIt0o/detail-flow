@@ -38,4 +38,12 @@ describe("L21 — page Offres & réductions", () => {
       expect(ui.lastIndexOf("{canEdit && (", at), fn).toBeGreaterThan(0)
     }
   })
+  it("état actif visible par tous (offres, équivalences, compléments), hors des blocs d'écriture", () => {
+    expect(ui.match(/<StatusPill active=\{/g)?.length).toBe(3)
+    for (const tab of ["function EquivalencesTab", "function UpsellsTab"]) {
+      const body = ui.slice(ui.indexOf(tab))
+      expect(body.indexOf("<StatusPill")).toBeGreaterThan(0)
+      expect(body.indexOf("<StatusPill")).toBeLessThan(body.indexOf("{canEdit && (\n              <div className=\"flex shrink-0"))
+    }
+  })
 })

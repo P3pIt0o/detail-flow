@@ -53,6 +53,12 @@ type Props = {
 const selectClass =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 
+/** Alertes de paliers avec les prix min. et max. du catalogue (mêmes que dans le formulaire). */
+function warningsFor(p: Promotion, services: CatalogItem[]): TierWarning[] {
+  const prices = (p.kind === "multi_services" && p.eligibleServiceIds ? services.filter((s) => p.eligibleServiceIds!.includes(s.id)) : services).map((s) => s.priceCents)
+  return analyzeTiers(p, prices.length ? { minEligiblePriceCents: Math.min(...prices), maxEligiblePriceCents: Math.max(...prices) } : {})
+}
+
 function toPromotion(p: PromotionPayload): Promotion {
   const base = { id: 1, name: p.name, active: true, priority: 0, startsAt: null, endsAt: null, stackable: p.stackable, stackableWithPromoCode: p.stackableWithPromoCode, tiers: p.tiers }
   if (p.kind === "multi_services") return { ...base, kind: "multi_services", eligibleServiceIds: p.eligibleServiceIds ?? null, includeOptions: p.includeOptions === true }
@@ -101,10 +107,10 @@ function useAction() {
   return { pending, error, setError, run }
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function StatusPill({ active, masculine }: { active: boolean; masculine?: boolean }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-      {active ? "Active" : "Désactivée"}
+      {active ? (masculine ? "Actif" : "Active") : masculine ? "Désactivé" : "Désactivée"}
     </span>
   )
 }
@@ -196,7 +202,7 @@ function OffersTab({ lists, canEdit, timeZone, services, options }: Omit<Props, 
                     {p.kind === "service_option" && `${nameOf(services, [p.trigger.serviceId])} + ${nameOf(options, [p.trigger.optionId])}`}
                     {(p.stackable || p.stackableWithPromoCode) && ` · cumulable${p.stackableWithPromoCode ? " avec les codes promo" : ""}`}
                   </p>
-                  <Warnings warnings={lists.warnings[p.id] ?? []} />
+                  <Warnings warnings={warningsFor(p, services)} />
                 </div>
                 {canEdit && (
                   <div className="flex shrink-0 items-center gap-1">
@@ -269,10 +275,9 @@ function PromotionDialog({
     const cart = sampleCartFor(p, { services, options })
     if (cart.vehicles.length === 0) return null
     const r = previewPromotion(p, cart)
-    const prices = (p.kind === "multi_services" && p.eligibleServiceIds ? services.filter((s) => p.eligibleServiceIds!.includes(s.id)) : services).map((s) => s.priceCents)
     return {
       text: `Exemple : ${cart.vehicles.length} véhicule${cart.vehicles.length > 1 ? "s" : ""}, ${formatEuros(r.normalCents)} au prix normal → ${formatEuros(r.finalCents)} (−${formatEuros(r.savingsCents)}).`,
-      warnings: analyzeTiers(p, prices.length ? { minEligiblePriceCents: Math.min(...prices), maxEligiblePriceCents: Math.max(...prices) } : {}),
+      warnings: warningsFor(p, services),
     }
   }, [checked, services, options])
 
@@ -281,8 +286,10 @@ function PromotionDialog({
     setErrors([])
     act.run(
       () => savePromotion(checked.payload, id),
-      (r) => {
-        if (r.ok && r.warnings?.length) setWarnings(r.warnings)
+      () => {
+        // Alertes après enregistrement : mêmes règles, avec les prix du catalogue.
+        const after = warningsFor(toPromotion(checked.payload), services)
+        if (after.length) setWarnings(after)
         else onClose()
       },
     )
@@ -320,7 +327,12 @@ function PromotionDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="of-mode">Réduction</Label>
-              <select id="of-mode" className={selectClass} value={f.mode} onChange={(e) => set({ mode: e.target.value as PromotionFormState["mode"] })}>
+              <select
+                id="of-mode"
+                className={selectClass}
+                value={f.mode}
+                onChange={(e) => set({ mode: e.target.value as PromotionFormState["mode"], tiers: f.tiers.map((t) => ({ ...t, value: "" })) })}
+              >
                 {MODES_BY_KIND[f.kind].map((m) => (
                   <option key={m} value={m}>{MODE_LABEL[m]}</option>
                 ))}
@@ -525,7 +537,10 @@ function EquivalencesTab({ lists, canEdit, services, options }: Omit<Props, "tim
         {lists.equivalences.map((r) => (
           <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium">{refLabel(r.a, services, options)} = {refLabel(r.b, services, options)}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">{refLabel(r.a, services, options)} = {refLabel(r.b, services, options)}</p>
+                <StatusPill active={r.active} />
+              </div>
               <p className="text-xs text-muted-foreground">Motif : {r.reason}</p>
             </div>
             {canEdit && (
@@ -619,7 +634,10 @@ function UpsellsTab({ lists, canEdit, services, options }: Omit<Props, "timeZone
         {lists.upsells.map((u) => (
           <div key={u.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Avec {refLabel({ type: "service", id: u.whenServiceId }, services, options)}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">Avec {refLabel({ type: "service", id: u.whenServiceId }, services, options)}</p>
+                <StatusPill active={u.active} masculine />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Suggérer : {u.suggest.map((r) => refLabel(r, services, options)).join(", ")}
                 {u.message ? ` · « ${u.message} »` : ""}

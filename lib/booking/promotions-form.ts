@@ -11,6 +11,9 @@ import type { Promotion, PromotionKind, PromotionTier, PromotionValue } from "@/
 
 export type ValueMode = PromotionValue["type"]
 
+/** Nombre maximal de paliers (identique au moteur, validate.ts). */
+export const MAX_TIERS_FORM = 10
+
 /** Modes autorisés par type d'offre (identiques au moteur L17-B). */
 export const MODES_BY_KIND: Record<PromotionKind, ValueMode[]> = {
   multi_services: ["percent", "fixed_total"],
@@ -146,8 +149,13 @@ export function formToPayload(f: PromotionFormState): FormResult {
 
   const tiers: PromotionTier[] = []
   const rows = f.kind === "service_option" ? f.tiers.slice(0, 1) : f.tiers
+  if (rows.length > MAX_TIERS_FORM) errors.push(`Une offre compte au plus ${MAX_TIERS_FORM} paliers.`)
+  const quantities = rows.map((t) => String(t.minQuantity ?? "").trim())
+  if (f.kind !== "service_option" && new Set(quantities).size !== quantities.length) errors.push("Deux paliers ne peuvent pas avoir le même nombre minimal.")
   rows.forEach((t, i) => {
-    const n = f.kind === "service_option" ? 1 : Number(t.minQuantity)
+    // Chiffres uniquement (« 1e1 », « 0x10 » refusés).
+    const raw = String(t.minQuantity ?? "").trim()
+    const n = f.kind === "service_option" ? 1 : /^\d{1,2}$/.test(raw) ? Number(raw) : NaN
     const label = rows.length > 1 ? ` (palier ${i + 1})` : ""
     if (!Number.isSafeInteger(n) || n < 1 || n > 99) {
       errors.push(`Indiquez un nombre minimal entre 1 et 99${label}.`)
