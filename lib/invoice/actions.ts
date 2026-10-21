@@ -245,9 +245,15 @@ export async function createInvoiceFromBooking(
     })
   }
 
+  // Remise réelle de la réservation (code promo et offres automatiques, L20) :
+  // la facture reflète exactement le montant réservé. Bornée aux prestations et
+  // options (le déplacement n'est jamais remisé). TVA calculée après remise.
+  const discountableCents = lines.filter((l) => l.kind !== "travel").reduce((s, l) => s + l.quantity * l.unitPriceCents, 0)
+  const bookingDiscountCents = Math.max(0, Math.min(Math.trunc(Number(booking.discountCents) || 0), discountableCents))
+
   const totals = computeInvoice({
     lines: lines.map((l) => ({ kind: l.kind, quantity: l.quantity, unitPriceCents: l.unitPriceCents })),
-    discountCents: 0,
+    discountCents: bookingDiscountCents,
     vatEnabled,
     vatRate: Number(vatRate),
     depositCents: booking.depositCents,
@@ -271,7 +277,7 @@ export async function createInvoiceFromBooking(
         vehiclePlate: firstItem?.vehiclePlate ?? null,
         serviceDate: booking.date,
         itemsTotalCents: totals.itemsTotalCents,
-        discountCents: 0,
+        discountCents: totals.discountCents,
         netCents: totals.netCents,
         vatEnabled,
         vatRate: String(vatRate),

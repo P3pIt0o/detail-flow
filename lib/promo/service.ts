@@ -50,6 +50,8 @@ export type PromoValidationResult =
       discountType: PromoDiscountType
       discountValue: number
       discountCents: number
+      /** Prestations visées (code ciblé), `null` pour un code global. Utilisé par l'arbitrage des offres (L20). */
+      targetServiceIds: number[] | null
     }
   | { valid: false; reason: PromoInvalidReason }
 
@@ -66,6 +68,9 @@ export type PromoInvalidReason =
   // Code CIBLÉ « certaines prestations » : aucune prestation éligible dans le
   // panier courant. Jamais de repli automatique en promo globale.
   | "not_applicable_services"
+  // L20 : une offre automatique non cumulable avec les codes est au moins aussi
+  // avantageuse ; le code n'est ni appliqué ni consommé.
+  | "not_combinable"
 
 /** Normalise un code : trim + MAJUSCULES (source de vérité serveur). */
 export function normalizePromoCode(code: string): string {
@@ -167,7 +172,8 @@ export async function validatePromoCode(input: {
   const discountCents = computeDiscountCents(type, value, eligibleSubtotalCents)
   if (discountCents <= 0) return { valid: false, reason: "no_eligible_amount" }
 
-  return { valid: true, promoCodeId: row.id, normalizedCode, discountType: type, discountValue: value, discountCents }
+  const targetServiceIds = targeted ? [...new Set((rules?.serviceIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0))] : null
+  return { valid: true, promoCodeId: row.id, normalizedCode, discountType: type, discountValue: value, discountCents, targetServiceIds }
 }
 
 /**

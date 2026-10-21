@@ -50,12 +50,18 @@ export function validateValue(value: PromotionValue): string | null {
   }
 }
 
+/** Limites de saisie (revue L19) : nom affiché au client, nombre de paliers. */
+export const MAX_NAME_LENGTH = 120
+export const MAX_TIERS = 10
+
 export function validatePromotion(p: Promotion): ValidationResult {
   const errors: string[] = []
   if (!p || typeof p !== "object") return { ok: false, errors: ["Offre invalide."] }
   if (!isPosInt(p.id)) errors.push("Identifiant d'offre invalide.")
   if (typeof p.name !== "string" || !p.name.trim()) errors.push("Donnez un nom à l'offre.")
-  if (!Number.isInteger(p.priority)) errors.push("Priorité invalide.")
+  else if (p.name.trim().length > MAX_NAME_LENGTH) errors.push(`Le nom de l'offre ne doit pas dépasser ${MAX_NAME_LENGTH} caractères.`)
+  // Colonne SQL « integer » : bornes 32 bits.
+  if (!Number.isSafeInteger(p.priority) || Math.abs(p.priority) > 2_147_483_647) errors.push("Priorité invalide.")
 
   const start = toTime(p.startsAt)
   const end = toTime(p.endsAt)
@@ -69,6 +75,8 @@ export function validatePromotion(p: Promotion): ValidationResult {
 
   if (!Array.isArray(p.tiers) || p.tiers.length === 0) {
     errors.push("Ajoutez au moins un palier.")
+  } else if (p.tiers.length > MAX_TIERS) {
+    errors.push(`Une offre compte au plus ${MAX_TIERS} paliers.`)
   } else {
     const seen = new Set<number>()
     for (const t of p.tiers) {

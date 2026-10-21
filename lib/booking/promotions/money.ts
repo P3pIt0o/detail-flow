@@ -4,8 +4,9 @@
 
 export const BPS_SCALE = 10_000
 
-export const isNonNegInt = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0
-export const isPosInt = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n > 0
+// Entiers SÛRS uniquement (≤ 2^53 − 1) : un 1e300 n'est jamais un montant ni un id.
+export const isNonNegInt = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0
+export const isPosInt = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0
 
 /** Pourcentage en points de base, arrondi à l'inférieur (jamais en faveur d'une remise excessive). */
 export function percentOf(amountCents: number, bps: number): number {
