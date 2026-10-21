@@ -15,6 +15,9 @@ import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { sendBookingCreatedEmails } from "@/lib/email/notifications"
 import {
   getSettings,
+  getServices,
+  getOptions,
+  getServicePrices,
   getActiveBookingsForDate,
   countVehiclesForDate,
   getBookingByReference,
@@ -34,7 +37,8 @@ import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { isBookingRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
 import { getPromotionData, loadPromotionData, setBookingPromotionSnapshot } from "@/lib/booking/promotions-store"
-import { priceBooking } from "@/lib/booking/promotions-apply"
+import { bookingSuggestions, priceBooking, quoteToCart, trustedVehicleKeys, type BookingSuggestion, type CodeStatus } from "@/lib/booking/promotions-apply"
+import { describeAdjustment, type ItemRef } from "@/lib/booking/promotions"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
@@ -44,19 +48,103 @@ import { randomBytes } from "crypto"
 /*  Devis en direct (appelé quand le client modifie ses choix)               */
 /* -------------------------------------------------------------------------- */
 
-export async function getQuoteAction(selections: BookingSelection[], address?: string) {
+/** Récapitulatif chiffré par le serveur (L22) : identique au montant que createBookingAction enregistrera. */
+export type QuotePricing = {
+  normalCents: number
+  travelFeeCents: number
+  applied: { name: string; discountCents: number }[]
+  code: { code: string; status: CodeStatus | "invalid"; discountCents: number } | null
+  /** Explications des corrections du panier (même traitement facturé une seule fois…). */
+  notes: string[]
+  discountCents: number
+  totalCents: number
+  depositCents: number
+  totalDurationMin: number
+}
+
+export async function getQuoteAction(selections: BookingSelection[], address?: string, promoCode?: string) {
   const settings = await getSettings()
   const travel = address && address.trim().length >= 5 ? await computeTravel(address, settings) : null
   const quote = await buildQuote(selections, settings, travel)
   // L20 : offres automatiques du tenant (aperçu tolérant : indisponibles = aucune).
   const tenant = await resolveRequestTenant()
-  const data = tenant ? await getPromotionData(tenant) : { promotions: [], equivalences: [] }
-  const p = priceBooking({ quote, promotions: data.promotions, equivalences: data.equivalences, code: null })
+  const data = tenant ? await getPromotionData(tenant) : { promotions: [], equivalences: [], upsells: [] }
+  // L22 : regroupement de confiance des lignes d'un même véhicule (même calcul que la réservation).
+  const vehicleKeys = trustedVehicleKeys(quote.lines, selections)
+  const p = priceBooking({ quote, promotions: data.promotions, equivalences: data.equivalences, code: null, vehicleKeys })
   const totalCents = p.subtotalCents + quote.travelFeeCents - p.discountCents
   const promotions = p.engineUsed
     ? { discountCents: p.discountCents, totalCents, depositCents: computeDeposit(totalCents, settings), totalDurationMin: p.totalDurationMin, applied: p.snapshot?.promotions ?? [], adjustments: p.adjustments }
     : null
-  return { quote, depositType: settings.depositType, depositValue: settings.depositValue, promotions }
+
+  // Code promo éventuel : même validation et même arbitrage qu'à la réservation.
+  let codeStatus: CodeStatus | "invalid" = "none"
+  let withCode = p
+  const code = promoCode?.trim()
+  if (code && tenant) {
+    const res = await validatePromoCode({ companyId: tenant.id, code, quote })
+    if (!res.valid) codeStatus = "invalid"
+    else {
+      withCode = priceBooking({
+        quote,
+        promotions: data.promotions,
+        equivalences: data.equivalences,
+        code: { code: res.normalizedCode, discountCents: res.discountCents, targetServiceIds: res.targetServiceIds, percent: res.discountType === "percent" ? res.discountValue : null },
+        vehicleKeys,
+      })
+      codeStatus = withCode.codeStatus
+    }
+  }
+  // Un code écarté n'est jamais appliqué : le total annoncé est celui sans code.
+  const final = codeStatus === "applied" ? withCode : p
+  const names = new Map<string, string>()
+  for (const l of quote.lines) {
+    names.set(`service:${l.serviceId}`, l.serviceName)
+    for (const o of l.options) names.set(`option:${o.optionId}`, o.optionName)
+  }
+  const [catalogServices, catalogOptions, prices] = data.promotions.length || data.equivalences.length || data.upsells.length
+    ? await Promise.all([getServices(), getOptions(), getServicePrices()])
+    : [[], [], []]
+  for (const s of catalogServices) names.set(`service:${s.id}`, s.name)
+  for (const o of catalogOptions) names.set(`option:${o.id}`, o.name)
+  const label = (r: ItemRef) => names.get(`${r.type}:${r.id}`)
+  const finalTotal = final.subtotalCents + quote.travelFeeCents - final.discountCents
+  const pricing: QuotePricing = {
+    normalCents: final.subtotalCents,
+    travelFeeCents: quote.travelFeeCents,
+    applied: (final.snapshot?.promotions ?? []).map((x) => ({ name: x.name, discountCents: x.discountCents })),
+    code: code ? { code: code.toUpperCase(), status: codeStatus, discountCents: codeStatus === "applied" ? final.codeDiscountCents : 0 } : null,
+    notes: final.adjustments.map((a) => describeAdjustment(a, (r) => label(r) ?? "élément")),
+    discountCents: final.discountCents,
+    totalCents: finalTotal,
+    depositCents: computeDeposit(finalTotal, settings),
+    totalDurationMin: final.totalDurationMin,
+  }
+
+  // Au plus 2 suggestions, jamais d'ajout automatique ; éléments masqués exclus.
+  const keyByUid = new Map(quote.lines.map((l, i) => [l.uid, vehicleKeys[i]] as const))
+  const typeOfKey = new Map<string, number>()
+  quote.lines.forEach((l, i) => typeOfKey.set(vehicleKeys[i], l.vehicleTypeId))
+  const suggestions: BookingSuggestion[] = catalogServices.length
+    ? bookingSuggestions({
+        cart: quoteToCart(final.lines, final.lines.map((l) => keyByUid.get(l.uid) ?? l.uid)),
+        promotions: data.promotions,
+        equivalences: data.equivalences,
+        upsells: data.upsells,
+        label,
+        catalog: {
+          optionPriceCents: (id) => catalogOptions.find((o) => o.id === id)?.priceCents,
+          servicePriceCents: (key, id) => {
+            const svc = catalogServices.find((x) => x.id === id)
+            if (!svc) return undefined
+            const t = typeOfKey.get(key)
+            return prices.find((x) => x.serviceId === id && x.vehicleTypeId === t)?.priceCents ?? svc.basePriceCents
+          },
+        },
+      })
+    : []
+
+  return { quote, depositType: settings.depositType, depositValue: settings.depositValue, promotions, pricing, suggestions }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -93,6 +181,7 @@ export async function validatePromoCodeAction(input: {
     quote,
     promotions: data.promotions,
     equivalences: data.equivalences,
+    vehicleKeys: trustedVehicleKeys(quote.lines, input.selections),
     code: {
       code: res.normalizedCode,
       discountCents: res.discountCents,
@@ -365,7 +454,13 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
 
   // 3c. Arbitrage offres + code (moteur L17-B). Sans offre ni équivalence :
   //     calcul historique exact. Un code écarté n'est ni appliqué ni consommé.
-  const pricing = priceBooking({ quote, promotions: promoData.promotions, equivalences: promoData.equivalences, code: codeInput })
+  const pricing = priceBooking({
+    quote,
+    promotions: promoData.promotions,
+    equivalences: promoData.equivalences,
+    code: codeInput,
+    vehicleKeys: trustedVehicleKeys(quote.lines, selections),
+  })
   if (appliedPromo) {
     // Code saisi mais écarté (offre plus avantageuse ou plus rien à remiser,
     // ex. panier modifié depuis l'aperçu) : refus explicite, jamais un montant

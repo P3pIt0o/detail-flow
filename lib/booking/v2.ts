@@ -24,13 +24,19 @@ import type { PaymentMode } from "@/lib/payments/mode"
 /*  Véhicules                                                                  */
 /* -------------------------------------------------------------------------- */
 
-/** Véhicule composé dans Booking V2 : la prestation choisie à l'étape 1 s'applique à chaque véhicule. */
+/**
+ * Véhicule composé dans Booking V2 : la prestation choisie à l'étape 1 s'applique
+ * à chaque véhicule ; le client peut y AJOUTER d'autres prestations (panier libre,
+ * L22). Les options sont rattachées à la prestation principale.
+ */
 export type V2Vehicle = {
   uid: string
   vehicleTypeId: number | null
   brand: string
   model: string
   optionIds: number[]
+  /** Prestations ajoutées à ce véhicule (sans doublon, jamais la prestation principale). Absent = aucune (brouillons antérieurs). */
+  extraServiceIds?: number[]
 }
 
 function uid(): string {
@@ -45,7 +51,40 @@ export function newV2Vehicle(vehicleTypes: Pick<VehicleRow, "id">[]): V2Vehicle 
     brand: "",
     model: "",
     optionIds: [],
+    extraServiceIds: [],
   }
+}
+
+/** Ajoute une prestation à un véhicule ; refuse la prestation principale et les doublons. */
+export function addExtraService(v: V2Vehicle, serviceId: number, mainServiceId: number | null): V2Vehicle {
+  const extras = v.extraServiceIds ?? []
+  if (!Number.isInteger(serviceId) || serviceId === mainServiceId || extras.includes(serviceId)) return v
+  return { ...v, extraServiceIds: [...extras, serviceId] }
+}
+
+export function removeExtraService(v: V2Vehicle, serviceId: number): V2Vehicle {
+  return { ...v, extraServiceIds: (v.extraServiceIds ?? []).filter((id) => id !== serviceId) }
+}
+
+/** Prestations pouvant encore être ajoutées à ce véhicule. */
+export function extraServiceCandidates<T extends { id: number }>(services: T[], v: V2Vehicle, mainServiceId: number | null): T[] {
+  return services.filter((s) => s.id !== mainServiceId && !(v.extraServiceIds ?? []).includes(s.id))
+}
+
+/**
+ * Lignes envoyées au serveur : une par prestation, `uid véhicule:ligne`. Toutes les
+ * lignes d'un véhicule portent la même identité (type, marque, modèle) : c'est ce
+ * que le serveur exige pour les traiter comme un même véhicule (L22).
+ */
+export function toSelectionsPayload(vehicles: V2Vehicle[], serviceId: number | null) {
+  if (serviceId == null) return []
+  return vehicles.flatMap((v) => {
+    const common = { vehicleTypeId: v.vehicleTypeId as number, brand: v.brand.trim(), model: v.model.trim() }
+    return [
+      { uid: `${v.uid}:main`, serviceId, optionIds: v.optionIds, ...common },
+      ...(v.extraServiceIds ?? []).filter((id) => id !== serviceId).map((id) => ({ uid: `${v.uid}:x${id}`, serviceId: id, optionIds: [] as number[], ...common })),
+    ]
+  })
 }
 
 export function isV2VehicleComplete(v: V2Vehicle): boolean {
@@ -59,23 +98,32 @@ export function toVehicleSelections(vehicles: V2Vehicle[], serviceId: number | n
     vehicleTypeId: v.vehicleTypeId,
     brand: v.brand,
     model: v.model,
-    services: [{ ...newServiceLine(serviceId), lid: `${v.uid}-l`, optionIds: v.optionIds }],
+    services: [
+      { ...newServiceLine(serviceId), lid: `${v.uid}-l`, optionIds: v.optionIds },
+      ...(v.extraServiceIds ?? []).map((id) => ({ ...newServiceLine(id), lid: `${v.uid}-x${id}`, optionIds: [] as number[] })),
+    ],
   }))
 }
 
-/** Reprise depuis le format partagé (brouillon). Seule la 1re prestation d'un véhicule est conservée. */
+/** Reprise depuis le format partagé (brouillon) : 1re prestation = principale, les suivantes = ajoutées (brouillons antérieurs compatibles). */
 export function fromVehicleSelections(selections: VehicleSelection[]): {
   serviceId: number | null
   vehicles: V2Vehicle[]
 } {
-  const vehicles = selections.map((s) => ({
+  const vehicles: V2Vehicle[] = selections.map((s) => ({
     uid: s.uid || uid(),
     vehicleTypeId: s.vehicleTypeId ?? null,
     brand: s.brand ?? "",
     model: s.model ?? "",
     optionIds: Array.isArray(s.services?.[0]?.optionIds) ? s.services[0].optionIds : [],
+    extraServiceIds: [] as number[],
   }))
   const serviceId = selections.flatMap((s) => s.services ?? []).find((l) => l.serviceId != null)?.serviceId ?? null
+  selections.forEach((s, i) => {
+    for (const l of (s.services ?? []).slice(1)) {
+      if (l.serviceId != null) vehicles[i] = addExtraService(vehicles[i], l.serviceId, serviceId)
+    }
+  })
   return { serviceId, vehicles }
 }
 
@@ -120,9 +168,15 @@ export function vehicleEstimate(
       ? resolvePrice(services, priceMap, serviceId, v.vehicleTypeId)
       : { priceCents: svc?.basePriceCents ?? 0, durationMin: svc?.durationMin ?? 0 }
   const chosen = v.optionIds.map((id) => options.find((o) => o.id === id)).filter(Boolean) as OptionRow[]
+  const extras = (v.extraServiceIds ?? [])
+    .filter((id) => id !== serviceId)
+    .map((id) => {
+      const x = services.find((s) => s.id === id)
+      return v.vehicleTypeId != null ? resolvePrice(services, priceMap, id, v.vehicleTypeId) : { priceCents: x?.basePriceCents ?? 0, durationMin: x?.durationMin ?? 0 }
+    })
   return {
-    priceCents: base.priceCents + chosen.reduce((s, o) => s + o.priceCents, 0),
-    durationMin: base.durationMin + chosen.reduce((s, o) => s + o.durationMin, 0),
+    priceCents: base.priceCents + chosen.reduce((s, o) => s + o.priceCents, 0) + extras.reduce((s, e) => s + e.priceCents, 0),
+    durationMin: base.durationMin + chosen.reduce((s, o) => s + o.durationMin, 0) + extras.reduce((s, e) => s + e.durationMin, 0),
   }
 }
 

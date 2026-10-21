@@ -12,6 +12,7 @@ import {
   type V2Vehicle,
 } from "@/lib/booking/v2"
 import type { OptionRow, PriceMap, ServiceRow, VehicleRow } from "@/components/booking/shared"
+import type { QuotePricing } from "@/app/(site)/reservation/actions"
 import { SectionLabel, bv2InputClass, bv2LabelClass } from "./step-header"
 
 export type ContactV2 = { firstName: string; lastName: string; email: string; phone: string; notes: string }
@@ -40,6 +41,8 @@ type Props = {
   durationMin: number
   subtotalCents: number
   totalCents: number
+  /** Montants calculés par le serveur (offres, code, déplacement) ; null pendant le calcul. */
+  serverPricing?: QuotePricing | null
   paymentPlan: PaymentPlan
   depositType: string
   depositValue: number
@@ -151,6 +154,7 @@ export function StepContact(props: Props) {
     durationMin,
     subtotalCents,
     totalCents,
+    serverPricing,
     paymentPlan,
     depositType,
     depositValue,
@@ -162,7 +166,7 @@ export function StepContact(props: Props) {
 
   const set = <K extends keyof ContactV2>(key: K, value: ContactV2[K]) => onContact({ ...contact, [key]: value })
   const service = services.find((s) => s.id === serviceId)
-  const depositCents = previewDeposit(totalCents, depositType, depositValue)
+  const depositCents = serverPricing ? serverPricing.depositCents : previewDeposit(totalCents, depositType, depositValue)
 
   return (
     <div>
@@ -230,6 +234,7 @@ export function StepContact(props: Props) {
             {vehicles.map((v, i) => {
               const type = vehicleTypes.find((t) => t.id === v.vehicleTypeId)
               const chosen = v.optionIds.map((id) => options.find((o) => o.id === id)?.name).filter(Boolean)
+              const extras = (v.extraServiceIds ?? []).map((id) => services.find((x) => x.id === id)?.name).filter(Boolean)
               const est = vehicleEstimate(v, serviceId, services, options, priceMap)
               return (
                 <div key={v.uid}>
@@ -245,6 +250,7 @@ export function StepContact(props: Props) {
                       </>
                     }
                   />
+                  {extras.length > 0 && <Row label="Prestations ajoutées" value={extras.join(", ")} />}
                   {chosen.length > 0 && <Row label="Options" value={chosen.join(", ")} />}
                 </div>
               )
@@ -257,23 +263,51 @@ export function StepContact(props: Props) {
             <Row label="Durée totale" value={formatDuration(durationMin)} />
           </div>
           <div className="pt-2">
-            <Row label="Prestations" value={formatPriceCompact(subtotalCents)} />
+            <Row
+              label={serverPricing && serverPricing.discountCents > 0 ? "Prix normal" : "Prestations"}
+              value={formatPriceCompact(serverPricing ? serverPricing.normalCents : subtotalCents)}
+            />
             {!atWorkshop && (
               <Row
                 label="Déplacement"
                 value={travelFeeCents === 0 ? "Offert" : formatPriceCompact(travelFeeCents)}
               />
             )}
-            {promo.applied && (
-              <Row
-                label={`Code ${promo.applied.code}`}
-                value={<span className="text-success">−{formatPriceCompact(promo.applied.discountCents)}</span>}
-              />
+            {serverPricing?.applied.map((a, i) => (
+              <Row key={i} label={a.name} value={<span className="text-success">−{formatPriceCompact(a.discountCents)}</span>} />
+            ))}
+            {serverPricing
+              ? serverPricing.code?.status === "applied" && (
+                  <Row
+                    label={`Code ${serverPricing.code.code}`}
+                    value={<span className="text-success">−{formatPriceCompact(serverPricing.code.discountCents)}</span>}
+                  />
+                )
+              : promo.applied && (
+                  <Row
+                    label={`Code ${promo.applied.code}`}
+                    value={<span className="text-success">−{formatPriceCompact(promo.applied.discountCents)}</span>}
+                  />
+                )}
+            {serverPricing && serverPricing.discountCents > 0 && (
+              <Row label="Votre économie" value={<span className="font-semibold text-success">{formatPriceCompact(serverPricing.discountCents)}</span>} />
             )}
             <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2.5">
               <dt className="text-sm font-semibold text-foreground">Total</dt>
               <dd className="text-lg font-bold text-foreground">{formatPriceCompact(totalCents)}</dd>
             </div>
+            {serverPricing && serverPricing.code && serverPricing.code.status !== "applied" && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {serverPricing.code.status === "rejected_not_combinable"
+                  ? `Le code ${serverPricing.code.code} n'est pas appliqué : une offre plus avantageuse est déjà appliquée et ne se cumule pas avec lui.`
+                  : `Le code ${serverPricing.code.code} ne s'applique pas à votre sélection.`}
+              </p>
+            )}
+            {serverPricing?.notes.map((n, i) => (
+              <p key={i} className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                {n}
+              </p>
+            ))}
           </div>
         </dl>
       </div>
