@@ -302,7 +302,9 @@ export async function getPromotionData(tenant: { id: number; customSiteKey: stri
 /*  Admin (companyId fourni par l'action, issu de la session)                  */
 /* -------------------------------------------------------------------------- */
 
-export type AdminLists = { ready: boolean; promotions: (Promotion | { id: number; invalid: true; name: string })[]; equivalences: EquivalenceRule[]; upsells: UpsellSuggestion[] }
+/** Équivalence vue par l'admin : avec son état d'activation (L21). */
+export type AdminEquivalence = EquivalenceRule & { active: boolean }
+export type AdminLists = { ready: boolean; promotions: (Promotion | { id: number; invalid: true; name: string })[]; equivalences: AdminEquivalence[]; upsells: UpsellSuggestion[] }
 
 export async function listForAdmin(companyId: number): Promise<AdminLists> {
   const notReady: AdminLists = { ready: false, promotions: [], equivalences: [], upsells: [] }
@@ -322,7 +324,10 @@ export async function listForAdmin(companyId: number): Promise<AdminLists> {
     ready: true,
     // Une ligne invalide reste visible du pro (pour la corriger), jamais transmise au moteur.
     promotions: rowsOf(p).map((r) => rowToPromotion(r) ?? { id: Number(r.id), invalid: true as const, name: String(r.name ?? "") }),
-    equivalences: rowsOf(e).map(rowToEquivalence).filter((x): x is EquivalenceRule => x !== null),
+    equivalences: rowsOf(e).flatMap((r) => {
+      const rule = rowToEquivalence(r)
+      return rule ? [{ ...rule, active: r.active === true }] : []
+    }),
     upsells: rowsOf(u).map(rowToUpsell).filter((x): x is UpsellSuggestion => x !== null),
   }
 }

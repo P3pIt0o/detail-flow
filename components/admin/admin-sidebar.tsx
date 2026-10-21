@@ -28,6 +28,7 @@ import {
   CalendarCheck,
   BarChart3,
   UserPlus,
+  BadgePercent,
 } from "lucide-react"
 import { buildAdminNav, type AdminNavIcon } from "@/lib/admin/nav"
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
@@ -45,6 +46,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   abonnements: Repeat,
   prestations: Sparkles,
   produits: Package,
+  offres: BadgePercent,
   analyse: BarChart3,
   reservationLink: CalendarCheck,
   web: Globe,
