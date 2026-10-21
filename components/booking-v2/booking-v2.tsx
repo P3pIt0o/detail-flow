@@ -8,7 +8,8 @@ import { useBookingDraft } from "@/components/booking/use-booking-draft"
 import type { OptionRow, PriceMap, ServiceRow, VehicleRow } from "@/components/booking/shared"
 import type { TravelResult } from "@/lib/booking/types"
 import type { LocationType, PublicLocation } from "@/lib/booking/location-shared"
-import { createBookingAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
+import { createBookingAction, getQuoteAction, validatePromoCodeAction, type QuotePricing } from "@/app/(site)/reservation/actions"
+import type { BookingSuggestion } from "@/lib/booking/promotions-apply"
 import {
   bookingEstimate,
   fromVehicleSelections,
@@ -16,7 +17,15 @@ import {
   joinName,
   newV2Vehicle,
   splitName,
+  toSelectionsPayload,
   toVehicleSelections,
+  addExtraService,
+  isPlateValid,
+  needsPlate,
+  hasPlaceLeft,
+  withMainService,
+  promoRejectionMessage,
+  displayedDurationMin,
   type PaymentPlan,
   type V2Vehicle,
 } from "@/lib/booking/v2"
@@ -86,6 +95,10 @@ export function BookingV2(props: BookingV2Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successRef, setSuccessRef] = useState<string | null>(null)
+  // L22 : montants calculés par le SERVEUR (identiques à la réservation) et suggestions.
+  const [serverPricing, setServerPricing] = useState<QuotePricing | null>(null)
+  const [suggestions, setSuggestions] = useState<BookingSuggestion[]>([])
+  const quoteRequest = useRef(0)
 
   // Brouillon : même mécanisme (clé tenant, session/24 h sur consentement) que le tunnel historique.
   const { restored, hydrated, remember, setRemember, save, markPendingPayment, clear } = useBookingDraft(tenant)
@@ -141,20 +154,23 @@ export function BookingV2(props: BookingV2Props) {
   const travelFeeCents = !atWorkshop && travel?.ok ? travel.feeCents : 0
   const locationReady = atWorkshop || (locationType === "client" && Boolean(travel?.ok))
   const discountCents = appliedPromo?.discountCents ?? 0
-  const totalCents = Math.max(0, estimate.priceCents + travelFeeCents - discountCents)
+  // Total annoncé : celui du serveur dès qu'il est connu (offres + code + déplacement).
+  const totalCents = serverPricing ? serverPricing.totalCents : Math.max(0, estimate.priceCents + travelFeeCents - discountCents)
 
   const contactValid = Boolean(
     contact.firstName.trim() && contact.lastName.trim() && emailRe.test(contact.email.trim()) && contact.phone.trim(),
   )
   const stepValid = [
     serviceId != null,
-    vehicles.length > 0 && vehicles.every(isV2VehicleComplete),
+    vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId)),
     Boolean(date && startTime && locationReady),
     contactValid,
   ]
   const stepHint = [
     null,
-    "Renseignez le type, la marque et le modèle.",
+    vehicles.some((v) => needsPlate(v, serviceId) && !isPlateValid(v.plate))
+      ? "Indiquez l'immatriculation des véhicules à plusieurs prestations."
+      : "Renseignez le type, la marque et le modèle.",
     locationType === null
       ? "Choisissez où réaliser la prestation."
       : !locationReady
@@ -179,20 +195,60 @@ export function BookingV2(props: BookingV2Props) {
   function selectService(id: number) {
     if (id !== serviceId) {
       setServiceId(id)
+      // La nouvelle prestation principale ne reste jamais aussi « ajoutée » (pas de doublon affiché).
+      setVehicles((vs) => withMainService(vs, id))
       invalidateSelection()
     }
     goTo(1)
   }
 
   function selectionsPayload() {
-    return vehicles.map((v) => ({
-      uid: v.uid,
-      serviceId: serviceId as number,
-      vehicleTypeId: v.vehicleTypeId as number,
-      optionIds: v.optionIds,
-      brand: v.brand.trim(),
-      model: v.model.trim(),
-    }))
+    // Une ligne par prestation ; les lignes d'un véhicule partagent son identité (regroupement serveur).
+    return toSelectionsPayload(vehicles, serviceId)
+  }
+
+  // Aperçu serveur (étapes véhicule et récapitulatif) : montant réel, explications, suggestions.
+  const vehiclesComplete = vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId))
+  const quoteAddress = !atWorkshop && travel?.ok ? address : undefined
+  useEffect(() => {
+    if (serviceId == null || !vehiclesComplete || (step !== 1 && step !== 3)) return
+    const id = ++quoteRequest.current
+    const t = setTimeout(() => {
+      getQuoteAction(toSelectionsPayload(vehicles, serviceId), quoteAddress, step === 3 ? appliedPromo?.code : undefined)
+        .then((r) => {
+          if (id !== quoteRequest.current) return
+          setServerPricing(step === 3 ? r.pricing : null)
+          setSuggestions(step === 1 ? r.suggestions : [])
+        })
+        .catch(() => {
+          if (id === quoteRequest.current) {
+            setServerPricing(null)
+            setSuggestions([])
+          }
+        })
+    }, 350)
+    return () => clearTimeout(t)
+  }, [step, serviceId, vehicles, vehiclesComplete, quoteAddress, appliedPromo])
+
+  function acceptSuggestion(sg: BookingSuggestion) {
+    if (!sg.add) return
+    const target = vehicles.find((v) => v.uid === sg.vehicleUid) ?? vehicles[0]
+    if (!target) return
+    const add = sg.add
+    // Capacité : une prestation ajoutée occupe une place (comme au serveur).
+    if (add.type === "service" && !hasPlaceLeft(vehicles, serviceId, props.maxVehicles)) return
+    setVehicles(
+      vehicles.map((v) =>
+        v.uid !== target.uid
+          ? v
+          : add.type === "service"
+            ? addExtraService(v, add.id, serviceId)
+            : v.optionIds.includes(add.id)
+              ? v
+              : { ...v, optionIds: [...v.optionIds, add.id] },
+      ),
+    )
+    invalidateSelection()
   }
 
   async function applyPromo() {
@@ -206,11 +262,7 @@ export function BookingV2(props: BookingV2Props) {
         setAppliedPromo({ code: res.code, discountType: res.discountType, discountValue: res.discountValue, discountCents: res.discountCents })
       } else {
         setAppliedPromo(null)
-        setPromoError(
-          res.reason === "not_applicable_services"
-            ? "Ce code ne s'applique pas à la prestation sélectionnée."
-            : "Code promo invalide ou indisponible.",
-        )
+        setPromoError(promoRejectionMessage(res.reason))
       }
     } catch {
       setAppliedPromo(null)
@@ -335,6 +387,11 @@ export function BookingV2(props: BookingV2Props) {
             vehicles={vehicles}
             vehicleTypes={vehicleTypes}
             options={options}
+            services={services}
+            priceMap={priceMap}
+            serviceId={serviceId}
+            suggestions={suggestions}
+            onSuggestion={acceptSuggestion}
             maxVehicles={props.maxVehicles}
             onChange={(v) => {
               setVehicles(v)
@@ -348,7 +405,8 @@ export function BookingV2(props: BookingV2Props) {
             date={date}
             startTime={startTime}
             durationMin={estimate.durationMin}
-            vehicleCount={vehicles.length}
+            // Capacité journalière inchangée (L22) : une prestation = une place, comme à la réservation.
+            vehicleCount={selectionsPayload().length}
             onSelectSlot={(d, t) => {
               setDate(d)
               setStartTime(t)
@@ -380,9 +438,10 @@ export function BookingV2(props: BookingV2Props) {
             address={atWorkshop ? `À l'atelier — ${location.workshopAddress ?? ""}` : travel?.ok ? travel.address : address}
             atWorkshop={atWorkshop}
             travelFeeCents={travelFeeCents}
-            durationMin={estimate.durationMin}
+            durationMin={displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin)}
             subtotalCents={estimate.priceCents}
             totalCents={totalCents}
+            serverPricing={serverPricing}
             paymentPlan={paymentPlan}
             depositType={props.depositType}
             depositValue={props.depositValue}
@@ -416,7 +475,7 @@ export function BookingV2(props: BookingV2Props) {
         <StickyBar
           embed={embed}
           priceCents={step >= 2 ? totalCents : estimate.priceCents}
-          durationMin={estimate.durationMin}
+          durationMin={step === 3 ? displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin) : estimate.durationMin}
           priceLabel={step === 3 ? "Total" : "Total estimé"}
           ctaLabel={ctaLabel}
           disabled={!stepValid[step]}

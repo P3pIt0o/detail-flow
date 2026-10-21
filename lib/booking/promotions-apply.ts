@@ -23,6 +23,7 @@ import {
   type Promotion,
 } from "@/lib/booking/promotions"
 import type { Quote, QuoteLine } from "@/lib/booking/types"
+import { formatEuros, suggestUpsells, type ItemRef, type CatalogPrices } from "@/lib/booking/promotions"
 
 /** Statut du code promo après arbitrage. */
 export type CodeStatus = "none" | "applied" | "rejected_not_combinable" | "rejected_no_eligible_amount"
@@ -59,25 +60,84 @@ export type BookingPricing = {
 }
 
 /**
- * Clé véhicule d'une ligne : son RANG dans le devis, jamais l'identifiant envoyé
- * par le navigateur. Un client ne peut donc pas déclarer deux voitures comme une
- * seule pour faire disparaître une prestation (doublon, équivalence). Booking V2
- * envoie une ligne par véhicule ; l'ancien tunnel (plusieurs lignes par véhicule)
- * ne reçoit aucune offre (Spirit ACS, Rozan). Le regroupement de plusieurs
- * prestations sur un même véhicule (L17-E) exigera une identité de véhicule
- * contrôlée côté serveur.
+ * Nombre maximal de lignes (prestations) acceptées par réservation et par aperçu :
+ * borne le coût des actions publiques (devis, suggestions). Au-delà, la capacité
+ * journalière serait de toute façon dépassée.
  */
+export const MAX_BOOKING_LINES = 30
+
+/**
+ * Devis réellement facturé (lignes normalisées) : c'est sur lui que se vérifient
+ * les conditions d'un code promo (minimum d'achat, prestations visées), jamais sur
+ * des lignes qui seront retirées (doublon, même traitement).
+ */
+export function billedQuote(p: Pick<BookingPricing, "lines">): Pick<Quote, "lines" | "servicesCents" | "optionsCents"> {
+  return {
+    lines: p.lines,
+    servicesCents: p.lines.reduce((s, l) => s + l.priceCents, 0),
+    optionsCents: p.lines.reduce((s, l) => s + l.options.reduce((a, o) => a + o.priceCents, 0), 0),
+  }
+}
+
+/** Clé par défaut d'une ligne : son RANG dans le devis (une ligne = un véhicule). */
 export const vehicleKeyAt = (index: number): string => `l${index + 1}`
 
-/** Devis → panier du moteur : une ligne = un véhicule. */
-export function quoteToCart(lines: QuoteLine[]): Cart {
-  return {
-    vehicles: lines.map((l, i) => ({
-      key: vehicleKeyAt(i),
-      services: [{ serviceId: l.serviceId, priceCents: l.priceCents }],
-      options: l.options.map((o) => ({ optionId: o.optionId, priceCents: o.priceCents })),
-    })),
-  }
+/** Identité de véhicule envoyée avec une ligne (type, marque, modèle, immatriculation). */
+export type LineIdentity = { uid: string; vehicleTypeId: number; brand?: string; model?: string; plate?: string }
+
+/** Identifiant de ligne Booking V2 : `<véhicule>:main` ou `<véhicule>:x<id prestation>`. */
+const V2_LINE_UID = /^([^:]+):(?:main|x\d+)$/
+
+const norm = (v: unknown) => String(v ?? "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ")
+
+/**
+ * Regroupement de CONFIANCE des lignes par véhicule (L22). Immatriculation valide
+ * obligatoire. Deux lignes ne sont un
+ * même véhicule que si elles partagent le préfixe d'identifiant Booking V2
+ * (`véhicule:main` / `véhicule:x<id>`)
+ * ET exactement le même type, la même marque, le même modèle et la même
+ * immatriculation. Sinon : véhicules distincts (aucune prestation ne peut être
+ * retirée en déclarant deux voitures comme une seule sans que la réservation ne
+ * décrive, pour le pro, un seul et même véhicule). Ligne sans préfixe, identité
+ * inconnue ou uid répété : clé propre à la ligne.
+ */
+export function trustedVehicleKeys(lines: Pick<QuoteLine, "uid" | "vehicleTypeId">[], identities: LineIdentity[]): string[] {
+  const byUid = new Map<string, LineIdentity | null>()
+  for (const id of identities) byUid.set(id.uid, byUid.has(id.uid) ? null : id)
+  const seen = new Map<string, string>() // signature → clé
+  const perPrefix = new Map<string, number>()
+  return lines.map((l, i) => {
+    const id = byUid.get(l.uid)
+    // Format Booking V2 UNIQUEMENT (`<véhicule>:main` / `<véhicule>:x<id>`) : l'ancien
+    // tunnel (`<véhicule>:<ligne>`, Spirit ACS / Rozan) garde une ligne = un véhicule.
+    const m = V2_LINE_UID.exec(l.uid)
+    // Immatriculation exigée pour regrouper (demandée par Booking V2 dès qu'un véhicule a
+    // plusieurs prestations) : sans elle, chaque ligne reste un véhicule, facturé en entier.
+    const plate = String(id?.plate ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+    if (!id || !m || id.vehicleTypeId !== l.vehicleTypeId || !/^[A-Z0-9]{4,12}$/.test(plate)) return vehicleKeyAt(i)
+    const prefix = m[1].replace(/[|~]/g, "-")
+    const sig = [prefix, l.vehicleTypeId, norm(id.brand), norm(id.model), plate].join("\u0000")
+    const known = seen.get(sig)
+    if (known) return known
+    const n = (perPrefix.get(prefix) ?? 0) + 1
+    perPrefix.set(prefix, n)
+    const key = n === 1 ? `v-${prefix}` : `v-${prefix}~${n}`
+    seen.set(sig, key)
+    return key
+  })
+}
+
+/** Devis → panier du moteur, par véhicule (clés fournies, sinon une ligne = un véhicule). */
+export function quoteToCart(lines: QuoteLine[], keys?: string[]): Cart {
+  const byKey = new Map<string, Cart["vehicles"][number]>()
+  lines.forEach((l, i) => {
+    const key = keys?.[i] ?? vehicleKeyAt(i)
+    let v = byKey.get(key)
+    if (!v) byKey.set(key, (v = { key, services: [], options: [] }))
+    v.services.push({ serviceId: l.serviceId, priceCents: l.priceCents })
+    for (const o of l.options) v.options.push({ optionId: o.optionId, priceCents: o.priceCents })
+  })
+  return { vehicles: [...byKey.values()] }
 }
 
 const take = (bag: Map<number, number>, id: number): boolean => {
@@ -97,19 +157,28 @@ const withTotals = (l: QuoteLine, options: QuoteLine["options"]): QuoteLine => (
 /**
  * Lignes du devis réduites au panier normalisé : un élément retiré par le
  * moteur (doublon, équivalence) n'est ni enregistré, ni facturé, ni compté dans
- * la durée. Une ligne = un véhicule ; le moteur ne retire jamais la seule
- * prestation d'un véhicule (jamais d'option sans prestation).
+ * la durée. Une option dont la ligne a disparu est rattachée à la première ligne
+ * conservée du même véhicule (le moteur garde toujours au moins une prestation).
  */
-export function normalizedLines(lines: QuoteLine[], cart: Cart): QuoteLine[] {
-  const byKey = new Map(cart.vehicles.map((v) => [v.key, v]))
+export function normalizedLines(lines: QuoteLine[], cart: Cart, keys?: string[]): QuoteLine[] {
+  const keyOf = (i: number) => keys?.[i] ?? vehicleKeyAt(i)
   const out: QuoteLine[] = []
-  lines.forEach((l, i) => {
-    const v = byKey.get(vehicleKeyAt(i))
-    if (!v || !v.services.some((x) => x.serviceId === l.serviceId)) return
-    const bag = new Map<number, number>()
-    for (const o of v.options) bag.set(o.optionId, (bag.get(o.optionId) ?? 0) + 1)
-    out.push(withTotals(l, l.options.filter((o) => take(bag, o.optionId))))
-  })
+  for (const v of cart.vehicles) {
+    const services = new Map<number, number>()
+    const options = new Map<number, number>()
+    for (const x of v.services) services.set(x.serviceId, (services.get(x.serviceId) ?? 0) + 1)
+    for (const o of v.options) options.set(o.optionId, (options.get(o.optionId) ?? 0) + 1)
+    const kept: QuoteLine[] = []
+    const orphans: QuoteLine["options"] = []
+    lines.forEach((l, i) => {
+      if (keyOf(i) !== v.key) return
+      const opts = l.options.filter((o) => take(options, o.optionId))
+      if (take(services, l.serviceId)) kept.push(withTotals(l, opts))
+      else orphans.push(...opts)
+    })
+    if (orphans.length && kept.length) kept[0] = withTotals(kept[0], [...kept[0].options, ...orphans])
+    out.push(...kept)
+  }
   return out
 }
 
@@ -168,6 +237,8 @@ export function priceBooking(input: {
   promotions: Promotion[]
   equivalences: EquivalenceRule[]
   code: BookingPromoCode | null
+  /** Clé véhicule de chaque ligne (`trustedVehicleKeys`) ; absente = une ligne par véhicule. */
+  vehicleKeys?: string[]
   now?: Date
 }): BookingPricing {
   const { quote, code } = input
@@ -190,12 +261,13 @@ export function priceBooking(input: {
     }
   }
 
-  const cart = quoteToCart(quote.lines)
+  const keys = input.vehicleKeys && input.vehicleKeys.length === quote.lines.length ? input.vehicleKeys : undefined
+  const cart = quoteToCart(quote.lines, keys)
   const engineCode: PromoCodeInput | null = code
     ? { code: code.code, discountCents: codeCentsOnBilled(cart, input.promotions, input.equivalences, code, now), targetServiceIds: code.targetServiceIds }
     : null
   const r = priceCart({ cart, promotions: input.promotions, equivalences: input.equivalences, promoCode: engineCode, now })
-  const lines = normalizedLines(quote.lines, r.cart)
+  const lines = normalizedLines(quote.lines, r.cart, keys)
   const subtotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0)
   const codeDiscountCents = r.promoCode.status === "applied" ? r.promoCode.discountCents : 0
   return {
@@ -210,4 +282,73 @@ export function priceBooking(input: {
     snapshot: snapshotOf(r, code, now),
     adjustments: r.adjustments,
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Suggestions affichées au client (L22) — jamais d'ajout automatique         */
+/* -------------------------------------------------------------------------- */
+
+export type BookingSuggestion = {
+  text: string
+  /** Élément à ajouter d'un clic (absent : information seulement). */
+  add?: ItemRef
+  /** Véhicule concerné (uid du navigateur, tiré de la clé de confiance), si connu. */
+  vehicleUid?: string
+}
+
+/** Compléments du pro (L19), forme minimale (évite d'importer le stockage serveur). */
+export type UpsellInput = { whenServiceId: number; suggest: ItemRef[]; message: string | null }
+
+/** 1250 → « 12,5 % » (sans dépendre de la langue du navigateur). */
+function formatPercentFr(bps: number): string {
+  const rest = bps % 100
+  return `${Math.floor(bps / 100)}${rest ? "," + String(rest).padStart(2, "0").replace(/0$/, "") : ""} %`
+}
+
+/** `v-<uid>` / `v-<uid>~2` → `<uid>` ; clé de rang → indéfini. */
+export const vehicleUidOfKey = (key: string): string | undefined => (key.startsWith("v-") ? key.slice(2).replace(/~\d+$/, "") : undefined)
+
+/**
+ * Au plus `limit` suggestions (2 par défaut) : d'abord celles du moteur (palier
+ * suivant, combinaison à compléter, forme moins chère), puis les compléments du
+ * pro. Les éléments inconnus du catalogue public (masqués) ne sont jamais proposés.
+ */
+export function bookingSuggestions(input: {
+  cart: Cart
+  promotions: Promotion[]
+  equivalences: EquivalenceRule[]
+  upsells: UpsellInput[]
+  catalog: CatalogPrices
+  label: (ref: ItemRef) => string | undefined
+  now?: Date
+  limit?: number
+}): BookingSuggestion[] {
+  const limit = input.limit ?? 2
+  const out: BookingSuggestion[] = []
+  const name = (r: ItemRef) => input.label(r) ?? ""
+  for (const s of suggestUpsells({ cart: input.cart, promotions: input.promotions, equivalences: input.equivalences, catalog: input.catalog, now: input.now, limit })) {
+    if (s.kind === "next_tier") {
+      const unit = s.itemType === "service" ? "prestation" : "option"
+      const v = s.nextTier.value
+      const tier = v.type === "percent" ? `−${formatPercentFr(v.bps)}` : v.type === "amount" ? `−${formatEuros(v.cents)}` : `${formatEuros(v.cents)} au total`
+      out.push({ text: `Plus que ${s.missingQuantity} ${unit}${s.missingQuantity > 1 ? "s" : ""} pour profiter de « ${s.name} » (${tier}).` })
+    } else if (s.kind === "complete_combination") {
+      if (!input.label(s.add)) continue
+      out.push({ text: `Ajoutez « ${name(s.add)} » et profitez de « ${s.name} ».`, add: s.add, vehicleUid: vehicleUidOfKey(s.vehicleKey) })
+    } else if (s.kind === "cheaper_equivalent") {
+      if (!input.label(s.by) || !input.label(s.replace)) continue
+      out.push({ text: `« ${name(s.by)} » correspond au même traitement que « ${name(s.replace)} » (${s.reason.replace(/[.\s]+$/, "")}) : ${formatEuros(s.savingCents)} d'économie.` })
+    }
+  }
+  for (const v of input.cart.vehicles) {
+    const has = (r: ItemRef) => (r.type === "service" ? v.services.some((x) => x.serviceId === r.id) : v.options.some((x) => x.optionId === r.id))
+    for (const u of input.upsells) {
+      if (!v.services.some((x) => x.serviceId === u.whenServiceId)) continue
+      for (const r of u.suggest) {
+        if (has(r) || !input.label(r) || out.some((o) => o.add && o.add.type === r.type && o.add.id === r.id)) continue
+        out.push({ text: u.message?.trim() ? `${u.message.trim()} — « ${name(r)} »` : `Ajoutez « ${name(r)} » à votre réservation.`, add: r, vehicleUid: vehicleUidOfKey(v.key) })
+      }
+    }
+  }
+  return out.slice(0, limit)
 }
