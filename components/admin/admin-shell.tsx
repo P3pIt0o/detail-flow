@@ -35,6 +35,7 @@ import {
   ExternalLink,
   BarChart3,
   UserPlus,
+  BadgePercent,
 } from "lucide-react"
 
 // Clé d'icône (pure, définie dans lib/admin/nav) → composant lucide.
@@ -49,6 +50,7 @@ const NAV_ICONS: Record<AdminNavIcon, React.ComponentType<{ className?: string }
   abonnements: Repeat,
   prestations: Sparkles,
   produits: Package,
+  offres: BadgePercent,
   analyse: BarChart3,
   reservationLink: CalendarCheck,
   web: Globe,

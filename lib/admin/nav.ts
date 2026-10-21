@@ -1,4 +1,5 @@
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
+import { usesLegacyBookingWizard } from "@/lib/company/publication-shared"
 
 /**
  * Construction du menu admin — SOURCE DE VÉRITÉ pure (sans I/O, sans JSX).
@@ -31,6 +32,7 @@ export type AdminNavIcon =
   | "abonnements"
   | "prestations"
   | "produits"
+  | "offres"
   | "analyse"
   | "reservationLink"
   | "web"
@@ -97,16 +99,19 @@ function baseAdminNav(opts: { intent: OnboardingIntentValue | null; customSiteKe
     { href: "/admin/abonnements-clients", label: "Abonnements clients", icon: "abonnements" },
     { href: "/admin/prestations", label: "Prestations", icon: "prestations" },
     { href: "/admin/produits", label: "Produits", icon: "produits" },
+    { href: "/admin/offres", label: "Offres & réductions", icon: "offres" },
     { href: "/admin/analyse", label: "Analyse", icon: "analyse" },
     webNavItem(opts.intent),
     { href: "/admin/parametres", label: "Paramètres", icon: "settings" },
     { href: "/admin/abonnement", label: "Mon abonnement", icon: "billing" },
   ]
 
+  // L21 : offres automatiques indisponibles pour les tunnels historiques (Spirit ACS, Rozan).
+  const withOffers = usesLegacyBookingWizard(opts.customSiteKey) ? nav.filter((item) => item.href !== "/admin/offres") : nav
   if (opts.customSiteKey === "spirit-acs") {
-    return nav.filter((item) => !SPIRIT_ACS_HIDDEN_NAV.has(item.href))
+    return withOffers.filter((item) => !SPIRIT_ACS_HIDDEN_NAV.has(item.href))
   }
-  return nav
+  return withOffers
 }
 
 /* ------------------------------------------------------------------------- */
@@ -144,6 +149,7 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/abonnements-clients": "gestion",
   "/admin/prestations": "gestion",
   "/admin/produits": "gestion",
+  "/admin/offres": "gestion",
   "/admin/factures": "gestion",
   "/admin/analyse": "gestion",
   "/admin/parametres": "reglages",
