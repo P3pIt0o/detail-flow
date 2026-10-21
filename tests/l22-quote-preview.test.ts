@@ -154,6 +154,55 @@ describe("L22 — aperçu serveur = réservation (véhicule à plusieurs prestat
   })
 })
 
+describe("L22 — aperçu = réservation : déplacement et code ciblé", () => {
+  it("à domicile : déplacement facturé en entier, jamais remisé, identique à la réservation", async () => {
+    withData([multiServices()], [phares])
+    st.workshop = false
+    const address = "12 avenue de Genève, Annecy"
+    const q = await getQuoteAction(oneCar(), address)
+    await createBookingAction({ ...input(oneCar()), address })
+    expect(q.pricing).toMatchObject({ travelFeeCents: 1500, totalCents: booking().totalCents, depositCents: booking().depositCents })
+    expect(booking()).toMatchObject({ travelFeeCents: 1500, discountCents: 700, totalCents: 12800 })
+  })
+  it("code ciblé sur un véhicule à plusieurs prestations : seule la prestation visée compte", async () => {
+    withData([multiServices({ stackableWithPromoCode: true })], [phares])
+    promo.validatePromoCode.mockResolvedValue({ valid: true, promoCodeId: 9, normalizedCode: "DIX", discountType: "percent", discountValue: 10, discountCents: 400, targetServiceIds: [CLZ.lavageInterieurEco] })
+    const q = await getQuoteAction(oneCar(), undefined, "dix")
+    await createBookingAction(input(oneCar(), "dix"))
+    // Offre −10 % : 300 + 400 ; code 10 % sur le reste du lavage intérieur (3600) : 360.
+    expect(q.pricing).toMatchObject({ code: { status: "applied", discountCents: 360 }, discountCents: 1060, totalCents: booking().totalCents })
+  })
+})
+
+describe("L22 — conditions du code vérifiées sur le panier réellement facturé (revue sécurité)", () => {
+  it("doublon d'une même prestation : le minimum d'achat est contrôlé sur 1 prestation, pas 2 (aperçu, code, réservation)", async () => {
+    withData([multiServices()])
+    const dup = [line("a:main", CLZ.lavageExterieurEco), line(`a:x${CLZ.lavageExterieurEco}`, CLZ.lavageExterieurEco)]
+    await getQuoteAction(dup, undefined, "bienvenue")
+    await validatePromoCodeAction({ selections: dup, code: "bienvenue" })
+    await createBookingAction(input(dup, "bienvenue"))
+    const seen = promo.validatePromoCode.mock.calls.map((c) => (c[0] as { quote: { servicesCents: number; lines: unknown[] } }).quote)
+    expect(seen).toHaveLength(3)
+    for (const q of seen) expect(q).toMatchObject({ servicesCents: 3000 })
+    for (const q of seen) expect(q.lines).toHaveLength(1)
+  })
+  it("même traitement (prestation phares + option phares) : le code ne voit que la forme facturée", async () => {
+    withData([], [phares])
+    await createBookingAction(input([line("a:main", CLZ.pharesService, [CLZ.pharesOption])], "bienvenue"))
+    expect((promo.validatePromoCode.mock.calls[0][0] as { quote: { optionsCents: number } }).quote.optionsCents).toBe(0)
+  })
+  it("plus de 30 lignes : réservation refusée avant tout calcul ni écriture", async () => {
+    const many = Array.from({ length: 31 }, (_, i) => line(`v${i}:main`, CLZ.lavageExterieurEco))
+    expect(await createBookingAction(input(many))).toMatchObject({ ok: false, code: "invalid" })
+    expect(inserts).toHaveLength(0)
+    await expect(getQuoteAction(many)).rejects.toThrow()
+  })
+  it("catalogue des suggestions chargé pour le tenant de la session (companyId explicite)", () => {
+    const src = readFileSync(join(process.cwd(), "app/(site)/reservation/actions.ts"), "utf8")
+    expect(src).toContain("getServices(tenant.id), getOptions(tenant.id), getServicePrices(tenant.id)")
+  })
+})
+
 describe("L22 — suggestions (au plus 2, jamais d'élément masqué)", () => {
   it("palier suivant et complément du pro ; élément masqué (hors catalogue public) jamais proposé", async () => {
     withData([multiServices()], [], [{ id: 1, whenServiceId: CLZ.lavageExterieurEco, suggest: [{ type: "option", id: 999 }, { type: "option", id: CLZ.pharesOption }], message: "Profitez-en", active: true }])

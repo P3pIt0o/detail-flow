@@ -26,5 +26,19 @@ Risque : **critique** (montant présenté et facturé). Plan approuvé : `.lot-s
 - **Capacité journalière** : une prestation = une place, au serveur comme dans le choix du créneau.
 - Paiement, Stripe, commissions, factures, e-mails, ancien tunnel (Spirit ACS, Rozan), schéma, migrations.
 
+## Corrections après revue (boucle 1)
+- **Conditions d'un code promo** (minimum d'achat, prestations visées) vérifiées sur le panier **réellement facturé**, sans doublon ni même traitement, dans l'aperçu, la validation du code et la création.
+- **Ancien tunnel (Spirit ACS, Rozan) jamais regroupé** : seuls les identifiants Booking V2 (`véhicule:main` / `véhicule:x<id>`) le sont.
+- **30 prestations au plus par réservation et par aperçu**, ce qui borne le coût des actions publiques. Catalogue des suggestions chargé avec le `companyId` explicite.
+- **Interface** :
+  - durée du récapitulatif calculée par le serveur ;
+  - « Ajouter une prestation » bloqué avec un message quand les places sont épuisées ;
+  - message « code invalide » distinct ;
+  - prestation principale jamais affichée en double.
+
 ## Point ouvert (décision du propriétaire)
 - **Capacité par véhicule (D5).** Aujourd'hui, une voiture avec 2 prestations occupe 2 places de `maxVehiclesPerDay`. Compter les véhicules demande une décision et une colonne supplémentaire, donc une migration.
+- **Identité déclarée par le client.** Le regroupement repose sur le type, la marque et le modèle saisis. Booking V2 ne demande pas l'immatriculation. Un appel trafiqué peut présenter deux voitures identiques (même modèle) comme une seule, et ainsi obtenir une offre « prestation + option sur le même véhicule » ou ne payer qu'une fois un même traitement.
+  - L'effet est borné à la valeur de l'offre ou de l'équivalence configurée par le pro.
+  - La réservation enregistrée décrit alors un seul véhicule.
+  - Option : demander l'immatriculation dès qu'un véhicule a plusieurs prestations.

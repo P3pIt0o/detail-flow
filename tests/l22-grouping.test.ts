@@ -42,8 +42,14 @@ describe("L22 — clés de véhicule", () => {
     expect(new Set(trustedVehicleKeys([line("a:1", 143, 1, 1), line("a:1", 158, 1, 1)], [id("a:1"), id("a:1")])).size).toBe(2)
   })
   it("le type annoncé doit être celui recalculé par le serveur", () => {
-    const k = trustedVehicleKeys([line("a:1", 143, 1, 1, [], 1), line("a:2", 158, 1, 1, [], 2)], [id("a:1"), id("a:2")])
+    const k = trustedVehicleKeys([line("a:main", 143, 1, 1, [], 1), line("a:x158", 158, 1, 1, [], 1)], [id("a:main"), id("a:x158", { vehicleTypeId: 2 })])
     expect(k[0]).not.toBe(k[1])
+  })
+  it("ancien tunnel (« véhicule:ligne », Spirit ACS / Rozan) : jamais regroupé, comportement L20 inchangé", () => {
+    const lines = [line("a:l1", CLZ.lavageExterieurEco, 3000, 60, [[CLZ.pharesOption, 5000, 30]]), line("a:l2", CLZ.pharesService, 6500, 45)]
+    const keys = trustedVehicleKeys(lines, [id("a:l1"), id("a:l2")])
+    expect(new Set(keys).size).toBe(2)
+    expect(priceBooking({ quote: quoteOf(lines), promotions: [], equivalences: [phares], code: null, vehicleKeys: keys, now: NOW }).subtotalCents).toBe(14500)
   })
 })
 

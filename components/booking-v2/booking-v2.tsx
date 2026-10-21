@@ -20,6 +20,7 @@ import {
   toSelectionsPayload,
   toVehicleSelections,
   addExtraService,
+  removeExtraService,
   type PaymentPlan,
   type V2Vehicle,
 } from "@/lib/booking/v2"
@@ -187,6 +188,8 @@ export function BookingV2(props: BookingV2Props) {
   function selectService(id: number) {
     if (id !== serviceId) {
       setServiceId(id)
+      // La nouvelle prestation principale ne reste jamais aussi « ajoutée » (pas de doublon affiché).
+      setVehicles((vs) => vs.map((v) => removeExtraService(v, id)))
       invalidateSelection()
     }
     goTo(1)
@@ -434,7 +437,7 @@ export function BookingV2(props: BookingV2Props) {
             address={atWorkshop ? `À l'atelier — ${location.workshopAddress ?? ""}` : travel?.ok ? travel.address : address}
             atWorkshop={atWorkshop}
             travelFeeCents={travelFeeCents}
-            durationMin={estimate.durationMin}
+            durationMin={serverPricing ? serverPricing.totalDurationMin : estimate.durationMin}
             subtotalCents={estimate.priceCents}
             totalCents={totalCents}
             serverPricing={serverPricing}

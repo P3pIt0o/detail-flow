@@ -59,17 +59,41 @@ export type BookingPricing = {
   adjustments: CartAdjustment[]
 }
 
+/**
+ * Nombre maximal de lignes (prestations) acceptées par réservation et par aperçu :
+ * borne le coût des actions publiques (devis, suggestions). Au-delà, la capacité
+ * journalière serait de toute façon dépassée.
+ */
+export const MAX_BOOKING_LINES = 30
+
+/**
+ * Devis réellement facturé (lignes normalisées) : c'est sur lui que se vérifient
+ * les conditions d'un code promo (minimum d'achat, prestations visées), jamais sur
+ * des lignes qui seront retirées (doublon, même traitement).
+ */
+export function billedQuote(p: Pick<BookingPricing, "lines">): Pick<Quote, "lines" | "servicesCents" | "optionsCents"> {
+  return {
+    lines: p.lines,
+    servicesCents: p.lines.reduce((s, l) => s + l.priceCents, 0),
+    optionsCents: p.lines.reduce((s, l) => s + l.options.reduce((a, o) => a + o.priceCents, 0), 0),
+  }
+}
+
 /** Clé par défaut d'une ligne : son RANG dans le devis (une ligne = un véhicule). */
 export const vehicleKeyAt = (index: number): string => `l${index + 1}`
 
 /** Identité de véhicule envoyée avec une ligne (type, marque, modèle, immatriculation). */
 export type LineIdentity = { uid: string; vehicleTypeId: number; brand?: string; model?: string; plate?: string }
 
+/** Identifiant de ligne Booking V2 : `<véhicule>:main` ou `<véhicule>:x<id prestation>`. */
+const V2_LINE_UID = /^([^:]+):(?:main|x\d+)$/
+
 const norm = (v: unknown) => String(v ?? "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ")
 
 /**
  * Regroupement de CONFIANCE des lignes par véhicule (L22). Deux lignes ne sont un
- * même véhicule que si elles partagent le préfixe d'identifiant (`véhicule:ligne`)
+ * même véhicule que si elles partagent le préfixe d'identifiant Booking V2
+ * (`véhicule:main` / `véhicule:x<id>`)
  * ET exactement le même type, la même marque, le même modèle et la même
  * immatriculation. Sinon : véhicules distincts (aucune prestation ne peut être
  * retirée en déclarant deux voitures comme une seule sans que la réservation ne
@@ -83,9 +107,11 @@ export function trustedVehicleKeys(lines: Pick<QuoteLine, "uid" | "vehicleTypeId
   const perPrefix = new Map<string, number>()
   return lines.map((l, i) => {
     const id = byUid.get(l.uid)
-    const sep = l.uid.indexOf(":")
-    if (!id || sep <= 0 || id.vehicleTypeId !== l.vehicleTypeId) return vehicleKeyAt(i)
-    const prefix = l.uid.slice(0, sep).replace(/[|~]/g, "-")
+    // Format Booking V2 UNIQUEMENT (`<véhicule>:main` / `<véhicule>:x<id>`) : l'ancien
+    // tunnel (`<véhicule>:<ligne>`, Spirit ACS / Rozan) garde une ligne = un véhicule.
+    const m = V2_LINE_UID.exec(l.uid)
+    if (!id || !m || id.vehicleTypeId !== l.vehicleTypeId) return vehicleKeyAt(i)
+    const prefix = m[1].replace(/[|~]/g, "-")
     const sig = [prefix, l.vehicleTypeId, norm(id.brand), norm(id.model), norm(id.plate)].join("\u0000")
     const known = seen.get(sig)
     if (known) return known

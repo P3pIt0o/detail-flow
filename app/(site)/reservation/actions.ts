@@ -37,7 +37,16 @@ import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { isBookingRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
 import { getPromotionData, loadPromotionData, setBookingPromotionSnapshot } from "@/lib/booking/promotions-store"
-import { bookingSuggestions, priceBooking, quoteToCart, trustedVehicleKeys, type BookingSuggestion, type CodeStatus } from "@/lib/booking/promotions-apply"
+import {
+  MAX_BOOKING_LINES,
+  billedQuote,
+  bookingSuggestions,
+  priceBooking,
+  quoteToCart,
+  trustedVehicleKeys,
+  type BookingSuggestion,
+  type CodeStatus,
+} from "@/lib/booking/promotions-apply"
 import { describeAdjustment, type ItemRef } from "@/lib/booking/promotions"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
@@ -63,6 +72,7 @@ export type QuotePricing = {
 }
 
 export async function getQuoteAction(selections: BookingSelection[], address?: string, promoCode?: string) {
+  if (!Array.isArray(selections) || selections.length > MAX_BOOKING_LINES) throw new Error("Trop de prestations.")
   const settings = await getSettings()
   const travel = address && address.trim().length >= 5 ? await computeTravel(address, settings) : null
   const quote = await buildQuote(selections, settings, travel)
@@ -82,7 +92,8 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
   let withCode = p
   const code = promoCode?.trim()
   if (code && tenant) {
-    const res = await validatePromoCode({ companyId: tenant.id, code, quote })
+    // Conditions du code vérifiées sur ce qui est réellement facturé.
+    const res = await validatePromoCode({ companyId: tenant.id, code, quote: { ...quote, ...billedQuote(p) } })
     if (!res.valid) codeStatus = "invalid"
     else {
       withCode = priceBooking({
@@ -102,8 +113,8 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
     names.set(`service:${l.serviceId}`, l.serviceName)
     for (const o of l.options) names.set(`option:${o.optionId}`, o.optionName)
   }
-  const [catalogServices, catalogOptions, prices] = data.promotions.length || data.equivalences.length || data.upsells.length
-    ? await Promise.all([getServices(), getOptions(), getServicePrices()])
+  const [catalogServices, catalogOptions, prices] = tenant && (data.promotions.length || data.equivalences.length || data.upsells.length)
+    ? await Promise.all([getServices(tenant.id), getOptions(tenant.id), getServicePrices(tenant.id)])
     : [[], [], []]
   for (const s of catalogServices) names.set(`service:${s.id}`, s.name)
   for (const o of catalogOptions) names.set(`option:${o.id}`, o.name)
@@ -167,21 +178,25 @@ export async function validatePromoCodeAction(input: {
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
 
+  if (!Array.isArray(input?.selections) || input.selections.length > MAX_BOOKING_LINES) return { ok: false, reason: "empty" }
   const settings = await getSettings(tenant.id)
   const quote = await buildQuote(input.selections, settings, null)
+  // L20/L22 : offres du tenant et panier normalisé (même calcul que la réservation).
+  const data = await getPromotionData(tenant)
+  const vehicleKeys = trustedVehicleKeys(quote.lines, input.selections)
+  const base = priceBooking({ quote, promotions: data.promotions, equivalences: data.equivalences, code: null, vehicleKeys })
+  // Conditions du code (minimum d'achat, prestations visées) vérifiées sur ce qui est réellement facturé.
   const res = await validatePromoCode({
     companyId: tenant.id,
     code: input.code,
-    quote,
+    quote: { ...quote, ...billedQuote(base) },
   })
   if (!res.valid) return { ok: false, reason: res.reason }
-  // L20 : arbitrage avec les offres automatiques (même calcul que la réservation).
-  const data = await getPromotionData(tenant)
   const p = priceBooking({
     quote,
     promotions: data.promotions,
     equivalences: data.equivalences,
-    vehicleKeys: trustedVehicleKeys(quote.lines, input.selections),
+    vehicleKeys,
     code: {
       code: res.normalizedCode,
       discountCents: res.discountCents,
@@ -321,6 +336,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
 
   // 1. Validation de base des entrées.
   if (!selections?.length) return { ok: false, error: "Aucune prestation sélectionnée.", code: "invalid" }
+  if (selections.length > MAX_BOOKING_LINES) return { ok: false, error: "Trop de prestations dans une même réservation.", code: "invalid" }
   // Marque et modèle du véhicule obligatoires (contrôle serveur indépendant de l'UI).
   for (const s of selections) {
     if (!s.brand?.trim() || !s.model?.trim()) {
@@ -424,11 +440,16 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
   //     La remise et le total sont recalculés ici depuis la base.
   let appliedPromo: AppliedPromo | null = null
   let codeInput: { code: string; discountCents: number; targetServiceIds: number[] | null; percent: number | null } | null = null
+  // L22 : regroupement de confiance des lignes d'un même véhicule, et panier normalisé.
+  const vehicleKeys = trustedVehicleKeys(quote.lines, selections)
   if (promoCode?.trim()) {
+    // Conditions du code (minimum d'achat, prestations visées) vérifiées sur ce qui
+    // sera réellement facturé (doublons et même traitement retirés).
+    const base = priceBooking({ quote, promotions: promoData.promotions, equivalences: promoData.equivalences, code: null, vehicleKeys })
     const promoRes = await validatePromoCode({
       companyId,
       code: promoCode,
-      quote,
+      quote: { ...quote, ...billedQuote(base) },
     })
     if (!promoRes.valid) {
       const msg =
@@ -459,7 +480,7 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
     promotions: promoData.promotions,
     equivalences: promoData.equivalences,
     code: codeInput,
-    vehicleKeys: trustedVehicleKeys(quote.lines, selections),
+    vehicleKeys,
   })
   if (appliedPromo) {
     // Code saisi mais écarté (offre plus avantageuse ou plus rien à remiser,

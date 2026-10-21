@@ -35,7 +35,10 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
     update(v.uid, { optionIds })
   }
 
-  const canAdd = vehicles.length < Math.max(1, maxVehicles)
+  // Capacité inchangée (D5) : une prestation = une place, comme au serveur.
+  const placesUsed = vehicles.reduce((n, v) => n + 1 + (v.extraServiceIds ?? []).filter((id) => id !== serviceId).length, 0)
+  const placesLeft = Math.max(1, maxVehicles) - placesUsed
+  const canAdd = placesLeft > 0
   const mainService = services.find((s) => s.id === serviceId)
   const priceFor = (v: V2Vehicle, id: number) =>
     v.vehicleTypeId != null ? resolvePrice(services, priceMap, id, v.vehicleTypeId).priceCents : (services.find((s) => s.id === id)?.basePriceCents ?? 0)
@@ -127,7 +130,7 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
                   <span className="text-[13.5px] font-semibold text-foreground">{mainService.name}</span>
                   <span className="shrink-0 text-[13px] font-bold text-primary">{formatPriceCompact(priceFor(v, mainService.id))}</span>
                 </li>
-                {(v.extraServiceIds ?? []).map((id) => {
+                {(v.extraServiceIds ?? []).filter((id) => id !== serviceId).map((id) => {
                   const s = services.find((x) => x.id === id)
                   if (!s) return null
                   return (
@@ -148,7 +151,12 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
                   )
                 })}
               </ul>
-              {extraServiceCandidates(services, v, serviceId).length > 0 && (
+              {extraServiceCandidates(services, v, serviceId).length > 0 && placesLeft <= 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Nombre maximal de prestations par réservation atteint. Pour en ajouter d&apos;autres, contactez directement le professionnel.
+                </p>
+              )}
+              {extraServiceCandidates(services, v, serviceId).length > 0 && placesLeft > 0 && (
                 <div className="mt-2">
                   <label htmlFor={`add-${v.uid}`} className="sr-only">
                     Ajouter une prestation

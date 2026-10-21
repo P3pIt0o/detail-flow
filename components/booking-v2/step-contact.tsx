@@ -234,7 +234,7 @@ export function StepContact(props: Props) {
             {vehicles.map((v, i) => {
               const type = vehicleTypes.find((t) => t.id === v.vehicleTypeId)
               const chosen = v.optionIds.map((id) => options.find((o) => o.id === id)?.name).filter(Boolean)
-              const extras = (v.extraServiceIds ?? []).map((id) => services.find((x) => x.id === id)?.name).filter(Boolean)
+              const extras = (v.extraServiceIds ?? []).filter((id) => id !== serviceId).map((id) => services.find((x) => x.id === id)?.name).filter(Boolean)
               const est = vehicleEstimate(v, serviceId, services, options, priceMap)
               return (
                 <div key={v.uid}>
@@ -300,7 +300,9 @@ export function StepContact(props: Props) {
               <p className="mt-2 text-xs text-muted-foreground">
                 {serverPricing.code.status === "rejected_not_combinable"
                   ? `Le code ${serverPricing.code.code} n'est pas appliqué : une offre plus avantageuse est déjà appliquée et ne se cumule pas avec lui.`
-                  : `Le code ${serverPricing.code.code} ne s'applique pas à votre sélection.`}
+                  : serverPricing.code.status === "invalid"
+                    ? `Le code ${serverPricing.code.code} est invalide ou indisponible.`
+                    : `Le code ${serverPricing.code.code} ne s'applique pas à votre sélection.`}
               </p>
             )}
             {serverPricing?.notes.map((n, i) => (
