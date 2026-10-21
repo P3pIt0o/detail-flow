@@ -29,6 +29,11 @@ import "./visit-3d.css"
 
 const BASE = "/custom-sites/cleanyzer/3d/"
 const THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0"
+// SRI des fichiers publiés de three@0.147.0 : un fichier modifié sur le CDN n'est jamais exécuté.
+const CDN_SCRIPTS = [
+  { src: `${THREE_CDN}/build/three.min.js`, integrity: "sha384-vV17nr/rMaJqmeZkFUzXLpHdQ+ME5QHKdydaqqN+3Ga39RJlNrTatJxHwGV4ml2C" },
+  { src: `${THREE_CDN}/examples/js/loaders/GLTFLoader.js`, integrity: "sha384-FassWWYNEPQsuRQm+59KIMcDetEc30bNyE9yfx16Ok8lvoowyH81LtrPmLWltJMh" },
+] as const
 
 /** Ordre des images clés de la caméra (maquette : KEYS après insertion du moteur). */
 const KEY_ORDER: (ZoneKey | null)[] = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
@@ -62,11 +67,15 @@ const FORM_GROUPS: { label: string; side: "int" | "ext" | "both" }[] = [
 ]
 
 const scriptCache = new Map<string, Promise<void>>()
-function addScript(src: string) {
+function addScript(src: string, integrity?: string) {
   let p = scriptCache.get(src)
   if (!p) {
     p = new Promise<void>((ok, ko) => {
       const s = document.createElement("script")
+      if (integrity) {
+        s.integrity = integrity
+        s.crossOrigin = "anonymous"
+      }
       s.src = src
       s.async = false
       s.onload = () => ok()
@@ -119,6 +128,8 @@ export function Visit3D() {
   // Appareil peu puissant / économie de données : alternative légère tant que
   // le visiteur n'a pas demandé la 3D (Three.js + modèle non téléchargés).
   const [lite, setLite] = useState(false)
+  // Échec définitif (hash, réseau, modèle) : version légère sans relance possible.
+  const [failed, setFailed] = useState(false)
   const launchRef = useRef<(() => void) | null>(null)
   const journey = useJourney()
 
@@ -149,14 +160,20 @@ export function Visit3D() {
     let raf = 0
     let cleanupScene: (() => void) | null = null
 
+    const fail3d = () => {
+      if (disposed) return
+      setFailed(true)
+      setLite(true)
+    }
+
     const boot = () => {
-      addScript(`${THREE_CDN}/build/three.min.js`)
-        .then(() => addScript(`${THREE_CDN}/examples/js/loaders/GLTFLoader.js`))
+      addScript(CDN_SCRIPTS[0].src, CDN_SCRIPTS[0].integrity)
+        .then(() => addScript(CDN_SCRIPTS[1].src, CDN_SCRIPTS[1].integrity))
         .then(() => addScript(`${BASE}meshopt_decoder.js`))
         .then(() => {
           if (!disposed) cleanupScene = start()
         })
-        .catch(() => !disposed && setStatus("La 3D n’a pas pu se charger"))
+        .catch(() => fail3d())
     }
 
     const start = () => {
@@ -164,7 +181,7 @@ export function Visit3D() {
       const w = window as any
       const THREE = w.THREE
       if (!THREE?.GLTFLoader) {
-        setStatus("La 3D n’a pas pu se charger")
+        fail3d()
         return null
       }
       const reduce = reducedMotion()
@@ -262,7 +279,7 @@ export function Visit3D() {
           },
           () => {
             if (useMeshopt) tryLoad(`${BASE}porsche-911-raw-glb.wasm`, false)
-            else setStatus("La voiture n’a pas pu se charger")
+            else fail3d()
           },
         )
       }
@@ -636,16 +653,18 @@ export function Visit3D() {
               ))}
             </ul>
             <div className="row">
-              <button
-                className="clz-btn clz-btn-primary"
-                type="button"
-                onClick={() => {
-                  setLite(false)
-                  launchRef.current?.()
-                }}
-              >
-                Lancer la visite 3D
-              </button>
+              {!failed && (
+                <button
+                  className="clz-btn clz-btn-primary"
+                  type="button"
+                  onClick={() => {
+                    setLite(false)
+                    launchRef.current?.()
+                  }}
+                >
+                  Lancer la visite 3D
+                </button>
+              )}
               <a className="skip" href="#prestations">
                 Voir les prestations
               </a>

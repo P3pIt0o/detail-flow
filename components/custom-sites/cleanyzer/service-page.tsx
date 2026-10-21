@@ -194,7 +194,7 @@ function ZoneJourney({ kind, slug }: { kind: "interieur" | "exterieur"; slug: st
               )
             )}
             <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={visitDeepLink(k, slug)}>
-              Voir la zone sur la Porsche 3D
+              Voir la zone sur le véhicule 3D
             </Link>
           </li>
         ))}
