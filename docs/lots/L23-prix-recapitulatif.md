@@ -27,5 +27,15 @@ ou après son échec.
 - Server actions, moteur de promotions, paiement, Stripe, schéma, migrations, variables d'environnement, ancien tunnel
   (Spirit ACS, Rozan).
 
+## Corrections après revue (boucle 1)
+- La logique du bouton du bas d'écran passe dans une fonction pure, `bookingCta` (`lib/booking/v2.ts`), avec
+  trois actions :
+  - continuer ;
+  - confirmer ;
+  - recalculer.
+
+  Elle est testée par son comportement (en cours, échec, coordonnées incomplètes, après « Recalculer »). Le test
+  sur le source ne vérifie plus que le câblage.
+
 ## Suite
 La limite de débit et les correctifs d'affichage passent en L24 (`docs/lots/L24-limite-promo.md`).

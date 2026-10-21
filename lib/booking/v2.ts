@@ -83,6 +83,22 @@ export function canConfirmBooking(contactValid: boolean, pricing: PricingStatus<
   return contactValid && pricing.status === "ok"
 }
 
+/**
+ * Bouton du bas d'écran (L23). `stepValid` de l'étape 3 vaut `canConfirmBooking` :
+ * en échec du prix serveur, le bouton relance le calcul au lieu de confirmer.
+ */
+export function bookingCta(input: {
+  step: number
+  stepValid: boolean
+  contactValid: boolean
+  pricing: PricingStatus<unknown>
+  online: boolean
+}): { action: "next" | "submit" | "retry"; label: string; disabled: boolean } {
+  if (input.step < 3) return { action: "next", label: "Continuer", disabled: !input.stepValid }
+  if (input.contactValid && input.pricing.status === "error") return { action: "retry", label: "Recalculer le prix", disabled: false }
+  return { action: "submit", label: input.online ? "Payer et réserver" : "Confirmer", disabled: !input.stepValid }
+}
+
 /** Message client pour un code promo refusé (aperçu du code). */
 export function promoRejectionMessage(reason: string): string {
   if (reason === "not_applicable_services") return "Ce code ne s'applique pas à la prestation sélectionnée."

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { canConfirmBooking, currentPricing, pricingKey, toSelectionsPayload, type PricingState, type V2Vehicle } from "@/lib/booking/v2"
+import { bookingCta, canConfirmBooking, currentPricing, pricingKey, toSelectionsPayload, type PricingState, type V2Vehicle } from "@/lib/booking/v2"
 
 /**
  * L23 — garanties du récapitulatif Booking V2 :
@@ -53,11 +53,38 @@ describe("2. Pas de confirmation sur une estimation locale", () => {
     const k = key([v()])
     expect(currentPricing({ key: k, status: "error" }, k)).toEqual({ status: "error" })
   })
-  it("le bouton et l'envoi exigent le prix serveur du panier affiché ; en échec, le bouton recalcule", () => {
+  it("l'écran délègue le bouton et l'envoi à ces fonctions (câblage)", () => {
     expect(src).toContain("canConfirmBooking(contactValid, pricing),")
     expect(src).toMatch(/async function submit\(\) \{[\s\S]{0,200}!canConfirmBooking\(contactValid, pricing\)\) return/)
-    expect(src).toContain('pricingFailed ? "Recalculer le prix"')
-    expect(src).toMatch(/if \(pricingFailed\) \{\s*setPricingState\(null\)\s*setPricingRetry/)
+    expect(src).toContain("const cta = bookingCta(")
+    expect(src).toMatch(/if \(cta\.action === "retry"\) \{\s*setPricingState\(null\)\s*setPricingRetry/)
     expect(src).toContain('if (step === 3) setPricingState({ key, status: "error" })')
+  })
+})
+
+describe("3. Bouton du bas d'écran (bookingCta)", () => {
+  const base = { stepValid: true, contactValid: true, online: false }
+  const ok = { status: "ok", pricing: {} } as const
+  it("étapes 0 à 2 : « Continuer », bloqué tant que l'étape est incomplète", () => {
+    expect(bookingCta({ ...base, step: 1, pricing: { status: "pending" } })).toEqual({ action: "next", label: "Continuer", disabled: false })
+    expect(bookingCta({ ...base, step: 2, stepValid: false, pricing: { status: "error" } })).toEqual({ action: "next", label: "Continuer", disabled: true })
+  })
+  it("récapitulatif, prix serveur actuel : confirmation (ou paiement en ligne)", () => {
+    expect(bookingCta({ ...base, step: 3, pricing: ok })).toEqual({ action: "submit", label: "Confirmer", disabled: false })
+    expect(bookingCta({ ...base, step: 3, online: true, pricing: ok })).toEqual({ action: "submit", label: "Payer et réserver", disabled: false })
+  })
+  it("récapitulatif, calcul en cours : confirmation bloquée", () => {
+    expect(bookingCta({ ...base, step: 3, stepValid: false, pricing: { status: "pending" } })).toEqual({ action: "submit", label: "Confirmer", disabled: true })
+  })
+  it("récapitulatif, calcul en échec : « Recalculer le prix », jamais bloqué, jamais une confirmation", () => {
+    expect(bookingCta({ ...base, step: 3, stepValid: false, pricing: { status: "error" } })).toEqual({ action: "retry", label: "Recalculer le prix", disabled: false })
+  })
+  it("coordonnées incomplètes : pas de recalcul proposé, confirmation bloquée", () => {
+    expect(bookingCta({ ...base, step: 3, stepValid: false, contactValid: false, pricing: { status: "error" } })).toEqual({ action: "submit", label: "Confirmer", disabled: true })
+  })
+  it("après « Recalculer » (état remis à zéro) : en attente, donc confirmation bloquée", () => {
+    const k = key([v()])
+    expect(currentPricing(null, k)).toEqual({ status: "pending" })
+    expect(canConfirmBooking(true, currentPricing(null, k))).toBe(false)
   })
 })

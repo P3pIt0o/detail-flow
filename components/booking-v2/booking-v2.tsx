@@ -27,6 +27,7 @@ import {
   pricingKey,
   currentPricing,
   canConfirmBooking,
+  bookingCta,
   type PricingState,
   promoRejectionMessage,
   displayedDurationMin,
@@ -343,8 +344,7 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   const online = paymentPlan === "online_full" || paymentPlan === "online_deposit" || paymentPlan === "choice"
-  const pricingFailed = step === 3 && contactValid && pricing.status === "error"
-  const ctaLabel = step < 3 ? "Continuer" : pricingFailed ? "Recalculer le prix" : online ? "Payer et réserver" : "Confirmer"
+  const cta = bookingCta({ step, stepValid: stepValid[step], contactValid, pricing, online })
 
   return (
     <div ref={rootRef} className={embed ? "w-full scroll-mt-4" : "w-full scroll-mt-24 pb-36"}>
@@ -493,15 +493,15 @@ export function BookingV2(props: BookingV2Props) {
           priceCents={step >= 2 ? totalCents : estimate.priceCents}
           durationMin={step === 3 ? displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin) : estimate.durationMin}
           priceLabel={serverPricing ? "Total" : "Total estimé"}
-          ctaLabel={ctaLabel}
-          disabled={!stepValid[step] && !pricingFailed}
+          ctaLabel={cta.label}
+          disabled={cta.disabled}
           loading={submitting}
           hint={stepHint[step]}
           onCta={() => {
-            if (pricingFailed) {
+            if (cta.action === "retry") {
               setPricingState(null)
               setPricingRetry((n) => n + 1)
-            } else if (step === 3) submit()
+            } else if (cta.action === "submit") submit()
             else goTo(step + 1)
           }}
         />
