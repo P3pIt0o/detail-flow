@@ -246,6 +246,27 @@ export function tenantCanonicalHost(slug: string): string | null {
   return TENANT_CANONICAL_HOST[slug] ?? null
 }
 
+/**
+ * Tenants dont le site personnalisé est servi ET lié sous `/p/<slug>` sur le
+ * domaine DetailFlow, tant qu'aucun domaine personnalisé n'est connecté.
+ * Leur canonique, leur sitemap et leurs liens internes utilisent alors cette
+ * forme (`https://www.detailflow.fr/p/<slug>/…`) au lieu de `?tenant=<slug>` :
+ * une seule URL par page, identique aux liens réellement suivis.
+ *
+ * Table FERMÉE : un tenant absent garde exactement la forme `?tenant=`.
+ * Dès qu'un domaine est ajouté dans `TENANT_CANONICAL_HOST`, il est prioritaire.
+ */
+export const TENANT_PATH_CANONICAL: ReadonlySet<string> = new Set(["cleanyzer"])
+
+/**
+ * Préfixe canonique `/p/<slug>` d'un tenant (voir `TENANT_PATH_CANONICAL`), ou
+ * `null` (domaine connecté, ou tenant hors table). Fonction PURE.
+ */
+export function tenantCanonicalPathPrefix(slug: string): string | null {
+  if (tenantCanonicalHost(slug)) return null
+  return TENANT_PATH_CANONICAL.has(slug) ? publicPagePath(slug) : null
+}
+
 /** Origine canonique absolue (`https://www.spiritacs.com`) d'un tenant, ou `null`. */
 export function tenantCanonicalOrigin(slug: string): string | null {
   const host = tenantCanonicalHost(slug)

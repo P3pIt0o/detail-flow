@@ -26,7 +26,7 @@ function priceCell(p: number | null) {
   return p == null ? "Sur mesure" : `${p} €`
 }
 
-function FormulaCard({ f }: { f: Formula }) {
+export function FormulaCard({ f, reserveHref = `${CLZ_PREVIEW_BASE}/reservation` }: { f: Formula; reserveHref?: string }) {
   const isCustom = Object.values(f.prices).every((p) => p == null)
   return (
     <article className={`clz-card relative flex flex-col p-6 ${f.highlight ? "ring-1 ring-[var(--clz-blue)]" : ""}`}>
@@ -48,7 +48,7 @@ function FormulaCard({ f }: { f: Formula }) {
       </dl>
 
       <Link
-        href={isCustom ? CLZ_DEMANDE_HREF : `${CLZ_PREVIEW_BASE}/reservation`}
+        href={isCustom ? CLZ_DEMANDE_HREF : reserveHref}
         className={`clz-btn mt-6 w-full ${isCustom ? "clz-btn-ghost" : "clz-btn-primary"}`}
       >
         {isCustom ? "Demander un devis sur mesure" : "Réserver cette formule"}
@@ -168,7 +168,7 @@ export function TextilePrestationView() {
               ))}
             </div>
 
-            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-primary mt-7">
+            <Link href={CLZ_DEMANDE_HREF} className="clz-btn clz-btn-primary mt-7">
               Obtenir mon devis textile
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -185,7 +185,7 @@ export function TextilePrestationView() {
   )
 }
 
-function CrossCta({ textile }: { textile?: boolean }) {
+export function CrossCta({ textile }: { textile?: boolean }) {
   return (
     <section className="clz-dark">
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-14 md:flex-row md:items-center md:px-6">
@@ -197,8 +197,9 @@ function CrossCta({ textile }: { textile?: boolean }) {
             {textile ? "Réservez un nettoyage auto en quelques étapes." : "Faites une demande personnalisée pour votre mobilier."}
           </p>
         </div>
+        {/* Page textile → réservation auto ; page auto → demande textile. */}
         <Link
-          href={textile ? CLZ_DEMANDE_HREF : CLZ_BOOKING_HREF}
+          href={textile ? CLZ_BOOKING_HREF : CLZ_DEMANDE_HREF}
           className="clz-btn clz-btn-primary"
         >
           {textile ? "Réserver un nettoyage auto" : "Demander un devis textile"}

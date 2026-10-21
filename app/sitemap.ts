@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next"
 import { siteConfig } from "@/config/site"
 import { tenantSeoIdentity, tenantCanonicalUrl } from "@/lib/seo/tenant-url"
-import { tenantCanonicalHost } from "@/lib/tenant-shared"
+import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
 import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
 
 /**
@@ -11,7 +11,7 @@ import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provid
  * exclus : /admin, /super-admin, routes API, authentification, pages de test,
  * previews Vercel et pages "noindex" (mentions légales, CGV, confidentialité).
  *
- * Blocs multi-tenant (Spirit ACS, Rozan…) : tant que le domaine personnalisé
+ * Blocs multi-tenant (Spirit ACS, Rozan, Cleanyzer…) : tant que le domaine personnalisé
  * n'est pas connecté, les pages publiques indexables de chaque site sont listées
  * avec leur URL tenant correcte (« ?tenant={slug} »), construite par le helper
  * canonique centralisé. Chaque catalogue porte SON PROPRE slug de tenant (ex.
@@ -38,6 +38,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // tenant expose-t-il ? ». La même abstraction servira, à terme, les tenants
   // standards (pages activées). On itère sur les CLÉS DE SITE (registre) ; le
   // slug de tenant réel utilisé pour l'URL provient du catalogue lui-même.
+  // Cleanyzer temporairement exclu (prépublication V1, pages en `noindex`) :
+  // le réintégrer ici lors de la mise en ligne officielle.
   const customSiteKeys = ["spirit-acs", "rozan"] as const
   for (const key of customSiteKeys) {
     const catalog = getPublicSiteCatalog(key)
@@ -47,6 +49,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     const identity = tenantSeoIdentity({
       slug: catalog.tenantSlug,
       publicDomain: tenantCanonicalHost(catalog.tenantSlug),
+      // Site servi sous `/p/<slug>` (ex. Cleanyzer) → URL sur ce chemin.
+      publicPathPrefix: tenantCanonicalPathPrefix(catalog.tenantSlug),
     })
     for (const { path, priority } of listSitemapPaths(catalog)) {
       entries.push({

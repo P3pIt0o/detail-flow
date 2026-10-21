@@ -28,9 +28,9 @@ import {
   resolveTenantOrigin,
   type TenantSeoIdentity,
 } from "./tenant-url"
-import { tenantCanonicalHost } from "@/lib/tenant-shared"
+import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
 import { buildTenantPageMetadata } from "./tenant-metadata"
-import { buildLocalBusinessJsonLd, type LocalBusinessInput } from "./structured-data"
+import { buildLocalBusinessJsonLd, LOCAL_BUSINESS_ID_FRAGMENT, type LocalBusinessInput } from "./structured-data"
 import { resolvePublicRobots } from "./robots"
 import { hasFeature } from "@/lib/licensing/server"
 import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
@@ -40,6 +40,20 @@ import { SPIRIT_TENANT_SLUG, SPIRIT_BUSINESS } from "@/components/custom-sites/s
 const SPIRIT_OG_IMAGE = "/custom-sites/spirit-acs/og-spirit-acs.png"
 /** Icône (favicon) propre à Spirit ACS. */
 const SPIRIT_ICON = "/custom-sites/spirit-acs/icon.png"
+
+/**
+ * Visuels de partage PROPRES à un site personnalisé (image OG 1200×630 +
+ * favicon), indexés par `customSiteKey`. Fichiers réels présents dans /public.
+ * Un site absent de cette table garde l'image OG générique DetailFlow.
+ */
+const CUSTOM_SITE_SHARE_ASSETS: Record<string, { ogImage: string; ogAlt: string; icon: string }> = {
+  "spirit-acs": { ogImage: SPIRIT_OG_IMAGE, ogAlt: "Spirit ACS — detailing automobile", icon: SPIRIT_ICON },
+  cleanyzer: {
+    ogImage: "/custom-sites/cleanyzer/og-cleanyzer.jpg",
+    ogAlt: "CLEANYZER — nettoyage de voiture à domicile à Annecy",
+    icon: "/custom-sites/cleanyzer/icon.png",
+  },
+}
 
 /** Base absolue DetailFlow sans slash final. */
 const BASE = siteConfig.seo.url.replace(/\/+$/, "")
@@ -51,6 +65,8 @@ export type ResolvedTenantSeo = {
   identity: TenantSeoIdentity | null
   /** Vrai si le tenant courant est Spirit ACS (contenu éditorial dédié). */
   isSpirit: boolean
+  /** Clé de site personnalisé du tenant (« cleanyzer »…), ou null. */
+  customSiteKey: string | null
   /** Nom d'affichage du tenant (ou nom DetailFlow par défaut). */
   siteName: string
 }
@@ -63,7 +79,7 @@ export type ResolvedTenantSeo = {
 export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
   const tenant = await getCurrentTenant()
   if (!tenant) {
-    return { tenant: null, identity: null, isSpirit: false, siteName: siteConfig.brand.name }
+    return { tenant: null, identity: null, isSpirit: false, customSiteKey: null, siteName: siteConfig.brand.name }
   }
   const identity = tenantSeoIdentity({
     slug: tenant.slug,
@@ -71,11 +87,16 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
     // Spirit ACS bascule sur `www.spiritacs.com`. Tout autre tenant reste `null`
     // → forme historique `?tenant=` (aucun changement pour les autres tenants).
     publicDomain: tenantCanonicalHost(tenant.slug),
+    // Site servi sous `/p/<slug>` (table fermée `TENANT_PATH_CANONICAL`, ex.
+    // Cleanyzer) : canonique sur ce chemin plutôt que `?tenant=`.
+    publicPathPrefix: tenantCanonicalPathPrefix(tenant.slug),
   })
+  const customSiteKey = tenant.customSiteKey?.trim() || null
   return {
     tenant,
     identity,
-    isSpirit: tenant.customSiteKey?.trim() === "spirit-acs" || tenant.slug === SPIRIT_TENANT_SLUG,
+    isSpirit: customSiteKey === "spirit-acs" || tenant.slug === SPIRIT_TENANT_SLUG,
+    customSiteKey,
     siteName: tenant.name || siteConfig.brand.name,
   }
 })
@@ -95,10 +116,24 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
  * tolérantes à l'absence de config (repli non-publié). Mémoïsé par requête via
  * les helpers sous-jacents.
  */
+/**
+ * Prépublication V1 Cleanyzer (validation par Tom) : indexation temporairement
+ * désactivée, liens suivis. À retirer lors de la mise en ligne officielle.
+ */
+const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set(["cleanyzer"])
+const PREPUBLICATION_ROBOTS: Metadata["robots"] = { index: false, follow: true }
+
+function isPrepublicationSite(customSiteKey: string | null | undefined): boolean {
+  const key = customSiteKey?.trim()
+  return Boolean(key && PREPUBLICATION_NOINDEX_SITE_KEYS.has(key))
+}
+
 export async function resolvePublicPageRobots(): Promise<Metadata["robots"] | undefined> {
   const seo = await resolveTenantSeo()
   if (!seo.tenant) return undefined
   const tenant = seo.tenant
+
+  if (isPrepublicationSite(tenant.customSiteKey)) return PREPUBLICATION_ROBOTS
 
   const isCustomSite = Boolean(tenant.customSiteKey?.trim())
 
@@ -165,11 +200,11 @@ export async function buildTenantMetadata(args: {
     }
   }
 
-  const useSpirit = seo.isSpirit
+  const share = resolveShareAssets(seo)
   // Image OG en URL absolue : sur le domaine personnalisé du tenant lorsqu'il
   // existe (cohérence avec la canonique), sinon sur la base DetailFlow.
   const originBase = resolveTenantOrigin(seo.identity) ?? BASE
-  const imageUrl = `${originBase}${useSpirit ? SPIRIT_OG_IMAGE : siteConfig.seo.ogImage}`
+  const imageUrl = `${originBase}${share ? share.ogImage : siteConfig.seo.ogImage}`
 
   return buildTenantPageMetadata({
     identity: seo.identity,
@@ -178,10 +213,16 @@ export async function buildTenantMetadata(args: {
     description: args.description,
     siteName: seo.siteName,
     imageUrl,
-    imageAlt: useSpirit ? "Spirit ACS — detailing automobile" : seo.siteName,
-    icons: useSpirit ? { icon: SPIRIT_ICON, apple: SPIRIT_ICON } : undefined,
-    robots: args.robots,
+    imageAlt: share ? share.ogAlt : seo.siteName,
+    icons: share ? { icon: share.icon, apple: share.icon } : undefined,
+    robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots,
   })
+}
+
+/** Visuels de partage du site personnalisé courant (Spirit inclus), ou null. */
+function resolveShareAssets(seo: ResolvedTenantSeo) {
+  if (seo.isSpirit) return CUSTOM_SITE_SHARE_ASSETS["spirit-acs"]
+  return seo.customSiteKey ? (CUSTOM_SITE_SHARE_ASSETS[seo.customSiteKey] ?? null) : null
 }
 
 /** Extrait les liens de réseaux sociaux réels depuis le champ jsonb du tenant. */
@@ -203,6 +244,10 @@ function extractSameAs(tenant: Tenant): string[] {
 export async function buildTenantLocalBusiness(args?: {
   /** Villes réellement confirmées (areaServed). */
   areaServed?: string[] | null
+  /** Fourchette de prix publiée (ex. « 30 € – 160 € »), si connue. */
+  priceRange?: string | null
+  /** Émet un `@id` stable `<accueil canonique>#business` (opt-in, défaut : non). */
+  withStableId?: boolean
 }): Promise<Record<string, unknown> | null> {
   const seo = await resolveTenantSeo()
   if (!seo.identity || !seo.tenant) return null
@@ -234,16 +279,19 @@ export async function buildTenantLocalBusiness(args?: {
   // UNIQUEMENT quand la donnée Neon correspondante est absente (la donnée réelle
   // du tenant reste toujours prioritaire). `null` pour les autres tenants.
   const biz = seo.isSpirit ? SPIRIT_BUSINESS : null
+  const share = resolveShareAssets(seo)
 
+  const homeUrl = await tenantCanonical("/")
   const input: LocalBusinessInput = {
+    id: args?.withStableId ? `${homeUrl}${LOCAL_BUSINESS_ID_FRAGMENT}` : null,
     type: "AutoWash",
     name: biz?.name ?? seo.siteName,
     alternateName: biz?.alternateName ?? null,
-    url: await tenantCanonical("/"),
+    url: homeUrl,
     telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,
     logo: logoAbsolute,
-    image: seo.isSpirit ? `${resolveTenantOrigin(seo.identity) ?? BASE}${SPIRIT_OG_IMAGE}` : logoAbsolute,
+    image: share ? `${resolveTenantOrigin(seo.identity) ?? BASE}${share.ogImage}` : logoAbsolute,
     // Adresse postale structurée : donnée Neon réelle d'abord, repli Spirit
     // vérifié ensuite. Les champs absents ne produisent aucune propriété.
     address: {
@@ -259,6 +307,7 @@ export async function buildTenantLocalBusiness(args?: {
     // Uniquement la fiche Google vérifiée du tenant courant, jamais une
     // recherche générique sur la ville.
     hasMap: googleUrl,
+    priceRange: args?.priceRange ?? null,
   }
 
   return buildLocalBusinessJsonLd(input)

@@ -9,8 +9,9 @@ import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck
 import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
 import { ClzCompareHint } from "./motion"
-import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS } from "./content"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "./tokens"
+import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS, TRAVEL } from "./content"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, clzPath } from "./tokens"
+import { CLZ_SERVICE_PAGES } from "./seo-content"
 
 function SectionHead({
   eyebrow,
@@ -102,6 +103,12 @@ export function UniversSection() {
   )
 }
 
+/** Page SEO de la prestation (maillage interne depuis l'accueil). */
+function servicePath(kind: "interieur" | "exterieur" | "textile"): string {
+  const page = CLZ_SERVICE_PAGES.find((p) => p.kind === kind)
+  return page ? clzPath(`/prestations/${page.slug}`) : CLZ_BOOKING_HREF
+}
+
 /* Aperçu tarifs / prestations (chiffres exacts du cahier). */
 export function PrestationsPreview() {
   const intMin = Math.min(...INTERIEUR_FORMULAS.flatMap((f) => Object.values(f.prices).filter((p): p is number => p != null)))
@@ -111,7 +118,7 @@ export function PrestationsPreview() {
     {
       label: "Nettoyage intérieur",
       from: intMin,
-      href: CLZ_BOOKING_HREF,
+      href: servicePath("interieur"),
       img: "/custom-sites/cleanyzer/interieur-audi.webp",
       alt: "Habitacle d'Audi nettoyé : volant, tableau de bord et sièges en cuir",
       pos: "object-[50%_45%]",
@@ -119,7 +126,7 @@ export function PrestationsPreview() {
     {
       label: "Nettoyage extérieur",
       from: extMin,
-      href: CLZ_BOOKING_HREF,
+      href: servicePath("exterieur"),
       img: "/custom-sites/cleanyzer/exterieur-mercedes.webp",
       alt: "Mercedes noire brillante photographiée en extérieur après lavage",
       pos: "object-[55%_62%]",
@@ -127,7 +134,7 @@ export function PrestationsPreview() {
     {
       label: "Canapé & textile",
       from: txtMin,
-      href: CLZ_DEMANDE_HREF,
+      href: servicePath("textile"),
       img: "/custom-sites/cleanyzer/textile-canape.webp",
       alt: "Canapé en tissu gris clair après nettoyage textile",
       pos: "object-center",
@@ -185,8 +192,8 @@ export function RealisationsPreview() {
           <div>
             <h3 className="clz-display clz-h3 text-white">Un intérieur comme neuf</h3>
             <p className="mt-4 leading-relaxed text-[var(--clz-on-dark-muted)]">
-              Sièges, tapis, plastiques et recoins : chaque détail est traité. Les futures
-              réalisations deviendront des pages dédiées, indexables et localisées.
+              Sièges, tapis, plastiques et recoins : chaque détail est traité, à votre
+              domicile, à Annecy et alentours.
             </p>
             <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost mt-7">
               Réserver un nettoyage
@@ -221,7 +228,7 @@ export function RealisationsPreview() {
 export function ServiceADomicile() {
   const points = [
     { icon: Home, title: "Chez vous", text: "On vient à votre domicile, vous ne déplacez pas votre véhicule." },
-    { icon: Clock, title: "7j/7, 7 h 30 – 20 h 30", text: "Des créneaux souples, du lundi au dimanche." },
+    { icon: Clock, title: `7j/7, ${TRAVEL.hoursLabel.replace(" à ", " – ")}`, text: `Des créneaux souples, du ${TRAVEL.daysLabel.toLowerCase()}.` },
     { icon: Sparkles, title: "Matériel professionnel", text: "Produits et équipements pensés pour un rendu premium." },
     { icon: ShieldCheck, title: "Prix transparents", text: "Total et déplacement affichés clairement avant de valider." },
   ]
@@ -308,8 +315,9 @@ export function AProposSection() {
             ))}
           </ul>
 
+          {/* Projet auto OU textile : la demande personnalisée couvre les deux. */}
           <Link
-            href={CLZ_BOOKING_HREF}
+            href={CLZ_DEMANDE_HREF}
             className="mt-9 inline-flex items-center gap-1.5 text-base font-medium text-[var(--clz-blue)] transition hover:opacity-80"
           >
             Parler de mon projet

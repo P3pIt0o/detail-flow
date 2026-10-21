@@ -3,7 +3,7 @@
 /**
  * HERO CLEANYZER.
  * Cahier §4/§6 : vidéo (avec son) en fond de hero, à la place de la photo.
- * - <video> autoplay/muted/loop/playsInline, sans poster (demande client).
+ * - <video> autoplay/muted/loop/playsInline, poster = première image de la vidéo (PERF V1).
  * - Le son démarre coupé (contrainte navigateur autoplay) avec un bouton
  *   son on/off explicite et accessible.
  * - `prefers-reduced-motion` : autoplay neutralisé, vidéo en pause (aucune image de remplacement).
@@ -18,7 +18,19 @@ import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
 import { CLZ_DEMANDE_HREF, CLZ_HOME_HREF } from "./tokens"
 
-const VIDEO = "/custom-sites/cleanyzer/hero.mp4"
+// Variantes H.264 + AAC encodées depuis hero.mp4 (même scène, son conservé).
+// Une seule est téléchargée, choisie au montage selon la largeur d'écran.
+const VIDEO_DESKTOP = "/custom-sites/cleanyzer/hero-1280.mp4"
+const VIDEO_MOBILE = "/custom-sites/cleanyzer/hero-720.mp4"
+// Première image de la vidéo originale : affichée immédiatement (LCP).
+const POSTER = "/custom-sites/cleanyzer/hero-poster.webp"
+
+function pickHeroVideo(): string | null {
+  const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+  if (conn?.saveData) return null
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null
+  return window.matchMedia("(min-width: 768px)").matches ? VIDEO_DESKTOP : VIDEO_MOBILE
+}
 
 const GOOGLE_RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
 const GOOGLE_REVIEWS = BRAND.googleReviewCount
@@ -28,6 +40,11 @@ export function CleanyzerHero() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
   const [reduceMotion, setReduceMotion] = useState(false)
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSrc(pickHeroVideo())
+  }, [])
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -39,13 +56,13 @@ export function CleanyzerHero() {
 
   useEffect(() => {
     const v = videoRef.current
-    if (!v) return
+    if (!v || !src) return
     if (reduceMotion) {
       v.pause()
     } else {
       v.play().catch(() => {})
     }
-  }, [reduceMotion])
+  }, [reduceMotion, src])
 
   function toggleSound() {
     const v = videoRef.current
@@ -58,21 +75,22 @@ export function CleanyzerHero() {
 
   return (
     <section className="clz-dark relative isolate overflow-hidden">
-      {/* Fond vidéo plein cadre, sans poster. En mouvement réduit, la même vidéo
-          reste en place mais en pause (première image), sans image de remplacement. */}
+      {/* Fond vidéo plein cadre. Poster = première image de la vidéo, affiché
+          immédiatement. Mouvement réduit ou économie de données : la vidéo n'est
+          pas téléchargée, seule cette première image reste affichée. */}
       <div className="absolute inset-0 -z-10 bg-[var(--clz-ink)]">
         <video
           ref={videoRef}
           className="h-full w-full object-cover object-[50%_38%]"
+          src={src ?? undefined}
+          poster={POSTER}
           autoPlay={!reduceMotion}
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
           aria-label="Détaillage automobile CLEANYZER à domicile près d'Annecy"
-        >
-          <source src={VIDEO} type="video/mp4" />
-        </video>
+        />
         {/* Overlays de lisibilité (cahier §4). */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/55 to-black/85" />
         <div className="absolute inset-0 bg-gradient-to-tr from-black/70 via-transparent to-[rgba(10,132,255,0.28)]" />
@@ -85,19 +103,21 @@ export function CleanyzerHero() {
         <span className="clz-eyebrow">
           {BRAND.name} — {BRAND.area}
         </span>
-        {/* Composition imposée en 3 lignes (maquette) : blocs explicites pour
-            que le navigateur ne choisisse pas librement les retours. */}
-        <h1 className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
-          <span className="block">Le détail</span>
-          <span className="block">fait toute</span>
+        {/* Signature visuelle (composition imposée en 3 lignes, maquette).
+            SEO : ce n'est PAS le titre de la page — le H1 est la ligne
+            descriptive ci-dessous (mots-clés « nettoyage automobile à
+            domicile » + « Annecy »), sans aucun changement visuel. */}
+        <p className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
+          <span className="block">Le détail</span>{" "}
+          <span className="block">fait toute</span>{" "}
           <span className="clz-accent block">la différence.</span>
-        </h1>
-        {/* Sous-titre : deux lignes tenues (maquette), taille réduite avant tout
-            retour supplémentaire — autorisé seulement sur très petits écrans. */}
-        <p className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
-          <span className="block">Nettoyage automobile à domicile.</span>
-          <span className="block">Intérieur, extérieur &amp; detailing.</span>
         </p>
+        {/* H1 : deux lignes tenues (maquette), taille réduite avant tout
+            retour supplémentaire — autorisé seulement sur très petits écrans. */}
+        <h1 className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base font-normal leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
+          <span className="block">Nettoyage automobile à domicile à Annecy.</span>{" "}
+          <span className="block">Intérieur, extérieur &amp; detailing.</span>
+        </h1>
 
         {/* id observé par la barre sticky mobile (site-shell) pour son apparition. */}
         <div id="clz-hero-ctas" className="clz-rise clz-rise-3 mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
@@ -143,7 +163,7 @@ export function CleanyzerHero() {
       </div>
 
       {/* Bouton son on/off (la vidéo démarre coupée par contrainte navigateur). */}
-      {!reduceMotion && (
+      {!reduceMotion && src && (
         <button
           type="button"
           onClick={toggleSound}
