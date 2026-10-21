@@ -15,18 +15,21 @@ export function PageHero({
   title,
   intro,
   crumbs,
+  homeHref = CLZ_PREVIEW_BASE,
 }: {
   eyebrow: string
   title: string
   intro?: string
   crumbs: { label: string; href?: string }[]
+  /** Lien « Accueil » du fil d'Ariane (maquette par défaut, site public sinon). */
+  homeHref?: string
 }) {
   return (
     <section className="clz-dark relative overflow-hidden">
       <Image src={LOGO || "/placeholder.svg"} alt="" aria-hidden width={760} height={180} className="clz-watermark -right-16 top-6 w-[min(70%,520px)]" />
       <div className="relative mx-auto max-w-6xl px-4 pb-14 pt-10 md:px-6 md:pb-20 md:pt-14">
         <nav aria-label="Fil d'Ariane" className="flex flex-wrap items-center gap-1 text-xs text-[var(--clz-on-dark-muted)]">
-          <Link href={CLZ_PREVIEW_BASE} className="hover:text-white">Accueil</Link>
+          <Link href={homeHref} className="hover:text-white">Accueil</Link>
           {crumbs.map((c) => (
             <span key={c.label} className="flex items-center gap-1">
               <ChevronRight className="h-3 w-3" />

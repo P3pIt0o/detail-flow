@@ -113,8 +113,18 @@ describe("Câblage Cleanyzer", () => {
     expect(faqRoute).toContain("getWidgetTenantContactEmail(")
   })
 
-  it("les CTA textile pointent toujours vers /p/<slug>/reservation", () => {
+  it("la réservation automobile pointe toujours vers /p/<slug>/reservation", () => {
     expect(read("components/custom-sites/cleanyzer/tokens.ts")).toMatch(/CLZ_BOOKING_HREF = publicReservationPath\(/)
+  })
+
+  it("les CTA textile pointent vers la demande personnalisée, jamais vers BookingV2", () => {
+    const service = read("components/custom-sites/cleanyzer/service-page.tsx")
+    const prestations = read("components/custom-sites/cleanyzer/prestations.tsx")
+    expect(service).toMatch(/<Link href=\{CLZ_DEMANDE_HREF\}[^>]*>\s*Demander un devis textile/)
+    expect(service).toMatch(/<Link href=\{CLZ_DEMANDE_HREF\}[^>]*>\s*Faire une demande personnalisée/)
+    expect(service).not.toMatch(/CLZ_BOOKING_HREF[^\n]*\n[^\n]*(canapé|textile)/i)
+    expect(prestations).toMatch(/<Link href=\{CLZ_DEMANDE_HREF\}[^>]*>\s*Obtenir mon devis textile/)
+    expect(prestations).toContain("href={textile ? CLZ_BOOKING_HREF : CLZ_DEMANDE_HREF}")
   })
 
   it("logique commune sans Cleanyzer ni adresse codée en dur", () => {

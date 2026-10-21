@@ -16,6 +16,11 @@ import {
   resolvePublicPageRobots,
 } from "@/lib/seo/tenant-seo.server"
 import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
+import {
+  CLZ_HOME_META,
+  CLZ_AREA_SERVED,
+  CLZ_PRICE_RANGE,
+} from "@/components/custom-sites/cleanyzer/seo-content"
 
 /**
  * MÉTADONNÉES DE PARTAGE PAR TENANT (Open Graph / Twitter / SEO).
@@ -56,8 +61,13 @@ export async function generateMetadata(): Promise<Metadata> {
   // localisé. (`heroHighlight` n'est qu'un fragment mis en avant DANS le titre :
   // jamais concaténé.)
   const genericTitle = city ? `Detailing automobile à ${city} | ${name}` : name
-  const title =
-    clean(tenant.heroTitle) ?? (seo.isSpirit ? SPIRIT_PAGE_META.home.title : genericTitle)
+  // CLEANYZER : titre/description SEO éditoriaux PRIORITAIRES (mots-clés locaux
+  // validés), comme la description Spirit — le hero DB n'est pas affiché par
+  // ce site personnalisé et ne doit donc pas piloter son référencement.
+  const isCleanyzer = seo.customSiteKey === "cleanyzer"
+  const title = isCleanyzer
+    ? CLZ_HOME_META.title
+    : (clean(tenant.heroTitle) ?? (seo.isSpirit ? SPIRIT_PAGE_META.home.title : genericTitle))
 
   // Description :
   //  - Spirit ACS → description SEO éditoriale PRIORITAIRE. Aucune valeur Neon
@@ -68,7 +78,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const genericDesc = `${name} — detailing et entretien automobile${
     city ? ` à ${city}` : ""
   }. Demandez votre devis personnalisé en ligne.`
-  const description = seo.isSpirit
+  const description = isCleanyzer
+    ? CLZ_HOME_META.description
+    : seo.isSpirit
     ? SPIRIT_PAGE_META.home.description
     : (clean(tenant.heroSubtitle) ?? clean(rawContent?.about?.text) ?? genericDesc)
 
@@ -145,7 +157,15 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // tenant (adresse postale structurée complète, horaires, réseaux, fiche
   // Google vérifiée). `hasMap` et `sameAs` sont dérivés en interne des sources
   // Google/réseaux existantes. Renvoie null hors contexte tenant → aucun script.
-  const localBusinessJsonLd = tenant ? await buildTenantLocalBusiness() : null
+  // CLEANYZER : zone servie et fourchette de prix issues du barème de Tom.
+  const isCleanyzer = tenant?.customSiteKey?.trim() === "cleanyzer"
+  const localBusinessJsonLd = tenant
+    ? await buildTenantLocalBusiness(
+        isCleanyzer
+          ? { areaServed: CLZ_AREA_SERVED, priceRange: CLZ_PRICE_RANGE, withStableId: true }
+          : undefined,
+      )
+    : null
 
   if (useOwnShell) {
     return (

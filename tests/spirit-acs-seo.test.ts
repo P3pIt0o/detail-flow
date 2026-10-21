@@ -421,12 +421,14 @@ describe("SEO — sitemap tenant-aware", () => {
   it("chaque URL de site tenant est soit sur son domaine personnalisé, soit taguée ?tenant=", () => {
     // Aucune URL de site tenant ne doit être ambiguë : soit elle vit sur un
     // domaine personnalisé connecté (Spirit → www.spiritacs.com), soit elle
-    // porte son paramètre « ?tenant= » sur le domaine racine (Rozan).
+    // porte son paramètre « ?tenant= » sur le domaine racine (Rozan), soit son
+    // chemin explicite « /p/<slug> » (Cleanyzer, table TENANT_PATH_CANONICAL).
     const nonRoot = urls.filter((u) => u !== "https://www.detailflow.fr")
     for (const u of nonRoot) {
       const ok =
         u.startsWith("https://www.spiritacs.com") ||
-        /[?&]tenant=rozancleaningservice/.test(u)
+        /[?&]tenant=rozancleaningservice/.test(u) ||
+        /^https:\/\/www\.detailflow\.fr\/p\/cleanyzer(\/|$)/.test(u)
       expect(ok, `URL tenant ambiguë: ${u}`).toBe(true)
     }
   })

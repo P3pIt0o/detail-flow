@@ -1,0 +1,332 @@
+/*
+ * Prestations au défilement CLEANYZER — styles scopés `.cleanyzer .clz-film*`.
+ * Couleurs et rayons tirés des variables existantes de cleanyzer.css.
+ */
+
+/* Fond uni : le dégradé de .clz-dark-strong s'étirerait sur toute la hauteur du film. */
+.cleanyzer .clz-film-root.clz-dark-strong {
+  position: relative;
+  background: var(--clz-ink);
+}
+
+.cleanyzer .clz-film-seg {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--clz-line-dark);
+  background: rgba(255, 255, 255, 0.04);
+}
+.cleanyzer .clz-film-seg button {
+  border: 0;
+  background: transparent;
+  color: var(--clz-on-dark-muted);
+  font: 600 14px/1 var(--font-clz-sans, system-ui, sans-serif);
+  padding: 10px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.cleanyzer .clz-film-seg button[aria-pressed="true"] {
+  background: var(--clz-blue);
+  color: #fff;
+}
+
+.cleanyzer .clz-film {
+  position: relative;
+}
+.cleanyzer .clz-film-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(24px, 5vw, 72px);
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: 0 1.5rem;
+}
+.cleanyzer .clz-film-frame {
+  position: relative;
+  height: min(calc(100svh - 96px), 880px);
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #05070d;
+  box-shadow: 0 0 0 1px var(--clz-line-dark), 0 40px 80px rgba(0, 0, 0, 0.55);
+}
+.cleanyzer .clz-film-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cleanyzer .clz-film-cards {
+  position: relative;
+  min-width: 0;
+  height: min(600px, 74svh);
+}
+.cleanyzer .clz-film-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+}
+.cleanyzer .clz-film-card.is-on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.cleanyzer .clz-film-num {
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--clz-on-dark-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cleanyzer .clz-film-tag {
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--clz-on-dark);
+  border: 1px solid var(--clz-line-dark);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+.cleanyzer .clz-film-title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(30px, 3.8vw, 48px);
+  line-height: 1.05;
+  text-wrap: balance;
+}
+.cleanyzer .clz-film-text {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--clz-on-dark-muted);
+}
+.cleanyzer .clz-film-rows {
+  display: grid;
+  gap: 8px;
+  max-width: 460px;
+}
+.cleanyzer .clz-film-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--clz-line-dark);
+  border-radius: 12px;
+  background: rgba(17, 19, 24, 0.72);
+  color: var(--clz-on-dark);
+}
+.cleanyzer .clz-film-row b {
+  font-weight: 600;
+}
+.cleanyzer .clz-film-row small {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--clz-on-dark-muted);
+}
+.cleanyzer .clz-film-price {
+  font-family: var(--font-clz-display, Georgia, serif);
+  font-size: 20px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.cleanyzer .clz-film-price.is-text {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clz-blue);
+}
+.cleanyzer .clz-film-cta {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.cleanyzer .clz-film-rail {
+  position: absolute;
+  left: 1.5rem;
+  bottom: 22px;
+  display: flex;
+  gap: 6px;
+}
+.cleanyzer .clz-film-rail b {
+  position: relative;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--clz-line-dark);
+}
+.cleanyzer .clz-film-rail span {
+  position: absolute;
+  inset: 0;
+  background: var(--clz-blue);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+/* Avant / après et galerie (realisations-tom.tsx) */
+.cleanyzer .clz-pair-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  border-radius: var(--clz-radius);
+  overflow: hidden;
+}
+.cleanyzer .clz-pair-duo figure {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 3 / 4;
+  background: var(--clz-surface-2);
+}
+.cleanyzer .clz-pair-label {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(10, 11, 13, 0.78);
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+.cleanyzer .clz-pair-label.is-after {
+  background: var(--clz-blue);
+}
+
+@media (max-width: 860px) {
+  .cleanyzer .clz-film-stage {
+    grid-template-columns: 1fr;
+    padding: 0;
+    max-width: none;
+  }
+  .cleanyzer .clz-film-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .cleanyzer .clz-film-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.72) 40%, rgba(0, 0, 0, 0) 66%);
+  }
+  .cleanyzer .clz-film-cards {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 72%;
+    z-index: 2;
+  }
+  .cleanyzer .clz-film-card {
+    justify-content: flex-end;
+    padding: 0 16px 52px;
+  }
+  .cleanyzer .clz-film-title {
+    font-size: 30px;
+  }
+  .cleanyzer .clz-film-row {
+    padding: 9px 12px;
+  }
+  .cleanyzer .clz-film-rail {
+    left: 16px;
+    bottom: 20px;
+    z-index: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cleanyzer .clz-film-card {
+    transition: none;
+  }
+}
+.cleanyzer .clz-film-3d{align-self:flex-start;font-size:.85rem;font-weight:600;color:#6fb6ff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.cleanyzer .clz-film-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.25rem;margin-top:4px}
+.cleanyzer .clz-film-actions .clz-film-cta{margin-top:0}
+
+/* Comparateur avant / après (compare-slider.tsx) : un seul cadre, deux photos
+   superposées, découpe pilotée par --clz-cmp (aucun recalcul de layout). */
+.cleanyzer .clz-cmp {
+  --clz-cmp: 50%;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--clz-radius);
+  background: var(--clz-surface-2);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cleanyzer .clz-cmp-img {
+  object-fit: cover;
+  pointer-events: none;
+}
+.cleanyzer .clz-cmp-before {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--clz-cmp)) 0 0);
+}
+.cleanyzer .clz-cmp-after-label {
+  left: auto;
+  right: 8px;
+}
+.cleanyzer .clz-cmp-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--clz-cmp);
+  width: 2px;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+.cleanyzer .clz-cmp-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--clz-blue);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+.cleanyzer .clz-cmp-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.cleanyzer .clz-cmp:has(.clz-cmp-range:focus-visible) {
+  outline: 3px solid var(--clz-blue);
+  outline-offset: 3px;
+}

@@ -32,6 +32,13 @@ export const SEO_BASE = siteConfig.seo.url.replace(/\/+$/, "")
 export type TenantSeoIdentity = {
   slug: string
   customDomain?: string | null
+  /**
+   * Préfixe de chemin public CANONIQUE sur detailflow.fr (ex. « /p/cleanyzer »),
+   * pour un tenant dont le site est réellement servi et lié sous `/p/<slug>`
+   * (table fermée `TENANT_PATH_CANONICAL`). Ignoré si un domaine vérifié existe.
+   * Absent → forme historique `?tenant=` (aucun changement pour les autres).
+   */
+  pathPrefix?: string | null
 }
 
 /**
@@ -46,9 +53,16 @@ export function tenantSeoIdentity(tenant: {
   slug: string
   /** Futur champ « domaine personnalisé vérifié » (n'existe pas encore). */
   publicDomain?: string | null
+  /** Préfixe canonique `/p/<slug>` (voir `TenantSeoIdentity.pathPrefix`). */
+  publicPathPrefix?: string | null
 }): TenantSeoIdentity {
   const domain = (tenant.publicDomain ?? "").trim()
-  return { slug: tenant.slug, customDomain: domain ? domain : null }
+  const prefix = normalizePath(tenant.publicPathPrefix ?? "")
+  return {
+    slug: tenant.slug,
+    customDomain: domain ? domain : null,
+    ...(prefix !== "/" ? { pathPrefix: prefix } : {}),
+  }
 }
 
 /**
@@ -83,6 +97,7 @@ export function resolveTenantOrigin(identity: TenantSeoIdentity): string | null 
  * URL CANONIQUE absolue d'une page d'un tenant.
  *
  * - domaine vérifié présent → `https://{domaine}{path}` (jamais de `?tenant=`) ;
+ * - préfixe `/p/<slug>`      → `https://www.detailflow.fr/p/<slug>{path}` ;
  * - sinon                   → `https://www.detailflow.fr{path}?tenant={slug}`.
  *
  * `path` accepte « / », « /avis », « /prestations/nettoyage-automobile »…
@@ -93,6 +108,10 @@ export function tenantCanonicalUrl(path: string, identity: TenantSeoIdentity): s
   const origin = resolveTenantOrigin(identity)
   if (origin) {
     return p === "/" ? `${origin}/` : `${origin}${p}`
+  }
+  if (identity.pathPrefix) {
+    const prefix = normalizePath(identity.pathPrefix)
+    return `${SEO_BASE}${prefix}${p === "/" ? "" : p}`
   }
   const base = p === "/" ? `${SEO_BASE}/` : `${SEO_BASE}${p}`
   const sep = base.includes("?") ? "&" : "?"

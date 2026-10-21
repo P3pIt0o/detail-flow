@@ -30,7 +30,12 @@ export type OpeningHoursDay = {
   to: string | null
 }
 
+/** Fragment du `@id` stable de l'établissement (`<accueil canonique>#business`). */
+export const LOCAL_BUSINESS_ID_FRAGMENT = "#business"
+
 export type LocalBusinessInput = {
+  /** `@id` stable optionnel ; omis par défaut (sortie inchangée). */
+  id?: string | null
   /** Type Schema.org (défaut « AutoWash »). */
   type?: string
   name: string
@@ -46,6 +51,8 @@ export type LocalBusinessInput = {
   areaServed?: string[] | null
   sameAs?: string[] | null
   hasMap?: string | null
+  /** Fourchette de prix réellement publiée (ex. « 30 € – 160 € »). */
+  priceRange?: string | null
 }
 
 /** Jours Schema.org indexés 0 (dimanche) → 6 (samedi). */
@@ -160,6 +167,7 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
   return {
     "@context": "https://schema.org",
     "@type": input.type ?? "AutoWash",
+    ...(clean(input.id) ? { "@id": clean(input.id) } : {}),
     name: input.name,
     ...(clean(input.alternateName) ? { alternateName: clean(input.alternateName) } : {}),
     ...(clean(input.url) ? { url: clean(input.url) } : {}),
@@ -172,6 +180,74 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
     ...(area.length ? { areaServed: area } : {}),
     ...(sameAs.length ? { sameAs } : {}),
     ...(clean(input.hasMap) ? { hasMap: clean(input.hasMap) } : {}),
+    ...(clean(input.priceRange) ? { priceRange: clean(input.priceRange) } : {}),
+  }
+}
+
+/** Offre publiée d'une prestation (prix TTC réel en euros, jamais estimé). */
+export type ServiceOfferInput = { name: string; price: number }
+
+export type ServiceInput = {
+  /** Nom de la prestation (ex. « Nettoyage intérieur de voiture à domicile »). */
+  name: string
+  description?: string | null
+  /** URL canonique ABSOLUE de la page de la prestation. */
+  url: string
+  /** Type de service (ex. « Nettoyage automobile »). */
+  serviceType?: string | null
+  /** Prestataire : nom + URL canonique de l'accueil. */
+  provider: { name: string; url: string; type?: string; id?: string }
+  areaServed?: string[] | null
+  image?: string | null
+  /** Offres à prix FIXE publiés ; les prix « sur devis » sont exclus. */
+  offers?: ServiceOfferInput[] | null
+}
+
+/**
+ * Construit un `Service` Schema.org. Les offres à prix publiés sont regroupées
+ * dans un `OfferCatalog` et résumées par une `AggregateOffer` (prix min/max) ;
+ * aucune offre n'est émise sans prix réel.
+ */
+export function buildServiceJsonLd(input: ServiceInput): Record<string, unknown> {
+  const area = (input.areaServed ?? []).map((a) => clean(a)).filter((a): a is string => a !== null)
+  const offers = (input.offers ?? []).filter((o) => Number.isFinite(o.price) && o.price > 0 && clean(o.name))
+  const prices = offers.map((o) => o.price)
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: input.name,
+    ...(clean(input.description) ? { description: clean(input.description) } : {}),
+    url: input.url,
+    ...(clean(input.serviceType) ? { serviceType: clean(input.serviceType) } : {}),
+    provider: {
+      "@type": input.provider.type ?? "AutoWash",
+      ...(clean(input.provider.id) ? { "@id": clean(input.provider.id) } : {}),
+      name: input.provider.name,
+      url: input.provider.url,
+    },
+    ...(area.length ? { areaServed: area.map((name) => ({ "@type": "City", name })) } : {}),
+    ...(clean(input.image) ? { image: clean(input.image) } : {}),
+    ...(offers.length
+      ? {
+          offers: {
+            "@type": "AggregateOffer",
+            priceCurrency: "EUR",
+            lowPrice: Math.min(...prices),
+            highPrice: Math.max(...prices),
+            offerCount: offers.length,
+          },
+          hasOfferCatalog: {
+            "@type": "OfferCatalog",
+            name: input.name,
+            itemListElement: offers.map((o) => ({
+              "@type": "Offer",
+              name: o.name,
+              price: o.price,
+              priceCurrency: "EUR",
+            })),
+          },
+        }
+      : {}),
   }
 }
 
