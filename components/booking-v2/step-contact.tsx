@@ -4,6 +4,7 @@ import { AlertCircle, CreditCard, Loader2, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDateLong, formatDuration } from "@/lib/format"
 import {
+  codeNotAppliedMessage,
   formatPriceCompact,
   formatSlotLabel,
   previewDeposit,
@@ -299,11 +300,7 @@ export function StepContact(props: Props) {
             </div>
             {serverPricing && serverPricing.code && serverPricing.code.status !== "applied" && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {serverPricing.code.status === "rejected_not_combinable"
-                  ? `Le code ${serverPricing.code.code} n'est pas appliqué : une offre plus avantageuse est déjà appliquée et ne se cumule pas avec lui.`
-                  : serverPricing.code.status === "invalid"
-                    ? `Le code ${serverPricing.code.code} est invalide ou indisponible.`
-                    : `Le code ${serverPricing.code.code} ne s'applique pas à votre sélection.`}
+                {codeNotAppliedMessage(serverPricing.code.code, serverPricing.code.status)}
               </p>
             )}
             {serverPricing?.notes.map((n, i) => (

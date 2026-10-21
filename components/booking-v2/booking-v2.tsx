@@ -20,9 +20,12 @@ import {
   toSelectionsPayload,
   toVehicleSelections,
   addExtraService,
-  removeExtraService,
   isPlateValid,
   needsPlate,
+  hasPlaceLeft,
+  withMainService,
+  promoRejectionMessage,
+  displayedDurationMin,
   type PaymentPlan,
   type V2Vehicle,
 } from "@/lib/booking/v2"
@@ -193,7 +196,7 @@ export function BookingV2(props: BookingV2Props) {
     if (id !== serviceId) {
       setServiceId(id)
       // La nouvelle prestation principale ne reste jamais aussi « ajoutée » (pas de doublon affiché).
-      setVehicles((vs) => vs.map((v) => removeExtraService(v, id)))
+      setVehicles((vs) => withMainService(vs, id))
       invalidateSelection()
     }
     goTo(1)
@@ -232,6 +235,8 @@ export function BookingV2(props: BookingV2Props) {
     const target = vehicles.find((v) => v.uid === sg.vehicleUid) ?? vehicles[0]
     if (!target) return
     const add = sg.add
+    // Capacité : une prestation ajoutée occupe une place (comme au serveur).
+    if (add.type === "service" && !hasPlaceLeft(vehicles, serviceId, props.maxVehicles)) return
     setVehicles(
       vehicles.map((v) =>
         v.uid !== target.uid
@@ -257,15 +262,7 @@ export function BookingV2(props: BookingV2Props) {
         setAppliedPromo({ code: res.code, discountType: res.discountType, discountValue: res.discountValue, discountCents: res.discountCents })
       } else {
         setAppliedPromo(null)
-        setPromoError(
-          res.reason === "not_applicable_services"
-            ? "Ce code ne s'applique pas à la prestation sélectionnée."
-            : res.reason === "not_combinable"
-              ? "Une offre plus avantageuse est déjà appliquée à votre réservation : ce code ne se cumule pas avec elle."
-              : res.reason === "no_eligible_amount"
-                ? "Ce code ne s'applique pas à votre sélection."
-                : "Code promo invalide ou indisponible.",
-        )
+        setPromoError(promoRejectionMessage(res.reason))
       }
     } catch {
       setAppliedPromo(null)
@@ -441,7 +438,7 @@ export function BookingV2(props: BookingV2Props) {
             address={atWorkshop ? `À l'atelier — ${location.workshopAddress ?? ""}` : travel?.ok ? travel.address : address}
             atWorkshop={atWorkshop}
             travelFeeCents={travelFeeCents}
-            durationMin={serverPricing ? serverPricing.totalDurationMin : estimate.durationMin}
+            durationMin={displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin)}
             subtotalCents={estimate.priceCents}
             totalCents={totalCents}
             serverPricing={serverPricing}
@@ -478,7 +475,7 @@ export function BookingV2(props: BookingV2Props) {
         <StickyBar
           embed={embed}
           priceCents={step >= 2 ? totalCents : estimate.priceCents}
-          durationMin={step === 3 && serverPricing ? serverPricing.totalDurationMin : estimate.durationMin}
+          durationMin={step === 3 ? displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin) : estimate.durationMin}
           priceLabel={step === 3 ? "Total" : "Total estimé"}
           ctaLabel={ctaLabel}
           disabled={!stepValid[step]}

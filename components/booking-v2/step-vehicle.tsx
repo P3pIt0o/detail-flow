@@ -3,7 +3,7 @@
 import { Check, Plus, Sparkles, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDuration } from "@/lib/format"
-import { addExtraService, extraServiceCandidates, formatPriceCompact, isPlateValid, needsPlate, newV2Vehicle, removeExtraService, type V2Vehicle } from "@/lib/booking/v2"
+import { addExtraService, extraServiceCandidates, formatPriceCompact, hasPlaceLeft, isPlateValid, needsPlate, newV2Vehicle, removeExtraService, type V2Vehicle } from "@/lib/booking/v2"
 import { resolvePrice, type OptionRow, type PriceMap, type ServiceRow, type VehicleRow } from "@/components/booking/shared"
 import type { BookingSuggestion } from "@/lib/booking/promotions-apply"
 import { SectionLabel, bv2InputClass, bv2LabelClass } from "./step-header"
@@ -36,9 +36,10 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
   }
 
   // Capacité inchangée (D5) : une prestation = une place, comme au serveur.
-  const placesUsed = vehicles.reduce((n, v) => n + 1 + (v.extraServiceIds ?? []).filter((id) => id !== serviceId).length, 0)
-  const placesLeft = Math.max(1, maxVehicles) - placesUsed
+  const placesLeft = hasPlaceLeft(vehicles, serviceId, maxVehicles) ? 1 : 0
   const canAdd = placesLeft > 0
+  // Plus de place : une prestation suggérée ne pourrait pas être ajoutée, elle n'est pas proposée.
+  const shownSuggestions = suggestions.filter((sg) => canAdd || sg.add?.type !== "service")
   const mainService = services.find((s) => s.id === serviceId)
   const priceFor = (v: V2Vehicle, id: number) =>
     v.vehicleTypeId != null ? resolvePrice(services, priceMap, id, v.vehicleTypeId).priceCents : (services.find((s) => s.id === id)?.basePriceCents ?? 0)
@@ -251,9 +252,9 @@ export function StepVehicle({ vehicles, vehicleTypes, options, services, priceMa
         </fieldset>
       ))}
 
-      {suggestions.length > 0 && (
+      {shownSuggestions.length > 0 && (
         <div className="mb-3.5 flex flex-col gap-2" aria-label="Suggestions">
-          {suggestions.map((sg, i) => (
+          {shownSuggestions.map((sg, i) => (
             <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/5 px-3.5 py-3">
               <span className="flex min-w-0 items-start gap-2 text-[13px] text-foreground">
                 <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />

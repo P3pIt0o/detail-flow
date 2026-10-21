@@ -197,6 +197,11 @@ describe("L22 — conditions du code vérifiées sur le panier réellement factu
     expect(inserts).toHaveLength(0)
     await expect(getQuoteAction(many)).rejects.toThrow()
   })
+  it("plus de 30 lignes : le code promo n'est même pas vérifié", async () => {
+    const many = Array.from({ length: 31 }, (_, i) => line(`v${i}:main`, CLZ.lavageExterieurEco))
+    expect(await validatePromoCodeAction({ selections: many, code: "bienvenue" })).toMatchObject({ ok: false, reason: "empty" })
+    expect(promo.validatePromoCode).not.toHaveBeenCalled()
+  })
   it("catalogue des suggestions chargé pour le tenant de la session (companyId explicite)", () => {
     const src = readFileSync(join(process.cwd(), "app/(site)/reservation/actions.ts"), "utf8")
     expect(src).toContain("getServices(tenant.id), getOptions(tenant.id), getServicePrices(tenant.id)")

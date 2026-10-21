@@ -51,6 +51,36 @@ export function isPlateValid(plate: string | null | undefined): boolean {
   return /^[A-Z0-9]{4,12}$/.test(normalizePlate(plate))
 }
 
+/** Places occupées par la réservation : une prestation = une place (capacité journalière inchangée, comme au serveur). */
+export function placesUsed(vehicles: V2Vehicle[], mainServiceId: number | null): number {
+  return vehicles.reduce((n, v) => n + 1 + (v.extraServiceIds ?? []).filter((id) => id !== mainServiceId).length, 0)
+}
+
+/** Reste-t-il une place pour une prestation ou un véhicule de plus ? */
+export function hasPlaceLeft(vehicles: V2Vehicle[], mainServiceId: number | null, maxPlaces: number): boolean {
+  return placesUsed(vehicles, mainServiceId) < Math.max(1, maxPlaces)
+}
+
+/** Message client pour un code promo refusé (aperçu du code). */
+export function promoRejectionMessage(reason: string): string {
+  if (reason === "not_applicable_services") return "Ce code ne s'applique pas à la prestation sélectionnée."
+  if (reason === "not_combinable") return "Une offre plus avantageuse est déjà appliquée à votre réservation : ce code ne se cumule pas avec elle."
+  if (reason === "no_eligible_amount") return "Ce code ne s'applique pas à votre sélection."
+  return "Code promo invalide ou indisponible."
+}
+
+/** Note du récapitulatif quand le serveur n'applique pas le code saisi. */
+export function codeNotAppliedMessage(code: string, status: string): string {
+  if (status === "rejected_not_combinable") return `Le code ${code} n'est pas appliqué : une offre plus avantageuse est déjà appliquée et ne se cumule pas avec lui.`
+  if (status === "invalid") return `Le code ${code} est invalide ou indisponible.`
+  return `Le code ${code} ne s'applique pas à votre sélection.`
+}
+
+/** Durée affichée : celle du serveur dès qu'elle est connue (après retrait des doublons). */
+export function displayedDurationMin(serverDurationMin: number | null | undefined, estimateMin: number): number {
+  return serverDurationMin ?? estimateMin
+}
+
 /** Le véhicule porte-t-il plusieurs prestations (seul cas où l'immatriculation est demandée) ? */
 export function needsPlate(v: V2Vehicle, mainServiceId: number | null): boolean {
   return (v.extraServiceIds ?? []).some((id) => id !== mainServiceId)
@@ -81,6 +111,11 @@ export function addExtraService(v: V2Vehicle, serviceId: number, mainServiceId: 
 
 export function removeExtraService(v: V2Vehicle, serviceId: number): V2Vehicle {
   return { ...v, extraServiceIds: (v.extraServiceIds ?? []).filter((id) => id !== serviceId) }
+}
+
+/** Changement de prestation principale : elle est retirée des prestations ajoutées (jamais de doublon). */
+export function withMainService(vehicles: V2Vehicle[], mainServiceId: number): V2Vehicle[] {
+  return vehicles.map((v) => removeExtraService(v, mainServiceId))
 }
 
 /** Prestations pouvant encore être ajoutées à ce véhicule. */
