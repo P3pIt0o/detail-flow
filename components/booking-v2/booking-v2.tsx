@@ -24,6 +24,11 @@ import {
   needsPlate,
   hasPlaceLeft,
   withMainService,
+  pricingKey,
+  currentPricing,
+  canConfirmBooking,
+  bookingCta,
+  type PricingState,
   promoRejectionMessage,
   displayedDurationMin,
   type PaymentPlan,
@@ -96,7 +101,8 @@ export function BookingV2(props: BookingV2Props) {
   const [error, setError] = useState<string | null>(null)
   const [successRef, setSuccessRef] = useState<string | null>(null)
   // L22 : montants calculés par le SERVEUR (identiques à la réservation) et suggestions.
-  const [serverPricing, setServerPricing] = useState<QuotePricing | null>(null)
+  const [pricingState, setPricingState] = useState<PricingState<QuotePricing>>(null)
+  const [pricingRetry, setPricingRetry] = useState(0)
   const [suggestions, setSuggestions] = useState<BookingSuggestion[]>([])
   const quoteRequest = useRef(0)
 
@@ -154,6 +160,11 @@ export function BookingV2(props: BookingV2Props) {
   const travelFeeCents = !atWorkshop && travel?.ok ? travel.feeCents : 0
   const locationReady = atWorkshop || (locationType === "client" && Boolean(travel?.ok))
   const discountCents = appliedPromo?.discountCents ?? 0
+  const quoteAddress = !atWorkshop && travel?.ok ? address : undefined
+  // Prix serveur retenu seulement s'il a été calculé pour le panier affiché (jamais une réponse périmée).
+  const priceKey = pricingKey(toSelectionsPayload(vehicles, serviceId), quoteAddress, appliedPromo?.code)
+  const pricing = currentPricing(pricingState, priceKey)
+  const serverPricing = step === 3 && pricing.status === "ok" ? pricing.pricing : null
   // Total annoncé : celui du serveur dès qu'il est connu (offres + code + déplacement).
   const totalCents = serverPricing ? serverPricing.totalCents : Math.max(0, estimate.priceCents + travelFeeCents - discountCents)
 
@@ -164,7 +175,7 @@ export function BookingV2(props: BookingV2Props) {
     serviceId != null,
     vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId)),
     Boolean(date && startTime && locationReady),
-    contactValid,
+    canConfirmBooking(contactValid, pricing),
   ]
   const stepHint = [
     null,
@@ -176,7 +187,11 @@ export function BookingV2(props: BookingV2Props) {
       : !locationReady
         ? "Vérifiez votre adresse d'intervention."
         : "Choisissez un créneau.",
-    "Complétez vos coordonnées.",
+    !contactValid
+      ? "Complétez vos coordonnées."
+      : pricing.status === "error"
+        ? "Le prix n'a pas pu être vérifié."
+        : "Calcul du prix en cours…",
   ]
 
   function goTo(next: number) {
@@ -209,26 +224,26 @@ export function BookingV2(props: BookingV2Props) {
 
   // Aperçu serveur (étapes véhicule et récapitulatif) : montant réel, explications, suggestions.
   const vehiclesComplete = vehicles.length > 0 && vehicles.every((v) => isV2VehicleComplete(v, serviceId))
-  const quoteAddress = !atWorkshop && travel?.ok ? address : undefined
   useEffect(() => {
     if (serviceId == null || !vehiclesComplete || (step !== 1 && step !== 3)) return
     const id = ++quoteRequest.current
+    const key = priceKey
     const t = setTimeout(() => {
       getQuoteAction(toSelectionsPayload(vehicles, serviceId), quoteAddress, step === 3 ? appliedPromo?.code : undefined)
         .then((r) => {
           if (id !== quoteRequest.current) return
-          setServerPricing(step === 3 ? r.pricing : null)
+          if (step === 3) setPricingState({ key, status: "ok", pricing: r.pricing })
           setSuggestions(step === 1 ? r.suggestions : [])
         })
         .catch(() => {
           if (id === quoteRequest.current) {
-            setServerPricing(null)
+            if (step === 3) setPricingState({ key, status: "error" })
             setSuggestions([])
           }
         })
     }, 350)
     return () => clearTimeout(t)
-  }, [step, serviceId, vehicles, vehiclesComplete, quoteAddress, appliedPromo])
+  }, [step, serviceId, vehicles, vehiclesComplete, quoteAddress, appliedPromo, priceKey, pricingRetry])
 
   function acceptSuggestion(sg: BookingSuggestion) {
     if (!sg.add) return
@@ -273,7 +288,8 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   async function submit() {
-    if (!date || !startTime || serviceId == null) return
+    // Jamais de confirmation sur une estimation locale : prix serveur du panier affiché exigé.
+    if (!date || !startTime || serviceId == null || !canConfirmBooking(contactValid, pricing)) return
     setSubmitting(true)
     setError(null)
     try {
@@ -328,7 +344,7 @@ export function BookingV2(props: BookingV2Props) {
   }
 
   const online = paymentPlan === "online_full" || paymentPlan === "online_deposit" || paymentPlan === "choice"
-  const ctaLabel = step < 3 ? "Continuer" : online ? "Payer et réserver" : "Confirmer"
+  const cta = bookingCta({ step, stepValid: stepValid[step], contactValid, pricing, online })
 
   return (
     <div ref={rootRef} className={embed ? "w-full scroll-mt-4" : "w-full scroll-mt-24 pb-36"}>
@@ -476,12 +492,18 @@ export function BookingV2(props: BookingV2Props) {
           embed={embed}
           priceCents={step >= 2 ? totalCents : estimate.priceCents}
           durationMin={step === 3 ? displayedDurationMin(serverPricing?.totalDurationMin, estimate.durationMin) : estimate.durationMin}
-          priceLabel={step === 3 ? "Total" : "Total estimé"}
-          ctaLabel={ctaLabel}
-          disabled={!stepValid[step]}
+          priceLabel={serverPricing ? "Total" : "Total estimé"}
+          ctaLabel={cta.label}
+          disabled={cta.disabled}
           loading={submitting}
           hint={stepHint[step]}
-          onCta={() => (step === 3 ? submit() : goTo(step + 1))}
+          onCta={() => {
+            if (cta.action === "retry") {
+              setPricingState(null)
+              setPricingRetry((n) => n + 1)
+            } else if (cta.action === "submit") submit()
+            else goTo(step + 1)
+          }}
         />
       )}
     </div>
