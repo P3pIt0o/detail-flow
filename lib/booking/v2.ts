@@ -61,6 +61,28 @@ export function hasPlaceLeft(vehicles: V2Vehicle[], mainServiceId: number | null
   return placesUsed(vehicles, mainServiceId) < Math.max(1, maxPlaces)
 }
 
+/**
+ * Prix serveur du récapitulatif (L22). Chaque réponse est liée au panier exact qui
+ * l'a produite (sélections, adresse, code) : dès que le panier change, l'ancienne
+ * réponse n'est plus « actuelle » et la confirmation attend le nouveau calcul.
+ */
+export type PricingState<T> = { key: string; status: "ok"; pricing: T } | { key: string; status: "error" } | null
+export type PricingStatus<T> = { status: "ok"; pricing: T } | { status: "pending" } | { status: "error" }
+
+export function pricingKey(selections: unknown, address: string | undefined, promoCode: string | undefined): string {
+  return JSON.stringify([selections, address ?? null, promoCode ?? null])
+}
+
+export function currentPricing<T>(state: PricingState<T>, key: string): PricingStatus<T> {
+  if (!state || state.key !== key) return { status: "pending" }
+  return state.status === "ok" ? { status: "ok", pricing: state.pricing } : { status: "error" }
+}
+
+/** Confirmation possible uniquement avec un prix serveur calculé pour le panier affiché. */
+export function canConfirmBooking(contactValid: boolean, pricing: PricingStatus<unknown>): boolean {
+  return contactValid && pricing.status === "ok"
+}
+
 /** Message client pour un code promo refusé (aperçu du code). */
 export function promoRejectionMessage(reason: string): string {
   if (reason === "not_applicable_services") return "Ce code ne s'applique pas à la prestation sélectionnée."
