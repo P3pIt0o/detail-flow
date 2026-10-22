@@ -24,7 +24,7 @@ import {
 } from "@/lib/booking/queries"
 import { buildQuote, computeDeposit } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
-import { validatePromoCode, consumePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
+import { validatePromoCode, consumePromoCode, normalizePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
 import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
@@ -35,7 +35,7 @@ import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
-import { isBookingRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
+import { isBookingRateLimited, isPromoRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
 import { getPromotionData, loadPromotionData, setBookingPromotionSnapshot } from "@/lib/booking/promotions-store"
 import {
   MAX_BOOKING_LINES,
@@ -62,7 +62,8 @@ export type QuotePricing = {
   normalCents: number
   travelFeeCents: number
   applied: { name: string; discountCents: number }[]
-  code: { code: string; status: CodeStatus | "invalid"; discountCents: number } | null
+  /** `unverified` (L24) : limite de vérification atteinte, prix calculé sans le code. */
+  code: { code: string; status: CodeStatus | "invalid" | "unverified"; discountCents: number } | null
   /** Explications des corrections du panier (même traitement facturé une seule fois…). */
   notes: string[]
   discountCents: number
@@ -88,22 +89,26 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
     : null
 
   // Code promo éventuel : même validation et même arbitrage qu'à la réservation.
-  let codeStatus: CodeStatus | "invalid" = "none"
+  let codeStatus: CodeStatus | "invalid" | "unverified" = "none"
   let withCode = p
   const code = promoCode?.trim()
   if (code && tenant) {
-    // Conditions du code vérifiées sur ce qui est réellement facturé.
-    const res = await validatePromoCode({ companyId: tenant.id, code, quote: { ...quote, ...billedQuote(p) } })
-    if (!res.valid) codeStatus = "invalid"
+    // L24 : limite atteinte => code ni vérifié ni appliqué ; le récapitulatif interdit la confirmation.
+    if (await isPromoRateLimited(await headers())) codeStatus = "unverified"
     else {
-      withCode = priceBooking({
-        quote,
-        promotions: data.promotions,
-        equivalences: data.equivalences,
-        code: { code: res.normalizedCode, discountCents: res.discountCents, targetServiceIds: res.targetServiceIds, percent: res.discountType === "percent" ? res.discountValue : null },
-        vehicleKeys,
-      })
-      codeStatus = withCode.codeStatus
+      // Conditions du code vérifiées sur ce qui est réellement facturé.
+      const res = await validatePromoCode({ companyId: tenant.id, code, quote: { ...quote, ...billedQuote(p) } })
+      if (!res.valid) codeStatus = "invalid"
+      else {
+        withCode = priceBooking({
+          quote,
+          promotions: data.promotions,
+          equivalences: data.equivalences,
+          code: { code: res.normalizedCode, discountCents: res.discountCents, targetServiceIds: res.targetServiceIds, percent: res.discountType === "percent" ? res.discountValue : null },
+          vehicleKeys,
+        })
+        codeStatus = withCode.codeStatus
+      }
     }
   }
   // Un code écarté n'est jamais appliqué : le total annoncé est celui sans code.
@@ -124,7 +129,7 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
     normalCents: final.subtotalCents,
     travelFeeCents: quote.travelFeeCents,
     applied: (final.snapshot?.promotions ?? []).map((x) => ({ name: x.name, discountCents: x.discountCents })),
-    code: code ? { code: code.toUpperCase(), status: codeStatus, discountCents: codeStatus === "applied" ? final.codeDiscountCents : 0 } : null,
+    code: code ? { code: normalizePromoCode(code), status: codeStatus, discountCents: codeStatus === "applied" ? final.codeDiscountCents : 0 } : null,
     notes: final.adjustments.map((a) => describeAdjustment(a, (r) => label(r) ?? "élément")),
     discountCents: final.discountCents,
     totalCents: finalTotal,
@@ -164,7 +169,7 @@ export async function getQuoteAction(selections: BookingSelection[], address?: s
 
 export type PromoPreviewResult =
   | { ok: true; code: string; discountType: "percent" | "fixed"; discountValue: number; discountCents: number }
-  | { ok: false; reason: PromoInvalidReason }
+  | { ok: false; reason: PromoInvalidReason | "rate_limited" }
 
 /**
  * Valide un code promo pour la sélection courante et renvoie la remise calculée.
@@ -177,6 +182,8 @@ export async function validatePromoCodeAction(input: {
 }): Promise<PromoPreviewResult> {
   const tenant = await resolveRequestTenant()
   if (!tenant) notFound()
+  // L24 : limite booking-promo vérifiée avant toute lecture du catalogue ou du code (code vide : jamais limité).
+  if (input?.code?.trim() && (await isPromoRateLimited(await headers()))) return { ok: false, reason: "rate_limited" }
 
   if (!Array.isArray(input?.selections) || input.selections.length > MAX_BOOKING_LINES) return { ok: false, reason: "empty" }
   const settings = await getSettings(tenant.id)

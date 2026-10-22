@@ -78,9 +78,19 @@ export function currentPricing<T>(state: PricingState<T>, key: string): PricingS
   return state.status === "ok" ? { status: "ok", pricing: state.pricing } : { status: "error" }
 }
 
+type CodedPricing = { code?: { status: string } | null }
+
+/**
+ * L24 : code saisi non vérifié (limite atteinte). Le prix affiché est sans code alors que
+ * la réservation l'appliquerait : on ne confirme pas, on recalcule.
+ */
+export function isPromoUnverified(pricing: PricingStatus<CodedPricing>): boolean {
+  return pricing.status === "ok" && pricing.pricing?.code?.status === "unverified"
+}
+
 /** Confirmation possible uniquement avec un prix serveur calculé pour le panier affiché. */
-export function canConfirmBooking(contactValid: boolean, pricing: PricingStatus<unknown>): boolean {
-  return contactValid && pricing.status === "ok"
+export function canConfirmBooking(contactValid: boolean, pricing: PricingStatus<CodedPricing>): boolean {
+  return contactValid && pricing.status === "ok" && !isPromoUnverified(pricing)
 }
 
 /**
@@ -91,11 +101,11 @@ export function bookingCta(input: {
   step: number
   stepValid: boolean
   contactValid: boolean
-  pricing: PricingStatus<unknown>
+  pricing: PricingStatus<CodedPricing>
   online: boolean
 }): { action: "next" | "submit" | "retry"; label: string; disabled: boolean } {
   if (input.step < 3) return { action: "next", label: "Continuer", disabled: !input.stepValid }
-  if (input.contactValid && input.pricing.status === "error") return { action: "retry", label: "Recalculer le prix", disabled: false }
+  if (input.contactValid && (input.pricing.status === "error" || isPromoUnverified(input.pricing))) return { action: "retry", label: "Recalculer le prix", disabled: false }
   return { action: "submit", label: input.online ? "Payer et réserver" : "Confirmer", disabled: !input.stepValid }
 }
 
@@ -104,6 +114,7 @@ export function promoRejectionMessage(reason: string): string {
   if (reason === "not_applicable_services") return "Ce code ne s'applique pas à la prestation sélectionnée."
   if (reason === "not_combinable") return "Une offre plus avantageuse est déjà appliquée à votre réservation : ce code ne se cumule pas avec elle."
   if (reason === "no_eligible_amount") return "Ce code ne s'applique pas à votre sélection."
+  if (reason === "rate_limited") return "Impossible de vérifier ce code pour le moment. Merci de réessayer dans un instant."
   return "Code promo invalide ou indisponible."
 }
 
@@ -111,6 +122,7 @@ export function promoRejectionMessage(reason: string): string {
 export function codeNotAppliedMessage(code: string, status: string): string {
   if (status === "rejected_not_combinable") return `Le code ${code} n'est pas appliqué : une offre plus avantageuse est déjà appliquée et ne se cumule pas avec lui.`
   if (status === "invalid") return `Le code ${code} est invalide ou indisponible.`
+  if (status === "unverified") return `Le code ${code} n'a pas pu être vérifié, réessayez dans un instant.`
   return `Le code ${code} ne s'applique pas à votre sélection.`
 }
 
