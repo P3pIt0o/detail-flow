@@ -244,6 +244,20 @@ export const BRAND = {
   googleReviewsUrl: "https://maps.app.goo.gl/QeQ4NW2RQVX3xBNx8" as string | null,
 }
 
+// Témoignages d'entreprises clientes (L28) : accord et citations validés par écrit
+// (Clément, 23/10/2026). Citations recopiées mot pour mot, sans note ni logo.
+// `url` : site de l'entreprise, à renseigner seulement quand il est fourni.
+export type ClzTestimonial = { company: string; quote: string; verified: boolean; url?: string }
+
+export const CLZ_TESTIMONIALS: ClzTestimonial[] = [
+  { company: "Perrin Electric", quote: "Une prestation soignée et un travail de qualité.", verified: true },
+  { company: "Trofeo Automobiles", quote: "Un professionnel à la hauteur de nos besoins et de nos attentes.", verified: true },
+  { company: "Pinto Maçonnerie", quote: "Un professionnel sérieux, à la hauteur de nos attentes.", verified: true },
+]
+
+export const verifiedTestimonials = (list: ClzTestimonial[]) =>
+  list.filter((t) => t.verified === true && t.company.trim() !== "" && t.quote.trim() !== "")
+
 export const NAV_LABELS = {
   prestations: "Prestations",
   realisations: "Réalisations",

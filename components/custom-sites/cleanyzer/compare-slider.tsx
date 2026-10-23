@@ -19,6 +19,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const INITIAL = 50
 
+export const clampPct = (pct: number) => Math.min(100, Math.max(0, pct))
+
 export type ClzCompareProps = {
   before: string
   after: string
@@ -29,9 +31,11 @@ export type ClzCompareProps = {
   sizes?: string
   /** Ratio du cadre (largeur / hauteur), identique à celui des photos. */
   ratio?: string
+  /** Au-dessus de la ligne de flottaison (héros) : images chargées en priorité. */
+  priority?: boolean
 }
 
-export function ClzCompareSlider({ before, after, altBefore, altAfter, label, sizes = "(max-width:768px) 100vw, 33vw", ratio = "3 / 4" }: ClzCompareProps) {
+export function ClzCompareSlider({ before, after, altBefore, altAfter, label, sizes = "(max-width:768px) 100vw, 33vw", ratio = "3 / 4", priority = false }: ClzCompareProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const rangeRef = useRef<HTMLInputElement>(null)
   const dragging = useRef(false)
@@ -40,7 +44,7 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
   const [value, setValue] = useState(INITIAL)
 
   const apply = useCallback((pct: number) => {
-    pending.current = Math.min(100, Math.max(0, pct))
+    pending.current = clampPct(pct)
     if (raf.current !== null) return
     raf.current = requestAnimationFrame(() => {
       raf.current = null
@@ -84,9 +88,9 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
       onPointerCancel={end}
       onLostPointerCapture={end}
     >
-      <Image src={after} alt={altAfter} fill loading="lazy" sizes={sizes} className="clz-cmp-img" draggable={false} />
+      <Image src={after} alt={altAfter} fill priority={priority} loading={priority ? undefined : "lazy"} sizes={sizes} className="clz-cmp-img" draggable={false} />
       <div className="clz-cmp-before">
-        <Image src={before} alt={altBefore} fill loading="lazy" sizes={sizes} className="clz-cmp-img" draggable={false} />
+        <Image src={before} alt={altBefore} fill priority={priority} loading={priority ? undefined : "lazy"} sizes={sizes} className="clz-cmp-img" draggable={false} />
       </div>
       <span className="clz-pair-label" aria-hidden="true">Avant</span>
       <span className="clz-pair-label is-after clz-cmp-after-label" aria-hidden="true">Après</span>
@@ -105,6 +109,7 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
         defaultValue={INITIAL}
         className="clz-cmp-range"
         aria-label={`Comparer avant et après : ${label}`}
+        aria-valuenow={value}
         aria-valuetext={`${Math.round(value)} % de la photo avant visible`}
         onInput={(e) => apply(Number((e.target as HTMLInputElement).value))}
         onChange={(e) => setValue(Number(e.target.value))}

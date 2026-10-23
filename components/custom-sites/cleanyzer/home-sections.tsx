@@ -6,10 +6,8 @@
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck, Star, BadgeCheck } from "lucide-react"
-import { BeforeAfterSlider } from "@/components/before-after-slider"
 import { CleanyzerFaq } from "./faq"
-import { ClzCompareHint } from "./motion"
-import { BRAND, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS, TRAVEL } from "./content"
+import { BRAND, CLZ_TESTIMONIALS, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS, TRAVEL, verifiedTestimonials } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, clzPath } from "./tokens"
 import { CLZ_SERVICE_PAGES } from "./seo-content"
 
@@ -170,60 +168,6 @@ export function PrestationsPreview() {
   )
 }
 
-/* Avant / après — dégradé renforcé (cahier : renforcer progressivement le dégradé). */
-export function RealisationsPreview() {
-  return (
-    <section id="realisations" className="clz-dark-strong relative overflow-hidden">
-      <div className="relative mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-        <SectionHead
-          dark
-          eyebrow="Le soin en images"
-          title={<>Une différence <span className="clz-accent">qui se voit.</span></>}
-          intro="Glissez le curseur pour comparer l'avant et l'après d'une intervention CLEANYZER."
-        />
-        <div className="mt-12 grid items-center gap-10 lg:grid-cols-2">
-          <ClzCompareHint>
-            <BeforeAfterSlider
-              before="/custom-sites/cleanyzer/isuzu-avant.webp"
-              after="/custom-sites/cleanyzer/isuzu-apres.webp"
-              alt="Nettoyage intérieur ISUZU : habitacle, moquette et sièges"
-            />
-          </ClzCompareHint>
-          <div>
-            <h3 className="clz-display clz-h3 text-white">Un intérieur comme neuf</h3>
-            <p className="mt-4 leading-relaxed text-[var(--clz-on-dark-muted)]">
-              Sièges, tapis, plastiques et recoins : chaque détail est traité, à votre
-              domicile, à Annecy et alentours.
-            </p>
-            <Link href={CLZ_BOOKING_HREF} className="clz-btn clz-btn-ghost mt-7">
-              Réserver un nettoyage
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-14 grid gap-6 sm:grid-cols-2">
-          {[
-            {
-              src: "/custom-sites/cleanyzer/porsche-lavage.webp",
-              alt: "Porsche rouge recouverte de mousse pendant le lavage extérieur",
-              caption: "Porsche — lavage extérieur",
-              pos: "object-[50%_60%]",
-            },
-          ].map((p) => (
-            <figure key={p.src} className="clz-zoom overflow-hidden rounded-2xl border border-white/10">
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <Image src={p.src} alt={p.alt} fill loading="lazy" sizes="(max-width: 640px) 100vw, 50vw" className={`object-cover ${p.pos}`} />
-              </div>
-              <figcaption className="px-4 py-3 text-sm font-medium text-[var(--clz-on-dark-muted)]">{p.caption}</figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 /* Service à domicile (bleu #0A84FF — cahier). */
 export function ServiceADomicile() {
   const points = [
@@ -368,6 +312,40 @@ export function AvisSection() {
             </a>
           )}
         </div>
+      </div>
+    </section>
+  )
+}
+
+/* Témoignages d'entreprises clientes : citations validées par écrit, sans note ni logo. */
+export function TemoignagesSection() {
+  const items = verifiedTestimonials(CLZ_TESTIMONIALS)
+  if (items.length === 0) return null
+  return (
+    <section className="bg-[var(--clz-bg)]">
+      <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+        <SectionHead eyebrow="Témoignages" title="Ils nous font confiance" center />
+        <ul className="mt-12 grid gap-6 md:grid-cols-3">
+          {items.map((t) => (
+            <li key={t.company} data-clz-reveal>
+              <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7 shadow-sm">
+                <blockquote className="m-0 flex-1 text-pretty text-lg leading-relaxed text-[var(--clz-fg)]">
+                  « {t.quote} »
+                </blockquote>
+                <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-blue)]">
+                  {t.url ? (
+                    <a href={t.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      {t.company}
+                      <span className="sr-only"> (nouvel onglet)</span>
+                    </a>
+                  ) : (
+                    t.company
+                  )}
+                </figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   )

@@ -123,7 +123,9 @@ export function RealisationsTom() {
           ))}
         </div>
 
-        <span className="clz-eyebrow mt-20 block">Réalisations</span>
+        {/* Cible du lien « Réalisations » du menu (ex-section « Le soin en images », L28). */}
+        <div id="realisations" className="mt-20 scroll-mt-24">
+        <span className="clz-eyebrow block">Réalisations</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-[var(--clz-fg)]">
           Passées entre <span className="clz-accent">les mains de Tom</span>
         </h2>
@@ -139,6 +141,7 @@ export function RealisationsTom() {
               </figcaption>
             </figure>
           ))}
+        </div>
         </div>
       </div>
     </section>
