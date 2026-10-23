@@ -24,6 +24,8 @@ professionnel du detailing qui paie DetailFlow. Lecture seule. Tu ne vois pas le
   tenant sans Stripe Connect, arrondis en centimes.
 - Textes : français correct, vouvoiement, aucune fonctionnalité présentée comme disponible si elle ne l'est pas.
 - Périmètre : fichiers modifiés hors plan ou changements sans rapport avec le lot.
+- Aperçu : si `.lot-state/<LOT>.apercu.html` existe, c'est la maquette validée par le développeur. Tout écart visible
+  (placement, format, contenu affiché par défaut, comportement annoncé) est un MAJEUR.
 
 ## Classification du risque de chaque problème
 `CRITIQUE` = mauvais montant facturé/prélevé, promesse commerciale fausse, décision inventée. `MOYEN` = critère non prouvé,

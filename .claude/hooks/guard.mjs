@@ -66,7 +66,7 @@ function checkWrite(ctx, filePath) {
     if (abs.startsWith(tmp + path.sep)) return pass()
     deny("écriture hors du dépôt interdite (seul le dossier temporaire est autorisé)")
   }
-  const isPlan = ctx.lot && (rel === `.lot-state/${ctx.lot}.plan.md` || rel === `.lot-state/${ctx.lot}.notes.md`)
+  const isPlan = ctx.lot && (rel === `.lot-state/${ctx.lot}.plan.md` || rel === `.lot-state/${ctx.lot}.notes.md` || rel === `.lot-state/${ctx.lot}.apercu.html`)
   if (isKitProtected(rel) && !isPlan) {
     deny(`« ${rel} » fait partie du kit ou de l'état du workflow : seul le développeur peut le modifier`)
   }
