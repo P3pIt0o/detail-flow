@@ -9,6 +9,7 @@ import {
   swipeStops,
 } from "@/components/custom-sites/cleanyzer/visit-3d-swipe"
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
+import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
 import { TILE_TIMEOUT_MS, labelsToShow, markerHtml, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
@@ -99,12 +100,36 @@ describe("L28 — comparateur avant/après", () => {
     expect(src).toContain("aria-valuenow")
   })
 
-  it("comparateur ISUZU dans le héros, ancienne section « Le soin en images » supprimée", () => {
+  it("aucun comparateur dans le héros (vidéo seule) ; ancienne section « Le soin en images » supprimée", () => {
     const hero = read(`${CLZ}/hero.tsx`)
-    expect(hero).toContain("ClzCompareSlider")
-    expect(hero).toContain("isuzu-avant.webp")
+    expect(hero).not.toContain("ClzCompareSlider")
+    expect(hero).not.toContain("isuzu")
     expect(read(`${CLZ}/home-sections.tsx`)).not.toContain("RealisationsPreview")
     expect(read(`${CLZ}/home-page.tsx`)).not.toContain("RealisationsPreview")
+  })
+
+  it("la section avant/après est la première section sous le héros", () => {
+    const page = read(`${CLZ}/home-page.tsx`)
+    const order = [...page.matchAll(/^\s*<(\w+) \/>$/gm)].map((m) => m[1])
+    expect(order.slice(0, 3)).toEqual(["CleanyzerHero", "AvantApresSection", "UniversSection"])
+    // La galerie reste à sa place (après le film des prestations).
+    expect(order.indexOf("RealisationsTom")).toBe(order.indexOf("PrestationsFilm") + 1)
+  })
+
+  it("avant/après : ISUZU intérieur puis les 3 paires de Tom, grille 2 × 2 sur ordinateur, empilée sur mobile", () => {
+    expect(AVANT_APRES_PAIRS.map((p) => p.before)).toEqual([ISUZU_PAIR.before, "phare-avant-1", "phare-avant-2", "siege-avant"])
+    expect(ISUZU_PAIR).toMatchObject({ title: "Nettoyage intérieur", detail: "Sièges, tapis, plastiques et recoins", kind: "interieur" })
+    expect(pairSrc(ISUZU_PAIR.before)).toBe("/custom-sites/cleanyzer/isuzu-avant.webp")
+    const src = read(`${CLZ}/realisations-tom.tsx`)
+    const start = src.indexOf("export function AvantApresSection")
+    const body = src.slice(start, src.indexOf("\n}\n", start))
+    expect(body).toContain('id="avant-apres"')
+    expect(body).toContain("grid gap-8 md:grid-cols-2")
+    expect(body).not.toMatch(/(md|lg):grid-cols-[34]/)
+  })
+
+  it("les pages prestations gardent leurs paires (ISUZU absente de PAIRS)", () => {
+    expect(PAIRS.map((p) => p.before)).toEqual(["phare-avant-1", "phare-avant-2", "siege-avant"])
   })
 
   it("le lien « Réalisations » du menu a toujours une cible", () => {
@@ -200,16 +225,8 @@ describe("L28 avenant — logos, comparateur pleine largeur, carte", () => {
     expect(body).not.toContain("Star")
   })
 
-  it("comparateur en bas du héros, pleine largeur, format fixe par variable CSS", () => {
-    const hero = read(`${CLZ}/hero.tsx`)
-    expect(hero).toContain('ratio="var(--clz-cmp-ratio)"')
-    expect(hero).not.toContain("lg:grid-cols-[minmax(0,1fr)_19rem]")
-    const css = read(`${CLZ}/cleanyzer.css`)
-    expect(css).toMatch(/--clz-cmp-ratio:\s*4 \/ 5/)
-    expect(css).toMatch(/--clz-cmp-ratio:\s*4 \/ 3/)
-    expect(css).not.toMatch(/16 \/ 9/)
-    expect(css).toMatch(/\.clz-hero-cmp \{[^}]*max-width:\s*1100px/)
-    expect(css).toMatch(/\.clz-hero-cmp \.clz-cmp-img \{[^}]*object-position/)
+  it("plus aucun style de comparateur de héros", () => {
+    expect(read(`${CLZ}/cleanyzer.css`)).not.toContain("clz-hero-cmp")
   })
 
   it("tous les points de communes sont rendus, chacun avec son nom (affiché ou au survol)", () => {

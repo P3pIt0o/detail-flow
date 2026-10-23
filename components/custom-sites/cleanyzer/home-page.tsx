@@ -1,9 +1,9 @@
 /**
  * Page d'accueil CLEANYZER (maquette Phase 1, isolée sous /cleanyzer-preview).
- * Ordre conversion : hero (avec avant/après) → univers/prestations →
- * prestations/tarifs → visite 3D → prestations au défilement (vidéos de Tom) →
- * avant/après et galerie → service à domicile → zone → avis → témoignages →
- * FAQ → CTA final.
+ * Ordre conversion : hero (vidéo) → avant/après (ISUZU + paires de Tom) →
+ * univers/prestations → prestations/tarifs → visite 3D → prestations au
+ * défilement (vidéos de Tom) → galerie des réalisations → service à domicile →
+ * zone → avis → témoignages → FAQ → CTA final.
  */
 
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
@@ -24,7 +24,7 @@ import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { ClzReveal } from "./motion"
 import { PrestationsFilm } from "./prestations-film"
 import { Visit3D } from "./visit-3d"
-import { RealisationsTom } from "./realisations-tom"
+import { AvantApresSection, RealisationsTom } from "./realisations-tom"
 import { CLZ_FAQ } from "./faq-content"
 import { buildFaqJsonLd } from "@/lib/seo/structured-data"
 
@@ -52,6 +52,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
       <CleanyzerHero />
+      <AvantApresSection />
       <UniversSection />
       <PrestationsPreview />
       <Visit3D />

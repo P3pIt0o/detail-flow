@@ -31,11 +31,9 @@ export type ClzCompareProps = {
   sizes?: string
   /** Ratio du cadre (largeur / hauteur), identique à celui des photos. */
   ratio?: string
-  /** Au-dessus de la ligne de flottaison (héros) : images chargées en priorité. */
-  priority?: boolean
 }
 
-export function ClzCompareSlider({ before, after, altBefore, altAfter, label, sizes = "(max-width:768px) 100vw, 33vw", ratio = "3 / 4", priority = false }: ClzCompareProps) {
+export function ClzCompareSlider({ before, after, altBefore, altAfter, label, sizes = "(max-width:768px) 100vw, 33vw", ratio = "3 / 4" }: ClzCompareProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const rangeRef = useRef<HTMLInputElement>(null)
   const dragging = useRef(false)
@@ -88,9 +86,9 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
       onPointerCancel={end}
       onLostPointerCapture={end}
     >
-      <Image src={after} alt={altAfter} fill priority={priority} loading={priority ? undefined : "lazy"} sizes={sizes} className="clz-cmp-img" draggable={false} />
+      <Image src={after} alt={altAfter} fill loading="lazy" sizes={sizes} className="clz-cmp-img" draggable={false} />
       <div className="clz-cmp-before">
-        <Image src={before} alt={altBefore} fill priority={priority} loading={priority ? undefined : "lazy"} sizes={sizes} className="clz-cmp-img" draggable={false} />
+        <Image src={before} alt={altBefore} fill loading="lazy" sizes={sizes} className="clz-cmp-img" draggable={false} />
       </div>
       <span className="clz-pair-label" aria-hidden="true">Avant</span>
       <span className="clz-pair-label is-after clz-cmp-after-label" aria-hidden="true">Après</span>

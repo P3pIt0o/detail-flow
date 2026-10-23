@@ -54,8 +54,12 @@ et une carte de zone plus réaliste.
   Trofeo à traits fins vert foncé → toujours sur fond clair).
 - [x] Témoignages : logo en haut de chaque carte, citation en grand, nom dessous ; 3 colonnes sur ordinateur, défilement
   horizontal sur mobile ; sans note ni étoile.
-- [x] Comparateur avant/après : en bas du héros, juste avant la section suivante ; dimensions fixes : 4/5 sur mobile,
-  4/3 centré (1100 px max) sur ordinateur, recadrage centré sur l'intérieur du véhicule (`object-position`).
+- [x] ~~Comparateur en bas du héros~~ — **remplacé** (retour Preview, Clément, 23/10/2026, après aperçu statique validé) :
+  aucun comparateur dans le héros (vidéo seule). La section avant/après entière (titre, texte, comparateurs ISUZU
+  intérieur + les 3 paires de Tom, même style) devient la **première section sous le héros** ; grille 2 × 2 sur
+  ordinateur, empilée sur mobile. Carte ISUZU : « Nettoyage intérieur » / « Sièges, tapis, plastiques et recoins »
+  (texte repris de l'ancienne section « Le soin en images »). La paire ISUZU reste hors des pages prestations. La galerie
+  « Passées entre les mains de Tom » reste à sa place, avec l'ancre `#realisations` du menu.
 - [x] Carte : choisir une commune (liste, pastille ou point) zoome et centre la carte dessus avec une animation ; la
   désélectionner (lien « Vue d'ensemble » ou nouveau clic) ramène à la vue d'ensemble ; zoom manuel toujours désactivé.
 - [x] Communes : tous les points de `zones.ts` affichés en permanence ; en vue d'ensemble, seuls les noms des communes

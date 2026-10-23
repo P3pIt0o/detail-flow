@@ -342,16 +342,6 @@
   }
 }
 
-/* L28 — comparateur avant/après en bas du héros : format fixe (aucun décalage de mise en page),
-   4/5 sur mobile, 4/3 centré (1100 px max) sur ordinateur. Photos en portrait : recadrage sur
-   le volant et la console (≈ 58 % de la hauteur). */
-.cleanyzer .clz-hero-cmp { --clz-cmp-ratio: 4 / 5; max-width: 1100px; margin-inline: auto; }
-@media (min-width: 768px) {
-  .cleanyzer .clz-hero-cmp { --clz-cmp-ratio: 4 / 3; }
-}
-.cleanyzer .clz-hero-cmp .clz-cmp-img { object-position: 50% 58%; }
-.cleanyzer .clz-hero-cmp .clz-cmp { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
-
 /* L28 — témoignages : défilement horizontal au clavier aussi (liste focusable). */
 .cleanyzer .clz-tem-list { scrollbar-width: thin; }
 .cleanyzer .clz-tem-list:focus-visible { outline: 2px solid var(--clz-blue); outline-offset: 4px; border-radius: 1rem; }

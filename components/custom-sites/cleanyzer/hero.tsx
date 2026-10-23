@@ -16,7 +16,6 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
-import { ClzCompareSlider } from "./compare-slider"
 import { CLZ_DEMANDE_HREF, CLZ_HOME_HREF } from "./tokens"
 
 // Variantes H.264 + AAC encodées depuis hero.mp4 (même scène, son conservé).
@@ -100,8 +99,7 @@ export function CleanyzerHero() {
       {/* Le logo n'apparaît QUE dans le header (brief §2) : aucun filigrane,
           aucun watermark, aucun logo superposé à la vidéo du hero. */}
 
-      <div className="relative mx-auto max-w-6xl px-6 pb-20 md:px-6">
-        <div className="flex min-h-[100svh] flex-col justify-center pb-16 pt-24">
+      <div className="relative mx-auto flex min-h-[100svh] max-w-6xl flex-col justify-center px-6 pb-28 pt-24 md:px-6 md:pb-24">
         <span className="clz-eyebrow">
           {BRAND.name} — {BRAND.area}
         </span>
@@ -162,26 +160,6 @@ export function CleanyzerHero() {
             </a>
           )}
         </div>
-        </div>
-
-        {/* Avant / après (retours de Tom) : bas du héros, pleine largeur, juste
-            avant la section suivante. Vraie intervention ; format fixe via
-            --clz-cmp-ratio (4/5 mobile, 4/3 centré dès 768 px) → aucun décalage de
-            mise en page. Sous la ligne de flottaison : chargement différé. */}
-        <figure className="clz-hero-cmp m-0">
-          <ClzCompareSlider
-            before="/custom-sites/cleanyzer/isuzu-avant.webp"
-            after="/custom-sites/cleanyzer/isuzu-apres.webp"
-            altBefore="Habitacle, moquette et sièges d'un ISUZU avant le nettoyage intérieur"
-            altAfter="Habitacle, moquette et sièges du même ISUZU après le nettoyage intérieur CLEANYZER"
-            label="Nettoyage intérieur ISUZU"
-            sizes="(max-width:1100px) 100vw, 1100px"
-            ratio="var(--clz-cmp-ratio)"
-          />
-          <figcaption className="mt-3 text-sm text-[var(--clz-on-dark-muted)]">
-            Un nettoyage intérieur réalisé par CLEANYZER. Faites glisser la poignée pour comparer.
-          </figcaption>
-        </figure>
       </div>
 
       {/* Bouton son on/off (la vidéo démarre coupée par contrainte navigateur). */}
