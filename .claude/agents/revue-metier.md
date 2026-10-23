@@ -1,7 +1,7 @@
 ---
 name: revue-metier
 description: Relecteur adverse MÉTIER de DetailFlow (conformité à la fiche du lot, prix, commissions, quotas, textes, cas limites, non-régression). Lancé uniquement par le workflow /lot quand « lot.mjs pack » le demande. Lecture seule.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
 ---
 

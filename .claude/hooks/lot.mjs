@@ -4,7 +4,7 @@
 // Appelé par Claude via : node .claude/hooks/lot.mjs <commande> <LOT> [options]
 // Il ne peut NI approuver un lot, NI remettre à zéro les compteurs : c'est dfguard.mjs (humain).
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import {
@@ -40,6 +40,7 @@ if (!cmd || cmd === "help" || cmd === "--help") {
     "  pack L1            prépare le dossier de revue et indique les relecteurs nécessaires",
     "  review L1 <agent> <OK|A_CORRIGER> [bloquants] [majeurs]",
     "  fix L1             ouvre une boucle de correction (limitée)",
+    "  replan L1          revient au plan pendant l'implémentation (nouvelle approbation humaine requise)",
     "  done L1            clôture si tout est vérifié",
   ])
   process.exit(0)
@@ -70,9 +71,17 @@ function changedFiles(base) {
     files.set(file, status[0])
   }
   const untracked = git(top, ["ls-files", "--others", "--exclude-standard"]) || ""
-  for (const f of untracked.split("\n").filter(Boolean)) files.set(f, "A")
+  for (const f of untracked.split("\n").filter(Boolean)) if (!isSandboxPlaceholder(f)) files.set(f, "A")
   for (const f of [...files.keys()]) if (f.startsWith(".lot-state/")) files.delete(f)
   return files
+}
+
+// Fichiers vides créés par le bac à sable de Claude Code pour les chemins interdits (jamais du travail du lot).
+const SANDBOX_PLACEHOLDERS = new Set([".env", ".env.local", ".env.development", ".env.development.local", ".env.preview", ".env.production", ".env.test",
+  ".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".gitconfig", ".gitmodules", ".mcp.json", ".ripgreprc", ".idea", ".vscode"])
+function isSandboxPlaceholder(f) {
+  if (!SANDBOX_PLACEHOLDERS.has(path.posix.basename(f))) return false
+  try { return statSync(path.join(top, f)).size === 0 } catch { return false }
 }
 
 function addedLinesByFile(base, files) {
@@ -451,6 +460,7 @@ function packCmd() {
     ...(verify.W || []).map((x) => `- ATTENTION ${x}`),
     "", `## Diff (${diffBase === st.base ? "complet depuis la base" : "delta depuis la dernière revue"})`, "```", diff, "```", "", "```diff", fullDiff.length > 400000 ? fullDiff.slice(0, 400000) + "\n[… diff tronqué : lire les fichiers concernés]" : fullDiff, "```",
   ]
+  pack.push(...packExtras(st, h, files, verify))
   writeFileSync(path.join(stateDir(top), `${LOT}.review.md`), pack.join("\n") + "\n")
   out([
     `Dossier de revue : .lot-state/${LOT}.review.md (${files.size} fichiers, ${Math.round(fullDiff.length / 1024)} Ko de diff)`,
@@ -521,6 +531,39 @@ function doneCmd() {
   out([`LOT ${LOT} TERMINÉ @${short(h)} (risque ${st.risk}).`, "Commits :", commits, st.risk === "critique" ? "LOT CRITIQUE : le rapport doit demander une relecture humaine ligne à ligne avant push." : ""].filter(Boolean))
 }
 
-const CMDS = { status: statusCmd, start: startCmd, baseline: baselineCmd, "plan-ready": planReadyCmd, begin: beginCmd, verify: verifyCmd, pack: packCmd, review: reviewCmd, fix: fixCmd, done: doneCmd }
+// Éléments du dossier pour des relecteurs SANS commande : le vérificateur n'a besoin que de Read.
+function packExtras(st, h, files, verify) {
+  const subject = git(top, ["log", "-1", "--format=%s"]) || ""
+  const planText = existsSync(planPath(top, LOT)) ? readFileSync(planPath(top, LOT), "utf8") : ""
+  const planned = planFiles(planText)
+  const outside = [...files.keys()].filter((f) => !matchesAny(f, planned))
+  const notes = existsSync(path.join(stateDir(top), `${LOT}.notes.md`)) ? readFileSync(path.join(stateDir(top), `${LOT}.notes.md`), "utf8") : ""
+  const points = notes.split(/^(?=## Revue )/m).filter((x) => x.startsWith("## Revue ")).map((x) => x.trim())
+  return [
+    "", "## Contexte pour le vérificateur (tout est ici : ne lance AUCUNE commande)",
+    `- HEAD : ${short(h)} ${subject}`,
+    `- Dernière vérification complète : ${st.lastVerify?.result ?? "?"} @${short(st.lastVerify?.head)} — typecheck ${verify.typecheck ?? "?"} — tests ${verify.tests ?? "?"}`,
+    ...(verify.F || []).map((x) => `- BLOQUANT verify : ${x}`),
+    "- Tests BDD/réseau : ignorés chez l'agent. Ils ne sont JAMAIS « réussis » ; le développeur les lance avec dfguard.mjs test-db.",
+    `- Fichiers du plan approuvé : ${planned.map((f) => `\`${f}\``).join(", ") || "(aucun)"}`,
+    outside.length ? `- HORS PLAN : ${outside.map((f) => `\`${f}\``).join(", ")}` : "- Hors plan : aucun fichier",
+    "", "## Points des relecteurs précédents",
+    ...(points.length ? points : ["(aucun point enregistré dans .lot-state/" + LOT + ".notes.md)"]),
+  ]
+}
+
+function replanCmd() {
+  const st = requireState(); requireBranch(st)
+  if (!["IMPLEMENTING", "IMPLEMENTED", "REVIEWED", "FIXING", "VERIFIED"].includes(st.phase)) fail(`phase ${st.phase} : « replan » sert à modifier un plan déjà approuvé`)
+  st.replanFrom = st.phase; st.phase = "AUDIT"; st.reviews = {}; delete st.reviewOutcome
+  // L'approbation est retirée (jamais accordée) : la garde repasse en « plan seul » jusqu'à la ré-approbation humaine.
+  rmSync(approvalPath(top, LOT), { force: true })
+  st.replans = (st.replans || 0) + 1
+  log(st, `replan depuis ${st.replanFrom}`)
+  save(st)
+  out(`Plan ${LOT} rouvert (les commits sont conservés, les revues sont à refaire). Modifie .lot-state/${LOT}.plan.md, puis « plan-ready ${LOT} » : le développeur devra ré-approuver.`)
+}
+
+const CMDS = { replan: replanCmd, status: statusCmd, start: startCmd, baseline: baselineCmd, "plan-ready": planReadyCmd, begin: beginCmd, verify: verifyCmd, pack: packCmd, review: reviewCmd, fix: fixCmd, done: doneCmd }
 if (!CMDS[cmd]) fail(`commande inconnue « ${cmd} » (voir help)`)
 CMDS[cmd]()

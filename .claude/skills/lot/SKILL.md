@@ -9,6 +9,8 @@ Tu pilotes le lot **$ARGUMENTS**. L'état fait foi : `node .claude/hooks/lot.mjs
 `.lot-state/`. Tu ne modifies jamais ce dossier toi-même, sauf le plan `.lot-state/$ARGUMENTS.plan.md`.
 La garde (« [Garde DetailFlow] ») bloque techniquement les actions interdites : si elle refuse, n'essaie aucune
 variante, explique le blocage en une phrase et attends le développeur.
+**Une commande par appel Bash** : jamais de `&&`, `;`, `|` ni de redirection (`2>&1`, `>`) quand la commande touche
+`git`, `.claude/` ou `.lot-state/`. Lancer ces commandes séparément n'est pas une variante : c'est la procédure normale.
 
 ## 0. Toujours commencer par l'état (reprise)
 Lance `node .claude/hooks/lot.mjs status $ARGUMENTS` et reprends EXACTEMENT à la « Prochaine action » indiquée.
@@ -17,8 +19,11 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 
 ## 1. Démarrage (aucun état)
 1. `git status` doit être propre, sinon demande quoi faire.
-2. `git switch main` puis `git switch -c lot/$ARGUMENTS-<slug>` (slug = nom du fichier de la fiche, ex. `lot/L1-commissions`).
-3. `lot start $ARGUMENTS` puis `lot baseline $ARGUMENTS` (mémorise les tests déjà en échec).
+2. Appels séparés : `git switch main`, puis `git switch -c lot/$ARGUMENTS-<slug>` (slug = nom du fichier de la fiche, ex. `lot/L1-commissions`).
+   Si Git refuse d'écrire dans `.git/` (bac à sable), demande au développeur de créer la branche lui-même
+   (une seule fois : la configuration recommandée du kit autorise ces commandes hors bac à sable).
+3. Appels séparés : `node .claude/hooks/lot.mjs start $ARGUMENTS`, puis `node .claude/hooks/lot.mjs baseline $ARGUMENTS`
+   (mémorise les tests ET les erreurs TypeScript déjà présentes : seules les nouvelles bloquent).
 
 ## 2. Audit et plan (lecture seule imposée par la garde)
 - Si `.lot-state/$ARGUMENTS.notes.md` existe (fait par `/audit`), pars de ses constats et de ses réponses ; sinon revérifie
@@ -38,7 +43,7 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 ## 3. Implémentation (après approbation)
 1. `lot begin $ARGUMENTS`. S'il refuse, dis pourquoi et arrête.
 2. Tests d'abord (ils doivent échouer sans le code), puis le code. Seuls les fichiers du plan sont modifiables ;
-   s'il en faut un autre, arrête-toi : le plan doit être modifié et ré-approuvé.
+   s'il en faut un autre : `lot replan $ARGUMENTS`, ajoute-le au plan, `lot plan-ready $ARGUMENTS`, puis STOP pour la ré-approbation.
 3. Commits locaux fréquents : `git add <fichiers>` + `git commit -m "lot $ARGUMENTS: …"` (protège contre une coupure de quota).
 4. Pendant le travail : `lot verify $ARGUMENTS --quick` (tests liés seulement). À la fin : `lot verify $ARGUMENTS` (complet).
    Corrige jusqu'à `RÉSULTAT : OK`. Après 3 échecs complets d'affilée, l'outil bloque : fais un point au développeur.
@@ -46,10 +51,13 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 ## 4. Revues proportionnées au risque (économie de quota)
 1. `lot pack $ARGUMENTS` : il écrit `.lot-state/$ARGUMENTS.review.md` et liste les relecteurs requis.
    faible = aucun · moyen = revue-metier + revue-securite · critique = les deux, puis verificateur.
-2. Lance UNIQUEMENT les relecteurs listés « À lancer », en parallèle, avec ce seul prompt :
+2. Lance UNIQUEMENT les relecteurs listés « À lancer » (sauf `verificateur`), en parallèle, avec ce seul prompt :
    « Lot $ARGUMENTS. Dossier : .lot-state/$ARGUMENTS.review.md. » (pas ton raisonnement, pas de résumé).
-   Pour un lot critique, lance `verificateur` après les deux revues, en lui donnant la liste de leurs points.
-3. Après chaque retour : `lot review $ARGUMENTS <agent> <OK|A_CORRIGER> <nb BLOQUANT> <nb MAJEUR>`.
+3. Après chaque retour : ajoute à la fin de `.lot-state/$ARGUMENTS.notes.md` une section `## Revue <agent> @<HEAD court>`
+   contenant sa liste de points et sa ligne VERDICT, recopiées telles quelles ; puis
+   `lot review $ARGUMENTS <agent> <OK|A_CORRIGER> <nb BLOQUANT> <nb MAJEUR>`.
+4. Lot critique : quand les deux revues sont enregistrées, relance `lot pack $ARGUMENTS` (le dossier contient alors leurs points),
+   puis lance `verificateur` avec le même prompt court. Il ne lance aucune commande : tout est dans le dossier.
 
 ## 5. Corrections (boucles limitées)
 - Tout OK → étape 6.

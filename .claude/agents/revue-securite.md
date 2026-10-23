@@ -1,7 +1,7 @@
 ---
 name: revue-securite
 description: Relecteur adverse SÉCURITÉ de DetailFlow (tenants, autorisations, Stripe, secrets, migrations). Lancé uniquement par le workflow /lot quand « lot.mjs pack » le demande. Lecture seule.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
 ---
 
