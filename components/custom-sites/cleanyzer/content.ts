@@ -245,7 +245,7 @@ export const BRAND = {
 }
 
 // Témoignages d'entreprises clientes (L28) : accord et citations validés par écrit
-// (Clément, 23/10/2026). Citations recopiées mot pour mot, sans note ni logo.
+// (Clément, 23/10/2026). Citations recopiées mot pour mot, sans note.
 // `url` : site de l'entreprise, à renseigner seulement quand il est fourni.
 // `logo` : utilisation autorisée par chaque entreprise (Clément, 23/10/2026). PNG transparents, à poser sur fond clair.
 export type ClzTestimonial = { company: string; quote: string; verified: boolean; url?: string; logo?: string }

@@ -35,8 +35,9 @@ import "./visit-3d.css"
 const BASE = "/custom-sites/cleanyzer/3d/"
 const THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0"
 const FALLBACK_IMG = "/custom-sites/cleanyzer/realisations/gt3rs.webp"
-// shortcut: évalué au montage seulement (pas de bascule si l'écran pivote), suffisant pour téléphone vs ordinateur.
-const SWIPE_MQ = "(max-width: 767px) and (pointer: coarse)"
+// Écran tactile (téléphone, y compris en paysage, et tablette) : glissement ; souris : défilement.
+// shortcut: évalué au montage seulement, sans écouteur ; suffit tant qu'un appareil ne change pas de pointeur.
+const SWIPE_MQ = "(pointer: coarse)"
 
 /** Ordre des images clés de la caméra (maquette : KEYS après insertion du moteur). */
 const KEY_ORDER: (ZoneKey | null)[] = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
@@ -104,7 +105,10 @@ const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)"
 function hasWebGL() {
   try {
     const c = document.createElement("canvas")
-    return !!(c.getContext("webgl2") || c.getContext("webgl"))
+    const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null
+    // Contexte de test libéré aussitôt (les navigateurs limitent le nombre de contextes actifs).
+    gl?.getExtension("WEBGL_lose_context")?.loseContext()
+    return !!gl
   } catch {
     return false
   }

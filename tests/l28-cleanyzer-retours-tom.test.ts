@@ -12,8 +12,8 @@ import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
 import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
-import { TILE_TIMEOUT_MS, labelsToShow, markerHtml, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
-import { toggleSelection } from "@/components/custom-sites/cleanyzer/zone-module"
+import { OVERVIEW_ZOOM, TILE_TIMEOUT_MS, labelsToShow, markerHtml, overviewZoom, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
+import { INITIAL_SELECTION, nextSelection } from "@/components/custom-sites/cleanyzer/zone-module"
 import { ZONE_COMMUNES } from "@/components/custom-sites/cleanyzer/zones"
 
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
@@ -270,18 +270,42 @@ describe("L28 avenant — logos, comparateur pleine largeur, carte", () => {
     expect(viewFor("inconnue")).toEqual(overview)
   })
 
-  it("nouveau clic sur la commune choisie = désélection ; autre commune = sélection", () => {
-    expect(toggleSelection("annecy", "annecy")).toBeNull()
-    expect(toggleSelection("annecy", "seynod")).toBe("seynod")
-    expect(toggleSelection(null, "choisy")).toBe("choisy")
+  it("clic sur une commune = sélection + zoom ; nouveau clic sur la commune zoomée = vue d'ensemble", () => {
+    const zoomed = nextSelection({ selected: "annecy", focused: true }, "annecy")
+    expect(zoomed).toEqual({ selected: null, focused: false })
+    expect(nextSelection({ selected: "annecy", focused: true }, "seynod")).toEqual({ selected: "seynod", focused: true })
+    expect(nextSelection({ selected: null, focused: false }, "choisy")).toEqual({ selected: "choisy", focused: true })
   })
 
-  it("au chargement : Annecy sélectionnée dans l'encart, carte en vue d'ensemble ; lien « Vue d'ensemble »", () => {
+  // Retour revue-metier (MAJEUR) : au chargement Annecy est sélectionnée mais la carte n'est pas zoomée ;
+  // le premier clic sur Annecy doit zoomer, pas désélectionner.
+  it("premier clic sur Annecy (sélection par défaut, carte non zoomée) = zoom, pas désélection", () => {
+    expect(INITIAL_SELECTION).toEqual({ selected: "annecy", focused: false })
+    expect(nextSelection(INITIAL_SELECTION, "annecy")).toEqual({ selected: "annecy", focused: true })
+  })
+
+  it("au chargement : Annecy dans l'encart, carte en vue d'ensemble ; lien « Vue d'ensemble » seulement si zoomée", () => {
     const mod = read(`${CLZ}/zone-module.tsx`)
-    expect(mod).toContain("useState<string | null>(ZONE_DEFAULT_SLUG)")
-    // Sélection initiale appliquée sans animation (la carte reste en vue d'ensemble).
-    expect(read(`${CLZ}/zone-map.tsx`)).toContain("h.select(selectedRef.current, false)")
+    expect(mod).toContain("useState(INITIAL_SELECTION)")
+    expect(mod).toMatch(/sel\.focused && \(/)
     expect(mod).toMatch(/Vue d(&apos;|')ensemble/)
+  })
+
+  // Retour revue-metier (MAJEUR) : à 360 px le cercle de 20 km était coupé en vue d'ensemble.
+  it("vue d'ensemble : le cercle de 20 km tient entièrement dans la carte, quelle que soit sa largeur", () => {
+    const lat = ZONE.viewCenter.lat
+    const kmLng = 111.32 * Math.cos((lat * Math.PI) / 180)
+    const halfX = ZONE.visualRadiusKm + Math.abs(ZONE.base.lng - ZONE.viewCenter.lng) * kmLng
+    const halfY = ZONE.visualRadiusKm + Math.abs(ZONE.base.lat - ZONE.viewCenter.lat) * 111.32
+    for (const [w, h] of [[320, 336], [360, 378], [390, 410], [600, 620], [1280, 620]]) {
+      const z = overviewZoom(w, h)
+      const pxPerKm = (512 * 2 ** z) / (40075.017 * Math.cos((lat * Math.PI) / 180))
+      expect(halfX * pxPerKm).toBeLessThanOrEqual(w / 2)
+      expect(halfY * pxPerKm).toBeLessThanOrEqual(h / 2)
+    }
+    // Grand écran : l'échelle d'origine est conservée.
+    expect(overviewZoom(1000, 1000)).toBe(OVERVIEW_ZOOM)
+    expect(viewFor(null, overviewZoom(360, 378)).zoom).toBe(overviewZoom(360, 378))
   })
 
   it("crédits compacts (bouton « i »), sans doublon", () => {

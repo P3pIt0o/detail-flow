@@ -65,7 +65,11 @@ et une carte de zone plus réaliste.
 - [x] Communes : tous les points de `zones.ts` affichés en permanence ; en vue d'ensemble, seuls les noms des communes
   principales (`major`) ; les autres noms apparaissent en vue rapprochée ou au survol/focus du point ; aucun chevauchement
   de noms (priorité : commune choisie, base, principales).
-- [x] Au chargement : Annecy (`ZONE_DEFAULT_SLUG`) sélectionnée dans l'encart, carte en vue d'ensemble.
+- [x] Au chargement : Annecy (`ZONE_DEFAULT_SLUG`) sélectionnée dans l'encart, carte en vue d'ensemble. Le premier clic
+  sur Annecy zoome dessus (pas de désélection) ; le lien « Vue d'ensemble » n'apparaît que lorsque la carte est zoomée
+  (correction après revue métier).
+- [x] Vue d'ensemble : zoom calculé d'après la taille de la carte pour que le cercle de 20 km tienne entièrement, même à
+  320–390 px de large (correction après revue métier).
 - [x] Crédits de la carte dans un bouton « i » repliable, sans doublon.
 
 ## Poids 3D — justification du dépassement (critère « < 5 Mo »)

@@ -21,7 +21,8 @@ import { useEffect, useRef } from "react"
 import "leaflet/dist/leaflet.css"
 import { ZONE, ZONE_COMMUNES, type ZoneCommune } from "./zones"
 
-type Props = { selected: string | null; onSelect: (slug: string) => void }
+/** `selected` : commune mise en avant ; `focus` : commune sur laquelle zoomer (null = vue d'ensemble). */
+type Props = { selected: string | null; focus: string | null; onSelect: (slug: string) => void }
 
 const BLUE = "#0A84FF"
 const MAPLIBRE_CDN = "https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist"
@@ -34,10 +35,24 @@ const RELIEF_ATTRIBUTION = '<a href="https://registry.opendata.aws/terrain-tiles
 export const OVERVIEW_ZOOM = 9
 export const COMMUNE_ZOOM = 11
 
+/**
+ * Zoom de la vue d'ensemble pour que le cercle de 20 km (centré sur Choisy, la vue étant centrée sur
+ * ZONE.viewCenter) tienne entièrement dans une carte de `w` × `h` px ; plafonné à OVERVIEW_ZOOM.
+ * Échelle MapLibre (tuiles de 512 px).
+ */
+export function overviewZoom(w: number, h: number): number {
+  const cos = Math.cos((ZONE.viewCenter.lat * Math.PI) / 180)
+  const halfX = ZONE.visualRadiusKm + Math.abs(ZONE.base.lng - ZONE.viewCenter.lng) * 111.32 * cos
+  const halfY = ZONE.visualRadiusKm + Math.abs(ZONE.base.lat - ZONE.viewCenter.lat) * 111.32
+  const pad = 12
+  const pxPerKm = Math.min((w / 2 - pad) / halfX, (h / 2 - pad) / halfY)
+  return Math.min(OVERVIEW_ZOOM, Math.log2((pxPerKm * 40075.017 * cos) / 512))
+}
+
 /** Vue à afficher : centrée sur la commune choisie, sinon vue d'ensemble. Centre au format [lng, lat]. */
-export function viewFor(slug: string | null): { center: [number, number]; zoom: number } {
+export function viewFor(slug: string | null, overview = OVERVIEW_ZOOM): { center: [number, number]; zoom: number } {
   const c = slug ? ZONE_COMMUNES.find((x) => x.slug === slug) : undefined
-  return c ? { center: [c.lng, c.lat], zoom: COMMUNE_ZOOM } : { center: [ZONE.viewCenter.lng, ZONE.viewCenter.lat], zoom: OVERVIEW_ZOOM }
+  return c ? { center: [c.lng, c.lat], zoom: COMMUNE_ZOOM } : { center: [ZONE.viewCenter.lng, ZONE.viewCenter.lat], zoom: overview }
 }
 
 /** Repère d'une commune : point toujours visible, nom masqué par `is-label-hidden` (voir labelsToShow), visible au survol. */
@@ -184,8 +199,11 @@ const MAP_STYLE = {
   ],
 }
 
-/** `fly` : animer la caméra vers la vue de la commune (ou la vue d'ensemble si `slug` est null). */
-type MapHandle = { select: (slug: string | null, fly: boolean) => void; destroy: () => void }
+/**
+ * `slug` : commune mise en avant ; `focus` : commune sur laquelle la carte est zoomée (null = vue
+ * d'ensemble) ; `fly` : animer la caméra vers cette vue.
+ */
+type MapHandle = { select: (slug: string | null, focus: string | null, fly: boolean) => void; destroy: () => void }
 
 /** Délai max avant le premier affichage complet ; au-delà, repli Leaflet. */
 export const TILE_TIMEOUT_MS = 10_000
@@ -200,11 +218,13 @@ function initMapLibre(
   reduce: boolean,
   onFail: () => void,
 ): MapHandle {
+  // shortcut: calculé à l'initialisation (pas au redimensionnement), suffisant pour une carte de largeur fixe par appareil.
+  const ov = overviewZoom(container.clientWidth, container.clientHeight)
   const map = new maplibregl.Map({
     container,
     style: MAP_STYLE,
     center: [ZONE.viewCenter.lng, ZONE.viewCenter.lat],
-    zoom: OVERVIEW_ZOOM,
+    zoom: ov,
     pitch: 0,
     bearing: 0,
     maxPitch: 0,
@@ -264,14 +284,14 @@ function initMapLibre(
       const { x, y } = map.project([c.lng, c.lat])
       return toLabelPoint(c, x, y)
     })
-    const shown = labelsToShow(pts, map.getZoom() > OVERVIEW_ZOOM + 0.5, current)
+    const shown = labelsToShow(pts, map.getZoom() > ov + 0.5, current)
     for (const c of ZONE_COMMUNES) pins.get(c.slug)!.classList.toggle("is-label-hidden", !shown.has(c.slug))
   }
   map.on("moveend", relabel)
   map.on("resize", relabel)
 
   return {
-    select: (slug, fly) => {
+    select: (slug, focus, fly) => {
       current = slug
       for (const c of ZONE_COMMUNES) {
         const el = pins.get(c.slug)!
@@ -281,7 +301,7 @@ function initMapLibre(
       }
       relabel()
       if (!fly) return
-      const v = viewFor(slug)
+      const v = viewFor(focus, ov)
       if (reduce) map.jumpTo(v)
       else map.flyTo({ ...v, duration: 900 })
     },
@@ -296,9 +316,12 @@ function initMapLibre(
 /** Repli : la carte d'avant L28 (Leaflet, fond bleu en CSS, sans tuiles tierces), figée elle aussi. */
 async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => void, reduce: boolean): Promise<MapHandle> {
   const L = await import("leaflet")
+  // Même échelle que MapLibre : tuiles Leaflet de 256 px → zoom + 1.
+  const ov = overviewZoom(container.clientWidth, container.clientHeight)
   const map = L.map(container, {
     center: [ZONE.viewCenter.lat, ZONE.viewCenter.lng],
-    zoom: OVERVIEW_ZOOM + 1,
+    zoom: ov + 1,
+    zoomSnap: 0,
     zoomControl: false,
     attributionControl: true,
     dragging: false,
@@ -346,13 +369,13 @@ async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => v
       const { x, y } = map.latLngToContainerPoint([c.lat, c.lng])
       return toLabelPoint(c, x, y)
     })
-    const shown = labelsToShow(pts, map.getZoom() > OVERVIEW_ZOOM + 1.5, current)
+    const shown = labelsToShow(pts, map.getZoom() > ov + 1.5, current)
     for (const c of ZONE_COMMUNES) markers.get(c.slug)!.getElement()?.classList.toggle("is-label-hidden", !shown.has(c.slug))
   }
   map.on("moveend", relabel)
   map.on("resize", relabel)
   return {
-    select: (slug, fly) => {
+    select: (slug, focus, fly) => {
       current = slug
       for (const c of ZONE_COMMUNES) {
         const active = c.slug === slug
@@ -361,7 +384,7 @@ async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => v
       }
       relabel()
       if (!fly) return
-      const { center, zoom } = viewFor(slug)
+      const { center, zoom } = viewFor(focus, ov)
       if (reduce) map.setView([center[1], center[0]], zoom + 1)
       else map.flyTo([center[1], center[0]], zoom + 1, { duration: 0.9 })
     },
@@ -372,11 +395,12 @@ async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => v
   }
 }
 
-export function CleanyzerZoneMap({ selected, onSelect }: Props) {
+export function CleanyzerZoneMap({ selected, focus, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<MapHandle | null>(null)
   const onSelectRef = useRef(onSelect)
   const selectedRef = useRef(selected)
+  const focusRef = useRef(focus)
   useEffect(() => {
     onSelectRef.current = onSelect
   }, [onSelect])
@@ -392,7 +416,8 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
     const ready = (h: MapHandle) => {
       if (cancelled) return h.destroy()
       handleRef.current = h
-      h.select(selectedRef.current, false)
+      // Commune choisie pendant le chargement : la carte s'y place dès qu'elle est prête.
+      h.select(selectedRef.current, focusRef.current, focusRef.current !== null)
     }
     const fallback = () => {
       if (cancelled) return
@@ -435,8 +460,9 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
   // Sélection pilotée de l'extérieur (animation vers la commune, ou retour à la vue d'ensemble).
   useEffect(() => {
     selectedRef.current = selected
-    handleRef.current?.select(selected, true)
-  }, [selected])
+    focusRef.current = focus
+    handleRef.current?.select(selected, focus, true)
+  }, [selected, focus])
 
   return (
     <div className="clz-zm">

@@ -33,12 +33,22 @@ type Props = {
   requestHref: string
 }
 
-/** Nouveau choix de la commune déjà sélectionnée = désélection (retour à la vue d'ensemble). */
-export const toggleSelection = (current: string | null, slug: string): string | null => (current === slug ? null : slug)
+/** `selected` : commune de l'encart ; `focused` : la carte est zoomée dessus. */
+export type ZoneSelection = { selected: string | null; focused: boolean }
+
+/** Annecy par défaut dans l'encart, carte en vue d'ensemble (non zoomée). */
+export const INITIAL_SELECTION: ZoneSelection = { selected: ZONE_DEFAULT_SLUG, focused: false }
+
+/**
+ * Choisir une commune la sélectionne et zoome dessus ; la choisir à nouveau alors que la carte est
+ * déjà zoomée dessus ramène à la vue d'ensemble. La sélection par défaut (non zoomée) zoome au premier clic.
+ */
+export const nextSelection = (s: ZoneSelection, slug: string): ZoneSelection =>
+  s.selected === slug && s.focused ? { selected: null, focused: false } : { selected: slug, focused: true }
 
 export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
-  // Annecy par défaut dans l'encart ; la carte reste en vue d'ensemble au chargement (zone-map).
-  const [selected, setSelected] = useState<string | null>(ZONE_DEFAULT_SLUG)
+  const [sel, setSel] = useState(INITIAL_SELECTION)
+  const selected = sel.selected
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
@@ -60,9 +70,9 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
   const pick = (slug: string) => {
     const c = getCommune(slug)
     if (!c) return
-    const next = toggleSelection(selected, slug)
-    setSelected(next)
-    setQuery(next ? c.name : "")
+    const next = nextSelection(sel, slug)
+    setSel(next)
+    setQuery(next.selected ? c.name : "")
     setOpen(false)
     setActive(-1)
     inputRef.current?.blur()
@@ -92,7 +102,7 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
     <div className="clz-zone-grid">
       {/* Carte */}
       <div>
-        <CleanyzerZoneMap selected={selected} onSelect={pick} />
+        <CleanyzerZoneMap selected={selected} focus={sel.focused ? selected : null} onSelect={pick} />
         <div className="clz-zm-legend">
           <span><i className="is-base" />CLEANYZER à {ZONE.base.label}</span>
           <span><i className="is-incluse" />Exemples de communes du secteur</span>
@@ -214,9 +224,11 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
               <p className="clz-zp-text">
                 Nettoyage voiture et canapé à domicile à {commune.name} : choisissez le parcours adapté à votre besoin.
               </p>
-              <button type="button" className="clz-zp-reset" onClick={() => pick(commune.slug)}>
-                Vue d&apos;ensemble
-              </button>
+              {sel.focused && (
+                <button type="button" className="clz-zp-reset" onClick={() => pick(commune.slug)}>
+                  Vue d&apos;ensemble
+                </button>
+              )}
             </>
           ) : (
             <>
