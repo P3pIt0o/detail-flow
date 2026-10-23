@@ -325,6 +325,18 @@ function baselineCmd() {
   out([`Baseline : ${t.summary} | Typecheck : ${tb.error ? `INDISPONIBLE (${tb.error}) : verify échouera tant qu'elle ne pourra pas être calculée` : `${tb.errors.length} erreur(s) préexistante(s)`}`, ...(t.failed.length ? ["Déjà en échec AVANT le lot (ne pas les corriger sans accord) :", ...t.failed.slice(0, 20).map((x) => `  - ${x}`)] : [])])
 }
 
+// Lots qui changent l'interface : aperçu visuel obligatoire AVANT l'approbation (.lot-state/<LOT>.apercu.html).
+const UI_FILE_RX = /^(components\/.*\.(tsx|jsx|css)|app\/(?!api\/).*\.(tsx|jsx|css)|public\/.*\.(png|jpe?g|webp|avif|svg))$/
+function apercuCheck(text, files) {
+  const ui = files.filter((f) => UI_FILE_RX.test(f.replace(/\*/g, "x")) && !f.startsWith("tests/"))
+  if (!ui.length) return ""
+  const p = path.join(stateDir(top), `${LOT}.apercu.html`)
+  const waived = /^##\s+Aperçu\s*:\s*sans objet\b.{10,}/im.test(text)
+  if (waived) return "Aperçu : sans objet (justifié dans le plan)"
+  if (!existsSync(p) || statSync(p).size < 500) fail(`le plan modifie l'interface (${ui.slice(0, 3).join(", ")}${ui.length > 3 ? "…" : ""}) : écris d'abord l'aperçu visuel .lot-state/${LOT}.apercu.html (ou « ## Aperçu : sans objet — <raison> » si rien de visible ne change)`)
+  return `APERÇU À VALIDER par le développeur avant approbation : xdg-open .lot-state/${LOT}.apercu.html`
+}
+
 function planReadyCmd() {
   const st = requireState(); requireBranch(st)
   if (!["AUDIT", "PLAN_READY"].includes(st.phase)) fail(`phase ${st.phase} : le plan ne peut plus être modifié sans nouvelle approbation`)
@@ -336,6 +348,7 @@ function planReadyCmd() {
   const files = planFiles(text)
   if (!files.length) fail("la section « ## Fichiers » ne liste aucun fichier (`chemin` par ligne)")
   if (/\[ \]/.test(text.split(/^##\s+Décisions/im)[1]?.split(/^##\s/m)[0] || "")) fail("des décisions sont encore à confirmer ([ ]) : pose les questions au développeur, n'invente rien")
+  const apercu = apercuCheck(text, files)
   const computed = maxRisk(files.map(riskOf))
   const declared = planDeclaredRisk(text)
   const risk = declared && riskRank(declared) > riskRank(computed) ? declared : computed
@@ -344,6 +357,7 @@ function planReadyCmd() {
   save(st)
   const crit = files.filter((f) => riskOf(f) === "critique")
   out([
+    apercu,
     `PLAN ${LOT} prêt — risque ${risk.toUpperCase()}${declared && declared !== risk ? ` (déclaré ${declared}, recalculé ${risk})` : ""}`,
     `Fichiers : ${files.length}${crit.length ? ` dont CRITIQUES : ${crit.join(", ")}` : ""}`,
     `Relecteurs prévus : ${REVIEWERS_BY_RISK[risk].join(", ") || "aucun (contrôles automatiques seulement)"}`,

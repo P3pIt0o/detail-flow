@@ -36,8 +36,16 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
   globs autorisés pour les nouveaux tests, ex. `` `tests/l1-*.test.ts` ``) · `## Tests` (nouveaux tests + tests existants de
   non-régression cités par la fiche) · `## Risque : faible|moyen|critique` (+ justification) · `## Migrations et variables d'env` ·
   `## Hors périmètre`.
+- **Aperçu visuel obligatoire si le plan change l'interface** (`components/`, pages `app/`, CSS, images) : avant `plan-ready`,
+  écris `.lot-state/$ARGUMENTS.apercu.html`, une page HTML statique autonome (aucun script externe) qui montre AVANT / APRÈS
+  chaque section modifiée, côte à côte en mobile (390 px) et ordinateur (1280 px) : vrais textes, vraies couleurs et polices
+  du site, vraies images via des chemins relatifs `../public/...`, annotations courtes sur le comportement (glissement, zoom,
+  animation, état au chargement). C'est une maquette, pas le code final : quelques minutes, pas de perfection.
+  Si rien de visible ne change, écris dans le plan `## Aperçu : sans objet — <raison>`.
 - `lot plan-ready $ARGUMENTS`. Puis **STOP** : présente le plan en 15 lignes max et termine ton tour avec :
-  « Approuve dans ton terminal : `node .claude/hooks/dfguard.mjs approve $ARGUMENTS` puis relance `/lot $ARGUMENTS`. »
+  « Ouvre l'aperçu : `xdg-open .lot-state/$ARGUMENTS.apercu.html` (s'il existe). S'il te convient, approuve dans ton terminal :
+  `node .claude/hooks/dfguard.mjs approve $ARGUMENTS` puis relance `/lot $ARGUMENTS`. Sinon, dis-moi quoi changer. »
+  Toute retouche de l'aperçu ou du plan se fait AVANT l'approbation ; l'implémentation doit ensuite suivre l'aperçu validé.
   Tu ne peux PAS approuver toi-même ; n'écris aucun code avant.
 
 ## 3. Implémentation (après approbation)
