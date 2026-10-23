@@ -30,6 +30,10 @@
 .cleanyzer .clz-zm-skeleton { background: radial-gradient(70% 60% at 50% 40%, #0a2e5c, #000) !important; }
 .cleanyzer .clz-zm-icon { background: none; border: 0; padding: 0; width: 0; height: 0; overflow: visible; cursor: pointer; }
 .cleanyzer button.clz-zm-icon:focus-visible .clz-zm-dot { outline: 2px solid #fff; outline-offset: 2px; }
+/* L28 — nom masqué pour éviter les chevauchements (labelsToShow), révélé au survol ou au focus du point. */
+.cleanyzer .clz-zm-icon.is-label-hidden .clz-zm-label { display: none; }
+.cleanyzer .clz-zm-icon.is-label-hidden:hover .clz-zm-label,
+.cleanyzer .clz-zm-icon.is-label-hidden:focus-visible .clz-zm-label { display: block; }
 .cleanyzer .clz-zm-pin { position: relative; display: block; transform: translate(-50%, -50%); width: 0; height: 0; cursor: pointer; }
 .cleanyzer .clz-zm-dot {
   position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%;
@@ -124,3 +128,9 @@
 .cleanyzer .clz-zone-seo h3 { font-family: var(--font-clz-display), Georgia, serif; font-weight: 400; font-size: 28px; margin: 0 0 12px; }
 .cleanyzer .clz-zone-seo p { color: var(--clz-muted); margin: 0 0 12px; }
 .cleanyzer .clz-zone-seo a { color: var(--clz-blue); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+/* L28 — retour à la vue d'ensemble de la carte (désélection). */
+.cleanyzer .clz-zp-reset {
+  margin: -6px 0 16px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600;
+  color: #9ccbff; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.cleanyzer .clz-zp-reset:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

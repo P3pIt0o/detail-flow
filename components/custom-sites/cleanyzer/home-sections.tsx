@@ -317,7 +317,9 @@ export function AvisSection() {
   )
 }
 
-/* Témoignages d'entreprises clientes : citations validées par écrit, sans note ni logo. */
+/* Témoignages d'entreprises clientes : citations validées par écrit, logos autorisés, sans note.
+   Fond clair obligatoire (traits fins vert foncé du logo Trofeo). Mobile : défilement horizontal
+   accroché, la carte suivante dépasse pour signaler la suite ; ordinateur : 3 colonnes. */
 export function TemoignagesSection() {
   const items = verifiedTestimonials(CLZ_TESTIMONIALS)
   if (items.length === 0) return null
@@ -325,14 +327,24 @@ export function TemoignagesSection() {
     <section className="bg-[var(--clz-bg)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Témoignages" title="Ils nous font confiance" center />
-        <ul className="mt-12 grid gap-6 md:grid-cols-3">
+        <ul
+          aria-label="Témoignages d'entreprises clientes"
+          tabIndex={0}
+          className="clz-tem-list -mx-4 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0 md:pb-0"
+        >
           {items.map((t) => (
-            <li key={t.company} data-clz-reveal>
-              <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7 shadow-sm">
-                <blockquote className="m-0 flex-1 text-pretty text-lg leading-relaxed text-[var(--clz-fg)]">
+            <li key={t.company} className="w-[82%] shrink-0 snap-start md:w-auto">
+              <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7 md:p-8">
+                {t.logo && (
+                  <div className="flex h-14 items-center">
+                    <Image src={t.logo} alt={t.company} width={240} height={56} sizes="240px" className="h-full w-auto max-w-[70%] object-contain object-left" />
+                  </div>
+                )}
+                <span className="clz-rule mt-6" aria-hidden="true" />
+                <blockquote className="clz-display m-0 mt-5 flex-1 text-pretty text-[1.45rem] leading-snug text-[var(--clz-fg)] md:text-[1.6rem]">
                   « {t.quote} »
                 </blockquote>
-                <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-blue)]">
+                <figcaption className="mt-6 text-sm font-semibold text-[var(--clz-muted)]">
                   {t.url ? (
                     <a href={t.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
                       {t.company}

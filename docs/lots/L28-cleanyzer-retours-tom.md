@@ -48,6 +48,22 @@ et une carte de zone plus réaliste.
 - 3D : modèle de secours de 13,4 Mo supprimé, modèle meshopt de 5,8 Mo conservé (dépassement justifié dans le rapport),
   image de repli si le décodeur échoue.
 
+## Avenant du 23/10/2026 (après Preview)
+- [x] **Logos autorisés** : Perrin Electric, Trofeo Automobiles et Pinto Maçonnerie ont autorisé l'utilisation de leur logo
+  sur le site (Clément, 23/10/2026). Fichiers : `public/custom-sites/cleanyzer/temoignages/*.png` (fond transparent ;
+  Trofeo à traits fins vert foncé → toujours sur fond clair).
+- [x] Témoignages : logo en haut de chaque carte, citation en grand, nom dessous ; 3 colonnes sur ordinateur, défilement
+  horizontal sur mobile ; sans note ni étoile.
+- [x] Comparateur avant/après : en bas du héros, juste avant la section suivante ; dimensions fixes : 4/5 sur mobile,
+  4/3 centré (1100 px max) sur ordinateur, recadrage centré sur l'intérieur du véhicule (`object-position`).
+- [x] Carte : choisir une commune (liste, pastille ou point) zoome et centre la carte dessus avec une animation ; la
+  désélectionner (lien « Vue d'ensemble » ou nouveau clic) ramène à la vue d'ensemble ; zoom manuel toujours désactivé.
+- [x] Communes : tous les points de `zones.ts` affichés en permanence ; en vue d'ensemble, seuls les noms des communes
+  principales (`major`) ; les autres noms apparaissent en vue rapprochée ou au survol/focus du point ; aucun chevauchement
+  de noms (priorité : commune choisie, base, principales).
+- [x] Au chargement : Annecy (`ZONE_DEFAULT_SLUG`) sélectionnée dans l'encart, carte en vue d'ensemble.
+- [x] Crédits de la carte dans un bouton « i » repliable, sans doublon.
+
 ## Poids 3D — justification du dépassement (critère « < 5 Mo »)
 - Avant L28 : 19,3 Mo dans le dépôt (`porsche-911-glb.wasm` 5 816 672 octets + `porsche-911-raw-glb.wasm` 13 443 828 octets).
   Après : 5 816 672 octets (5,8 Mo, compressé meshopt), soit −70 %. Un visiteur ne télécharge qu'un seul fichier, à la demande

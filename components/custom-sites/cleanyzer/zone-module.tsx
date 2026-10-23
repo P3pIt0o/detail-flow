@@ -20,7 +20,7 @@ import {
   sectorLabel,
 } from "./zones"
 
-// Leaflet touche au DOM : chargement client uniquement.
+// MapLibre / Leaflet touchent au DOM : chargement client uniquement.
 const CleanyzerZoneMap = dynamic(() => import("./zone-map").then((m) => m.CleanyzerZoneMap), {
   ssr: false,
   loading: () => <div className="clz-zone-map clz-zm-skeleton" aria-hidden="true" />,
@@ -33,15 +33,19 @@ type Props = {
   requestHref: string
 }
 
+/** Nouveau choix de la commune déjà sélectionnée = désélection (retour à la vue d'ensemble). */
+export const toggleSelection = (current: string | null, slug: string): string | null => (current === slug ? null : slug)
+
 export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
-  const [selected, setSelected] = useState<string>(ZONE_DEFAULT_SLUG)
+  // Annecy par défaut dans l'encart ; la carte reste en vue d'ensemble au chargement (zone-map).
+  const [selected, setSelected] = useState<string | null>(ZONE_DEFAULT_SLUG)
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
 
-  const commune = getCommune(selected) ?? ZONE_COMMUNES[0]
+  const commune = getCommune(selected)
 
   // Résultats groupés par secteur
   const groups = useMemo(() => {
@@ -56,8 +60,9 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
   const pick = (slug: string) => {
     const c = getCommune(slug)
     if (!c) return
-    setSelected(slug)
-    setQuery(c.name)
+    const next = toggleSelection(selected, slug)
+    setSelected(next)
+    setQuery(next ? c.name : "")
     setOpen(false)
     setActive(-1)
     inputRef.current?.blur()
@@ -200,13 +205,28 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
 
         <div className="clz-zp-card" aria-live="polite">
           <p className="clz-zp-kicker">
-            <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Commune sélectionnée
+            <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {commune ? "Commune sélectionnée" : "Votre commune"}
           </p>
-          <h3 className="clz-zp-name">{commune.name}</h3>
-          <p className="clz-zp-sector">{sectorLabel(commune.sector)}</p>
-          <p className="clz-zp-text">
-            Nettoyage voiture et canapé à domicile à {commune.name} : choisissez le parcours adapté à votre besoin.
-          </p>
+          {commune ? (
+            <>
+              <h3 className="clz-zp-name">{commune.name}</h3>
+              <p className="clz-zp-sector">{sectorLabel(commune.sector)}</p>
+              <p className="clz-zp-text">
+                Nettoyage voiture et canapé à domicile à {commune.name} : choisissez le parcours adapté à votre besoin.
+              </p>
+              <button type="button" className="clz-zp-reset" onClick={() => pick(commune.slug)}>
+                Vue d&apos;ensemble
+              </button>
+            </>
+          ) : (
+            <>
+              <h3 className="clz-zp-name">Choisissez votre commune</h3>
+              <p className="clz-zp-text">
+                Sélectionnez-la sur la carte ou dans la liste pour la voir de plus près, puis choisissez le parcours adapté
+                à votre besoin.
+              </p>
+            </>
+          )}
           <a className="clz-zp-btn is-primary" href={bookingHref}>
             Réserver un nettoyage auto <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </a>

@@ -7,8 +7,9 @@
  *  - Relief : tuiles Terrarium publiques (AWS Terrain Tiles), en ombrage.
  *    Routes et lacs : tuiles vectorielles OpenFreeMap (données OpenStreetMap).
  *    Style entièrement bleu (palette Cleanyzer), aucune clé.
- *  - Vue figée : ni zoom, ni rotation, ni inclinaison, ni déplacement.
- *    Seuls les repères de communes sont cliquables (boutons, clavier).
+ *  - Aucune interaction manuelle : ni zoom, ni rotation, ni inclinaison, ni déplacement.
+ *    Seuls les repères de communes sont cliquables (boutons, clavier). Choisir une
+ *    commune anime la vue vers elle ; la désélectionner ramène à la vue d'ensemble.
  *  - Cercle INDICATIF de 20 km centré sur Choisy, animé à l'apparition
  *    (respecte prefers-reduced-motion). Purement visuel : aucun effet sur les frais.
  *  - Repli : si MapLibre ne se charge pas (réseau, WebGL absent), carte Leaflet
@@ -20,20 +21,71 @@ import { useEffect, useRef } from "react"
 import "leaflet/dist/leaflet.css"
 import { ZONE, ZONE_COMMUNES, type ZoneCommune } from "./zones"
 
-type Props = { selected: string; onSelect: (slug: string) => void }
+type Props = { selected: string | null; onSelect: (slug: string) => void }
 
 const BLUE = "#0A84FF"
 const MAPLIBRE_CDN = "https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist"
+// Crédits déclarés sur chaque source (une seule fois chacun), affichés dans le bouton « i » repliable.
 const OSM_ATTRIBUTION =
   '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>'
 const RELIEF_ATTRIBUTION = '<a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Relief : AWS Terrain Tiles</a>'
 
-/** Vue figée : une seule échelle, donc seuls les noms principaux (et la commune choisie) sont affichés. */
-function markerHtml(c: ZoneCommune, active: boolean): string {
-  const cls = ["clz-zm-pin", c.status === "base" ? "is-base" : "is-incluse", active ? "is-active" : ""].join(" ")
-  const label = c.major || active ? `<span class="clz-zm-label">${c.name}</span>` : ""
-  return `<span class="${cls}"><span class="clz-zm-dot"></span>${c.status === "base" ? '<span class="clz-zm-pulse"></span>' : ""}${label}</span>`
+/** Échelles MapLibre (Leaflet : +1). Vue d'ensemble = cercle de 20 km entier ; commune = rapprochée. */
+export const OVERVIEW_ZOOM = 9
+export const COMMUNE_ZOOM = 11
+
+/** Vue à afficher : centrée sur la commune choisie, sinon vue d'ensemble. Centre au format [lng, lat]. */
+export function viewFor(slug: string | null): { center: [number, number]; zoom: number } {
+  const c = slug ? ZONE_COMMUNES.find((x) => x.slug === slug) : undefined
+  return c ? { center: [c.lng, c.lat], zoom: COMMUNE_ZOOM } : { center: [ZONE.viewCenter.lng, ZONE.viewCenter.lat], zoom: OVERVIEW_ZOOM }
 }
+
+/** Repère d'une commune : point toujours visible, nom masqué par `is-label-hidden` (voir labelsToShow), visible au survol. */
+export function markerHtml(c: ZoneCommune, active: boolean): string {
+  const cls = ["clz-zm-pin", c.status === "base" ? "is-base" : "is-incluse", active ? "is-active" : ""].join(" ")
+  return `<span class="${cls}"><span class="clz-zm-dot"></span>${c.status === "base" ? '<span class="clz-zm-pulse"></span>' : ""}<span class="clz-zm-label">${c.name}</span></span>`
+}
+
+/** Repère projeté à l'écran (px). Le nom s'affiche à droite du point (cf. .clz-zm-label). */
+export type LabelPoint = { slug: string; name: string; major: boolean; base: boolean; x: number; y: number }
+type Box = [number, number, number, number]
+// Gabarit du nom : décalage du point, hauteur de ligne, largeur moyenne d'un caractère à 12,5–14 px.
+const LABEL_DX = 11
+const LABEL_H = 18
+const CHAR_W = 7.2
+const DOT_R = 7
+const overlaps = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
+const labelBox = (p: LabelPoint): Box => [p.x + LABEL_DX, p.y - LABEL_H / 2, p.x + LABEL_DX + p.name.length * CHAR_W, p.y + LABEL_H / 2]
+const dotBox = (p: LabelPoint): Box => [p.x - DOT_R, p.y - DOT_R, p.x + DOT_R, p.y + DOT_R]
+
+/**
+ * Noms à afficher sans aucun chevauchement. Vue d'ensemble : communes principales (+ la commune
+ * choisie) ; vue rapprochée : toutes. Priorité : commune choisie, base, principales, autres ; le nom
+ * d'une commune secondaire ne recouvre pas non plus le point d'une autre commune.
+ */
+export function labelsToShow(points: LabelPoint[], zoomed: boolean, selected: string | null): Set<string> {
+  const rank = (p: LabelPoint) => (p.slug === selected ? 0 : p.base ? 1 : p.major ? 2 : 3)
+  const candidates = points.filter((p) => zoomed || p.major || p.slug === selected).sort((a, b) => rank(a) - rank(b))
+  const placed: Box[] = []
+  const shown = new Set<string>()
+  for (const p of candidates) {
+    const box = labelBox(p)
+    if (placed.some((b) => overlaps(box, b))) continue
+    if (rank(p) === 3 && points.some((o) => o.slug !== p.slug && overlaps(box, dotBox(o)))) continue
+    placed.push(box)
+    shown.add(p.slug)
+  }
+  return shown
+}
+
+const toLabelPoint = (c: ZoneCommune, x: number, y: number): LabelPoint => ({
+  slug: c.slug,
+  name: c.name,
+  major: !!c.major,
+  base: c.status === "base",
+  x,
+  y,
+})
 
 /** Cercle géodésique (approximation sphérique, largement suffisante à 20 km). */
 function circleRing(km: number, steps = 96): [number, number][] {
@@ -88,7 +140,7 @@ function addAsset(url: string) {
 const MAP_STYLE = {
   version: 8,
   sources: {
-    omt: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
+    omt: { type: "vector", url: "https://tiles.openfreemap.org/planet", attribution: OSM_ATTRIBUTION },
     dem: {
       type: "raster-dem",
       tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
@@ -132,7 +184,8 @@ const MAP_STYLE = {
   ],
 }
 
-type MapHandle = { select: (slug: string) => void; destroy: () => void }
+/** `fly` : animer la caméra vers la vue de la commune (ou la vue d'ensemble si `slug` est null). */
+type MapHandle = { select: (slug: string | null, fly: boolean) => void; destroy: () => void }
 
 /** Délai max avant le premier affichage complet ; au-delà, repli Leaflet. */
 export const TILE_TIMEOUT_MS = 10_000
@@ -151,7 +204,7 @@ function initMapLibre(
     container,
     style: MAP_STYLE,
     center: [ZONE.viewCenter.lng, ZONE.viewCenter.lat],
-    zoom: 9,
+    zoom: OVERVIEW_ZOOM,
     pitch: 0,
     bearing: 0,
     maxPitch: 0,
@@ -159,7 +212,7 @@ function initMapLibre(
     attributionControl: false,
     fadeDuration: 0,
   })
-  map.addControl(new maplibregl.AttributionControl({ compact: false, customAttribution: OSM_ATTRIBUTION }))
+  map.addControl(new maplibregl.AttributionControl({ compact: true }))
 
   let idle = false
   let failed = false
@@ -205,14 +258,32 @@ function initMapLibre(
     new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([c.lng, c.lat]).addTo(map)
   }
 
+  let current: string | null = null
+  const relabel = () => {
+    const pts = ZONE_COMMUNES.map((c) => {
+      const { x, y } = map.project([c.lng, c.lat])
+      return toLabelPoint(c, x, y)
+    })
+    const shown = labelsToShow(pts, map.getZoom() > OVERVIEW_ZOOM + 0.5, current)
+    for (const c of ZONE_COMMUNES) pins.get(c.slug)!.classList.toggle("is-label-hidden", !shown.has(c.slug))
+  }
+  map.on("moveend", relabel)
+  map.on("resize", relabel)
+
   return {
-    select: (slug) => {
+    select: (slug, fly) => {
+      current = slug
       for (const c of ZONE_COMMUNES) {
         const el = pins.get(c.slug)!
         el.innerHTML = markerHtml(c, c.slug === slug)
         el.style.zIndex = c.slug === slug ? "3" : c.status === "base" ? "2" : "1"
         el.setAttribute("aria-pressed", String(c.slug === slug))
       }
+      relabel()
+      if (!fly) return
+      const v = viewFor(slug)
+      if (reduce) map.jumpTo(v)
+      else map.flyTo({ ...v, duration: 900 })
     },
     destroy: () => {
       clearTimeout(timer)
@@ -227,7 +298,7 @@ async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => v
   const L = await import("leaflet")
   const map = L.map(container, {
     center: [ZONE.viewCenter.lat, ZONE.viewCenter.lng],
-    zoom: 10,
+    zoom: OVERVIEW_ZOOM + 1,
     zoomControl: false,
     attributionControl: true,
     dragging: false,
@@ -269,13 +340,30 @@ async function initLeaflet(container: HTMLElement, onSelect: (slug: string) => v
       .addTo(map)
     markers.set(c.slug, m)
   }
+  let current: string | null = null
+  const relabel = () => {
+    const pts = ZONE_COMMUNES.map((c) => {
+      const { x, y } = map.latLngToContainerPoint([c.lat, c.lng])
+      return toLabelPoint(c, x, y)
+    })
+    const shown = labelsToShow(pts, map.getZoom() > OVERVIEW_ZOOM + 1.5, current)
+    for (const c of ZONE_COMMUNES) markers.get(c.slug)!.getElement()?.classList.toggle("is-label-hidden", !shown.has(c.slug))
+  }
+  map.on("moveend", relabel)
+  map.on("resize", relabel)
   return {
-    select: (slug) => {
+    select: (slug, fly) => {
+      current = slug
       for (const c of ZONE_COMMUNES) {
         const active = c.slug === slug
         markers.get(c.slug)!.setIcon(L.divIcon({ className: "clz-zm-icon", html: markerHtml(c, active), iconSize: [0, 0] }))
         markers.get(c.slug)!.setZIndexOffset(active ? 1000 : c.status === "base" ? 500 : 0)
       }
+      relabel()
+      if (!fly) return
+      const { center, zoom } = viewFor(slug)
+      if (reduce) map.setView([center[1], center[0]], zoom + 1)
+      else map.flyTo([center[1], center[0]], zoom + 1, { duration: 0.9 })
     },
     destroy: () => {
       cancelAnimationFrame(raf)
@@ -304,7 +392,7 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
     const ready = (h: MapHandle) => {
       if (cancelled) return h.destroy()
       handleRef.current = h
-      h.select(selectedRef.current)
+      h.select(selectedRef.current, false)
     }
     const fallback = () => {
       if (cancelled) return
@@ -344,10 +432,10 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
     }
   }, [])
 
-  // Sélection pilotée de l'extérieur (vue figée : on met en avant le repère, sans déplacer la carte).
+  // Sélection pilotée de l'extérieur (animation vers la commune, ou retour à la vue d'ensemble).
   useEffect(() => {
     selectedRef.current = selected
-    handleRef.current?.select(selected)
+    handleRef.current?.select(selected, true)
   }, [selected])
 
   return (

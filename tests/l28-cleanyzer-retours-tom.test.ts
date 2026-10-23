@@ -11,7 +11,9 @@ import {
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
-import { TILE_TIMEOUT_MS, tileFailure } from "@/components/custom-sites/cleanyzer/zone-map"
+import { TILE_TIMEOUT_MS, labelsToShow, markerHtml, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
+import { toggleSelection } from "@/components/custom-sites/cleanyzer/zone-module"
+import { ZONE_COMMUNES } from "@/components/custom-sites/cleanyzer/zones"
 
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
@@ -175,5 +177,99 @@ describe("L28 — carte de zone", () => {
   it("aucune interaction de carte (zoom, rotation, inclinaison, déplacement)", () => {
     for (const opt of ["interactive: false", "pitch: 0"]) expect(src).toContain(opt)
     expect(src).not.toContain('aria-label="Zoomer"')
+  })
+})
+
+describe("L28 avenant — logos, comparateur pleine largeur, carte", () => {
+  it("chaque témoignage a un logo autorisé présent dans public/", () => {
+    expect(CLZ_TESTIMONIALS.map((t) => t.logo)).toEqual([
+      "/custom-sites/cleanyzer/temoignages/perrin-electric.png",
+      "/custom-sites/cleanyzer/temoignages/trofeo-automobiles.png",
+      "/custom-sites/cleanyzer/temoignages/pinto-maconnerie.png",
+    ])
+    for (const t of CLZ_TESTIMONIALS) expect(existsSync(path.join(process.cwd(), "public", t.logo!))).toBe(true)
+  })
+
+  it("témoignages : logo, 3 colonnes sur ordinateur, défilement horizontal accroché sur mobile, sans étoile", () => {
+    const sec = read(`${CLZ}/home-sections.tsx`)
+    const start = sec.indexOf("export function TemoignagesSection")
+    const body = sec.slice(start, sec.indexOf("\n}\n", start))
+    expect(body).toContain("t.logo")
+    expect(body).toContain("snap-x")
+    expect(body).toContain("md:grid-cols-3")
+    expect(body).not.toContain("Star")
+  })
+
+  it("comparateur en bas du héros, pleine largeur, format fixe par variable CSS", () => {
+    const hero = read(`${CLZ}/hero.tsx`)
+    expect(hero).toContain('ratio="var(--clz-cmp-ratio)"')
+    expect(hero).not.toContain("lg:grid-cols-[minmax(0,1fr)_19rem]")
+    const css = read(`${CLZ}/cleanyzer.css`)
+    expect(css).toMatch(/--clz-cmp-ratio:\s*4 \/ 5/)
+    expect(css).toMatch(/--clz-cmp-ratio:\s*4 \/ 3/)
+    expect(css).not.toMatch(/16 \/ 9/)
+    expect(css).toMatch(/\.clz-hero-cmp \{[^}]*max-width:\s*1100px/)
+    expect(css).toMatch(/\.clz-hero-cmp \.clz-cmp-img \{[^}]*object-position/)
+  })
+
+  it("tous les points de communes sont rendus, chacun avec son nom (affiché ou au survol)", () => {
+    for (const c of ZONE_COMMUNES) expect(markerHtml(c, false)).toContain(`>${c.name}<`)
+  })
+
+  // Repères projetés à l'écran (px) : nom à droite du point.
+  const pt = (slug: string, x: number, y: number) => {
+    const c = ZONE_COMMUNES.find((k) => k.slug === slug)!
+    return { slug: c.slug, name: c.name, major: !!c.major, base: c.status === "base", x, y }
+  }
+
+  it("vue d'ensemble : seuls les noms des communes principales (+ la commune choisie)", () => {
+    const pts = ZONE_COMMUNES.map((c, i) => ({ slug: c.slug, name: c.name, major: !!c.major, base: c.status === "base", x: 0, y: i * 100 }))
+    const shown = labelsToShow(pts, false, null)
+    expect([...shown].sort()).toEqual(ZONE_COMMUNES.filter((c) => c.major).map((c) => c.slug).sort())
+    expect(labelsToShow(pts, false, "seynod").has("seynod")).toBe(true)
+  })
+
+  it("vue rapprochée : les autres noms apparaissent s'ils ont la place", () => {
+    const shown = labelsToShow([pt("seynod", 0, 0), pt("meythet", 0, 200)], true, null)
+    expect(shown).toEqual(new Set(["seynod", "meythet"]))
+  })
+
+  it("aucun chevauchement : en cas de collision, la commune choisie puis la base puis les principales gagnent", () => {
+    // Annecy (principale) et Cran-Gevrier au même endroit : un seul nom.
+    expect(labelsToShow([pt("cran-gevrier", 0, 0), pt("annecy", 5, 2)], true, null)).toEqual(new Set(["annecy"]))
+    expect(labelsToShow([pt("cran-gevrier", 0, 0), pt("annecy", 5, 2)], true, "cran-gevrier")).toEqual(new Set(["cran-gevrier"]))
+    expect(labelsToShow([pt("choisy", 0, 0), pt("cruseilles", 4, 0)], false, null)).toEqual(new Set(["choisy"]))
+    // Le nom d'une commune secondaire ne recouvre pas le point d'une autre commune.
+    expect(labelsToShow([pt("seynod", 0, 0), pt("meythet", 40, 0)], true, null)).toEqual(new Set(["meythet"]))
+  })
+
+  it("vue : commune choisie = centrée et rapprochée ; aucune = vue d'ensemble", () => {
+    const overview = viewFor(null)
+    expect(overview.center).toEqual([ZONE.viewCenter.lng, ZONE.viewCenter.lat])
+    const seynod = ZONE_COMMUNES.find((c) => c.slug === "seynod")!
+    const v = viewFor("seynod")
+    expect(v.center).toEqual([seynod.lng, seynod.lat])
+    expect(v.zoom).toBeGreaterThan(overview.zoom)
+    expect(viewFor("inconnue")).toEqual(overview)
+  })
+
+  it("nouveau clic sur la commune choisie = désélection ; autre commune = sélection", () => {
+    expect(toggleSelection("annecy", "annecy")).toBeNull()
+    expect(toggleSelection("annecy", "seynod")).toBe("seynod")
+    expect(toggleSelection(null, "choisy")).toBe("choisy")
+  })
+
+  it("au chargement : Annecy sélectionnée dans l'encart, carte en vue d'ensemble ; lien « Vue d'ensemble »", () => {
+    const mod = read(`${CLZ}/zone-module.tsx`)
+    expect(mod).toContain("useState<string | null>(ZONE_DEFAULT_SLUG)")
+    // Sélection initiale appliquée sans animation (la carte reste en vue d'ensemble).
+    expect(read(`${CLZ}/zone-map.tsx`)).toContain("h.select(selectedRef.current, false)")
+    expect(mod).toMatch(/Vue d(&apos;|')ensemble/)
+  })
+
+  it("crédits compacts (bouton « i »), sans doublon", () => {
+    const src = read(`${CLZ}/zone-map.tsx`)
+    expect(src).toContain("compact: true")
+    expect(src).not.toContain("customAttribution")
   })
 })
