@@ -24,7 +24,8 @@ type Props = { selected: string; onSelect: (slug: string) => void }
 
 const BLUE = "#0A84FF"
 const MAPLIBRE_CDN = "https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist"
-const OSM_ATTRIBUTION = '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>'
+const OSM_ATTRIBUTION =
+  '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>'
 const RELIEF_ATTRIBUTION = '<a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Relief : AWS Terrain Tiles</a>'
 
 /** Vue figée : une seule échelle, donc seuls les noms principaux (et la commune choisie) sont affichés. */
@@ -133,8 +134,19 @@ const MAP_STYLE = {
 
 type MapHandle = { select: (slug: string) => void; destroy: () => void }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function initMapLibre(container: HTMLElement, maplibregl: any, onSelect: (slug: string) => void, reduce: boolean): MapHandle {
+/** Délai max avant le premier affichage complet ; au-delà, repli Leaflet. */
+export const TILE_TIMEOUT_MS = 10_000
+/** Erreur de tuiles (routes ou relief) avant le premier affichage complet → la carte ne serait qu'un fond vide. */
+export const tileFailure = (e: { sourceId?: string }, idle: boolean) => !idle && (e.sourceId === "omt" || e.sourceId === "dem")
+
+function initMapLibre(
+  container: HTMLElement,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  maplibregl: any,
+  onSelect: (slug: string) => void,
+  reduce: boolean,
+  onFail: () => void,
+): MapHandle {
   const map = new maplibregl.Map({
     container,
     style: MAP_STYLE,
@@ -148,6 +160,20 @@ function initMapLibre(container: HTMLElement, maplibregl: any, onSelect: (slug: 
     fadeDuration: 0,
   })
   map.addControl(new maplibregl.AttributionControl({ compact: false, customAttribution: OSM_ATTRIBUTION }))
+
+  let idle = false
+  let failed = false
+  const failOnce = () => {
+    if (failed) return
+    failed = true
+    onFail()
+  }
+  map.on("error", (e: { sourceId?: string }) => tileFailure(e, idle) && failOnce())
+  const timer = setTimeout(() => !idle && failOnce(), TILE_TIMEOUT_MS)
+  map.once("idle", () => {
+    idle = true
+    clearTimeout(timer)
+  })
 
   let raf = 0
   const ring = (km: number) => circleFeature(km)
@@ -189,6 +215,7 @@ function initMapLibre(container: HTMLElement, maplibregl: any, onSelect: (slug: 
       }
     },
     destroy: () => {
+      clearTimeout(timer)
       cancelAnimationFrame(raf)
       map.remove()
     },
@@ -291,7 +318,7 @@ export function CleanyzerZoneMap({ selected, onSelect }: Props) {
           if (cancelled) return
           // Sans WebGL, le constructeur de MapLibre lève une erreur → repli Leaflet.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ready(initMapLibre(container, (window as any).maplibregl, pick, reduce))
+          ready(initMapLibre(container, (window as any).maplibregl, pick, reduce, fallback))
         })
         .catch(fallback)
     }

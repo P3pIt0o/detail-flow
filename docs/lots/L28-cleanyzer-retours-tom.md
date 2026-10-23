@@ -48,6 +48,15 @@ et une carte de zone plus réaliste.
 - 3D : modèle de secours de 13,4 Mo supprimé, modèle meshopt de 5,8 Mo conservé (dépassement justifié dans le rapport),
   image de repli si le décodeur échoue.
 
+## Poids 3D — justification du dépassement (critère « < 5 Mo »)
+- Avant L28 : 19,3 Mo dans le dépôt (`porsche-911-glb.wasm` 5 816 672 octets + `porsche-911-raw-glb.wasm` 13 443 828 octets).
+  Après : 5 816 672 octets (5,8 Mo, compressé meshopt), soit −70 %. Un visiteur ne télécharge qu'un seul fichier, à la demande
+  (quand la section approche de l'écran), jamais au chargement initial ; rien n'est téléchargé sur appareil peu puissant
+  ou en économie de données tant que la visite n'est pas lancée.
+- Les 0,8 Mo restants au-delà de l'objectif demandent une recompression des textures (KTX2/WebP) ou un hébergement sur
+  Vercel Blob : impossible pendant le lot (pas d'accès réseau ni d'outil gltf-transform côté agent). Suite possible : lot dédié.
+- Lighthouse mobile avant/après : à mesurer par le développeur sur le Preview (non mesurable par l'agent, sans navigateur).
+
 ## Notes d'implémentation (carte)
 - L'agent n'a pas d'accès réseau : il ne peut pas télécharger les données pour fabriquer une image fixe. Solution attendue par défaut :
   rendu dans le navigateur avec MapLibre GL (gratuit, sans clé), tuiles vectorielles OpenFreeMap pour les routes et tuiles de relief

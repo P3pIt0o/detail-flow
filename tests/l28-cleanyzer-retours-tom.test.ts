@@ -11,6 +11,7 @@ import {
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
+import { TILE_TIMEOUT_MS, tileFailure } from "@/components/custom-sites/cleanyzer/zone-map"
 
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
@@ -153,6 +154,22 @@ describe("L28 — carte de zone", () => {
     expect(src).toContain("tiles.openfreemap.org")
     expect(src).toContain("© OpenStreetMap")
     expect(src).toContain("hillshade")
+  })
+
+  it("tuiles (routes ou relief) en échec avant le premier affichage complet → repli Leaflet", () => {
+    expect(tileFailure({ sourceId: "omt" }, false)).toBe(true)
+    expect(tileFailure({ sourceId: "dem" }, false)).toBe(true)
+    // Après un affichage complet, une tuile isolée en erreur ne fait pas basculer la carte.
+    expect(tileFailure({ sourceId: "omt" }, true)).toBe(false)
+    // Erreurs sans rapport avec les tuiles (cercle, repères) : pas de repli.
+    expect(tileFailure({ sourceId: "zone" }, false)).toBe(false)
+    expect(tileFailure({}, false)).toBe(false)
+    expect(TILE_TIMEOUT_MS).toBeGreaterThan(0)
+    expect(src).toContain('map.on("error"')
+  })
+
+  it("crédit OpenMapTiles exigé par OpenFreeMap", () => {
+    expect(src).toContain("© OpenMapTiles")
   })
 
   it("aucune interaction de carte (zoom, rotation, inclinaison, déplacement)", () => {
