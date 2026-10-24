@@ -185,6 +185,7 @@ beforeAll(async () => {
   await pg.exec(read("scripts/customer-subscriptions-schema-migration.sql"))
   await pg.exec(read("scripts/customer-subscriptions-runtime-core-migration.sql"))
   await pg.exec(read("scripts/customer-subscriptions-stripe-refunds-migration.sql"))
+  await pg.exec(read("scripts/maintenance-rights-period-migration.sql"))
   db = drizzle(pg, { schema }) as unknown as engine.Executor
 })
 
