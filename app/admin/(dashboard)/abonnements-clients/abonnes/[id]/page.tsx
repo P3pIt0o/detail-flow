@@ -4,14 +4,15 @@ import { withTenant } from "@/lib/tenant-link"
 import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
-import { getSubscriptionDetail } from "@/lib/customer-subscriptions/admin-queries"
+import { getSubscriptionDetail, getSubscriptionUsage } from "@/lib/customer-subscriptions/admin-queries"
 import { buildSubscriptionContractSummary, formatDateFr } from "@/lib/customer-subscriptions/contract-summary"
-import { commitmentSentence, formatEuros, perIntervalShort, reminderSentence, renewalSentence } from "@/lib/customer-subscriptions/plan-form"
+import { commitmentSentence, formatEuros, perIntervalShort, reminderSentence, renewalSentence, serviceNoun } from "@/lib/customer-subscriptions/plan-form"
 import { subscriptionStatusUi } from "@/lib/customer-subscriptions/admin-labels"
 import { EmptyState, InfoRow, SectionCard, ToneBadge } from "@/components/admin/customer-subscriptions/ui"
 import { EmailsList, PaymentsList } from "@/components/admin/customer-subscriptions/activity-lists"
 import { EarlyCancellationCard } from "@/components/admin/customer-subscriptions/early-cancellation-card"
 import { ResendPaymentLinkButton } from "@/components/admin/customer-subscriptions/resend-payment-link-button"
+import { UsesCard } from "@/components/admin/customer-subscriptions/uses-card"
 
 export const metadata: Metadata = { title: "Abonnement" }
 export const dynamic = "force-dynamic"
@@ -38,6 +39,7 @@ export default async function SubscriptionPage({
   const recurring = summary.paymentMode === "recurring"
   const commitmentEnd = summary.commitment.endsAt ?? summary.termEndsAt
   const pendingCancellations = detail.cancellations.filter((c) => c.status === "pending")
+  const { usage, nextRightsAt } = await getSubscriptionUsage(companyId, s)
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,6 +74,21 @@ export default async function SubscriptionPage({
           }}
         />
       ))}
+
+      {["active", "cancel_scheduled", "past_due", "suspended"].includes(s.status) && (
+        <SectionCard title="Prestations">
+          <UsesCard
+            subscriptionId={s.id}
+            initial={
+              usage
+                ? { total: usage.total, remaining: usage.remaining, periodEndsAt: usage.periodEndsAt.toISOString(), lastCompletedUseId: usage.lastCompleted?.useId ?? null, lastCompletedAt: usage.lastCompleted?.completedAt.toISOString() ?? null }
+                : null
+            }
+            noun={{ one: serviceNoun(summary.includedServiceName, 1), many: serviceNoun(summary.includedServiceName, 2) }}
+            nextRightsAt={nextRightsAt?.toISOString() ?? null}
+          />
+        </SectionCard>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <SectionCard title="Contrat">
