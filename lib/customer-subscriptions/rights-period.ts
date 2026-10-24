@@ -132,11 +132,37 @@ export function installmentPosition(anchor: Date, periodStart: Date, n: number):
 
 /** Ajustement à porter par la facture de cette échéance (0 si aucune). */
 export function lastInstallmentAdjustment(
-  sub: { billingAnchorAt: Date | null; periodPriceCentsSnapshot: number | null; installmentsPerPeriodSnapshot: number | null },
+  sub: { billingAnchorAt: Date | null; periodPriceCentsSnapshot?: number | null; installmentsPerPeriodSnapshot?: number | null },
   periodStart: Date,
 ): number {
   const n = sub.installmentsPerPeriodSnapshot
   if (!sub.billingAnchorAt || !n || n <= 1 || sub.periodPriceCentsSnapshot == null) return 0
   if (!installmentPosition(sub.billingAnchorAt, periodStart, n).isLast) return 0
   return splitInstallments(sub.periodPriceCentsSnapshot, n)?.adjustmentCents ?? 0
+}
+
+type InstallmentSub = { billingAnchorAt: Date | null; priceCentsSnapshot: number; periodPriceCentsSnapshot?: number | null; installmentsPerPeriodSnapshot?: number | null }
+
+/** Montant réel de l'échéance qui démarre à `boundaryAt` (dernière de la période = écart d'arrondi inclus). */
+export function installmentAmountAt(sub: InstallmentSub, boundaryAt: Date): number {
+  return sub.priceCentsSnapshot + lastInstallmentAdjustment(sub, boundaryAt)
+}
+
+/** Mensualités restant à payer dans la période en cours (après celle de la période de facturation courante). */
+export function installmentsRemaining(sub: InstallmentSub, now: Date): { remaining: number; total: number } | null {
+  const n = sub.installmentsPerPeriodSnapshot
+  if (!sub.billingAnchorAt || !n || n <= 1 || now < sub.billingAnchorAt) return null
+  // Échéance courante = dernière frontière mensuelle <= now.
+  const k = Math.max(0, boundaryIndexAtOrAfter(sub.billingAnchorAt, { unit: "month", count: 1 }, new Date(now.getTime() + 1)) - 1)
+  return { remaining: n - 1 - (k % n), total: n }
+}
+
+/** Date des prochains droits (fin de la période en cours), null si le contrat s'arrête avant ou à cette date. */
+export function nextRightsAt(
+  sub: { renewalModeSnapshot: string; renewalOptOutAt: Date | null; currentTermEndsAt: Date | null; cancelAt: Date | null },
+  periodEndsAt: Date,
+): Date | null {
+  const finalTerm = sub.renewalModeSnapshot === "none" || sub.renewalOptOutAt !== null
+  const stops = [sub.cancelAt, finalTerm ? sub.currentTermEndsAt : null].some((d) => d && d.getTime() <= periodEndsAt.getTime())
+  return stops ? null : periodEndsAt
 }

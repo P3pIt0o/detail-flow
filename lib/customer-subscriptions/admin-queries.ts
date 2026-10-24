@@ -7,6 +7,7 @@ import "server-only"
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { getCurrentUsage, getCustomerSubscriptionCapacity, type UsageView } from "./engine"
+import { nextRightsAt } from "./rights-period"
 import {
   companies,
   maintenanceAuditLog,
@@ -315,7 +316,5 @@ export async function getSubscriptionUsage(
 ): Promise<{ usage: UsageView | null; nextRightsAt: Date | null }> {
   const usage = await getCurrentUsage(db, companyId, sub.id, now)
   if (!usage) return { usage: null, nextRightsAt: null }
-  const finalTerm = sub.renewalModeSnapshot === "none" || sub.renewalOptOutAt !== null
-  const stops = [sub.cancelAt, finalTerm ? sub.currentTermEndsAt : null].some((d) => d && d.getTime() <= usage.periodEndsAt.getTime())
-  return { usage, nextRightsAt: stops ? null : usage.periodEndsAt }
+  return { usage, nextRightsAt: nextRightsAt(sub, usage.periodEndsAt) }
 }

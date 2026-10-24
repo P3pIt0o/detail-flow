@@ -7,6 +7,8 @@ import {
   resolveScheduleChoice,
   scheduleSnapshot,
   rightsInterval,
+  installmentAmountAt,
+  installmentsRemaining,
 } from "@/lib/customer-subscriptions/rights-period"
 import { validatePlanConfig, type PlanConfigInput } from "@/lib/customer-subscriptions/plan-validation"
 import { buildCycleWindow } from "@/lib/customer-subscriptions/engine"
@@ -245,5 +247,22 @@ describe("validatePlanConfig — période de droits", () => {
   })
   it("en une fois : engagement et renouvellement libres comme V1", () => {
     expect(fields({ ...base, paymentSchedule: "period", commitmentUnit: "none", commitmentCount: 0, renewalMode: "open_ended" })).toEqual([])
+  })
+})
+
+describe("montant réel d'une échéance et mensualités restantes", () => {
+  const sub = { billingAnchorAt: new Date("2026-10-23T09:00:00.000Z"), priceCentsSnapshot: 2992, periodPriceCentsSnapshot: 35_900, installmentsPerPeriodSnapshot: 12 }
+  const at = (k: number) => new Date(Date.UTC(2026, 9 + k, 23, 9))
+  it("12e échéance de chaque période : 29,88 € ; les autres : 29,92 €", () => {
+    expect([0, 1, 10, 11, 12, 23].map((k) => installmentAmountAt(sub, at(k)))).toEqual([2992, 2992, 2992, 2988, 2992, 2988])
+  })
+  it("V1 : toujours le prix figé", () => {
+    expect(installmentAmountAt({ ...sub, periodPriceCentsSnapshot: null, installmentsPerPeriodSnapshot: null }, at(11))).toBe(2992)
+  })
+  it("mensualités restantes : 11 sur 12 après la 1re, 0 au 12e mois, 11 au 13e", () => {
+    expect(installmentsRemaining(sub, new Date("2026-10-24T00:00:00.000Z"))).toEqual({ remaining: 11, total: 12 })
+    expect(installmentsRemaining(sub, new Date("2027-10-01T00:00:00.000Z"))).toEqual({ remaining: 0, total: 12 })
+    expect(installmentsRemaining(sub, new Date("2027-10-24T00:00:00.000Z"))).toEqual({ remaining: 11, total: 12 })
+    expect(installmentsRemaining({ ...sub, installmentsPerPeriodSnapshot: null }, new Date())).toBeNull()
   })
 })

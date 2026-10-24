@@ -1,5 +1,6 @@
 import { computeEarliestCancellationAt, computePrepaidTotalCents, type SubscriptionTimeline } from "./contract"
 import { nextBillingBoundaryAfter, type BillingInterval, type RenewalMode } from "./dates"
+import { installmentAmountAt, installmentsRemaining, splitInstallments } from "./rights-period"
 
 /**
  * INVARIANT SNAPSHOTS : après création, les modalités d'un contrat viennent
@@ -23,6 +24,9 @@ export type ContractSubscriptionInput = SubscriptionTimeline & {
   initialServicePriceCentsSnapshot: number | null
   currentTermStartedAt: Date | null
   activatedAt?: Date | null
+  rightsPeriodMonthsSnapshot?: number | null
+  periodPriceCentsSnapshot?: number | null
+  installmentsPerPeriodSnapshot?: number | null
 }
 
 export type StopRule =
@@ -48,6 +52,17 @@ export type SubscriptionContractSummary = {
   initialCleaning: { required: boolean; serviceName: string | null; priceCents: number | null }
   activatedAt: Date | null
   nextBillingAt: Date | null
+  /** Montant réel de la prochaine échéance (L27 : dernière de la période = écart d'arrondi inclus). */
+  nextBillingCents: number | null
+  /** L27 : paiement mensuel d'une période de droits ; null = V1. */
+  rightsPeriod: {
+    months: number
+    periodPriceCents: number
+    installments: number
+    installmentCents: number
+    lastInstallmentCents: number
+    installmentsLeft: { remaining: number; total: number } | null
+  } | null
   /** Fin de la période couverte par la prochaine échéance. */
   nextBillingCoversUntil: Date | null
   termEndsAt: Date | null
@@ -87,6 +102,12 @@ export function buildSubscriptionContractSummary(s: ContractSubscriptionInput, n
   else parts.push({ label: "first_period", amountCents: s.priceCentsSnapshot })
 
   const nextBillingAt = computeNextBillingAt(s, now)
+  const period = {
+    billingAnchorAt: s.billingAnchorAt,
+    priceCentsSnapshot: s.priceCentsSnapshot,
+    periodPriceCentsSnapshot: s.periodPriceCentsSnapshot ?? null,
+    installmentsPerPeriodSnapshot: s.installmentsPerPeriodSnapshot ?? null,
+  }
   const commitmentEndsAt = s.commitmentUnitSnapshot === "none" ? null : s.currentTermEndsAt
   const inProgress = !!commitmentEndsAt && commitmentEndsAt.getTime() > now.getTime()
   const optedOut = s.renewalOptOutAt !== null
@@ -125,6 +146,18 @@ export function buildSubscriptionContractSummary(s: ContractSubscriptionInput, n
     },
     activatedAt: s.activatedAt ?? null,
     nextBillingAt,
+    nextBillingCents: nextBillingAt ? installmentAmountAt(period, nextBillingAt) : null,
+    rightsPeriod:
+      s.rightsPeriodMonthsSnapshot && s.periodPriceCentsSnapshot && s.installmentsPerPeriodSnapshot
+        ? {
+            months: s.rightsPeriodMonthsSnapshot,
+            periodPriceCents: s.periodPriceCentsSnapshot,
+            installments: s.installmentsPerPeriodSnapshot,
+            installmentCents: s.priceCentsSnapshot,
+            lastInstallmentCents: splitInstallments(s.periodPriceCentsSnapshot, s.installmentsPerPeriodSnapshot)?.lastInstallmentCents ?? s.priceCentsSnapshot,
+            installmentsLeft: installmentsRemaining(period, now),
+          }
+        : null,
     nextBillingCoversUntil: nextBillingAt ? nextBillingBoundaryAfter(nextBillingAt, interval, nextBillingAt) : null,
     termEndsAt: s.currentTermEndsAt,
     prepaidUntil: s.prepaidUntil,

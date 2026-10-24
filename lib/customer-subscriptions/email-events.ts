@@ -2,6 +2,7 @@ import { computeNextBillingAt, type ContractSubscriptionInput } from "./contract
 import { addBillingInterval, type BillingInterval } from "./dates"
 import { dedupeKeys, enqueueCustomerSubscriptionEmail, type EnqueueInput } from "./email-outbox"
 import type { Executor } from "./engine"
+import { installmentAmountAt } from "./rights-period"
 
 /**
  * Événements email métier. Appelés DANS la transaction qui persiste la
@@ -84,7 +85,7 @@ export const emailEvents = {
   renewalOptOut: async (tx: Executor, sub: ContractSubscriptionInput & SubRef, optOutAt: Date, now: Date) => {
     const endsAt = sub.currentTermEndsAt
     const last = lastPaymentBefore(sub, endsAt, now)
-    const payload = { endsAt: iso(endsAt), lastPaymentAt: iso(last), lastPaymentCents: last ? sub.priceCentsSnapshot : null }
+    const payload = { endsAt: iso(endsAt), lastPaymentAt: iso(last), lastPaymentCents: last ? installmentAmountAt(sub, last) : null }
     await enqueueEmailSafely(tx, { companyId: sub.companyId, subscriptionId: sub.id, type: "renewal_opt_out_confirmed", recipientRole: "client", dedupeKey: dedupeKeys.renewalOptOut(sub.id, optOutAt, "client"), payload }, now)
     await enqueueEmailSafely(tx, { companyId: sub.companyId, subscriptionId: sub.id, type: "renewal_opt_out_pro", recipientRole: "professional", dedupeKey: dedupeKeys.renewalOptOut(sub.id, optOutAt, "professional"), payload }, now)
   },
@@ -101,7 +102,7 @@ export const emailEvents = {
         type: "cancellation_scheduled",
         recipientRole: "client",
         dedupeKey: dedupeKeys.cancellationScheduled(sub.id, cancelAt),
-        payload: { cancelAt: iso(cancelAt), lastPaymentAt: iso(last), lastPaymentCents: last ? sub.priceCentsSnapshot : null },
+        payload: { cancelAt: iso(cancelAt), lastPaymentAt: iso(last), lastPaymentCents: last ? installmentAmountAt(sub, last) : null },
       },
       now,
     )
@@ -137,7 +138,7 @@ export const emailEvents = {
         recipientRole: "client",
         dedupeKey: dedupeKeys.earlyCancellationDecided(d.cancellationRequestId),
         cancellationRequestId: d.cancellationRequestId,
-        payload: { decision: d.decision, cancelAt: iso(d.cancelAt), lastPaymentAt: iso(last), lastPaymentCents: last ? sub.priceCentsSnapshot : null },
+        payload: { decision: d.decision, cancelAt: iso(d.cancelAt), lastPaymentAt: iso(last), lastPaymentCents: last ? installmentAmountAt(sub, last) : null },
       },
       now,
     )

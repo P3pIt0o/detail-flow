@@ -5,6 +5,8 @@ import { loadCustomerPortal } from "@/lib/customer-subscriptions/customer-servic
 import { customerDb, getCustomerRequestContext } from "@/lib/customer-subscriptions/customer-portal.server"
 import { resolvePublicRequestTenant } from "@/lib/tenant"
 import { serializePortalActions } from "@/components/customer-subscriptions/portal/serialize"
+import { headers } from "next/headers"
+import { publicSiteHref } from "@/lib/public-site-links"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +14,8 @@ export const dynamic = "force-dynamic"
 export default async function ManageSubscriptionPage() {
   const [ctx, tenant] = await Promise.all([getCustomerRequestContext(), resolvePublicRequestTenant()])
   const view = await loadCustomerPortal(customerDb, ctx)
+  const h = await headers()
+  const bookingHref = publicSiteHref("reservation", { tenantKind: h.get("x-tenant-kind"), tenantSlug: tenant?.slug })
 
   if (!view) {
     return (
@@ -28,7 +32,7 @@ export default async function ManageSubscriptionPage() {
 
   return (
     <CustomerShell title="Mon abonnement" companyName={tenant?.name}>
-      <ContractCard view={view} />
+      <ContractCard view={view} bookingHref={bookingHref} />
       {view.initialCleaningPaid && view.status === "Nettoyage initial à réaliser" && (
         <div className="rounded-xl border border-border bg-card p-5 text-card-foreground" role="status">
           <p className="font-medium">Votre nettoyage initial est payé.</p>
