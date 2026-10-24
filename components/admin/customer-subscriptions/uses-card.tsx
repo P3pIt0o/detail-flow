@@ -16,7 +16,7 @@ const dateFr = (iso: string, short = false) =>
  * restantes affiché est renvoyé au serveur, qui refuse tout marquage si ce
  * nombre a changé (double clic, autre onglet) : jamais deux prestations.
  */
-export function UsesCard({ subscriptionId, initial, noun, nextRightsAt }: { subscriptionId: number; initial: UsageDto; noun: { one: string; many: string }; nextRightsAt: string | null }) {
+export function UsesCard({ subscriptionId, initial, noun, nextRightsAt, blockedReason = null }: { subscriptionId: number; initial: UsageDto; noun: { one: string; many: string }; nextRightsAt: string | null; blockedReason?: string | null }) {
   const [usage, setUsage] = useState<UsageDto>(initial)
   const [confirming, setConfirming] = useState(false)
   const [justMarked, setJustMarked] = useState<{ useId: number; at: string } | null>(null)
@@ -79,10 +79,15 @@ export function UsesCard({ subscriptionId, initial, noun, nextRightsAt }: { subs
         </p>
       )}
 
-      <Button type="button" className="h-11 w-full sm:w-auto sm:self-start" disabled={remaining === 0 || pending} onClick={() => setConfirming(true)} aria-describedby={remaining === 0 ? "uses-empty" : undefined}>
+      <Button type="button" className="h-11 w-full sm:w-auto sm:self-start" disabled={remaining === 0 || pending || !!blockedReason} onClick={() => setConfirming(true)} aria-describedby={blockedReason ? "uses-blocked" : remaining === 0 ? "uses-empty" : undefined}>
         Marquer une prestation comme effectuée
       </Button>
-      {remaining === 0 && (
+      {blockedReason && (
+        <p id="uses-blocked" className="text-sm text-muted-foreground">
+          {blockedReason}
+        </p>
+      )}
+      {!blockedReason && remaining === 0 && (
         <p id="uses-empty" className="text-sm text-muted-foreground">
           Toutes les prestations de la période sont utilisées.{nextRightsAt ? ` Prochaines le ${dateFr(nextRightsAt)}.` : ""}
         </p>

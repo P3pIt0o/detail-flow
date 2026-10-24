@@ -96,12 +96,13 @@ export function buildPaymentRecap(row: Parameters<typeof buildSubscriptionContra
     receive: `${row.includedUsesPerCycleSnapshot} ${noun}, à utiliser quand vous voulez pendant ${p.months} mois`,
     pay: `${money(p.installmentCents)} par mois pendant ${p.months} mois${p.lastInstallmentCents !== p.installmentCents ? ` (dernier mois : ${money(p.lastInstallmentCents)})` : ""}`,
     payTotal: `Soit ${money(p.periodPriceCents)} au total`,
-    first: `Aujourd'hui, puis le ${dayOfMonthParis(now)} de chaque mois`,
-    commitment: `${p.months} mois, jusqu'au ${ends}`,
+    // Les dates réelles partent du paiement (ancre Stripe), pas de l'affichage : elles ne sont qu'indicatives ici.
+    first: `Le jour de votre paiement, puis le même jour chaque mois (le ${dayOfMonthParis(now)} si vous payez aujourd'hui)`,
+    commitment: `${p.months} mois à compter de votre paiement (jusqu'au ${ends} si vous payez aujourd'hui)`,
     after:
       row.renewalModeSnapshot === "same_term"
-        ? `Un nouvel engagement de ${p.months} mois démarre, avec ${row.includedUsesPerCycleSnapshot} nouveaux ${serviceNoun(row.includedServiceNameSnapshot, 2)}. Vous pouvez demander l'arrêt avant le ${ends}${row.renewalNoticeDaysSnapshot ? " (rappel envoyé avant)" : ""}. ${notReported}`
-        : `La formule s'arrête le ${ends}. ${notReported}`,
+        ? `Un nouvel engagement de ${p.months} mois démarre, avec ${row.includedUsesPerCycleSnapshot} nouveaux ${serviceNoun(row.includedServiceNameSnapshot, 2)}. Vous pouvez demander l'arrêt avant la fin des ${p.months} mois${row.renewalNoticeDaysSnapshot ? " (rappel envoyé avant)" : ""}. ${notReported}`
+        : `La formule s'arrête au bout des ${p.months} mois. ${notReported}`,
     reminder: row.renewalNoticeDaysSnapshot ? `Rappel envoyé ${row.renewalNoticeDaysSnapshot} jours avant chaque prélèvement.` : null,
     payButton: `Payer ${money(p.installmentCents)} et souscrire`,
   }

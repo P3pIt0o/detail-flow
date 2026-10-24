@@ -27,7 +27,7 @@ const uid = (p: string) => `${p}_${++seq}`
 
 type Call = { method: string; id?: string; params?: Record<string, unknown>; opts: payments.StripeCallOptions }
 
-function fakePort(init: { failItemOnInvoice?: boolean; invoices?: Record<string, Record<string, unknown>>; missingItems?: boolean } = {}) {
+function fakePort(init: { failItemOnInvoice?: boolean; invoices?: Record<string, Record<string, unknown>>; missingItems?: boolean; failDelete?: { remaining: number } } = {}) {
   const calls: Call[] = []
   const pis = new Map<string, payments.PaymentIntentLike>()
   const itemsByKey = new Map<string, { id: string }>()
@@ -78,6 +78,7 @@ function fakePort(init: { failItemOnInvoice?: boolean; invoices?: Record<string,
     },
     async deleteInvoiceItem(id, opts) {
       calls.push({ method: "deleteInvoiceItem", id, opts })
+      if (init.failDelete && init.failDelete.remaining-- > 0) throw new Error("stripe_unavailable")
       if (init.missingItems) throw Object.assign(new Error("No such invoiceitem"), { code: "resource_missing" })
       return { id, deleted: true }
     },
@@ -283,6 +284,22 @@ describe("repli : facture déjà finalisée → ligne rattachée à l'abonnement
     const dels = f.calls.filter((x) => x.method === "deleteInvoiceItem")
     expect(dels.map((d) => d.id)).toEqual([itemId])
     expect(dels[0].opts.stripeAccount).toBe(c.acct)
+  })
+
+  it("Stripe indisponible pour la suppression : le contrat est quand même terminé, la suppression est rejouée", async () => {
+    const c = await seedCompany()
+    const subId = await seedSub(c)
+    const f = fakePort({ failDelete: { remaining: 1 } })
+    const ext = await activate(f, c, subId, 2992)
+    await payments.handleCustomerSubscriptionWebhook(db, f.port, draft(c, subId, ext, 11, 2992, "open"))
+    const deleted = { id: uid("evt"), type: "customer.subscription.deleted", account: c.acct, created: sec(monthStart(11)), data: { object: { id: ext, status: "canceled", metadata: meta(c.companyId, subId), canceled_at: sec(monthStart(11)) } } }
+    await expect(payments.handleCustomerSubscriptionWebhook(db, f.port, deleted)).rejects.toThrow()
+    const [after] = await db.select().from(schema.maintenanceSubscriptions).where(eq(schema.maintenanceSubscriptions.id, subId))
+    expect(["cancelled", "ended", "expired"]).toContain(after.status)
+    await payments.handleCustomerSubscriptionWebhook(db, f.port, deleted)
+    expect(f.calls.filter((x) => x.method === "deleteInvoiceItem")).toHaveLength(2)
+    const audits = await db.select().from(schema.maintenanceAuditLog).where(eq(schema.maintenanceAuditLog.subscriptionId, subId))
+    expect(audits.filter((a) => a.action === "last_installment_adjustment_deleted")).toHaveLength(1)
   })
 
   it("ligne déjà absente chez Stripe : suppression considérée faite (pas de boucle de webhook)", async () => {

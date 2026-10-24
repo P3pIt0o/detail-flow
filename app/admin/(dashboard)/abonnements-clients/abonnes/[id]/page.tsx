@@ -86,6 +86,7 @@ export default async function SubscriptionPage({
             }
             noun={{ one: serviceNoun(summary.includedServiceName, 1), many: serviceNoun(summary.includedServiceName, 2) }}
             nextRightsAt={nextRightsAt?.toISOString() ?? null}
+            blockedReason={s.status === "past_due" ? "Paiement à régulariser : le marquage reprendra une fois le paiement reçu." : s.status === "suspended" ? "Abonnement suspendu : aucune prestation ne peut être marquée." : null}
           />
         </SectionCard>
       )}

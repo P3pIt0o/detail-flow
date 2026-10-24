@@ -1436,11 +1436,9 @@ async function onSubscriptionUpdated({ db, event, target }: Ctx): Promise<Webhoo
 }
 
 async function onSubscriptionDeleted({ db, port, event, account, target }: Ctx): Promise<WebhookOutcome> {
-  // Toute fin de contrat (cancel_at, fin forcée, résiliation acceptée) passe par cet événement.
-  await deletePendingAdjustments(db, port, account, target)
   const s = event.data.object as SubscriptionLike
   const endedAt = new Date((s.ended_at ?? s.canceled_at ?? event.created) * 1000)
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const row = await lockTenantSubscription(tx, target.companyId, target.id)
     if (isTerminalStatus(row.status)) return { handled: true as const, outcome: "subscription_deleted_noop" }
     const outcome = decideProviderDeletion(row, endedAt)
@@ -1454,4 +1452,7 @@ async function onSubscriptionDeleted({ db, port, event, account, target }: Ctx):
     await emailEvents.ended(tx, row, endedAt, new Date())
     return { handled: true as const, outcome: `subscription_deleted_${outcome}` }
   })
+  // Après la fin persistée : un échec Stripe (≠ resource_missing) fait rejouer l'événement pour le seul nettoyage.
+  await deletePendingAdjustments(db, port, account, target)
+  return result
 }

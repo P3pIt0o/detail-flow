@@ -150,9 +150,9 @@ describe("récapitulatif avant paiement", () => {
       receive: "6 lavages, à utiliser quand vous voulez pendant 12 mois",
       pay: "29,92 € par mois pendant 12 mois (dernier mois : 29,88 €)",
       payTotal: "Soit 359 € au total",
-      first: "Aujourd'hui, puis le 23 de chaque mois",
-      commitment: "12 mois, jusqu'au 23 octobre 2027",
-      after: "Un nouvel engagement de 12 mois démarre, avec 6 nouveaux lavages. Vous pouvez demander l'arrêt avant le 23 octobre 2027 (rappel envoyé avant). Les lavages non utilisés au bout des 12 mois ne sont pas reportés.",
+      first: "Le jour de votre paiement, puis le même jour chaque mois (le 23 si vous payez aujourd'hui)",
+      commitment: "12 mois à compter de votre paiement (jusqu'au 23 octobre 2027 si vous payez aujourd'hui)",
+      after: "Un nouvel engagement de 12 mois démarre, avec 6 nouveaux lavages. Vous pouvez demander l'arrêt avant la fin des 12 mois (rappel envoyé avant). Les lavages non utilisés au bout des 12 mois ne sont pas reportés.",
       reminder: "Rappel envoyé 3 jours avant chaque prélèvement.",
       payButton: "Payer 29,92 € et souscrire",
     })
