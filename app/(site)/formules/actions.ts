@@ -39,6 +39,7 @@ export async function submitSubscriptionRequest(
       vehicle: { brand: get("brand"), model: get("model"), plate: get("plate") || undefined },
       message: get("message") || undefined,
       submissionId: get("submissionId"),
+      paymentScheduleChoice: get("paymentScheduleChoice") || undefined,
     })
     return {
       status: "success",

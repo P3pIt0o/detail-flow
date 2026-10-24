@@ -47,6 +47,8 @@ export function planRowToConfig(p: AdminPlanRow): ValidatedPlanConfig {
     prepaidBillingCycles: p.prepaidBillingCycles,
     visibility: p.visibility as ValidatedPlanConfig["visibility"],
     status: p.status as ValidatedPlanConfig["status"],
+    rightsPeriodMonths: p.rightsPeriodMonths,
+    paymentSchedule: p.paymentSchedule as ValidatedPlanConfig["paymentSchedule"],
   }
 }
 

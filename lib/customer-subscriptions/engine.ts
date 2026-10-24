@@ -48,6 +48,7 @@ import {
 import { assertValidPlanConfig, type PlanConfigInput, type ValidatedPlanConfig } from "./plan-validation"
 import { CUSTOMER_SUBSCRIPTION_CAPACITY_STATUSES, isTerminalStatus } from "./statuses"
 import { normalizeVehicle, type VehicleInput } from "./vehicle"
+import { rightsInterval } from "./rights-period"
 import { generateManageToken } from "./manage-token"
 import { deriveIdempotencyKey } from "./idempotency"
 import { emailEvents } from "./email-events"
@@ -351,6 +352,8 @@ export type CreateSubscriptionInput = {
   customer: { name: unknown; email: unknown; phone?: unknown }
   vehicle: VehicleInput
   paymentMode: unknown
+  /** L27 : formule « au choix » → period | monthly, re-vérifié contre la formule. */
+  paymentScheduleChoice?: unknown
   /** Clé client (16–128 car.) ; dérivée côté serveur avec tenant + opération + formule. */
   idempotencyKey: string
 }
@@ -474,6 +477,7 @@ async function createSubscriptionCore(
     const snapshot = buildContractSnapshot({
       plan,
       paymentMode: input.paymentMode,
+      paymentScheduleChoice: input.paymentScheduleChoice,
       includedService: { id: includedService.id, name: includedService.name },
       initialService: initialService ? { name: initialService.name, priceCents: initialService.priceCents } : null,
     })
@@ -697,7 +701,8 @@ export async function createCycleIfMissing(db: Executor, companyId: number, subs
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (!CYCLE_ELIGIBLE_STATUSES.has(sub.status) || !sub.billingAnchorAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE")
-    const window = buildCycleWindow(sub.billingAnchorAt, intervalOf(sub), at)
+    // L27 : droits sur la période figée (ex. 12 mois payés chaque mois) ; V1 = période de facturation.
+    const window = buildCycleWindow(sub.billingAnchorAt, rightsInterval(sub), at)
     if (!window) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE")
     const hardEnd = sub.cancelAt ?? sub.prepaidUntil ?? null
     if (hardEnd && window.cycleStart >= hardEnd) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
