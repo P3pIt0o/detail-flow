@@ -27,6 +27,7 @@ import {
   pricingKey,
   currentPricing,
   canConfirmBooking,
+  isPromoUnverified,
   bookingCta,
   type PricingState,
   promoRejectionMessage,
@@ -189,7 +190,7 @@ export function BookingV2(props: BookingV2Props) {
         : "Choisissez un créneau.",
     !contactValid
       ? "Complétez vos coordonnées."
-      : pricing.status === "error"
+      : pricing.status === "error" || isPromoUnverified(pricing)
         ? "Le prix n'a pas pu être vérifié."
         : "Calcul du prix en cours…",
   ]

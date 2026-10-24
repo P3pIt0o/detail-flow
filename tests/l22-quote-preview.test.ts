@@ -29,6 +29,7 @@ const { st, inserts, promo, promoStore } = vi.hoisted(() => ({
   promo: {
     validatePromoCode: vi.fn(async (_i: unknown) => ({ valid: true, promoCodeId: 9, normalizedCode: "BIENVENUE", discountType: "fixed", discountValue: 10, discountCents: 1000, targetServiceIds: null as number[] | null }) as Record<string, unknown>),
     consumePromoCode: vi.fn(async (_tx: unknown, _c: number, _id: number) => true),
+    normalizePromoCode: (c: string) => (c ?? "").trim().toUpperCase(),
   },
   promoStore: {
     loadPromotionData: vi.fn(async (_t: unknown) => ({ ok: true, promotions: [] as unknown[], equivalences: [] as unknown[], upsells: [] }) as Record<string, unknown>),
@@ -86,7 +87,7 @@ vi.mock("@/lib/analytics/queries", () => ({ recordBookingCompleted: async () => 
 vi.mock("@/lib/payments/queries", () => ({ getCompanyPaymentConfig: async () => null }))
 vi.mock("@/lib/payments/mode", () => ({ willRequireOnlinePayment: () => false }))
 vi.mock("@/lib/licensing/enforce", () => ({ canUseFeature: async () => true }))
-vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => false, BOOKING_RATE_LIMITED_MESSAGE: "Trop de demandes." }))
+vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => false, isPromoRateLimited: async () => false, BOOKING_RATE_LIMITED_MESSAGE: "Trop de demandes." }))
 
 import { createBookingAction, getQuoteAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 

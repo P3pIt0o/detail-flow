@@ -4,7 +4,7 @@ import { checkRateLimit } from "@vercel/firewall"
 
 /**
  * Anti-abus de la SOUMISSION FINALE d'une réservation publique
- * (createBookingAction uniquement — jamais devis / disponibilités / promo).
+ * (createBookingAction uniquement — jamais devis / disponibilités ; codes promo : voir isPromoRateLimited).
  *
  * Règle Vercel Firewall à créer manuellement, identifiant EXACT :
  * `BOOKING_RATE_LIMIT_ID`. La clé réseau (IP) est gérée par @vercel/firewall.
@@ -48,6 +48,24 @@ export async function isBookingRateLimited(
       console.error("[booking] anti-abus indisponible — réservation refusée (fail-closed)")
       return true
     }
+    return false
+  }
+}
+
+/**
+ * L24 — limite de la VÉRIFICATION d'un code promo public (validatePromoCodeAction,
+ * getQuoteAction avec un code). Règle Vercel Firewall distincte, à créer à la main :
+ * `PROMO_RATE_LIMIT_ID`. Limite indisponible (règle absente, erreur) : on laisse
+ * passer, y compris en production — un devis n'est jamais bloqué.
+ */
+export const PROMO_RATE_LIMIT_ID = "booking-promo"
+
+export async function isPromoRateLimited(headers: Headers, deps: { check?: FirewallCheck } = {}): Promise<boolean> {
+  const check = deps.check ?? (checkRateLimit as unknown as FirewallCheck)
+  try {
+    const { rateLimited, error } = await check(PROMO_RATE_LIMIT_ID, { headers })
+    return rateLimited === true || error === "blocked"
+  } catch {
     return false
   }
 }
