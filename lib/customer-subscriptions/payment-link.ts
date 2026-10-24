@@ -12,7 +12,9 @@
 import { and, eq } from "drizzle-orm"
 import { companies, maintenanceSubscriptions, settings } from "@/lib/db/schema"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
-import { buildSubscriptionContractSummary, formatIntervalFr, formatMoney } from "./contract-summary"
+import { buildSubscriptionContractSummary, formatDateFr, formatIntervalFr, formatMoney } from "./contract-summary"
+import { addMonthsUTC } from "./dates"
+import { serviceNoun } from "./plan-form"
 import type { CustomerSessionProof, Executor } from "./engine"
 import { CustomerSubscriptionError } from "./errors"
 import { previewDeploymentHost } from "./return-url"
@@ -73,7 +75,37 @@ export type PaymentLinkView =
       dueTodayCents: number
       followingPaymentCents: number | null
       currency: string
+      /** L27 : récapitulatif « lisible en 5 secondes » (paiement mensuel d'une période) ; null = V1. */
+      recap: PaymentRecap | null
     }
+
+export type PaymentRecap = { receive: string; pay: string; payTotal: string; first: string; commitment: string; after: string; reminder: string | null; payButton: string }
+
+const dayOfMonthParis = (d: Date) => Number(new Intl.DateTimeFormat("fr-FR", { day: "numeric", timeZone: "Europe/Paris" }).format(d))
+
+/** Textes calculés serveur depuis les snapshots du contrat (jamais la formule courante). */
+export function buildPaymentRecap(row: Parameters<typeof buildSubscriptionContractSummary>[0], now: Date): PaymentRecap | null {
+  const s = buildSubscriptionContractSummary(row, now)
+  const p = s.rightsPeriod
+  if (!p) return null
+  const money = (c: number) => formatMoney(c, row.currency)
+  const noun = serviceNoun(row.includedServiceNameSnapshot, row.includedUsesPerCycleSnapshot)
+  const ends = formatDateFr(addMonthsUTC(now, p.months))
+  const notReported = `Les ${serviceNoun(row.includedServiceNameSnapshot, 2)} non utilisés au bout des ${p.months} mois ne sont pas reportés.`
+  return {
+    receive: `${row.includedUsesPerCycleSnapshot} ${noun}, à utiliser quand vous voulez pendant ${p.months} mois`,
+    pay: `${money(p.installmentCents)} par mois pendant ${p.months} mois${p.lastInstallmentCents !== p.installmentCents ? ` (dernier mois : ${money(p.lastInstallmentCents)})` : ""}`,
+    payTotal: `Soit ${money(p.periodPriceCents)} au total`,
+    first: `Aujourd'hui, puis le ${dayOfMonthParis(now)} de chaque mois`,
+    commitment: `${p.months} mois, jusqu'au ${ends}`,
+    after:
+      row.renewalModeSnapshot === "same_term"
+        ? `Un nouvel engagement de ${p.months} mois démarre, avec ${row.includedUsesPerCycleSnapshot} nouveaux ${serviceNoun(row.includedServiceNameSnapshot, 2)}. Vous pouvez demander l'arrêt avant le ${ends}${row.renewalNoticeDaysSnapshot ? " (rappel envoyé avant)" : ""}. ${notReported}`
+        : `La formule s'arrête le ${ends}. ${notReported}`,
+    reminder: row.renewalNoticeDaysSnapshot ? `Rappel envoyé ${row.renewalNoticeDaysSnapshot} jours avant chaque prélèvement.` : null,
+    payButton: `Payer ${money(p.installmentCents)} et souscrire`,
+  }
+}
 
 export async function loadPaymentLinkView(db: Executor, token: unknown, resolvedCompanyId: number | null): Promise<PaymentLinkView> {
   const row = await findSubscriptionByManageToken(db, token, resolvedCompanyId)
@@ -91,6 +123,8 @@ export async function loadPaymentLinkView(db: Executor, token: unknown, resolved
       dueTodayCents: s.dueToday.amountCents,
       followingPaymentCents: s.followingPaymentCents,
       currency: s.price.currency,
+      // Récapitulatif mensuel : uniquement pour l'échéance (le nettoyage initial garde son écran).
+      recap: kind === "initial_cleaning" ? null : buildPaymentRecap(row, new Date()),
     }
   }
   if (row.status === "active") return { state: "active", planName }
