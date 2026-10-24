@@ -14,7 +14,7 @@ import { companies, maintenanceSubscriptions, settings } from "@/lib/db/schema"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import { buildSubscriptionContractSummary, formatDateFr, formatIntervalFr, formatMoney } from "./contract-summary"
 import { addMonthsUTC } from "./dates"
-import { serviceNoun } from "./plan-form"
+import { formatEuros, serviceNoun } from "./plan-form"
 import type { CustomerSessionProof, Executor } from "./engine"
 import { CustomerSubscriptionError } from "./errors"
 import { previewDeploymentHost } from "./return-url"
@@ -88,7 +88,7 @@ export function buildPaymentRecap(row: Parameters<typeof buildSubscriptionContra
   const s = buildSubscriptionContractSummary(row, now)
   const p = s.rightsPeriod
   if (!p) return null
-  const money = (c: number) => formatMoney(c, row.currency)
+  const money = (c: number) => (row.currency === "EUR" ? formatEuros(c) : formatMoney(c, row.currency))
   const noun = serviceNoun(row.includedServiceNameSnapshot, row.includedUsesPerCycleSnapshot)
   const ends = formatDateFr(addMonthsUTC(now, p.months))
   const notReported = `Les ${serviceNoun(row.includedServiceNameSnapshot, 2)} non utilisés au bout des ${p.months} mois ne sont pas reportés.`
