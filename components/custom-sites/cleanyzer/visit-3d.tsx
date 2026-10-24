@@ -2,17 +2,21 @@
 
 /**
  * VISITE 3D CLEANYZER — portage React de la maquette `visit3d.js`.
- * Porsche 911 (n.brizitskaya, CC BY 4.0) parcourue au défilement ; chaque zone
- * renvoie aux formules qui la traitent et à la séquence exacte du film.
+ * Porsche 911 (n.brizitskaya, CC BY 4.0) parcourue au défilement sur ordinateur
+ * et au glissement horizontal sur mobile (L28, `visit-3d-swipe.ts`) ; chaque
+ * zone renvoie aux formules qui la traitent et à la séquence exacte du film.
  *
  * Three.js r147 est chargé à la demande depuis le CDN (comme la maquette),
  * uniquement quand la section approche de l'écran : aucune dépendance npm,
  * aucun impact sur le chargement initial. Données : `journey.ts`.
+ * Modèle unique compressé meshopt (5,8 Mo) ; sans WebGL ou sans décodeur :
+ * image de repli. Échec de chargement : « Réessayer » sans recharger la page.
  */
 
 import { useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 import { VEHICLES, type VehicleKey } from "./content"
 import {
   CLZ_VISIT_ANCHOR,
@@ -25,15 +29,25 @@ import {
   type ZoneKey,
 } from "./journey"
 import { goFilm, goVisit, noteZone, registerVisit, useJourney } from "./journey-nav"
+import { dragPosition, releaseStop, stepTo, stopProgress, swipeStops } from "./visit-3d-swipe"
 import "./visit-3d.css"
 
 const BASE = "/custom-sites/cleanyzer/3d/"
 const THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.147.0"
+const FALLBACK_IMG = "/custom-sites/cleanyzer/realisations/gt3rs.webp"
+// Écran tactile (téléphone, y compris en paysage, et tablette) : glissement ; souris : défilement.
+// shortcut: évalué au montage seulement, sans écouteur ; suffit tant qu'un appareil ne change pas de pointeur.
+const SWIPE_MQ = "(pointer: coarse)"
 
 /** Ordre des images clés de la caméra (maquette : KEYS après insertion du moteur). */
 const KEY_ORDER: (ZoneKey | null)[] = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
 const NK = KEY_ORDER.length
 const STEPS = KEY_ORDER.filter((z): z is ZoneKey => z !== null)
+const STOPS = swipeStops(KEY_ORDER)
+const stopLabel = (k: number) => {
+  const z = KEY_ORDER[k]
+  return z ? JOURNEY_ZONES[z].name : k === 0 ? "Introduction" : "Choix de la formule"
+}
 
 const MESH_RE: Record<ZoneKey, RegExp> = {
   body: /^body_|^body__/,
@@ -70,7 +84,12 @@ function addScript(src: string) {
       s.src = src
       s.async = false
       s.onload = () => ok()
-      s.onerror = () => ko(new Error(src))
+      s.onerror = () => {
+        // Rien en cache après un échec : « Réessayer » retélécharge le script.
+        scriptCache.delete(src)
+        s.remove()
+        ko(new Error(src))
+      }
       document.head.appendChild(s)
     })
     scriptCache.set(src, p)
@@ -82,6 +101,18 @@ const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
 const sm = (x: number) => x * x * (3 - 2 * x)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+function hasWebGL() {
+  try {
+    const c = document.createElement("canvas")
+    const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null
+    // Contexte de test libéré aussitôt (les navigateurs limitent le nombre de contextes actifs).
+    gl?.getExtension("WEBGL_lose_context")?.loseContext()
+    return !!gl
+  } catch {
+    return false
+  }
+}
 
 function liteDevice() {
   const n = navigator as Navigator & { connection?: { saveData?: boolean }; deviceMemory?: number }
@@ -121,6 +152,22 @@ export function Visit3D() {
   const [lite, setLite] = useState(false)
   const launchRef = useRef<(() => void) | null>(null)
   const journey = useJourney()
+  // Pas de WebGL ou pas de décodeur meshopt : image de repli + liste des zones.
+  const [fallback, setFallback] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const retryRef = useRef<(() => void) | null>(null)
+  // Mobile : glissement horizontal. `pos` (fractionnaire pendant le geste) est lu
+  // par la boucle de rendu, sans rendu React à chaque mouvement.
+  const [swipe, setSwipe] = useState(false)
+  const [stop, setStop] = useState(0)
+  const swipeRef = useRef({ on: false, pos: 0, stop: 0 })
+  const dragRef = useRef<{ id: number; x: number; y: number; active: boolean; lastX: number; lastT: number; vx: number } | null>(null)
+
+  const goStop = (i: number) => {
+    swipeRef.current.pos = i
+    swipeRef.current.stop = i
+    setStop(i)
+  }
 
   useEffect(() => {
     formRef.current = form
@@ -138,7 +185,15 @@ export function Visit3D() {
   useEffect(() => {
     const section = sectionRef.current
     if (!section) return
-    return registerVisit((zone) => scrollToKey(section, zone))
+    return registerVisit((zone) => {
+      if (!swipeRef.current.on) return scrollToKey(section, zone)
+      const k = zone === "final" ? NK - 1 : KEY_ORDER.indexOf(zone)
+      const i = Math.max(0, STOPS.indexOf(k))
+      swipeRef.current.pos = i
+      swipeRef.current.stop = i
+      setStop(i)
+      section.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth" })
+    })
   }, [])
 
   useEffect(() => {
@@ -148,15 +203,38 @@ export function Visit3D() {
     let disposed = false
     let raf = 0
     let cleanupScene: (() => void) | null = null
+    const isSwipe = window.matchMedia(SWIPE_MQ).matches
+    swipeRef.current.on = isSwipe
+    setSwipe(isSwipe)
+
+    const fail = (msg: string) => {
+      if (disposed) return
+      setStatus(msg)
+      setFailed(true)
+    }
 
     const boot = () => {
+      if (!hasWebGL()) {
+        setFallback(true)
+        return
+      }
       addScript(`${THREE_CDN}/build/three.min.js`)
         .then(() => addScript(`${THREE_CDN}/examples/js/loaders/GLTFLoader.js`))
         .then(() => addScript(`${BASE}meshopt_decoder.js`))
         .then(() => {
           if (!disposed) cleanupScene = start()
         })
-        .catch(() => !disposed && setStatus("La 3D n’a pas pu se charger"))
+        .catch(() => fail("La 3D n’a pas pu se charger"))
+    }
+
+    retryRef.current = () => {
+      if (raf) cancelAnimationFrame(raf)
+      raf = 0
+      cleanupScene?.()
+      cleanupScene = null
+      setFailed(false)
+      setStatus("Chargement de la voiture…")
+      boot()
     }
 
     const start = () => {
@@ -164,7 +242,7 @@ export function Visit3D() {
       const w = window as any
       const THREE = w.THREE
       if (!THREE?.GLTFLoader) {
-        setStatus("La 3D n’a pas pu se charger")
+        fail("La 3D n’a pas pu se charger")
         return null
       }
       const reduce = reducedMotion()
@@ -252,27 +330,21 @@ export function Visit3D() {
       let ready = false
 
       const loader = new THREE.GLTFLoader()
-      const tryLoad = (url: string, useMeshopt: boolean) => {
-        if (useMeshopt) loader.setMeshoptDecoder(w.MeshoptDecoder)
+      const load = () => {
+        loader.setMeshoptDecoder(w.MeshoptDecoder)
         loader.load(
-          url,
+          `${BASE}porsche-911-glb.wasm`,
           setup,
           (e: ProgressEvent) => {
             if (e.total) setStatus(`Chargement de la voiture ${Math.round((e.loaded / e.total) * 100)} %`)
           },
-          () => {
-            if (useMeshopt) tryLoad(`${BASE}porsche-911-raw-glb.wasm`, false)
-            else setStatus("La voiture n’a pas pu se charger")
-          },
+          () => fail("La voiture n’a pas pu se charger"),
         )
       }
+      // Le modèle n'existe qu'en version meshopt : sans décodeur, image de repli.
       const md = w.MeshoptDecoder
-      if (md?.supported)
-        md.ready.then(
-          () => tryLoad(`${BASE}porsche-911-glb.wasm`, true),
-          () => tryLoad(`${BASE}porsche-911-raw-glb.wasm`, false),
-        )
-      else tryLoad(`${BASE}porsche-911-raw-glb.wasm`, false)
+      if (md?.supported) md.ready.then(load, () => !disposed && setFallback(true))
+      else setFallback(true)
 
       function setup(g: Any) {
         if (disposed) return
@@ -446,6 +518,7 @@ export function Visit3D() {
       let lastFinal = false
       let visible = true
       const measure = () => {
+        if (swipeRef.current.on) return
         const r = section.getBoundingClientRect()
         target = clamp(-r.top / (r.height - window.innerHeight))
       }
@@ -461,6 +534,7 @@ export function Visit3D() {
       function loop(ts: number) {
         raf = requestAnimationFrame(loop)
         if (!visible || !ready) return
+        if (swipeRef.current.on) target = stopProgress(STOPS, swipeRef.current.pos, NK)
         const t = ts / 1000
         cur += (target - cur) * (reduce ? 1 : 0.09)
         const kf = cur * (NK - 1)
@@ -599,6 +673,51 @@ export function Visit3D() {
     }
   }
 
+  // Glissement horizontal (mobile). Le geste n'est pris qu'une fois clairement
+  // horizontal ; un geste vertical reste au navigateur (défilement de la page,
+  // `touch-action: pan-y`). Pas de capture avant ça : les clics restent aux boutons.
+  const swipeHandlers = swipe
+    ? {
+        onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+          dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false, lastX: e.clientX, lastT: e.timeStamp, vx: 0 }
+        },
+        onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+          const d = dragRef.current
+          if (!d || d.id !== e.pointerId) return
+          const dx = e.clientX - d.x
+          if (!d.active) {
+            if (Math.abs(dx) < 8) return
+            if (Math.abs(e.clientY - d.y) > Math.abs(dx)) {
+              dragRef.current = null
+              return
+            }
+            d.active = true
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* pointeur déjà relâché */
+            }
+          }
+          const dt = e.timeStamp - d.lastT
+          if (dt > 0) d.vx = (e.clientX - d.lastX) / dt
+          d.lastX = e.clientX
+          d.lastT = e.timeStamp
+          swipeRef.current.pos = dragPosition(swipeRef.current.stop, dx, e.currentTarget.clientWidth, STOPS.length)
+        },
+        onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+          const d = dragRef.current
+          dragRef.current = null
+          if (!d?.active) return
+          goStop(releaseStop(swipeRef.current.stop, e.clientX - d.x, e.currentTarget.clientWidth, d.vx, STOPS.length))
+        },
+        onPointerCancel: () => {
+          dragRef.current = null
+          goStop(swipeRef.current.stop)
+        },
+      }
+    : {}
+
+  const showLite = lite || fallback
   const zone = step >= 0 ? STEPS[step] : null
   const z = zone ? JOURNEY_ZONES[zone] : null
   const zf = zone ? zoneFormulas(zone) : []
@@ -609,13 +728,37 @@ export function Visit3D() {
   const formZones = ZONE_KEYS.filter((k) => zoneFormulas(k).includes(form))
 
   return (
-    <section ref={sectionRef} id={CLZ_VISIT_ANCHOR} className={lite ? "v3 v3-is-lite" : "v3"} aria-label="Visite 3D : ce que chaque formule traite, zone par zone">
-      <div className="v3-stage">
+    <section
+      ref={sectionRef}
+      id={CLZ_VISIT_ANCHOR}
+      className={["v3", showLite && "v3-is-lite", swipe && "v3-swipe"].filter(Boolean).join(" ")}
+      aria-label="Visite 3D : ce que chaque formule traite, zone par zone"
+    >
+      <div className="v3-stage" {...swipeHandlers}>
         <canvas ref={canvasRef} id="v3-gl" aria-hidden="true" />
         <div className="v3-vig" />
-        {status && !lite && <div className="v3-load">{status}</div>}
-        {lite && (
+        {status && !showLite && (
+          <div className="v3-load" role={failed ? "alert" : undefined}>
+            {status}
+            {failed && (
+              <button type="button" className="clz-btn clz-btn-primary" onClick={() => retryRef.current?.()}>
+                Réessayer
+              </button>
+            )}
+          </div>
+        )}
+        {showLite && (
           <div className="v3-lite">
+            {fallback && (
+              <Image
+                src={FALLBACK_IMG}
+                alt="Porsche 911 GT3 RS blanche en atelier"
+                width={900}
+                height={1200}
+                sizes="(max-width:768px) 100vw, 40rem"
+                className="v3-fallback-img"
+              />
+            )}
             <span className="clz-eyebrow">Visite 3D</span>
             <h2 className="clz-display clz-h2">
               Ce qu&apos;on traite, <span className="clz-accent">zone par zone.</span>
@@ -635,17 +778,20 @@ export function Visit3D() {
                 </li>
               ))}
             </ul>
+            {fallback && <p className="v3-fallback-msg">La visite 3D n&apos;est pas disponible sur cet appareil.</p>}
             <div className="row">
-              <button
-                className="clz-btn clz-btn-primary"
-                type="button"
-                onClick={() => {
-                  setLite(false)
-                  launchRef.current?.()
-                }}
-              >
-                Lancer la visite 3D
-              </button>
+              {!fallback && (
+                <button
+                  className="clz-btn clz-btn-primary"
+                  type="button"
+                  onClick={() => {
+                    setLite(false)
+                    launchRef.current?.()
+                  }}
+                >
+                  Lancer la visite 3D
+                </button>
+              )}
               <a className="skip" href="#prestations">
                 Voir les prestations
               </a>
@@ -657,10 +803,13 @@ export function Visit3D() {
           <h2 className="clz-display clz-h2">
             Ce qu&apos;on traite, <span className="clz-accent">zone par zone.</span>
           </h2>
-          <p>Faites défiler : on fait le tour de la voiture, on entre dans l&apos;habitacle, et chaque zone renvoie à la prestation en vidéo.</p>
+          <p>
+            {swipe ? "Glissez vers la gauche" : "Faites défiler"} : on fait le tour de la voiture, on entre dans l&apos;habitacle, et chaque
+            zone renvoie à la prestation en vidéo.
+          </p>
           <div className="row">
             <button className="clz-btn clz-btn-primary" type="button" onClick={() => goVisit("body", null)}>
-              Commencer la visite ↓
+              Commencer la visite {swipe ? "→" : "↓"}
             </button>
             <a className="skip" href="#prestations">
               Passer la visite
@@ -679,6 +828,28 @@ export function Visit3D() {
           <b ref={ringValRef}>0</b>
           <small>% de la visite</small>
         </div>
+        {swipe && (
+          <nav className="v3-steps" aria-label="Étapes de la visite 3D">
+            <button type="button" aria-label="Étape précédente" disabled={stop === 0} onClick={() => goStop(stepTo(stop, -1, STOPS.length))}>
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <ol>
+              {STOPS.map((k, i) => (
+                <li key={k}>
+                  <button type="button" aria-label={stopLabel(k)} aria-current={i === stop ? "step" : undefined} onClick={() => goStop(i)} />
+                </li>
+              ))}
+            </ol>
+            <button
+              type="button"
+              aria-label="Étape suivante"
+              disabled={stop === STOPS.length - 1}
+              onClick={() => goStop(stepTo(stop, 1, STOPS.length))}
+            >
+              <ChevronRight className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </nav>
+        )}
         <ol className="v3-rail" aria-label="Zones de la visite">
           {STEPS.map((k, i) => (
             <li key={k} className={i === step ? "on" : undefined}>

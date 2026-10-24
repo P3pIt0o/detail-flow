@@ -244,6 +244,28 @@ export const BRAND = {
   googleReviewsUrl: "https://maps.app.goo.gl/QeQ4NW2RQVX3xBNx8" as string | null,
 }
 
+// Témoignages d'entreprises clientes (L28) : accord et citations validés par écrit
+// (Clément, 23/10/2026). Citations recopiées mot pour mot, sans note.
+// `url` : site de l'entreprise, à renseigner seulement quand il est fourni.
+// `logo` : utilisation autorisée par chaque entreprise (Clément, 23/10/2026). PNG transparents, à poser sur fond clair.
+export type ClzTestimonial = { company: string; quote: string; verified: boolean; url?: string; logo?: string }
+
+const LOGOS = "/custom-sites/cleanyzer/temoignages"
+
+export const CLZ_TESTIMONIALS: ClzTestimonial[] = [
+  { company: "Perrin Electric", quote: "Une prestation soignée et un travail de qualité.", verified: true, logo: `${LOGOS}/perrin-electric.png` },
+  {
+    company: "Trofeo Automobiles",
+    quote: "Un professionnel à la hauteur de nos besoins et de nos attentes.",
+    verified: true,
+    logo: `${LOGOS}/trofeo-automobiles.png`,
+  },
+  { company: "Pinto Maçonnerie", quote: "Un professionnel sérieux, à la hauteur de nos attentes.", verified: true, logo: `${LOGOS}/pinto-maconnerie.png` },
+]
+
+export const verifiedTestimonials = (list: ClzTestimonial[]) =>
+  list.filter((t) => t.verified === true && t.company.trim() !== "" && t.quote.trim() !== "")
+
 export const NAV_LABELS = {
   prestations: "Prestations",
   realisations: "Réalisations",

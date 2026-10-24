@@ -99,3 +99,18 @@
 .v3-zones button:hover{border-color:var(--clz-blue);color:var(--clz-blue)}
 /* Description de zone (zone Optiques). */
 .v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:var(--clz-on-dark-muted)}
+/* L28 — mobile : visite au glissement horizontal, sur un seul écran (plus de défilement long). */
+.v3.v3-swipe{height:100vh;height:100svh}
+.v3-swipe .v3-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.v3-swipe .v3-ring{display:none}
+.v3-steps{position:absolute;left:50%;top:calc(4.25rem + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:.35rem;background:rgba(7,11,20,.6);border:1px solid rgba(111,182,255,.25);border-radius:999px;padding:.2rem}
+.v3-steps>button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
+.v3-steps>button:disabled{opacity:.3;cursor:default}
+.v3-steps ol{list-style:none;margin:0;padding:0;display:flex;gap:2px}
+.v3-steps ol button{display:grid;place-items:center;width:20px;height:44px;border:0;background:transparent;padding:0;cursor:pointer}
+.v3-steps ol button::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(200,215,235,.4);transition:width .3s,background .3s}
+.v3-steps ol button[aria-current="step"]::before{width:16px;background:var(--clz-blue)}
+.v3-steps button:focus-visible,.v3-load button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}
+.v3-load{display:flex;flex-direction:column;align-items:center;gap:1rem;text-align:center}
+.v3-fallback-img{display:block;width:100%;height:auto;aspect-ratio:3/4;max-height:60svh;object-fit:cover;border-radius:16px;margin-bottom:1.5rem}
+.v3-fallback-msg{color:var(--clz-on-dark-muted);margin:0 0 1.5rem}

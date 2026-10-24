@@ -68,7 +68,22 @@ export const PAIRS: ClzPair[] = [
   },
 ]
 
-export const pairSrc = (name: string) => `${BASE}/${name}.webp`
+/** Paire ISUZU (vraie intervention) : accueil uniquement, hors PAIRS (pages prestations inchangées).
+    Textes repris de l'ancienne section « Le soin en images ». */
+export const ISUZU_PAIR: ClzPair = {
+  before: "/custom-sites/cleanyzer/isuzu-avant.webp",
+  after: "/custom-sites/cleanyzer/isuzu-apres.webp",
+  altBefore: "Habitacle, moquette et sièges d'un ISUZU avant le nettoyage intérieur",
+  altAfter: "Habitacle, moquette et sièges du même ISUZU après le nettoyage intérieur CLEANYZER",
+  title: "Nettoyage intérieur",
+  detail: "Sièges, tapis, plastiques et recoins",
+  kind: "interieur",
+}
+
+export const AVANT_APRES_PAIRS: ClzPair[] = [ISUZU_PAIR, ...PAIRS]
+
+/** Nom de fichier de `realisations/`, ou chemin absolu (paire ISUZU). */
+export const pairSrc = (name: string) => (name.startsWith("/") ? name : `${BASE}/${name}.webp`)
 
 /** Carte avant / après : comparateur + titre + détail + lien éventuel (HTML natif). */
 export function ClzPairCard({ pair, showLink = true, sizes }: { pair: ClzPair; showLink?: boolean; sizes?: string }) {
@@ -105,7 +120,8 @@ const GALLERY = [
   { src: "aerations", alt: "Aérations rondes et écran de tableau de bord Mercedes", caption: "Aérations et tableau de bord" },
 ]
 
-export function RealisationsTom() {
+/** Première section sous le héros (L28) : avant / après, grille 2 × 2 sur ordinateur, empilée sur mobile. */
+export function AvantApresSection() {
   return (
     <section id="avant-apres" className="scroll-mt-20 bg-[var(--clz-bg)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
@@ -117,13 +133,22 @@ export function RealisationsTom() {
           Le résultat en images.
         </p>
 
-        <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {PAIRS.map((p) => (
-            <ClzPairCard key={p.before} pair={p} />
+        <div className="mt-12 grid gap-8 md:grid-cols-2 md:gap-10 lg:max-w-4xl">
+          {AVANT_APRES_PAIRS.map((p) => (
+            <ClzPairCard key={p.before} pair={p} sizes="(max-width:768px) 100vw, 28rem" />
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
 
-        <span className="clz-eyebrow mt-20 block">Réalisations</span>
+/** Galerie des réalisations (reste à sa place ; cible du lien « Réalisations » du menu). */
+export function RealisationsTom() {
+  return (
+    <section id="realisations" className="scroll-mt-20 bg-[var(--clz-bg)]">
+      <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+        <span className="clz-eyebrow block">Réalisations</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-[var(--clz-fg)]">
           Passées entre <span className="clz-accent">les mains de Tom</span>
         </h2>

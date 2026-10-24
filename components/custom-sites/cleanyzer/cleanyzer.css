@@ -341,3 +341,7 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* L28 — témoignages : défilement horizontal au clavier aussi (liste focusable). */
+.cleanyzer .clz-tem-list { scrollbar-width: thin; }
+.cleanyzer .clz-tem-list:focus-visible { outline: 2px solid var(--clz-blue); outline-offset: 4px; border-radius: 1rem; }

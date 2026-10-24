@@ -19,6 +19,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const INITIAL = 50
 
+export const clampPct = (pct: number) => Math.min(100, Math.max(0, pct))
+
 export type ClzCompareProps = {
   before: string
   after: string
@@ -40,7 +42,7 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
   const [value, setValue] = useState(INITIAL)
 
   const apply = useCallback((pct: number) => {
-    pending.current = Math.min(100, Math.max(0, pct))
+    pending.current = clampPct(pct)
     if (raf.current !== null) return
     raf.current = requestAnimationFrame(() => {
       raf.current = null
@@ -105,6 +107,7 @@ export function ClzCompareSlider({ before, after, altBefore, altAfter, label, si
         defaultValue={INITIAL}
         className="clz-cmp-range"
         aria-label={`Comparer avant et après : ${label}`}
+        aria-valuenow={value}
         aria-valuetext={`${Math.round(value)} % de la photo avant visible`}
         onInput={(e) => apply(Number((e.target as HTMLInputElement).value))}
         onChange={(e) => setValue(Number(e.target.value))}
