@@ -4,8 +4,8 @@ import { withTenant } from "@/lib/tenant-link"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getAdminOverview, listServiceOptions } from "@/lib/customer-subscriptions/admin-queries"
-import { DEFAULT_PLAN_FORM } from "@/lib/customer-subscriptions/plan-form"
-import { PlanConfigurator } from "@/components/admin/customer-subscriptions/plan-configurator"
+import { DEFAULT_WIZARD_FORM } from "@/lib/customer-subscriptions/plan-form"
+import { PlanWizard } from "@/components/admin/customer-subscriptions/plan-wizard"
 
 export const metadata: Metadata = { title: "Nouvelle formule" }
 export const dynamic = "force-dynamic"
@@ -24,11 +24,11 @@ export default async function NewPlanPage({ searchParams }: { searchParams: Prom
         <Link href={withTenant("/admin/abonnements-clients?vue=formules", tenant)} className="text-sm text-muted-foreground hover:text-foreground">
           ← Abonnements clients
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">Nouvelle formule</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Créer une formule d&apos;entretien</h1>
       </div>
-      <PlanConfigurator
+      <PlanWizard
         planId={null}
-        initial={DEFAULT_PLAN_FORM}
+        initial={DEFAULT_WIZARD_FORM}
         services={services}
         paymentsReady={paymentsReady}
         hasSubscribers={false}

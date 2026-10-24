@@ -5,8 +5,9 @@ import { notFound } from "next/navigation"
 import { requireAdmin } from "@/lib/admin"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getAdminOverview, getPlanForEdit, listServiceOptions, planRowToConfig } from "@/lib/customer-subscriptions/admin-queries"
-import { planFormFromConfig } from "@/lib/customer-subscriptions/plan-form"
+import { planFormFromConfig, wizardFromConfig } from "@/lib/customer-subscriptions/plan-form"
 import { PlanConfigurator } from "@/components/admin/customer-subscriptions/plan-configurator"
+import { PlanWizard } from "@/components/admin/customer-subscriptions/plan-wizard"
 import { EmptyState } from "@/components/admin/customer-subscriptions/ui"
 
 export const metadata: Metadata = { title: "Modifier la formule" }
@@ -34,6 +35,7 @@ export default async function EditPlanPage({
   const { company } = overview
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
   const config = planRowToConfig(found.plan)
+  const wizard = wizardFromConfig(config)
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,7 +47,10 @@ export default async function EditPlanPage({
       </div>
       {found.plan.status === "archived" ? (
         <EmptyState title="Cette formule est archivée">Elle n&apos;est plus proposée. Vos abonnés actuels gardent leurs conditions.</EmptyState>
+      ) : wizard ? (
+        <PlanWizard planId={planId} initial={wizard} services={services} paymentsReady={paymentsReady} hasSubscribers={found.hasSubscribers} publicMode={company.publicMode} />
       ) : (
+        // Réglages non exprimables en 3 étapes (semaines, prépayé, engagement libre…) : ancien formulaire.
         <PlanConfigurator
           planId={planId}
           initial={planFormFromConfig(config)}

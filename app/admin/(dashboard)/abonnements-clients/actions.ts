@@ -8,10 +8,13 @@ import {
   decideEarlyCancellationForCurrentTenant,
   rejectRequestForCurrentTenant,
   resendPaymentLinkForCurrentTenant,
+  markUseCompletedForCurrentTenant,
   setPublicModeForCurrentTenant,
+  undoUseCompletedForCurrentTenant,
   updatePlanForCurrentTenant,
 } from "@/lib/customer-subscriptions/service"
-import { toPlanConfigInput, type PlanFormState } from "@/lib/customer-subscriptions/plan-form"
+import { toPlanConfigInput, wizardToPlanConfigInput, type PlanFormState, type WizardFormState } from "@/lib/customer-subscriptions/plan-form"
+import type { UsageView } from "@/lib/customer-subscriptions/engine"
 import { errorMessage } from "@/lib/customer-subscriptions/admin-labels"
 
 export type ActionResult = { ok: true; id?: number; warning?: string } | { ok: false; message: string; planChanged?: boolean }
@@ -34,6 +37,40 @@ export async function savePlanAction(planId: number | null, form: PlanFormState)
   if (!r.ok) return fail(r)
   revalidatePath(BASE)
   return { ok: true, id: r.value.planId }
+}
+
+/** Formulaire en 3 étapes (L27) : même retraduction serveur, aucune valeur technique du navigateur. */
+export async function saveWizardPlanAction(planId: number | null, form: WizardFormState): Promise<ActionResult> {
+  if (planId !== null && !validId(planId)) return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
+  const input = wizardToPlanConfigInput(form)
+  const r = planId === null ? await createPlanForCurrentTenant(input) : await updatePlanForCurrentTenant(planId, input)
+  if (!r.ok) return fail(r)
+  revalidatePath(BASE)
+  return { ok: true, id: r.value.planId }
+}
+
+export type UseActionResult =
+  | { ok: true; outcome: "completed" | "stale" | "undone"; useId: number | null; usage: { total: number; remaining: number; periodEndsAt: string; lastCompletedUseId: number | null; lastCompletedAt: string | null } | null }
+  | { ok: false; message: string }
+
+const serializeUsage = (u: UsageView | null) =>
+  u ? { total: u.total, remaining: u.remaining, periodEndsAt: u.periodEndsAt.toISOString(), lastCompletedUseId: u.lastCompleted?.useId ?? null, lastCompletedAt: u.lastCompleted?.completedAt.toISOString() ?? null } : null
+
+/** Le tenant vient de la session ; l'abonnement est re-vérifié dans le tenant par le moteur. */
+export async function markUseCompletedAction(subscriptionId: number, expectedRemaining: number): Promise<UseActionResult> {
+  if (!validId(subscriptionId) || !Number.isInteger(expectedRemaining) || expectedRemaining < 0) return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
+  const r = await markUseCompletedForCurrentTenant(subscriptionId, expectedRemaining)
+  if (!r.ok) return { ok: false, message: errorMessage(r.code) }
+  revalidatePath(`${BASE}/abonnes/${subscriptionId}`)
+  return { ok: true, outcome: r.value.outcome, useId: r.value.useId, usage: serializeUsage(r.value.usage) }
+}
+
+export async function undoUseCompletedAction(subscriptionId: number, useId: number): Promise<UseActionResult> {
+  if (!validId(subscriptionId) || !validId(useId)) return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
+  const r = await undoUseCompletedForCurrentTenant(subscriptionId, useId)
+  if (!r.ok) return { ok: false, message: errorMessage(r.code) }
+  revalidatePath(`${BASE}/abonnes/${subscriptionId}`)
+  return { ok: true, outcome: "undone", useId: null, usage: serializeUsage(r.value.usage) }
 }
 
 export async function archivePlanAction(planId: number): Promise<ActionResult> {

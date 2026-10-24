@@ -57,6 +57,13 @@ export const completeInitialCleaningForCurrentTenant = (subscriptionId: number) 
 export const changeVehicleForCurrentTenant = (subscriptionId: number, vehicle: VehicleInput) =>
   run(MUTATORS, (companyId, actor) => engine.changeVehicle(db, companyId, actor, subscriptionId, vehicle))
 
+/** L27 : prestation effectuée (compare-and-set atomique sur le nombre de restantes vu par le pro). */
+export const markUseCompletedForCurrentTenant = (subscriptionId: number, expectedRemaining: number) =>
+  run(MUTATORS, (companyId, actor) => engine.markUseCompleted(db, companyId, actor, subscriptionId, { expectedRemaining }))
+
+export const undoUseCompletedForCurrentTenant = (subscriptionId: number, useId: number) =>
+  run(MUTATORS, (companyId, actor) => engine.undoUseCompleted(db, companyId, actor, subscriptionId, useId))
+
 /* Décision DB (source de vérité) puis synchronisation Stripe hors transaction.
  * Une panne Stripe renvoie provider.status = "pending_retry" ; rappeler la même
  * action (ou syncProviderStateForCurrentTenant) resynchronise sans toucher la DB. */
