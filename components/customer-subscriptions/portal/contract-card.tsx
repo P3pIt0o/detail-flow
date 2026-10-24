@@ -68,9 +68,25 @@ function UsageSection({ view, bookingHref }: { view: CustomerPortalView; booking
           </div>
         ) : null}
         {u.remaining > 0 && (
-          <a href={bookingHref} className="flex h-12 items-center justify-center rounded-xl bg-primary text-base font-semibold text-primary-foreground">
-            Réserver un {serviceNoun(s.includedServiceName, 1)}
-          </a>
+          // Pas de réservation en ligne ici : le pro fixe le rendez-vous et décompte la prestation (aucun paiement).
+          <details className="group rounded-xl">
+            <summary className="flex h-12 cursor-pointer list-none items-center justify-center rounded-xl bg-primary text-base font-semibold text-primary-foreground [&::-webkit-details-marker]:hidden">
+              Planifier mon {serviceNoun(s.includedServiceName, 1)}
+            </summary>
+            <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border p-4 text-sm">
+              {view.proContact.phone && (
+                <a href={`tel:${view.proContact.phone.replace(/\s/g, "")}`} className="font-semibold text-primary underline-offset-4 hover:underline">
+                  {view.proContact.phone}
+                </a>
+              )}
+              {view.proContact.email && (
+                <a href={`mailto:${view.proContact.email}`} className="font-semibold text-primary underline-offset-4 hover:underline">
+                  {view.proContact.email}
+                </a>
+              )}
+              <p className="leading-relaxed text-muted-foreground">Votre professionnel fixe le rendez-vous avec vous et décompte la prestation de votre formule.</p>
+            </div>
+          </details>
         )}
       </section>
       {u.remaining === 0 && (

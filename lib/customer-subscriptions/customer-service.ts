@@ -17,6 +17,7 @@ import {
   maintenanceCancellationRequests,
   maintenanceSubscriptionVehicles,
   maintenanceSubscriptions,
+  settings,
 } from "@/lib/db/schema"
 import {
   CUSTOMER_SESSION_TTL_SECONDS,
@@ -159,6 +160,8 @@ export type CustomerPortalView = {
   /** L27 : prestations de la période en cours (vraies données) ; null avant le premier paiement. */
   usage: UsageView | null
   nextRightsAt: Date | null
+  /** Coordonnées publiques du pro (« Planifier mon lavage ») : son propre tenant uniquement. */
+  proContact: { phone: string | null; email: string | null }
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -275,8 +278,14 @@ export async function loadCustomerPortal(db: Executor, ctx: CustomerRequestConte
   const { primary, secondary } = computeCustomerActions(sub, { hasPendingEarlyCancellation: !!pending, initialCleaningPaid }, now)
   // Session vérifiée : companyId et abonnement viennent de la preuve serveur, jamais du navigateur.
   const usage = isTerminalStatus(sub.status) ? null : await getCurrentUsage(db, sub.companyId, sub.id, now)
+  const [contact] = await db
+    .select({ phone: settings.businessPhone, email: settings.businessEmail })
+    .from(settings)
+    .where(eq(settings.companyId, sub.companyId))
+    .limit(1)
   return {
     usage,
+    proContact: { phone: contact?.phone?.trim() || null, email: contact?.email?.trim() || null },
     nextRightsAt: usage ? nextRightsAt(sub, usage.periodEndsAt) : null,
     summary: buildSubscriptionContractSummary(sub, now),
     vehicle: vehicle ? { label: `${vehicle.brand} ${vehicle.model}`.trim(), plate: vehicle.plate } : null,
