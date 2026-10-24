@@ -6,6 +6,8 @@ import { computePrepaidTotalCents } from "./contract"
 import { formatCommitmentFr, formatIntervalFr, formatMoney } from "./contract-summary"
 import { validatePlanConfig, type ValidatedPlanConfig } from "./plan-validation"
 import { isPlanPubliclyAccessible, parsePublicMode, type PlanPublicAccess } from "./public-mode"
+import { formatEuros, periodWords, serviceNoun } from "./plan-form"
+import { isMonthlyInstallments, splitInstallments } from "./rights-period"
 
 /**
  * Vue PUBLIQUE des formules d'un tenant. Fail-closed : toute condition non
@@ -28,6 +30,65 @@ export type PublicPlanView = {
   noticeLabel: string | null
   initialCleaningLabel: string | null
   paymentOptions: { mode: "recurring" | "prepaid"; label: string }[]
+  /** L27 : carte « N prestations par période » (null = formule V1, affichage inchangé). */
+  period: PublicPeriodView | null
+}
+
+export type PublicPeriodView = {
+  badge: string | null
+  priceMain: string
+  priceSuffix: string
+  usesLine: string
+  features: string[]
+  footer: string
+  /** Formule « au choix » : options proposées dans la demande (re-vérifiées serveur). */
+  choices: { value: "monthly" | "period"; title: string; description: string }[] | null
+  choiceNote: string | null
+}
+
+function toPeriodView(plan: ValidatedPlanConfig, includedName: string | null): PublicPeriodView | null {
+  const months = plan.rightsPeriodMonths
+  if (months == null || plan.paymentSchedule == null) return null
+  const w = periodWords(months)
+  const noun = serviceNoun(includedName, plan.includedUsesPerCycle)
+  const total = formatEuros(plan.priceCents)
+  const totalWhere = months === 12 ? "sur l'année" : `sur ${w.months}`
+  const usesLine = `${plan.includedUsesPerCycle} ${noun} ${w.per}, quand vous voulez`
+  const features = [includedName, plan.renewalNoticeDays ? "Rappel avant chaque prélèvement" : null].filter((x): x is string => !!x)
+  const split = isMonthlyInstallments(plan.paymentSchedule, months) ? splitInstallments(plan.priceCents, months) : null
+  if (!split) {
+    return {
+      badge: null,
+      priceMain: total,
+      priceSuffix: w.short,
+      usesLine,
+      features,
+      footer: plan.commitmentUnit === "none" ? "Sans engagement · arrêt possible avant chaque échéance" : `Engagement ${w.months}`,
+      choices: null,
+      choiceNote: null,
+    }
+  }
+  const m = formatEuros(split.installmentCents)
+  const choice = plan.paymentSchedule === "customer_choice"
+  return {
+    badge: choice ? "Mensuel ou en une fois" : "Paiement mensuel",
+    priceMain: m,
+    priceSuffix: "/ mois",
+    usesLine,
+    features,
+    footer: `Engagement ${w.months} · ${total} au total ${totalWhere}`,
+    choices: choice
+      ? [
+          { value: "monthly", title: `Chaque mois — ${m} / mois`, description: `Pendant ${w.months}, engagement ${w.months} · ${total} au total` },
+          {
+            value: "period",
+            title: `En une fois — ${total} ${w.short}`,
+            description: plan.renewalMode === "none" ? `Pour ${w.months}, puis la formule s'arrête` : `Prélevé ${months === 12 ? "chaque année" : `tous les ${w.months}`}, arrêt possible avant chaque échéance`,
+          },
+        ]
+      : null,
+    choiceNote: choice ? `Le paiement mensuel inclut un engagement de ${w.months}.` : null,
+  }
 }
 
 export type PublicOffer = {
@@ -77,6 +138,7 @@ export function toPublicPlanView(
       ? `Nettoyage initial requis avant l'activation${names.initial ? ` (${names.initial})` : ""}`
       : null,
     paymentOptions: options,
+    period: toPeriodView(plan, names.included),
   }
 }
 
