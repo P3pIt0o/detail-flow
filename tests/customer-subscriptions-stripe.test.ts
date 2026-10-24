@@ -91,6 +91,15 @@ function fakePort(
       calls.push({ method: "retrievePaymentIntentWithBalance", id, opts })
       return (init.balances?.[id] ?? { id, latest_charge: null }) as any
     },
+    // L27 : jamais appelés pour un contrat V1 (aucun ajustement de dernière échéance).
+    async createInvoiceItem(params, opts) {
+      calls.push({ method: "createInvoiceItem", params, opts })
+      return { id: uid("ii") }
+    },
+    async deleteInvoiceItem(id, opts) {
+      calls.push({ method: "deleteInvoiceItem", id, opts })
+      return { id, deleted: true }
+    },
   }
   // Registre PI accessible aux helpers (forme Dahlia : fee réel sur le PaymentIntent).
   Object.assign(port, { __pis: pis })

@@ -25,5 +25,7 @@ export function createCustomerSubscriptionStripePort(client?: Stripe): CustomerS
     retrieveInvoice: (id, o) => stripe().invoices.retrieve(id, { expand: ["payments"] }, req(o)),
     retrievePaymentIntentWithBalance: (id, o) =>
       stripe().paymentIntents.retrieve(id, { expand: ["latest_charge.balance_transaction"] }, req(o)),
+    createInvoiceItem: (params, o) => stripe().invoiceItems.create(params as Stripe.InvoiceItemCreateParams, req(o)),
+    deleteInvoiceItem: (id, o) => stripe().invoiceItems.del(id, {}, req(o)),
   } as CustomerSubscriptionStripePort
 }
