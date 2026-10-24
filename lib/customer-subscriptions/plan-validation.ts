@@ -6,6 +6,7 @@
  */
 import { CustomerSubscriptionError, type CustomerSubscriptionErrorCode, type FieldIssue } from "./errors"
 import type { BillingIntervalUnit, CommitmentUnit, RenewalMode } from "./dates"
+import { isMonthlyInstallments, isPaymentSchedule, isRightsPeriodMonths, splitInstallments, type PaymentSchedule } from "./rights-period"
 
 export const PLAN_STATUSES = ["draft", "active", "archived"] as const
 export type PlanStatus = (typeof PLAN_STATUSES)[number]
@@ -46,6 +47,9 @@ export type ValidatedPlanConfig = {
   prepaidBillingCycles: number | null
   visibility: PlanVisibility
   status: PlanStatus
+  /** L27 : null = V1 (un cycle de droits = une période de facturation). */
+  rightsPeriodMonths: number | null
+  paymentSchedule: PaymentSchedule | null
 }
 
 export type PlanConfigInput = { [K in keyof ValidatedPlanConfig]?: unknown }
@@ -67,7 +71,10 @@ export type PlanValidation = { ok: true; value: ValidatedPlanConfig } | { ok: fa
  *  - billingInterval week|month avec count > 0 (bornes raisonnables) ;
  *  - none ⇔ 0 ; month / billing_cycle ⇔ > 0 ; same_term interdit sans engagement ;
  *  - prepaid autorisé ⇒ prepaidBillingCycles > 0 ; au moins un mode de paiement ;
- *  - une formule ACTIVE doit avoir une prestation incluse (brouillon : facultatif).
+ *  - une formule ACTIVE doit avoir une prestation incluse (brouillon : facultatif) ;
+ *  - période de droits (L27, les deux champs ou aucun) : 1/3/12 mois = facturation de référence,
+ *    jamais de prepaid ; paiement mensuel d'une période > 1 mois ⇒ engagement = la période et
+ *    renouvellement same_term | none (jamais open_ended : droits consommés puis arrêt).
  * L'appartenance des services au tenant est vérifiée par le moteur (DB).
  */
 export function validatePlanConfig(input: PlanConfigInput): PlanValidation {
@@ -128,6 +135,23 @@ export function validatePlanConfig(input: PlanConfigInput): PlanValidation {
   if (!(PLAN_STATUSES as readonly unknown[]).includes(status)) add("status", "INVALID_PLAN")
   if (status === "active" && includedServiceId == null) add("includedServiceId", "SERVICE_NOT_FOUND")
 
+  const rightsPeriodMonths = input.rightsPeriodMonths ?? null
+  const paymentSchedule = input.paymentSchedule ?? null
+  if (rightsPeriodMonths !== null || paymentSchedule !== null) {
+    if (!isRightsPeriodMonths(rightsPeriodMonths)) add("rightsPeriodMonths", "INVALID_INTERVAL")
+    if (!isPaymentSchedule(paymentSchedule)) add("paymentSchedule", "INVALID_PAYMENT_MODE")
+    if (isRightsPeriodMonths(rightsPeriodMonths) && isPaymentSchedule(paymentSchedule)) {
+      if (unit !== "month" || input.billingIntervalCount !== rightsPeriodMonths) add("billingIntervalCount", "INVALID_INTERVAL")
+      if (allowPrepaid !== false || allowRecurring !== true) add("paymentMode", "INVALID_PAYMENT_MODE")
+      if (rightsPeriodMonths === 1 && paymentSchedule !== "period") add("paymentSchedule", "INVALID_PAYMENT_MODE")
+      if (isMonthlyInstallments(paymentSchedule, rightsPeriodMonths)) {
+        if (cUnit !== "month" || input.commitmentCount !== rightsPeriodMonths) add("commitmentCount", "INVALID_COMMITMENT")
+        if (renewal !== "same_term" && renewal !== "none") add("renewalMode", "INVALID_RENEWAL")
+        if (isInt(input.priceCents) && !splitInstallments(input.priceCents, rightsPeriodMonths)) add("priceCents", "INVALID_PLAN")
+      }
+    }
+  }
+
   if (issues.length) return { ok: false, code: issues[0].code, issues }
 
   return {
@@ -152,6 +176,8 @@ export function validatePlanConfig(input: PlanConfigInput): PlanValidation {
       prepaidBillingCycles: prepaidCycles as number | null,
       visibility: visibility as PlanVisibility,
       status: status as PlanStatus,
+      rightsPeriodMonths: rightsPeriodMonths as number | null,
+      paymentSchedule: paymentSchedule as PaymentSchedule | null,
     },
   }
 }
