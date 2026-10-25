@@ -127,7 +127,8 @@ export default async function SaasBillingPage({
                 const chosen = desiredPlan === plan
                 const featured = purchasable && (desiredPlan ? chosen : plan === "PRO")
                 // Affichage seulement : fonctions annoncées, jamais cochées (source lib/pricing/plans.ts).
-                const upcoming = purchasable ? [] : (getCommercialPlanByLicensePlan(plan)?.upcomingFeatures ?? [])
+                const commercial = purchasable ? null : getCommercialPlanByLicensePlan(plan)
+                const upcoming = commercial?.upcomingFeatures ?? []
                 return (
                   <article
                     key={plan}
@@ -174,6 +175,9 @@ export default async function SaasBillingPage({
                             </li>
                           ))}
                         </ul>
+                        {commercial?.upcomingNote ? (
+                          <p className="text-pretty text-xs leading-relaxed text-muted-foreground">{commercial.upcomingNote}</p>
+                        ) : null}
                       </div>
                     ) : null}
                     <div className="mt-auto">

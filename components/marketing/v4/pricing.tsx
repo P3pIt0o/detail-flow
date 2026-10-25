@@ -233,7 +233,7 @@ function CustomSiteCta() {
     "SEO / référencement local",
     "Demandes de devis",
     "Paiements & acomptes",
-    "Domaine personnalisé",
+    "Domaine personnalisé (sur demande)",
   ]
   return (
     <div className="mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-primary/[0.04] p-7 sm:p-10">

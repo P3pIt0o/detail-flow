@@ -101,6 +101,14 @@ describe("L13 — A5 : libellés P6 identiques partout", () => {
     expect(page).toMatch(/getCommercialPlanByLicensePlan/)
     expect(page).toMatch(/upcomingFeatures/)
     expect(page).toMatch(/Prochainement/)
+    // Revue métier L13 : la mention P11 accompagne la liste admin, comme sur la landing.
+    expect(page).toMatch(/upcomingNote/)
+  })
+
+  it("encart site sur mesure : domaine « sur demande », jamais présenté comme inclus sans réserve", () => {
+    const pricing = read("components/marketing/v4/pricing.tsx")
+    expect(pricing).toContain('"Domaine personnalisé (sur demande)"')
+    expect(pricing).not.toContain('"Domaine personnalisé",')
   })
 })
 
