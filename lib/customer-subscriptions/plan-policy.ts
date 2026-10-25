@@ -37,7 +37,8 @@ import type { LicensePlan, LimitValue } from "@/lib/licensing/types"
 export const CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS: Readonly<Record<LicensePlan, number>> = {
   FREE: 700,
   ESSENTIAL: 700,
-  PRO: 300,
+  // L29 (C1) : 0 % dès Indépendant. Paiements déjà enregistrés inchangés.
+  PRO: 0,
   BUSINESS: 0,
   ENTERPRISE: 0,
   FOUNDER: 0,

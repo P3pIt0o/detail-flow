@@ -34,11 +34,16 @@ export type CommissionRule = {
   readonly monthlyFeeCapCents: number
 }
 
+/**
+ * L29 (décision C1, 25/10/2026) : seule l'offre gratuite paie une commission.
+ * Plafond 0 sur les offres payantes : un override Super Admin n'y prélève rien.
+ * Non rétroactif : le taux est figé dans le registre à la réservation.
+ */
 export const COMMISSION_RULES: Readonly<Record<CommissionPlan, CommissionRule>> = {
   FREE: { feeBps: 200, monthlyFeeCapCents: 1990 },
-  PRO: { feeBps: 100, monthlyFeeCapCents: 500 },
-  BUSINESS: { feeBps: 50, monthlyFeeCapCents: 500 },
-  ENTERPRISE: { feeBps: 25, monthlyFeeCapCents: 600 },
+  PRO: { feeBps: 0, monthlyFeeCapCents: 0 },
+  BUSINESS: { feeBps: 0, monthlyFeeCapCents: 0 },
+  ENTERPRISE: { feeBps: 0, monthlyFeeCapCents: 0 },
 } as const
 
 /** Lifetime : 0 % et plafond 0, quel que soit son licensePlan (BUSINESS). */

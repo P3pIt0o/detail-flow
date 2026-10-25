@@ -211,10 +211,10 @@ describe("statuts : capacité ≠ utilisation", () => {
 })
 
 describe("F. commissions (plan effectif au moment du paiement)", () => {
-  it("FREE 700 / ESSENTIAL 700 / PRO 300 / BUSINESS 0 / ENTERPRISE 0 / FOUNDER 0 / legacy 0", () => {
+  it("FREE 700 / ESSENTIAL 700 / PRO 0 (L29) / BUSINESS 0 / ENTERPRISE 0 / FOUNDER 0 / legacy 0", () => {
     expect(resolvePlatformFeeBps("FREE")).toBe(700)
     expect(resolvePlatformFeeBps("ESSENTIAL")).toBe(700)
-    expect(resolvePlatformFeeBps("PRO")).toBe(300)
+    expect(resolvePlatformFeeBps("PRO")).toBe(0)
     expect(resolvePlatformFeeBps("BUSINESS")).toBe(0)
     expect(resolvePlatformFeeBps("ENTERPRISE")).toBe(0)
     expect(resolvePlatformFeeBps("FOUNDER")).toBe(0)
@@ -406,7 +406,7 @@ describe("moteur transactionnel (PGlite)", () => {
       [c.companyId, sub.subscriptionId],
     )
     await setPlan(c.companyId, "PRO")
-    expect((await engine.resolveCurrentCustomerSubscriptionFee(db, c.companyId)).platformFeeBps).toBe(300)
+    expect((await engine.resolveCurrentCustomerSubscriptionFee(db, c.companyId)).platformFeeBps).toBe(0)
     await setPlan(c.companyId, "BUSINESS")
     expect((await engine.resolveCurrentCustomerSubscriptionFee(db, c.companyId)).platformFeeBps).toBe(0)
     const p = await pg.query<{ platformFeeBps: number; platformFeeAmountCents: number }>(`SELECT "platformFeeBps","platformFeeAmountCents" FROM maintenance_payments WHERE "subscriptionId"=$1`, [sub.subscriptionId])

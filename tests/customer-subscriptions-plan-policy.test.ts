@@ -11,7 +11,7 @@ import {
 const EXPECTED: Record<LicensePlan, { maxActive: number | null; feeBps: number }> = {
   FREE: { maxActive: 2, feeBps: 700 },
   ESSENTIAL: { maxActive: 2, feeBps: 700 },
-  PRO: { maxActive: 10, feeBps: 300 },
+  PRO: { maxActive: 10, feeBps: 0 }, // L29 (C1)
   BUSINESS: { maxActive: null, feeBps: 0 },
   ENTERPRISE: { maxActive: null, feeBps: 0 },
   FOUNDER: { maxActive: null, feeBps: 0 },
@@ -113,7 +113,7 @@ describe("getCustomerSubscriptionUsage", () => {
     expect(getCustomerSubscriptionUsage({ plan: "PRO", activeCount: 7 })).toMatchObject({
       maxActive: 10,
       remaining: 3,
-      platformFeeBps: 300,
+      platformFeeBps: 0,
     })
     for (const plan of ["BUSINESS", "ENTERPRISE"] as const) {
       expect(getCustomerSubscriptionUsage({ plan, activeCount: 24 })).toMatchObject({

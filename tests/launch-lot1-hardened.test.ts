@@ -93,9 +93,9 @@ describe("E/F/G — backend inchangé", () => {
     expect(PLAN_MATRIX.PRO.limits.maxQuotesPerMonth).toBeNull()
     expect(PLAN_MATRIX.PRO.limits.maxInvoicesPerMonth).toBeNull()
   })
-  it("commercial-rules inchangé", () => {
+  it("commercial-rules : FREE inchangé, PRO à 0 (L29)", () => {
     expect(COMMISSION_RULES.FREE).toEqual({ feeBps: 200, monthlyFeeCapCents: 1990 })
-    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 100, monthlyFeeCapCents: 500 })
+    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
   })
 })
 

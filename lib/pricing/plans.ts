@@ -184,11 +184,10 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Clients, devis et factures illimités",
       "Suivi des dépenses et analyse de rentabilité",
       "10 abonnements clients actifs",
-      "Abonnements clients : 3 % de commission DetailFlow",
+      "0 % de commission sur vos paiements et abonnements",
       "Rappels & demandes d'avis automatiques",
       "Statistiques de base",
       "20 SMS crédités chaque mois · packs supplémentaires disponibles",
-      "Paiements en ligne : 1 % de commission DetailFlow, plafonnée à 5 €/mois (frais Stripe distincts)",
     ],
     // Toutes garanties true dans PLAN_MATRIX.PRO.
     includedFeatures: [
@@ -217,11 +216,11 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     description:
       "Développez votre activité avec une gestion avancée de vos clients, de vos prospects et de votre rentabilité.",
     trial: null,
-    // Chiffres repris de COMMISSION_RULES.BUSINESS et CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS (testés).
+    // 0 % : COMMISSION_RULES.BUSINESS et CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS (L29, testés).
     highlights: [
       "Tout Indépendant",
-      "Abonnements clients illimités, sans commission DetailFlow",
-      "Paiements en ligne : 0,5 % de commission, plafonnée à 5 €/mois",
+      "Abonnements clients illimités, 0 % de commission",
+      "0 % de commission sur vos paiements en ligne",
       "Gestion des prospects (CRM)",
       "Statistiques avancées et répartition du chiffre d'affaires",
     ],
