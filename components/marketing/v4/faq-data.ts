@@ -29,7 +29,7 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Puis-je utiliser mon propre domaine ?",
-    a: "Votre site est en ligne dès la création de votre espace sur une adresse DetailFlow. Un domaine personnalisé peut y être relié ; cette mise en place se fait aujourd'hui avec notre accompagnement.",
+    a: "Oui, un domaine peut déjà être relié sur demande, avec notre accompagnement. La gestion autonome du domaine personnalisé depuis votre espace arrive bientôt.",
   },
   {
     q: "Est-ce utilisable sur mobile ?",
@@ -37,7 +37,7 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Combien coûte DetailFlow ?",
-    a: "Essentiel est gratuit et disponible dès maintenant. Indépendant coûte 19,90 €/mois avec 30 jours gratuits et est également disponible. Les offres Performance et Équipe sont présentées dans la section Tarifs et seront bientôt disponibles.",
+    a: "Essentiel est gratuit et disponible dès maintenant. Indépendant coûte 19,90 €/mois avec 30 jours gratuits et est également disponible. Les offres Performance et Équipe sont présentées dans la section Tarifs et seront bientôt disponibles. Automatisations avancées, Marketing avancé, Campagnes et relances clients et Domaine personnalisé sont en préparation et ne sont incluses dans aucune offre actuellement.",
   },
   {
     q: "Les SMS sont-ils inclus ?",

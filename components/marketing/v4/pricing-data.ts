@@ -6,7 +6,7 @@
  * doivent refléter le backend réel (PLAN_MATRIX + gardes serveur). Performance
  * et Équipe sont `coming_soon` (trajectoire produit, CTA « Bientôt disponible »).
  *
- * `true`  = inclus dans la formule ·  `false` = non inclus
+ * `true`  = inclus dans la formule ·  `false` = non inclus · `"soon"` = annoncé, non livré (« Bientôt disponible »)
  * Les colonnes suivent l'ordre de `COMMERCIAL_PLANS` : Essentiel, Indépendant, Performance, Équipe.
  */
 import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
@@ -22,7 +22,7 @@ export const COMPARE_COLUMNS: { id: PlanColumn; name: string }[] = [
 
 export type CompareRow = {
   label: string
-  values: Record<PlanColumn, boolean>
+  values: Record<PlanColumn, boolean | "soon">
   /** Courte description utilisateur (volet « Voir toutes les fonctionnalités »). Purement informative. */
   description?: string
   /** Libellé court dans les cards, quand `label` mentionne une limite propre à une autre offre. */
@@ -39,7 +39,8 @@ export type CompareCategory = {
 const all = { starter: true, pro: true, ultime: true, entreprise: true }
 const proUp = { starter: false, pro: true, ultime: true, entreprise: true }
 const ultimeUp = { starter: false, pro: false, ultime: true, entreprise: true }
-const entrepriseOnly = { starter: false, pro: false, ultime: false, entreprise: true }
+const ultimeSoon = { starter: false, pro: false, ultime: "soon", entreprise: "soon" } as const
+const entrepriseSoon = { starter: false, pro: false, ultime: false, entreprise: "soon" } as const
 
 export const COMPARE_CATEGORIES: CompareCategory[] = [
   {
@@ -161,9 +162,16 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
         description: "Suivez les indicateurs essentiels de votre activité.",
       },
       {
+        // `business_stats` est accordé dès PRO (lib/analytics/access.ts).
         label: "Chiffre d'affaires & panier moyen",
-        values: ultimeUp,
+        values: proUp,
         description: "Analysez votre chiffre d’affaires, votre volume de rendez-vous et votre panier moyen.",
+      },
+      {
+        // `profitability_analysis` : PLAN_MATRIX.PRO et au-delà.
+        label: "Analyse de rentabilité",
+        values: proUp,
+        description: "Estimez la rentabilité de votre activité à partir de votre chiffre d’affaires et de vos dépenses.",
       },
       {
         label: "Analyse avancée & répartition du CA",
@@ -172,7 +180,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       },
       {
         label: "Statistiques par employé",
-        values: entrepriseOnly,
+        values: entrepriseSoon,
         description: "Analysez l’activité et les performances par collaborateur.",
       },
     ],
@@ -201,8 +209,8 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
         },
       },
       {
-        label: "Campagnes & relances clients",
-        values: ultimeUp,
+        label: "Campagnes et relances clients",
+        values: ultimeSoon,
         description: "Automatisez certaines relances et actions de fidélisation.",
       },
     ],
@@ -217,7 +225,7 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
       },
       {
         label: "Domaine personnalisé",
-        values: ultimeUp,
+        values: ultimeSoon,
         description: "Utilisez votre propre nom de domaine avec votre présence DetailFlow lorsque cette fonctionnalité est disponible.",
       },
     ],
@@ -227,22 +235,22 @@ export const COMPARE_CATEGORIES: CompareCategory[] = [
     rows: [
       {
         label: "Comptes employés",
-        values: entrepriseOnly,
+        values: entrepriseSoon,
         description: "Ajoutez plusieurs collaborateurs dans le même espace.",
       },
       {
         label: "Agenda par collaborateur",
-        values: entrepriseOnly,
+        values: entrepriseSoon,
         description: "Gérez les disponibilités et le planning de chaque membre de l’équipe.",
       },
       {
         label: "Rendez-vous simultanés",
-        values: entrepriseOnly,
+        values: entrepriseSoon,
         description: "Acceptez plusieurs rendez-vous au même horaire lorsque plusieurs collaborateurs sont disponibles.",
       },
       {
         label: "Permissions & rôles",
-        values: entrepriseOnly,
+        values: entrepriseSoon,
         description: "Définissez ce que chaque collaborateur peut consulter ou modifier.",
       },
     ],
@@ -267,4 +275,13 @@ export function getPlanFeatureGroups(planId: PlanColumn): PlanFeatureGroup[] {
         note: row.notes?.[planId],
       })),
   })).filter((group) => group.items.length > 0)
+}
+
+/** Fonctions annoncées (« Bientôt disponible ») d'UNE offre : lignes `values[planId] === "soon"`. */
+export function getPlanUpcomingFeatures(planId: PlanColumn): PlanFeatureItem[] {
+  return COMPARE_CATEGORIES.flatMap((cat) =>
+    cat.rows
+      .filter((row) => row.values[planId] === "soon")
+      .map((row) => ({ label: row.cardLabel ?? row.label, description: row.description })),
+  )
 }
