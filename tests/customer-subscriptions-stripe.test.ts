@@ -204,7 +204,7 @@ describe("commission customer_subscriptions (plan-policy, pas commercial-rules)"
   it.each([
     ["FREE", 700],
     ["ESSENTIAL", 700],
-    ["PRO", 300],
+    ["PRO", 0], // L29 (C1)
     ["BUSINESS", 0],
     ["ENTERPRISE", 0],
     ["FOUNDER", 0],
@@ -307,7 +307,7 @@ describe("checkout", () => {
     const second = await payments.startSubscriptionCheckout(db, port, c.companyId, owner, id, { returnUrlContext: RETURN_CTX })
     expect(second.checkoutSessionId).not.toBe(first.checkoutSessionId)
     const keys = calls.filter((x) => x.method === "createCheckoutSession").map((x) => x.opts.idempotencyKey)
-    expect(keys[1]).toBe(checkoutIdempotencyKey({ companyId: c.companyId, subscriptionId: id, kind: "recurring", previousSessionId: first.checkoutSessionId, platformFeeBps: 300 }))
+    expect(keys[1]).toBe(checkoutIdempotencyKey({ companyId: c.companyId, subscriptionId: id, kind: "recurring", previousSessionId: first.checkoutSessionId, platformFeeBps: 0 }))
     expect(keys[0]).not.toBe(keys[1])
     expect((await getSub(id)).externalCheckoutSessionId).toBe(second.checkoutSessionId)
   })
@@ -447,7 +447,7 @@ describe("invoices", () => {
     expect(calls.find((x) => x.method === "retrieveSubscription")?.opts.stripeAccount).toBe(c.acct)
   })
 
-  it("invoice.created draft : application_fee_amount = plan EFFECTIF (upgrade avant facture), sync subscription, doublon = 1 ligne", async () => {
+  it("invoice.created draft : application_fee_amount = plan EFFECTIF (upgrade FREE → PRO avant facture : 0 % depuis L29), sync subscription, doublon = 1 ligne", async () => {
     const c = await seedCompany("FREE")
     const id = await seedSub(c)
     const { port, calls } = fakePort()
@@ -459,11 +459,11 @@ describe("invoices", () => {
     expect(await payments.handleCustomerSubscriptionWebhook(db, port, { ...evt, id: uid("evt") })).toEqual({ handled: true, outcome: "invoice_created_duplicate" })
     const upd = calls.find((x) => x.method === "updateInvoice")!
     expect(upd.opts.stripeAccount).toBe(c.acct)
-    expect(upd.params).toMatchObject({ application_fee_amount: 267, metadata: { detailflowPlatformFeeBps: "300", maintenanceSubscriptionId: String(id) } })
-    expect(calls.find((x) => x.method === "updateSubscription")!.params).toEqual({ application_fee_percent: 3 })
+    expect(upd.params).toMatchObject({ application_fee_amount: 0, metadata: { detailflowPlatformFeeBps: "0", maintenanceSubscriptionId: String(id) } })
+    expect(calls.find((x) => x.method === "updateSubscription")!.params).toEqual({ application_fee_percent: 0 })
     const rows = (await getPayments(id)).filter((p) => p.externalInvoiceId === inv.id)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ status: "pending", platformFeeBps: 300, platformFeeAmountCents: 267, grossAmountCents: 8900 })
+    expect(rows[0]).toMatchObject({ status: "pending", platformFeeBps: 0, platformFeeAmountCents: 0, grossAmountCents: 8900 })
 
     // Downgrade BUSINESS : 0 % → taux numérique 0 côté Stripe (jamais "").
     await setPlan(c.companyId, "BUSINESS")
@@ -827,20 +827,21 @@ describe("V2 : commission selon plan DetailFlow effectif", () => {
     return { fees, id }
   }
 
-  it("FREE → PRO → BUSINESS : 7 % → 3 % → 0 %", async () => {
+  // L29 (C1) : PRO à 0 %, comme BUSINESS.
+  it("FREE → PRO → BUSINESS : 7 % → 0 % → 0 %", async () => {
     const { fees } = await feeSequence(["FREE", "PRO", "BUSINESS"])
-    expect(fees.map((f) => f.bps)).toEqual([700, 300, 0])
+    expect(fees.map((f) => f.bps)).toEqual([700, 0, 0])
     expect(fees[0].invoiceFee).toBe(623)
-    expect(fees[1].invoiceFee).toBe(267)
+    expect([0, undefined]).toContain(fees[1].invoiceFee)
     expect([0, undefined]).toContain(fees[2].invoiceFee)
   })
 
-  it("BUSINESS → PRO → FREE : 0 % → 3 % → 7 %, paiements passés jamais réécrits", async () => {
+  it("BUSINESS → PRO → FREE : 0 % → 0 % → 7 %, paiements passés jamais réécrits", async () => {
     const { fees, id } = await feeSequence(["BUSINESS", "PRO", "FREE"])
-    expect(fees.map((f) => f.bps)).toEqual([0, 300, 700])
+    expect(fees.map((f) => f.bps)).toEqual([0, 0, 700])
     const rows = await getPayments(id)
     expect(rows.find((r) => r.platformFeeBps === 0)).toBeTruthy()
-    expect(rows.find((r) => r.platformFeeBps === 300)).toBeTruthy()
+    expect(rows.find((r) => r.platformFeeBps === 700)).toBeTruthy()
   })
 
   it("facture finalisée entre lecture et update : snapshot Stripe réel, pas de boucle d'erreur", async () => {

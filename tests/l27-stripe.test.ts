@@ -18,7 +18,8 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 const owner: engine.Actor = { userId: "u-owner", role: "OWNER" }
 const ANCHOR = new Date("2026-10-23T09:00:00.000Z")
 const sec = (d: Date) => Math.floor(d.getTime() / 1000)
-const PRO_BPS = 300
+// L29 : PRO est à 0 % ; FREE (7 %) garde une commission non nulle à vérifier.
+const FEE_BPS = { PRO: 0, FREE: 700 } as const
 
 let pg: PGlite
 let db: engine.Executor
@@ -86,15 +87,15 @@ function fakePort(init: { failItemOnInvoice?: boolean; invoices?: Record<string,
   return { port, calls, pis }
 }
 
-async function seedCompany() {
+async function seedCompany(plan: keyof typeof FEE_BPS = "PRO") {
   const acct = uid("acct_test")
   const r = await pg.query<{ id: number }>(
-    `INSERT INTO companies ("licensePlan","stripeAccountId","stripeChargesEnabled","paymentsEnabled") VALUES ('PRO',$1,true,true) RETURNING id`,
-    [acct],
+    `INSERT INTO companies ("licensePlan","stripeAccountId","stripeChargesEnabled","paymentsEnabled") VALUES ($2,$1,true,true) RETURNING id`,
+    [acct, plan],
   )
   const companyId = r.rows[0].id
   const s = await pg.query<{ id: number }>(`INSERT INTO services ("companyId", name, "basePriceCents") VALUES ($1,'Lavage complet',4900) RETURNING id`, [companyId])
-  return { companyId, acct, serviceId: s.rows[0].id }
+  return { companyId, acct, serviceId: s.rows[0].id, feeBps: FEE_BPS[plan] }
 }
 
 const SERENITE: PlanConfigInput = {
@@ -145,7 +146,7 @@ const lines = (k: number, months = 1) => ({ lines: { data: [{ period: { start: s
 async function activate(f: ReturnType<typeof fakePort>, c: Awaited<ReturnType<typeof seedCompany>>, subId: number, amount: number, months = 1) {
   const ext = uid("sub_test")
   const pi = uid("pi")
-  f.pis.set(pi, { id: pi, application_fee_amount: computePlatformFeeAmountCents(amount, PRO_BPS) })
+  f.pis.set(pi, { id: pi, application_fee_amount: computePlatformFeeAmountCents(amount, c.feeBps) })
   const inv = { id: uid("in"), subscription: ext, status: "paid", amount_paid: amount, amount_due: amount, payment_intent: pi, metadata: meta(c.companyId, subId), ...lines(0, months) }
   const r = await payments.handleCustomerSubscriptionWebhook(db, f.port, invoiceEvent("invoice.paid", c.acct, inv, ANCHOR))
   expect(r).toMatchObject({ handled: true })
@@ -197,14 +198,15 @@ describe("dernière échéance : ligne d'ajustement sur la facture brouillon", (
   })
 
   it("commission calculée sur le montant réellement facturé (29,88 €)", async () => {
-    const c = await seedCompany()
+    const c = await seedCompany("FREE")
     const subId = await seedSub(c)
     const f = fakePort()
     const ext = await activate(f, c, subId, 2992)
     const ev = draft(c, subId, ext, 11, 2992)
     await payments.handleCustomerSubscriptionWebhook(db, f.port, ev)
     const upd = f.calls.find((x) => x.method === "updateInvoice" && x.id === String((ev.data.object as Record<string, unknown>).id))
-    expect(upd?.params?.application_fee_amount).toBe(computePlatformFeeAmountCents(2988, PRO_BPS))
+    expect(upd?.params?.application_fee_amount).toBe(computePlatformFeeAmountCents(2988, c.feeBps))
+    expect(upd?.params?.application_fee_amount).toBe(209)
     const [p] = await db.select().from(schema.maintenancePayments).where(eq(schema.maintenancePayments.externalInvoiceId, String((ev.data.object as Record<string, unknown>).id)))
     expect(p.grossAmountCents).toBe(2988)
   })
