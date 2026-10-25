@@ -32,14 +32,33 @@ Présenter Performance honnêtement : fonctions réelles affichées normalement,
 - [x] P12 : projet de CGV préparé, **publication uniquement après relecture et validation humaine** (Clément, 16/10).
 - [x] Découpage L13 à L16 validé (Clément, 16/10).
 
-## Décisions à confirmer — BLOQUANT — VALIDATION HUMAINE
-- [ ] N1 : liste définitive des points forts de Performance. P7 cite « Suivi des dépenses » et « Analyse de rentabilité », déjà inclus dans Indépendant (voir PERF-decisions.md) : ____
-- [ ] N7 : ajouter une ligne « Analyse de rentabilité » au comparateur (Indépendant et Performance) : oui / non
-- [ ] Note SMS de Performance dans le comparateur et la FAQ : n'afficher « 50 SMS crédités / mois » qu'à la livraison de L15 (proposé) : oui / non
-- [ ] Colonne Équipe : passer aussi « Campagnes et relances clients » et « Domaine personnalisé » à « Bientôt disponible » (proposé) : oui / non
+## Décisions complémentaires (tranchées par Clément, 24/10/2026)
+- [x] N1 : points forts de Performance, dans cet ordre : « Tout Indépendant » · « Abonnements clients illimités, sans commission DetailFlow » ·
+  « Paiements en ligne : 0,5 % de commission, plafonnée à 5 €/mois » · « Gestion des prospects (CRM) » ·
+  « Statistiques avancées et répartition du chiffre d'affaires ». Suivi des dépenses et analyse de rentabilité **ne sont pas** présentés comme
+  propres à Performance (déjà dans Indépendant, où ils sont ajoutés aux points forts). Valeurs issues des règles existantes
+  (`COMMISSION_RULES`, `plan-policy.ts`, `PLAN_MATRIX`) : **aucune valeur modifiée**, seulement affichée.
+- [x] N7 : oui, ligne « Analyse de rentabilité » ajoutée au comparateur, cochée pour Indépendant, Performance et Équipe.
+- [x] Note SMS de Performance : **non affichée** dans L13 ; « 50 SMS crédités chaque mois » n'apparaîtra qu'avec L15.
+- [x] Colonne Équipe : « Campagnes et relances clients » et « Domaine personnalisé » passent aussi à « Bientôt disponible ».
+
+## Décisions complémentaires (tranchées par Clément, 25/10/2026)
+- [x] FAQ « Combien coûte DetailFlow ? » : « … Automatisations avancées, Marketing avancé, Campagnes et relances clients et Domaine personnalisé
+  sont en préparation et ne sont incluses dans aucune offre actuellement. »
+- [x] FAQ « Puis-je utiliser mon propre domaine ? » : « Oui, un domaine peut déjà être relié sur demande, avec notre accompagnement. La gestion
+  autonome du domaine personnalisé depuis votre espace arrive bientôt. »
+- [x] Colonne Équipe : lignes Comptes employés, Agenda par collaborateur, Rendez-vous simultanés, Permissions & rôles, Statistiques par employé
+  en « Bientôt disponible ». Carte Équipe : aucun point fort coché, section « Prochainement ».
+- [x] Écarts validés avec l'aperçu : couleurs et place du bouton actuelles, pastille grise, libellés actuels du comparateur, pas de ligne
+  « Suivi des dépenses », points forts actuels d'Indépendant conservés.
+- [x] Taux de commission : inchangés dans L13 (la décision C1 « 0 % » n'est pas traitée dans ce lot d'affichage).
+
+## Aperçu validé (Clément, 24/10/2026)
+`.lot-state/L13.apercu.html` (non versionné) : carte Performance (badge, description P7, points forts N1, « Prochainement », texte P11,
+bouton inactif), carte Équipe (« Prochainement »), comparateur (cellules « Bientôt disponible », ligne N7).
 
 ## Périmètre
-- `lib/pricing/plans.ts` : champ `upcomingFeatures` ; Performance : `includedFeatures` sans `automations` ni `marketing`, nouvelle description et nouveaux points forts.
+- `lib/pricing/plans.ts` : champ `upcomingFeatures` ; points forts d'Indépendant complétés (« Suivi des dépenses et analyse de rentabilité ») ; Performance : `includedFeatures` sans `automations` ni `marketing`, nouvelle description et nouveaux points forts.
   **Inchangés :** `availability`, `cta`, `trial`, prix, `PRICING_COPY` des essais.
 - `components/marketing/v4/pricing-data.ts` : cellule `boolean | "soon"`, `getPlanUpcomingFeatures`, ligne CA → `proUp`.
 - `components/marketing/v4/pricing.tsx` : section « Prochainement » (carte et volet), cellule « Bientôt disponible » dans les 2 comparateurs.
