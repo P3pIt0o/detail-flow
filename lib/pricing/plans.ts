@@ -102,6 +102,13 @@ export type CommercialPlan = {
    * Équipe : vide tant que les modules d'équipe n'existent pas.
    */
   includedFeatures: FeatureKey[]
+  /**
+   * Fonctions annoncées mais NON livrées (section « Prochainement », jamais cochées).
+   * INVARIANT (testé) : aucune ne recoupe `includedFeatures`.
+   */
+  upcomingFeatures: string[]
+  /** Mention sous la section « Prochainement » (sans date). */
+  upcomingNote?: string
   availability: PlanAvailability
   /**
    * CTA. `href` est `null` pour une offre `coming_soon` : le composant rend un
@@ -156,6 +163,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     ],
     // Features gated réellement ouvertes par PLAN_MATRIX.FREE.
     includedFeatures: ["website", "online_booking", "online_payments", "customer_subscriptions"],
+    upcomingFeatures: [],
     availability: "self_serve",
     cta: { label: "Créer mon espace gratuitement", href: "/demarrer" },
     highlighted: false,
@@ -174,6 +182,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     highlights: [
       "Tout Essentiel",
       "Clients, devis et factures illimités",
+      "Suivi des dépenses et analyse de rentabilité",
       "10 abonnements clients actifs",
       "Abonnements clients : 3 % de commission DetailFlow",
       "Rappels & demandes d'avis automatiques",
@@ -182,7 +191,16 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Paiements en ligne : 1 % de commission DetailFlow, plafonnée à 5 €/mois (frais Stripe distincts)",
     ],
     // Toutes garanties true dans PLAN_MATRIX.PRO.
-    includedFeatures: ["online_booking", "online_payments", "email_reminders", "review_requests", "business_stats"],
+    includedFeatures: [
+      "online_booking",
+      "online_payments",
+      "email_reminders",
+      "review_requests",
+      "business_stats",
+      "expense_management",
+      "profitability_analysis",
+    ],
+    upcomingFeatures: [],
     availability: "self_serve",
     cta: { label: "Essayer 30 jours gratuitement", href: "/demarrer?plan=PRO" },
     highlighted: true,
@@ -196,26 +214,30 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     price: "34,90 €",
     period: "/ mois",
     monthlyPriceCents: 3490,
-    description: "Pour développer, automatiser et fidéliser à grande échelle.",
+    description:
+      "Développez votre activité avec une gestion avancée de vos clients, de vos prospects et de votre rentabilité.",
     trial: null,
+    // Chiffres repris de COMMISSION_RULES.BUSINESS et CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS (testés).
     highlights: [
       "Tout Indépendant",
-      "Devis, factures & avoirs",
-      "Statistiques avancées & analyse du CA",
-      "Automatisations, SMS & relances",
-      "Leads / CRM & marketing avancé",
+      "Abonnements clients illimités, sans commission DetailFlow",
+      "Paiements en ligne : 0,5 % de commission, plafonnée à 5 €/mois",
+      "Gestion des prospects (CRM)",
+      "Statistiques avancées et répartition du chiffre d'affaires",
     ],
-    // Toutes garanties true dans PLAN_MATRIX.BUSINESS (allFeatures sauf early_access).
+    // Toutes garanties true dans PLAN_MATRIX.BUSINESS. `automations` et `marketing`
+    // n'ont aucun module livré : présentés en « Prochainement », pas promis.
     includedFeatures: [
       "expense_management",
       "profitability_analysis",
       "advanced_reporting",
-      "marketing",
-      "automations",
       "sms",
       // LOT 2 — la promesse « Leads / CRM » est désormais adossée à la FeatureKey réelle.
       "leads_crm",
     ],
+    upcomingFeatures: ["Automatisations avancées", "Marketing avancé", "Campagnes et relances clients", "Domaine personnalisé"],
+    upcomingNote:
+      "Ces fonctionnalités sont en préparation. Elles ne sont pas incluses actuellement dans l'offre Performance. Leur disponibilité sera annoncée ultérieurement.",
     availability: "coming_soon",
     cta: { label: "Bientôt disponible", href: null },
     highlighted: false,
@@ -237,15 +259,16 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     monthlyPriceCents: 5990,
     description: "Pour les centres avec plusieurs collaborateurs.",
     trial: null,
-    highlights: [
-      "Tout Performance",
-      "Comptes & agendas par collaborateur",
-      "Disponibilités, horaires & congés individuels",
-      "Attribution des rendez-vous & RDV simultanés",
-      "Permissions & statistiques par employé",
-    ],
+    // Aperçu L13 validé : aucun point fort coché tant que les modules d'équipe n'existent pas.
+    highlights: [],
     // Aucune feature d'équipe n'existe encore -> rien n'est promis (invariant testé).
     includedFeatures: [],
+    upcomingFeatures: [
+      "Comptes et agendas par collaborateur",
+      "Rendez-vous simultanés",
+      "Campagnes et relances clients",
+      "Domaine personnalisé",
+    ],
     availability: "coming_soon",
     cta: { label: PRICING_COPY.comingSoonLabel, href: null },
     highlighted: false,

@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { COMMERCIAL_PLANS } from "@/lib/pricing/plans"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
-import { COMPARE_CATEGORIES, getPlanFeatureGroups } from "@/components/marketing/v4/pricing-data"
+import { COMPARE_CATEGORIES, getPlanFeatureGroups, getPlanUpcomingFeatures } from "@/components/marketing/v4/pricing-data"
 
 const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8")
 const pricingTsx = read("components/marketing/v4/pricing.tsx")
@@ -25,7 +25,7 @@ describe("Tarifs — volet détaillé par offre", () => {
     for (const plan of COMMERCIAL_PLANS) {
       const derived = getPlanFeatureGroups(plan.id).flatMap((g) => g.items.map((i) => i.label))
       const expected = COMPARE_CATEGORIES.flatMap((c) =>
-        c.rows.filter((r) => r.values[plan.id]).map((r) => r.cardLabel ?? r.label),
+        c.rows.filter((r) => r.values[plan.id] === true).map((r) => r.cardLabel ?? r.label),
       )
       expect(derived).toEqual(expected)
       expect(derived.length).toBeGreaterThan(0)
@@ -48,8 +48,17 @@ describe("Tarifs — volet détaillé par offre", () => {
     expect(PLAN_MATRIX.FREE.limits.maxActiveCustomerSubscriptions).toBe(2)
   })
 
-  it("offres coming_soon : libellé « Fonctionnalités prévues »", () => {
-    expect(pricingTsx).toMatch(/planned \? "Fonctionnalités prévues" : "Fonctionnalités incluses"/)
+  it("L13 : « Fonctionnalités incluses » pour toutes les offres, lignes « soon » à part", () => {
+    expect(pricingTsx).not.toMatch(/Fonctionnalités prévues/)
+    expect(pricingTsx).toMatch(/Fonctionnalités incluses/)
+    for (const plan of COMMERCIAL_PLANS) {
+      const included = getPlanFeatureGroups(plan.id).flatMap((g) => g.items.map((i) => i.label))
+      const soon = getPlanUpcomingFeatures(plan.id).map((i) => i.label)
+      expect(soon.filter((l) => included.includes(l))).toEqual([])
+      expect(soon).toEqual(
+        COMPARE_CATEGORIES.flatMap((c) => c.rows.filter((r) => r.values[plan.id] === "soon").map((r) => r.cardLabel ?? r.label)),
+      )
+    }
   })
 })
 

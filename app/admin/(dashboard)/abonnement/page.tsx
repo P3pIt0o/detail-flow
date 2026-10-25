@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Check } from "lucide-react"
+import { Check, Clock } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import {
   SAAS_ADMIN_DISPLAY_PLANS,
@@ -12,6 +12,7 @@ import {
 import { SUBSCRIPTION_TRIAL_DAYS, describeSubscriptionPlan, isCompanyTrialEligible } from "@/lib/billing/subscription-core"
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 import { parseDesiredPlan } from "@/lib/pricing/desired-plan"
+import { getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SaasCheckoutButton, SaasPortalButton } from "@/components/admin/saas-billing/billing-buttons"
@@ -125,6 +126,9 @@ export default async function SaasBillingPage({
                 const purchasable = isSaasAdminCheckoutPlan(plan)
                 const chosen = desiredPlan === plan
                 const featured = purchasable && (desiredPlan ? chosen : plan === "PRO")
+                // Affichage seulement : fonctions annoncées, jamais cochées (source lib/pricing/plans.ts).
+                const commercial = purchasable ? null : getCommercialPlanByLicensePlan(plan)
+                const upcoming = commercial?.upcomingFeatures ?? []
                 return (
                   <article
                     key={plan}
@@ -159,6 +163,22 @@ export default async function SaasBillingPage({
                         Sans carte bancaire. Ajoutez un moyen de paiement avant la fin de l&apos;essai pour continuer sur
                         Indépendant. Sinon, retour à Essentiel.
                       </p>
+                    ) : null}
+                    {upcoming.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prochainement</p>
+                        <ul className="flex flex-col gap-1.5">
+                          {upcoming.map((label) => (
+                            <li key={label} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <Clock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                              {label}
+                            </li>
+                          ))}
+                        </ul>
+                        {commercial?.upcomingNote ? (
+                          <p className="text-pretty text-xs leading-relaxed text-muted-foreground">{commercial.upcomingNote}</p>
+                        ) : null}
+                      </div>
                     ) : null}
                     <div className="mt-auto">
                       {!isOwner ? null : isSaasAdminCheckoutPlan(plan) ? (

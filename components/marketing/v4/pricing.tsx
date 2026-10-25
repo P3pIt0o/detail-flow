@@ -10,7 +10,7 @@ import {
 import { StaggerGroup, StaggerItem } from "@/components/ui/reveal"
 import { cn } from "@/lib/utils"
 import { Container, DetailFlowMark, SectionIntro } from "./primitives"
-import { COMPARE_CATEGORIES, COMPARE_COLUMNS, getPlanFeatureGroups } from "./pricing-data"
+import { COMPARE_CATEGORIES, COMPARE_COLUMNS, getPlanFeatureGroups, getPlanUpcomingFeatures } from "./pricing-data"
 import { LifetimeOffer } from "./lifetime-offer"
 
 /**
@@ -52,7 +52,26 @@ function PlanCta({ plan, emphasis }: { plan: CommercialPlan; emphasis: boolean }
   )
 }
 
-function PlanCard({ plan }: { plan: CommercialPlan }) {
+/** Titre de la section « Prochainement » : fonctions annoncées, jamais cochées (horloge, texte grisé). */
+function UpcomingHeading() {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prochainement</p>
+  )
+}
+
+function UpcomingItem({ label, description }: { label: string; description?: string }) {
+  return (
+    <li className="flex items-start gap-2.5 text-sm text-muted-foreground">
+      <Clock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="leading-snug">{label}</p>
+        {description ? <p className="mt-0.5 text-pretty text-xs leading-relaxed">{description}</p> : null}
+      </div>
+    </li>
+  )
+}
+
+export function PlanCard({ plan }: { plan: CommercialPlan }) {
   const available = plan.availability === "self_serve"
   const featured = plan.highlighted
   return (
@@ -101,14 +120,35 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
 
       <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">{plan.description}</p>
 
-      <ul className="mt-6 flex flex-col gap-2.5 border-t border-border pt-6">
-        {plan.highlights.map((h) => (
-          <li key={h} className="flex items-start gap-2.5 text-sm text-foreground">
-            <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-            {h}
-          </li>
-        ))}
-      </ul>
+      {plan.highlights.length > 0 ? (
+        <ul className="mt-6 flex flex-col gap-2.5 border-t border-border pt-6">
+          {plan.highlights.map((h) => (
+            <li key={h} className="flex items-start gap-2.5 text-sm text-foreground">
+              <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              {h}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {plan.upcomingFeatures.length > 0 ? (
+        <div
+          className={cn(
+            "flex flex-col gap-2.5",
+            plan.highlights.length > 0 ? "mt-5" : "mt-6 border-t border-border pt-6",
+          )}
+        >
+          <UpcomingHeading />
+          <ul className="flex flex-col gap-2.5">
+            {plan.upcomingFeatures.map((label) => (
+              <UpcomingItem key={label} label={label} />
+            ))}
+          </ul>
+          {plan.upcomingNote ? (
+            <p className="text-pretty text-xs leading-relaxed text-muted-foreground">{plan.upcomingNote}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <PlanFeatureDetails plan={plan} />
 
@@ -125,7 +165,7 @@ function PlanCard({ plan }: { plan: CommercialPlan }) {
  */
 function PlanFeatureDetails({ plan }: { plan: CommercialPlan }) {
   const groups = getPlanFeatureGroups(plan.id)
-  const planned = plan.availability === "coming_soon"
+  const upcoming = getPlanUpcomingFeatures(plan.id)
   return (
     <details className="group mt-5 border-t border-border pt-1">
       <summary className="-mx-2 flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -137,9 +177,7 @@ function PlanFeatureDetails({ plan }: { plan: CommercialPlan }) {
       </summary>
 
       <div className="flex flex-col gap-5 pb-1 pt-3">
-        <p className="text-xs font-semibold text-muted-foreground">
-          {planned ? "Fonctionnalités prévues" : "Fonctionnalités incluses"}
-        </p>
+        <p className="text-xs font-semibold text-muted-foreground">Fonctionnalités incluses</p>
         {groups.map((group) => (
           <div key={group.name}>
             <p className="text-xs font-bold uppercase tracking-wide text-primary">{group.name}</p>
@@ -167,6 +205,16 @@ function PlanFeatureDetails({ plan }: { plan: CommercialPlan }) {
             </ul>
           </div>
         ))}
+        {upcoming.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            <UpcomingHeading />
+            <ul className="flex flex-col gap-3">
+              {upcoming.map((item) => (
+                <UpcomingItem key={item.label} label={item.label} description={item.description} />
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </details>
   )
@@ -185,7 +233,7 @@ function CustomSiteCta() {
     "SEO / référencement local",
     "Demandes de devis",
     "Paiements & acomptes",
-    "Domaine personnalisé",
+    "Domaine personnalisé (sur demande)",
   ]
   return (
     <div className="mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-primary/[0.04] p-7 sm:p-10">
@@ -302,6 +350,16 @@ function MobileFeatureCompare() {
                   </ul>
                 </div>
               ))}
+              {getPlanUpcomingFeatures(col.id).length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <UpcomingHeading />
+                  <ul className="flex flex-col gap-2">
+                    {getPlanUpcomingFeatures(col.id).map((item) => (
+                      <UpcomingItem key={item.label} label={item.label} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </details>
         )
@@ -314,7 +372,7 @@ function MobileFeatureCompare() {
 }
 
 /** Comparateur repliable, organisé par catégories — <details> natif. */
-function FeatureCompare() {
+export function FeatureCompare() {
   return (
     <details className="group mt-4 overflow-hidden rounded-3xl border border-border bg-card">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-6 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
@@ -350,7 +408,18 @@ function FeatureCompare() {
                   <span className="pr-2 text-pretty text-[13px] leading-snug text-foreground">{row.label}</span>
                   {COMPARE_COLUMNS.map((c) => (
                     <span key={c.id} className="flex items-center justify-center">
-                      {row.values[c.id] ? (
+                      {row.values[c.id] === "soon" ? (
+                        <>
+                          <span
+                            data-cell="soon"
+                            className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-center text-[11px] font-medium leading-tight text-muted-foreground"
+                          >
+                            <Clock className="size-3 shrink-0" aria-hidden="true" />
+                            {PRICING_COPY.comingSoonLabel}
+                          </span>
+                          <span className="sr-only"> dans {c.name}</span>
+                        </>
+                      ) : row.values[c.id] ? (
                         <>
                           <Check className="size-4 text-primary" aria-hidden="true" />
                           <span className="sr-only">Inclus dans {c.name}</span>
