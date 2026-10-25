@@ -9,7 +9,7 @@
  * tenant répond NOT_FOUND (existence jamais révélée).
  */
 import "server-only"
-import { and, count, eq, inArray, isNull, lt, ne } from "drizzle-orm"
+import { and, count, eq, gt, inArray, isNull, lt, lte, ne } from "drizzle-orm"
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core"
 import {
   clients,
@@ -39,6 +39,7 @@ import {
   buildContractSnapshot,
   canOptOutOfRenewal,
   canCustomerRequestEarlyCancellation,
+  canUseEntitlement,
   evaluateCapacity,
   initialStatusFor,
   resolveCancellationAt,
@@ -48,6 +49,7 @@ import {
 import { assertValidPlanConfig, type PlanConfigInput, type ValidatedPlanConfig } from "./plan-validation"
 import { CUSTOMER_SUBSCRIPTION_CAPACITY_STATUSES, isTerminalStatus } from "./statuses"
 import { normalizeVehicle, type VehicleInput } from "./vehicle"
+import { rightsInterval } from "./rights-period"
 import { generateManageToken } from "./manage-token"
 import { deriveIdempotencyKey } from "./idempotency"
 import { emailEvents } from "./email-events"
@@ -126,6 +128,10 @@ export const MAINTENANCE_AUDIT_ACTIONS = [
   "public_mode_changed",
   "early_cancellation_approved",
   "early_cancellation_rejected",
+  "use_completed",
+  "use_completion_undone",
+  "last_installment_adjusted",
+  "last_installment_adjustment_deleted",
 ] as const
 export type MaintenanceAuditAction = (typeof MAINTENANCE_AUDIT_ACTIONS)[number]
 
@@ -351,6 +357,8 @@ export type CreateSubscriptionInput = {
   customer: { name: unknown; email: unknown; phone?: unknown }
   vehicle: VehicleInput
   paymentMode: unknown
+  /** L27 : formule « au choix » → period | monthly, re-vérifié contre la formule. */
+  paymentScheduleChoice?: unknown
   /** Clé client (16–128 car.) ; dérivée côté serveur avec tenant + opération + formule. */
   idempotencyKey: string
 }
@@ -474,6 +482,7 @@ async function createSubscriptionCore(
     const snapshot = buildContractSnapshot({
       plan,
       paymentMode: input.paymentMode,
+      paymentScheduleChoice: input.paymentScheduleChoice,
       includedService: { id: includedService.id, name: includedService.name },
       initialService: initialService ? { name: initialService.name, priceCents: initialService.priceCents } : null,
     })
@@ -697,7 +706,8 @@ export async function createCycleIfMissing(db: Executor, companyId: number, subs
   return db.transaction(async (tx) => {
     const sub = await lockSubscription(tx, companyId, subscriptionId)
     if (!CYCLE_ELIGIBLE_STATUSES.has(sub.status) || !sub.billingAnchorAt) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE")
-    const window = buildCycleWindow(sub.billingAnchorAt, intervalOf(sub), at)
+    // L27 : droits sur la période figée (ex. 12 mois payés chaque mois) ; V1 = période de facturation.
+    const window = buildCycleWindow(sub.billingAnchorAt, rightsInterval(sub), at)
     if (!window) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE")
     const hardEnd = sub.cancelAt ?? sub.prepaidUntil ?? null
     if (hardEnd && window.cycleStart >= hardEnd) throw new CustomerSubscriptionError("ALREADY_CANCELLED")
@@ -733,6 +743,116 @@ export async function createCycleIfMissing(db: Executor, companyId: number, subs
     }
     await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "cycle_created", actorType: "system", meta: { cycleId, cycleStart: window.cycleStart, includedUses: sub.includedUsesPerCycleSnapshot } })
     return { cycleId, created: true, ...window }
+  })
+}
+
+/* ------------------- Prestations effectuées (L27, pro) ------------------- */
+
+export type UsageView = {
+  total: number
+  remaining: number
+  periodEndsAt: Date
+  lastCompleted: { useId: number; completedAt: Date } | null
+}
+
+/** Droits de la période en cours (cycle ouvert contenant `now`), filtrés par tenant. */
+async function readCurrentUsage(tx: Executor, companyId: number, subscriptionId: number, now: Date, lock: boolean) {
+  const [cycle] = await tx
+    .select({ id: maintenanceCycles.id, cycleEnd: maintenanceCycles.cycleEnd })
+    .from(maintenanceCycles)
+    .where(
+      and(
+        eq(maintenanceCycles.companyId, companyId),
+        eq(maintenanceCycles.subscriptionId, subscriptionId),
+        eq(maintenanceCycles.status, "open"),
+        lte(maintenanceCycles.cycleStart, now),
+        gt(maintenanceCycles.cycleEnd, now),
+      ),
+    )
+  if (!cycle) return null
+  const base = tx
+    .select({ id: maintenanceUses.id, status: maintenanceUses.status, completedAt: maintenanceUses.completedAt, bookingId: maintenanceUses.bookingId })
+    .from(maintenanceUses)
+    .where(and(eq(maintenanceUses.companyId, companyId), eq(maintenanceUses.subscriptionId, subscriptionId), eq(maintenanceUses.cycleId, cycle.id)))
+    .orderBy(maintenanceUses.id)
+  const uses = lock ? await base.for("update") : await base
+  const manual = uses
+    .filter((u) => u.status === "completed" && u.bookingId == null && u.completedAt)
+    .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime() || b.id - a.id)[0]
+  const view: UsageView = {
+    total: uses.length,
+    remaining: uses.filter((u) => u.status === "available").length,
+    periodEndsAt: cycle.cycleEnd,
+    lastCompleted: manual ? { useId: manual.id, completedAt: manual.completedAt! } : null,
+  }
+  return { view, uses }
+}
+
+/** Lecture seule (fiche pro, espace client). null : abonnement d'un autre tenant ou aucune période en cours. */
+export async function getCurrentUsage(db: Executor, companyId: number, subscriptionId: number, now: Date = new Date()): Promise<UsageView | null> {
+  if (!Number.isInteger(subscriptionId) || subscriptionId <= 0) return null
+  const [sub] = await db
+    .select({ id: maintenanceSubscriptions.id })
+    .from(maintenanceSubscriptions)
+    .where(and(eq(maintenanceSubscriptions.id, subscriptionId), eq(maintenanceSubscriptions.companyId, companyId)))
+  if (!sub) return null
+  return (await readCurrentUsage(db, companyId, subscriptionId, now, false))?.view ?? null
+}
+
+export type MarkUseResult = { outcome: "completed" | "stale"; useId: number | null; usage: UsageView | null }
+
+/**
+ * Marque UNE prestation effectuée. Atomique : verrou de l'abonnement (FOR UPDATE, tenant)
+ * puis comparaison avec le nombre de restantes vu par le pro (`expectedRemaining`).
+ * Différent ⇒ « stale » sans effet (double clic, ou autre onglet) : jamais 2 marquages.
+ */
+export async function markUseCompleted(
+  db: Executor,
+  companyId: number,
+  actor: Actor,
+  subscriptionId: number,
+  input: { expectedRemaining: unknown },
+  now: Date = new Date(),
+): Promise<MarkUseResult> {
+  assertCanMutate(actor)
+  const expected = input.expectedRemaining
+  if (typeof expected !== "number" || !Number.isInteger(expected) || expected < 0) {
+    throw new CustomerSubscriptionError("CONFLICT", [{ field: "expectedRemaining", code: "CONFLICT" }])
+  }
+  return db.transaction(async (tx) => {
+    const sub = await lockSubscription(tx, companyId, subscriptionId)
+    const usable = canUseEntitlement(sub, now)
+    if (!usable.allowed) throw new CustomerSubscriptionError(usable.reason)
+    const current = await readCurrentUsage(tx, companyId, sub.id, now, true)
+    if (!current) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE", [{ field: "uses", code: "SUBSCRIPTION_NOT_USABLE" }])
+    if (current.view.remaining !== expected) return { outcome: "stale" as const, useId: null, usage: current.view }
+    const use = current.uses.find((u) => u.status === "available")
+    if (!use) throw new CustomerSubscriptionError("SUBSCRIPTION_NOT_USABLE", [{ field: "uses", code: "SUBSCRIPTION_NOT_USABLE" }])
+    await tx
+      .update(maintenanceUses)
+      .set({ status: "completed", completedAt: now })
+      .where(and(eq(maintenanceUses.id, use.id), eq(maintenanceUses.companyId, companyId), eq(maintenanceUses.status, "available")))
+    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "use_completed", actorType: "user", actorUserId: actor.userId, meta: { useId: use.id } })
+    const after = await readCurrentUsage(tx, companyId, sub.id, now, false)
+    return { outcome: "completed" as const, useId: use.id, usage: after?.view ?? null }
+  })
+}
+
+/** Annule le DERNIER marquage manuel de la période en cours (erreur de clic). Même verrou. */
+export async function undoUseCompleted(db: Executor, companyId: number, actor: Actor, subscriptionId: number, useId: unknown, now: Date = new Date()) {
+  assertCanMutate(actor)
+  if (typeof useId !== "number" || !Number.isInteger(useId) || useId <= 0) throw new CustomerSubscriptionError("CONFLICT")
+  return db.transaction(async (tx) => {
+    const sub = await lockSubscription(tx, companyId, subscriptionId)
+    const current = await readCurrentUsage(tx, companyId, sub.id, now, true)
+    if (!current || current.view.lastCompleted?.useId !== useId) throw new CustomerSubscriptionError("CONFLICT", [{ field: "useId", code: "CONFLICT" }])
+    await tx
+      .update(maintenanceUses)
+      .set({ status: "available", completedAt: null })
+      .where(and(eq(maintenanceUses.id, useId), eq(maintenanceUses.companyId, companyId), eq(maintenanceUses.subscriptionId, sub.id), eq(maintenanceUses.status, "completed")))
+    await appendMaintenanceAudit(tx, { companyId, subscriptionId: sub.id, action: "use_completion_undone", actorType: "user", actorUserId: actor.userId, meta: { useId } })
+    const after = await readCurrentUsage(tx, companyId, sub.id, now, false)
+    return { usage: after?.view ?? null }
   })
 }
 

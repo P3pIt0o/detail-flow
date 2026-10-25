@@ -115,7 +115,7 @@ export default async function PrestationsPage() {
 
       {/* Formules d'entretien réelles du tenant (via loadPublicOffer). PublicPlans
           retourne null si aucune formule publique : aucun espace vide. */}
-      <PublicPlans offer={offer} heading="Formules d'entretien" />
+      <PublicPlans offer={offer} heading="Formules d'entretien" tenantSlug={tenant?.slug ?? null} />
 
       {/* Demande personnalisée (facultatif, activé par l'entreprise) */}
       {crConfig.enabled && (

@@ -30,6 +30,7 @@ import type { LicenseContext } from "@/lib/licensing/resolver"
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 const baseMigration = read("scripts/customer-subscriptions-schema-migration.sql")
 const runtimeMigration = read("scripts/customer-subscriptions-runtime-core-migration.sql")
+const rightsPeriodMigration = read("scripts/maintenance-rights-period-migration.sql")
 
 const owner: engine.Actor = { userId: "u-owner", role: "OWNER" }
 const employee: engine.Actor = { userId: "u-emp", role: "EMPLOYEE" }
@@ -117,6 +118,7 @@ beforeAll(async () => {
   `)
   await pg.exec(baseMigration)
   await pg.exec(runtimeMigration)
+  await pg.exec(rightsPeriodMigration)
   db = drizzle(pg, { schema }) as unknown as engine.Executor
 })
 

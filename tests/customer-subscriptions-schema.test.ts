@@ -9,6 +9,7 @@ const migration = readFileSync(join(process.cwd(), "scripts/customer-subscriptio
 const migrationCode = migration.replace(/--.*$/gm, "")
 const runtimeCoreMigration = readFileSync(join(process.cwd(), "scripts/customer-subscriptions-runtime-core-migration.sql"), "utf8")
 const refundsMigration = readFileSync(join(process.cwd(), "scripts/customer-subscriptions-stripe-refunds-migration.sql"), "utf8")
+const rightsPeriodMigration = readFileSync(join(process.cwd(), "scripts/maintenance-rights-period-migration.sql"), "utf8")
 
 const moduleTables = {
   maintenance_plans: schema.maintenancePlans,
@@ -172,7 +173,7 @@ describe("schéma ↔ migration : mêmes noms d'index et de contraintes", () => 
         ...cfg.checks.map((c) => c.name),
         ...cfg.foreignKeys.filter((f) => f.reference().columns.length > 1).map((f) => f.getName()),
       ]
-      for (const n of names) expect(migration + runtimeCoreMigration + refundsMigration, n).toContain(n)
+      for (const n of names) expect(migration + runtimeCoreMigration + refundsMigration + rightsPeriodMigration, n).toContain(n)
     }
   })
 

@@ -6,7 +6,8 @@
 import "server-only"
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { getCustomerSubscriptionCapacity } from "./engine"
+import { getCurrentUsage, getCustomerSubscriptionCapacity, type UsageView } from "./engine"
+import { nextRightsAt } from "./rights-period"
 import {
   companies,
   maintenanceAuditLog,
@@ -47,6 +48,8 @@ export function planRowToConfig(p: AdminPlanRow): ValidatedPlanConfig {
     prepaidBillingCycles: p.prepaidBillingCycles,
     visibility: p.visibility as ValidatedPlanConfig["visibility"],
     status: p.status as ValidatedPlanConfig["status"],
+    rightsPeriodMonths: p.rightsPeriodMonths,
+    paymentSchedule: p.paymentSchedule as ValidatedPlanConfig["paymentSchedule"],
   }
 }
 
@@ -303,4 +306,15 @@ export async function getRequestForSubscription(companyId: number, subscriptionI
       ),
     )
   return row ?? null
+}
+
+/** L27 : prestations de la période en cours (tenant re-vérifié) + date des prochains droits (null si le contrat s'arrête avant). */
+export async function getSubscriptionUsage(
+  companyId: number,
+  sub: { id: number; renewalModeSnapshot: string; renewalOptOutAt: Date | null; currentTermEndsAt: Date | null; cancelAt: Date | null },
+  now: Date = new Date(),
+): Promise<{ usage: UsageView | null; nextRightsAt: Date | null }> {
+  const usage = await getCurrentUsage(db, companyId, sub.id, now)
+  if (!usage) return { usage: null, nextRightsAt: null }
+  return { usage, nextRightsAt: nextRightsAt(sub, usage.periodEndsAt) }
 }

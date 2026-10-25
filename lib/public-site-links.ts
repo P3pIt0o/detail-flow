@@ -22,3 +22,14 @@ export function publicSiteHref(
   const qs = params.toString()
   return qs ? `/${target}?${qs}` : `/${target}`
 }
+
+/**
+ * Bouton des cartes de formules d'entretien. « request » → formulaire de demande ;
+ * « direct » → contact du pro (aucune souscription directe en ligne pour l'instant).
+ * Slug serveur uniquement, filtré comme ci-dessus.
+ */
+export function subscriptionPlanCta(mode: "request" | "direct", tenantSlug: string | null | undefined): { href: string; label: string } {
+  const slug = tenantSlug && SAFE_SLUG.test(tenantSlug) ? tenantSlug : null
+  const path = mode === "request" ? "/formules" : "/contact"
+  return { href: slug ? `${path}?tenant=${slug}` : path, label: mode === "request" ? "Demander cette formule" : "Souscrire" }
+}

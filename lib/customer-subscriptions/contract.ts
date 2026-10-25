@@ -9,6 +9,7 @@ import { CustomerSubscriptionError, type CustomerSubscriptionErrorCode } from ".
 import { addBillingInterval, nextBillingBoundaryAfter, type BillingInterval } from "./dates"
 import { isPaymentModeAllowed, type PaymentMode, type ValidatedPlanConfig } from "./plan-validation"
 import { CUSTOMER_SUBSCRIPTION_USABLE_STATUSES, isTerminalStatus } from "./statuses"
+import { resolveScheduleChoice, scheduleSnapshot } from "./rights-period"
 
 export function canCustomerRequestEarlyCancellation(sub: {
   status: string; billingAnchorAt: Date | null; cancelAt: Date | null;
@@ -123,15 +124,20 @@ export type ContractSnapshot = {
   initialCleaningRequiredSnapshot: boolean
   initialServiceNameSnapshot: string | null
   initialServicePriceCentsSnapshot: number | null
+  rightsPeriodMonthsSnapshot: number | null
+  periodPriceCentsSnapshot: number | null
+  installmentsPerPeriodSnapshot: number | null
 }
 
 /**
  * Copie FIGÉE des conditions de la formule. Après création, modifier la
  * formule (ou la prestation) ne modifie jamais ces valeurs.
+ * L27 : `paymentScheduleChoice` (formule « au choix ») est re-vérifié contre la formule.
  */
 export function buildContractSnapshot(input: {
   plan: ValidatedPlanConfig
   paymentMode: unknown
+  paymentScheduleChoice?: unknown
   includedService: { id: number; name: string }
   initialService: { name: string; priceCents: number } | null
 }): ContractSnapshot {
@@ -142,20 +148,18 @@ export function buildContractSnapshot(input: {
   if (prepaid) computePrepaidTotalCents(plan.priceCents, plan.prepaidBillingCycles ?? 0)
   const initialPrice = input.initialService?.priceCents ?? null
   if (initialPrice !== null && (!Number.isInteger(initialPrice) || initialPrice < 0)) throw new CustomerSubscriptionError("SERVICE_NOT_FOUND")
+  // Prépayé : jamais de période de droits (formule refusée par le validateur), contrat V1 inchangé.
+  const schedule = scheduleSnapshot(plan, prepaid ? null : resolveScheduleChoice(plan.paymentSchedule, input.paymentScheduleChoice))
 
   return {
     planNameSnapshot: plan.name,
-    priceCentsSnapshot: plan.priceCents,
+    ...schedule,
     currency: plan.currency,
-    billingIntervalUnitSnapshot: plan.billingIntervalUnit,
-    billingIntervalCountSnapshot: plan.billingIntervalCount,
     includedUsesPerCycleSnapshot: plan.includedUsesPerCycle,
     includedServiceId: input.includedService.id,
     includedServiceNameSnapshot: input.includedService.name,
-    commitmentUnitSnapshot: plan.commitmentUnit,
-    commitmentCountSnapshot: plan.commitmentCount,
     // Prépayé V1 : jamais de reconduction automatique (CHECK schéma).
-    renewalModeSnapshot: prepaid ? "none" : plan.renewalMode,
+    renewalModeSnapshot: prepaid ? "none" : schedule.renewalModeSnapshot,
     renewalNoticeDaysSnapshot: plan.renewalNoticeDays,
     prepaidBillingCyclesSnapshot: prepaid ? plan.prepaidBillingCycles : null,
     paymentMode: input.paymentMode as PaymentMode,

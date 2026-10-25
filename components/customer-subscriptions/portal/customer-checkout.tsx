@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { startCustomerCheckoutAction } from "@/app/abonnements/gerer/actions"
 import { startPaymentLinkCheckoutAction } from "@/app/abonnement-entretien/[token]/actions"
 import { formatMoney } from "@/lib/customer-subscriptions/contract-summary"
+import type { PaymentRecap } from "@/lib/customer-subscriptions/payment-link"
 
 /** Consentement : seul le booléen est envoyé ; date et version sont construites serveur. */
 export function CustomerCheckout({
@@ -16,6 +17,7 @@ export function CustomerCheckout({
   followingPaymentCents,
   currency,
   paymentToken,
+  recap = null,
 }: {
   step: "initial_cleaning" | "subscription"
   dueTodayCents: number
@@ -23,6 +25,8 @@ export function CustomerCheckout({
   currency: string
   /** Lien de paiement email : le token autorise le Checkout (sinon session du portail). */
   paymentToken?: string
+  /** L27 : récapitulatif lisible avant paiement (textes calculés serveur). */
+  recap?: PaymentRecap | null
 }) {
   const [accepted, setAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +52,42 @@ export function CustomerCheckout({
           <EmbeddedCheckout />
         </EmbeddedCheckoutProvider>
       </div>
+    )
+
+  if (recap)
+    return (
+      <section aria-labelledby="checkout-title" className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+        <h2 id="checkout-title" className="text-xl font-bold text-card-foreground">
+          Récapitulatif
+        </h2>
+        <dl className="flex flex-col">
+          {[
+            ["Vous recevez", recap.receive, null],
+            ["Vous payez", recap.pay, recap.payTotal],
+            ["Premier prélèvement", recap.first, null],
+            ["Engagement", recap.commitment, null],
+            ["Ensuite", recap.after, null],
+          ].map(([k, v, sub], i, all) => (
+            <div key={k} className={i < all.length - 1 ? "flex flex-col gap-0.5 border-b border-border py-3" : "flex flex-col gap-0.5 py-3"}>
+              <dt className="text-sm font-semibold text-muted-foreground">{k}</dt>
+              <dd className="text-base leading-snug text-card-foreground">
+                {v}
+                {sub ? <span className="block text-sm text-muted-foreground">{sub}</span> : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm leading-relaxed text-card-foreground">
+          <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-ring" />
+          <span>J&apos;accepte les conditions de la formule</span>
+        </label>
+        <div aria-live="polite">{error ? <p className="text-sm text-destructive">{error}</p> : null}</div>
+        <Button className="h-12 w-full text-base" disabled={!accepted || pending} onClick={start}>
+          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+          {recap.payButton}
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">Paiement sécurisé par Stripe.{recap.reminder ? ` ${recap.reminder}` : ""}</p>
+      </section>
     )
 
   return (

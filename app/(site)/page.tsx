@@ -112,7 +112,7 @@ export default async function HomePage() {
     <>
       <Hero brandName={contact.name} hero={contact.hero} imageSrc={heroImage} overlay={heroOverlay} />
       {withPlansSlot(order).map((slot) =>
-        slot === PLANS_SLOT ? <PublicPlans key={PLANS_SLOT} offer={publicOffer} /> : sections[slot],
+        slot === PLANS_SLOT ? <PublicPlans key={PLANS_SLOT} offer={publicOffer} tenantSlug={tenant?.slug ?? null} /> : sections[slot],
       )}
 
       {/* Informations pratiques (LOT 2) : rendu uniquement si le configurateur

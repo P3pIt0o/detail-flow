@@ -17,6 +17,7 @@ import {
   maintenanceCancellationRequests,
   maintenanceSubscriptionVehicles,
   maintenanceSubscriptions,
+  settings,
 } from "@/lib/db/schema"
 import {
   CUSTOMER_SESSION_TTL_SECONDS,
@@ -26,7 +27,7 @@ import {
   signCustomerAccess,
   verifyCustomerAccess,
 } from "./customer-access"
-import { appendMaintenanceAudit, requestEarlyCancellationAsCustomer, withdrawEarlyCancellationAsCustomer, type CustomerSessionProof, type Executor } from "./engine"
+import { appendMaintenanceAudit, getCurrentUsage, requestEarlyCancellationAsCustomer, withdrawEarlyCancellationAsCustomer, type CustomerSessionProof, type Executor, type UsageView } from "./engine"
 import {
   requestRenewalOptOutAsCustomerAndSync,
   revokeRenewalOptOutAsCustomerAndSync,
@@ -41,6 +42,7 @@ import { canCustomerRequestEarlyCancellation, resolveCancellationAt } from "./co
 import { lastPaymentBefore } from "./email-events"
 import { CustomerSubscriptionError } from "./errors"
 import { isTerminalStatus } from "./statuses"
+import { installmentAmountAt, nextRightsAt } from "./rights-period"
 import type { ReturnUrlContext } from "./return-url"
 
 type SubscriptionRow = typeof maintenanceSubscriptions.$inferSelect
@@ -155,6 +157,11 @@ export type CustomerPortalView = {
   /** Une seule action principale contextuelle + éventuelle demande de fin anticipée. */
   primaryAction: CustomerAction | null
   secondaryAction: CustomerAction | null
+  /** L27 : prestations de la période en cours (vraies données) ; null avant le premier paiement. */
+  usage: UsageView | null
+  nextRightsAt: Date | null
+  /** Coordonnées publiques du pro (« Planifier mon lavage ») : son propre tenant uniquement. */
+  proContact: { phone: string | null; email: string | null }
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -200,7 +207,7 @@ export function computeCustomerActions(
     if (sub.renewalModeSnapshot === "none") return { primary: null, secondary: early }
     const last = lastPaymentBefore(sub as never, termEnd, now)
     return {
-      primary: { kind: "renewal_opt_out", serviceUntil: termEnd, lastPaymentAt: last, lastPaymentCents: last ? sub.priceCentsSnapshot : null },
+      primary: { kind: "renewal_opt_out", serviceUntil: termEnd, lastPaymentAt: last, lastPaymentCents: last ? installmentAmountAt(sub, last) : null },
       secondary: early,
     }
   }
@@ -269,7 +276,17 @@ export async function loadCustomerPortal(db: Executor, ctx: CustomerRequestConte
     .where(and(eq(maintenancePayments.companyId, sub.companyId), eq(maintenancePayments.subscriptionId, sub.id), eq(maintenancePayments.type, "initial_cleaning"), eq(maintenancePayments.status, "paid"))).limit(1)
   const initialCleaningPaid = !!initialPayment
   const { primary, secondary } = computeCustomerActions(sub, { hasPendingEarlyCancellation: !!pending, initialCleaningPaid }, now)
+  // Session vérifiée : companyId et abonnement viennent de la preuve serveur, jamais du navigateur.
+  const usage = isTerminalStatus(sub.status) ? null : await getCurrentUsage(db, sub.companyId, sub.id, now)
+  const [contact] = await db
+    .select({ phone: settings.businessPhone, email: settings.businessEmail })
+    .from(settings)
+    .where(eq(settings.companyId, sub.companyId))
+    .limit(1)
   return {
+    usage,
+    proContact: { phone: contact?.phone?.trim() || null, email: contact?.email?.trim() || null },
+    nextRightsAt: usage ? nextRightsAt(sub, usage.periodEndsAt) : null,
     summary: buildSubscriptionContractSummary(sub, now),
     vehicle: vehicle ? { label: `${vehicle.brand} ${vehicle.model}`.trim(), plate: vehicle.plate } : null,
     status: customerStatusLabel(sub.status),

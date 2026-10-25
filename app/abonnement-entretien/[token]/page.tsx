@@ -34,8 +34,9 @@ export default async function PaymentLinkPage({ params }: { params: Promise<{ to
 
   return (
     <div className="min-h-dvh bg-background font-sans text-foreground">
-      <CustomerShell title="Finaliser mon abonnement" companyName={companyName}>
+      <CustomerShell title={view.recap ? view.planName : "Finaliser mon abonnement"} companyName={companyName}>
         <div className="flex flex-col gap-4">
+          {!view.recap && (
           <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Formule</dt>
@@ -50,12 +51,14 @@ export default async function PaymentLinkPage({ params }: { params: Promise<{ to
               <dd className="text-right font-medium text-card-foreground">{view.intervalLabel}</dd>
             </div>
           </dl>
+          )}
           <CustomerCheckout
             step={view.step}
             dueTodayCents={view.dueTodayCents}
             followingPaymentCents={view.followingPaymentCents}
             currency={view.currency}
             paymentToken={token}
+            recap={view.recap}
           />
         </div>
       </CustomerShell>

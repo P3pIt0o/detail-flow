@@ -193,7 +193,7 @@ beforeAll(async () => {
   pg = new PGlite()
   await pg.exec(`
     CREATE TABLE companies (id serial PRIMARY KEY, slug text NOT NULL DEFAULT ('tenant-' || floor(random()*1e9)::text), "licensePlan" text, "stripeAccountId" text, "stripeChargesEnabled" boolean NOT NULL DEFAULT false, "paymentsEnabled" boolean NOT NULL DEFAULT false);
-    CREATE TABLE settings (id serial PRIMARY KEY, "companyId" integer NOT NULL UNIQUE, "businessName" text, "businessEmail" text);
+    CREATE TABLE settings (id serial PRIMARY KEY, "companyId" integer NOT NULL UNIQUE, "businessName" text, "businessEmail" text, "businessPhone" text);
     CREATE TABLE clients (id serial PRIMARY KEY, "companyId" integer NOT NULL);
     CREATE TABLE services (id serial PRIMARY KEY, "companyId" integer NOT NULL, name text NOT NULL, "basePriceCents" integer NOT NULL DEFAULT 0);
     CREATE TABLE bookings (id serial PRIMARY KEY);
@@ -203,6 +203,7 @@ beforeAll(async () => {
   await pg.exec(read("scripts/customer-subscriptions-runtime-core-migration.sql"))
   await pg.exec(read("scripts/customer-subscriptions-stripe-refunds-migration.sql"))
   await pg.exec(read("scripts/customer-subscriptions-ui-v1-migration.sql"))
+  await pg.exec(read("scripts/maintenance-rights-period-migration.sql"))
   db = drizzle(pg, { schema }) as unknown as engine.Executor
   A = await seedCompany()
   B = await seedCompany()
@@ -309,6 +310,14 @@ describe("isolation", () => {
     expect(await loadCustomerPortal(db, { ...ctxA, companyId: B.companyId })).toBeNull()
     await expect(customerScheduleCancellation(db, fakePort().port, { ...ctxA, companyId: B.companyId })).rejects.toBeInstanceOf(CustomerSessionInvalidError)
     expect((await getSub(b.subscriptionId)).cancelAt).toBeNull()
+  })
+
+  it("L27 : « Planifier mon lavage » affiche les coordonnées du pro de SON tenant uniquement", async () => {
+    await pg.query(`UPDATE settings SET "businessPhone"='06 11 22 33 44' WHERE "companyId"=$1`, [A.companyId])
+    await pg.query(`UPDATE settings SET "businessPhone"='07 99 99 99 99', "businessEmail"='pro@b.example' WHERE "companyId"=$1`, [B.companyId])
+    const a = await seedSub(A, {}, { status: "active" })
+    const view = await loadCustomerPortal(db, await sessionFor(a))
+    expect(view?.proContact).toEqual({ phone: "06 11 22 33 44", email: "pro@example.com" })
   })
 
   it("aucun identifiant navigateur : les actions n'acceptent que la session", async () => {

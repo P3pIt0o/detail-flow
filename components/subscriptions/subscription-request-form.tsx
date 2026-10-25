@@ -9,7 +9,21 @@ import { submitSubscriptionRequest, type SubscriptionRequestState } from "@/app/
 
 const initial: SubscriptionRequestState = { status: "idle", message: "" }
 
-export function SubscriptionRequestForm({ planId, planName }: { planId: number; planName: string }) {
+type ScheduleChoice = { value: "monthly" | "period"; title: string; description: string }
+
+export function SubscriptionRequestForm({
+  planId,
+  planName,
+  scheduleChoices = null,
+  choiceNote = null,
+}: {
+  planId: number
+  planName: string
+  /** Formule « au choix du client » (L27) : le choix est re-vérifié côté serveur. */
+  scheduleChoices?: ScheduleChoice[] | null
+  choiceNote?: string | null
+}) {
+  const [choice, setChoice] = useState<ScheduleChoice["value"]>("monthly")
   const [state, action, pending] = useActionState(submitSubscriptionRequest, initial)
   // Stable par montage : un double envoi est rejoué côté serveur sans doublon.
   const [submissionId] = useState(() => crypto.randomUUID())
@@ -40,6 +54,21 @@ export function SubscriptionRequestForm({ planId, planName }: { planId: number; 
           <input name="company_website" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
+      {scheduleChoices && (
+        <fieldset className="flex flex-col gap-2.5">
+          <legend className="mb-1.5 text-sm font-semibold text-foreground">Comment souhaitez-vous payer ?</legend>
+          {scheduleChoices.map((c) => (
+            <label key={c.value} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 ${choice === c.value ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border"}`}>
+              <input type="radio" name="paymentScheduleChoice" value={c.value} checked={choice === c.value} onChange={() => setChoice(c.value)} className="mt-1 size-4 accent-primary" />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[15px] font-semibold text-foreground">{c.title}</span>
+                <span className="text-sm text-muted-foreground">{c.description}</span>
+              </span>
+            </label>
+          ))}
+          {choiceNote && <p className="text-sm text-muted-foreground">{choiceNote}</p>}
+        </fieldset>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {field("name", "Nom complet", { required: true, autoComplete: "name", maxLength: 120 })}
         {field("email", "Email", { required: true, type: "email", autoComplete: "email", maxLength: 254 })}

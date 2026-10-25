@@ -14,6 +14,7 @@ import {
 } from "./engine"
 import { emailEvents } from "./email-events"
 import { assertValidPlanConfig, type PaymentMode, type ValidatedPlanConfig } from "./plan-validation"
+import { resolveScheduleChoice } from "./rights-period"
 import { isPlanPubliclyAccessible, parsePublicMode } from "./public-mode"
 import { normalizeVehicle, type VehicleInput } from "./vehicle"
 
@@ -62,10 +63,13 @@ export function normalizeFreeText(v: unknown, max: number, field: string): strin
 }
 
 export type PlanRequestSnapshot = ValidatedPlanConfig & { planId: number; includedServiceName: string | null; initialServiceName: string | null }
+const L27_PLAN_KEYS = new Set(["rightsPeriodMonths", "paymentSchedule"])
 
 /** Version déterministe (sha256) du snapshot : permet de détecter un plan modifié entre demande et acceptation. */
 export function planSnapshotVersion(snapshot: PlanRequestSnapshot): string {
-  const sorted = Object.fromEntries(Object.entries(snapshot).sort(([a], [b]) => a.localeCompare(b)))
+  // L27 : champs NULL (formule V1) exclus → version identique à celle des demandes déjà en attente.
+  const entries = Object.entries(snapshot).filter(([k, v]) => !(L27_PLAN_KEYS.has(k) && v === null))
+  const sorted = Object.fromEntries(entries.sort(([a], [b]) => a.localeCompare(b)))
   return createHash("sha256").update(JSON.stringify(sorted)).digest("hex").slice(0, 32)
 }
 
@@ -86,6 +90,8 @@ export type PublicRequestInput = {
   vehicle: VehicleInput
   message?: unknown
   submissionId: unknown
+  /** L27 : formule « au choix » uniquement (period | monthly), re-vérifié contre la formule. */
+  paymentScheduleChoice?: unknown
 }
 
 export type PublicRequestResult = { requestId: number; replayed: boolean }
@@ -143,6 +149,9 @@ export async function createPublicSubscriptionRequest(
     } catch {
       throw new CustomerSubscriptionError("PLAN_NOT_AVAILABLE")
     }
+    // Seul le choix d'une formule « au choix » est conservé (toute autre valeur envoyée est ignorée).
+    const paymentScheduleChoice =
+      plan.paymentSchedule === "customer_choice" ? resolveScheduleChoice(plan.paymentSchedule, input.paymentScheduleChoice) : null
 
     const capacity = await getCustomerSubscriptionCapacity(tx, companyId)
     if (!capacity.creationAllowed) throw new CustomerSubscriptionError("NOT_ACCEPTING_REQUESTS")
@@ -197,6 +206,7 @@ export async function createPublicSubscriptionRequest(
         submissionId,
         planSnapshot: snapshot,
         planSnapshotVersion: planSnapshotVersion(snapshot),
+        paymentScheduleChoice,
         createdAt: now,
         updatedAt: now,
         expiresAt: new Date(now.getTime() + REQUEST_LIMITS.ttlDays * DAY),
@@ -296,6 +306,8 @@ export async function acceptSubscriptionRequest(
         customer: { name: request.customerName, email: request.customerEmail, phone: request.customerPhone },
         vehicle: { brand: request.vehicleBrand, model: request.vehicleModel, plate: request.vehiclePlate, typeName: request.vehicleTypeName },
         paymentMode: defaultPaymentMode(currentPlan),
+        // Choix du client re-vérifié par le snapshot ; ignoré si la formule n'est plus « au choix ».
+        paymentScheduleChoice: currentPlan.paymentSchedule === "customer_choice" ? request.paymentScheduleChoice : null,
         idempotencyKey: `request-accept-${String(request.id).padStart(12, "0")}`,
       },
       now,

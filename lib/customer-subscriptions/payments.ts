@@ -17,7 +17,7 @@
  */
 import "server-only"
 import { and, eq, sql } from "drizzle-orm"
-import { companies, maintenancePayments, maintenanceRefunds, maintenanceSubscriptions } from "@/lib/db/schema"
+import { companies, maintenanceAuditLog, maintenancePayments, maintenanceRefunds, maintenanceSubscriptions } from "@/lib/db/schema"
 import {
   computeStripeFinancials,
   extractChargeAndBalanceTransaction,
@@ -48,6 +48,7 @@ import {
   type Executor,
 } from "./engine"
 import { isTerminalStatus } from "./statuses"
+import { lastInstallmentAdjustment } from "./rights-period"
 import { emailEvents } from "./email-events"
 import {
   CUSTOMER_SUBSCRIPTION_MODULE,
@@ -147,6 +148,9 @@ export interface CustomerSubscriptionStripePort {
   retrieveInvoice(id: string, opts: StripeCallOptions): Promise<InvoiceLike>
   /** PaymentIntent avec `latest_charge.balance_transaction` expandé (frais/net réels). */
   retrievePaymentIntentWithBalance(id: string, opts: StripeCallOptions): Promise<unknown>
+  /** L27 : ligne d'ajustement de la dernière échéance (sur la facture brouillon, sinon sur la Subscription). */
+  createInvoiceItem(params: Record<string, unknown>, opts: StripeCallOptions): Promise<{ id: string }>
+  deleteInvoiceItem(id: string, opts: StripeCallOptions): Promise<{ id: string; deleted?: boolean }>
 }
 
 /** Erreurs transitoires : l'event doit être rejoué (500, non marqué traité). */
@@ -793,9 +797,78 @@ async function hasInvoicePayment(db: Executor, target: { id: number; companyId: 
   return Boolean(p)
 }
 
+/* ---------------- L27 : écart d'arrondi de la dernière échéance ---------------- */
+
+const ADJUSTED = "last_installment_adjusted"
+const ADJUSTMENT_DELETED = "last_installment_adjustment_deleted"
+
+async function findAudits(db: Executor, target: { id: number; companyId: number }, action: string) {
+  return db
+    .select({ meta: maintenanceAuditLog.meta })
+    .from(maintenanceAuditLog)
+    .where(and(eq(maintenanceAuditLog.companyId, target.companyId), eq(maintenanceAuditLog.subscriptionId, target.id), eq(maintenanceAuditLog.action, action)))
+}
+
+/**
+ * Ajoute l'écart (signé) sur la facture de la n-ième échéance d'une période tant qu'elle
+ * est brouillon ; sinon (facture déjà finalisée) sur la Subscription, jamais libre sur le
+ * Customer, puis supprimé à la fin du contrat. Rejouable : clé Stripe par facture +
+ * audit vérifié avant l'appel. Retourne l'écart porté par CETTE facture (pour la commission).
+ */
+async function applyLastInstallmentAdjustment(db: Executor, port: CustomerSubscriptionStripePort, account: string, target: { id: number; companyId: number }, inv: InvoiceLike & { customer?: Ref }, ext: string | null): Promise<number> {
+  const [row] = await db.select().from(maintenanceSubscriptions).where(whereSub(target))
+  if (!row || !ext || isTerminalStatus(row.status) || !row.installmentsPerPeriodSnapshot) return 0
+  const period = invoicePeriod(inv) ?? invoicePeriod(await providerCall(() => port.retrieveInvoice(inv.id, { stripeAccount: account })))
+  if (!period) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
+  const delta = lastInstallmentAdjustment(row, period.start)
+  if (delta === 0) return 0
+
+  const done = (await findAudits(db, target, ADJUSTED)).map((a) => a.meta as Record<string, unknown>).find((m) => m.invoiceId === inv.id)
+  if (done) return done.attachedTo === "invoice" ? delta : 0
+
+  const customer = idOf(inv.customer) ?? row.externalCustomerId
+  if (!customer) throw new CustomerSubscriptionError("PROVIDER_DATA_UNAVAILABLE")
+  const base = { customer, amount: delta, currency: (inv.currency ?? row.currency).toLowerCase(), description: "Ajustement d'arrondi — dernière échéance de la période", metadata: { detailflowModule: "customer_subscription", maintenanceSubscriptionId: String(row.id), invoiceId: inv.id } }
+  let attachedTo: "invoice" | "subscription" = "subscription"
+  let item: { id: string } | null = null
+  if (inv.status === "draft") {
+    try {
+      item = await port.createInvoiceItem({ ...base, invoice: inv.id }, { stripeAccount: account, idempotencyKey: `df-sub-last-inst:${inv.id}` })
+      attachedTo = "invoice"
+    } catch {
+      // Course : finalisée entre-temps → repli ; toujours brouillon → erreur réelle, webhook rejoué.
+      const fresh = await providerCall(() => port.retrieveInvoice(inv.id, { stripeAccount: account }))
+      if (fresh.status === "draft") throw new CustomerSubscriptionError("PROVIDER_ERROR")
+    }
+  }
+  if (!item) item = await providerCall(() => port.createInvoiceItem({ ...base, subscription: ext }, { stripeAccount: account, idempotencyKey: `df-sub-last-inst-pending:${inv.id}` }))
+  await appendMaintenanceAudit(db, { companyId: row.companyId, subscriptionId: row.id, action: ADJUSTED, actorType: "system", meta: { invoiceId: inv.id, itemId: item.id, amountCents: delta, attachedTo } })
+  return attachedTo === "invoice" ? delta : 0
+}
+
+/** Fin de contrat : supprime les lignes d'ajustement restées en attente sur la Subscription. */
+async function deletePendingAdjustments(db: Executor, port: CustomerSubscriptionStripePort, account: string, target: { id: number; companyId: number }) {
+  const deleted = new Set((await findAudits(db, target, ADJUSTMENT_DELETED)).map((a) => (a.meta as Record<string, unknown>).itemId))
+  const pending = (await findAudits(db, target, ADJUSTED)).map((a) => a.meta as Record<string, unknown>).filter((m) => m.attachedTo === "subscription" && !deleted.has(m.itemId))
+  for (const m of pending) {
+    const itemId = String(m.itemId)
+    let outcome = "deleted"
+    try {
+      await port.deleteInvoiceItem(itemId, { stripeAccount: account })
+    } catch (e) {
+      // Déjà absente (supprimée ou facturée) : rien à faire ; autre erreur → webhook rejoué.
+      if ((e as { code?: string }).code !== "resource_missing") throw new CustomerSubscriptionError("PROVIDER_ERROR")
+      outcome = "already_missing"
+    }
+    await appendMaintenanceAudit(db, { companyId: target.companyId, subscriptionId: target.id, action: ADJUSTMENT_DELETED, actorType: "system", meta: { itemId, outcome } })
+  }
+}
+
 async function onInvoiceCreated({ db, port, event, account, target }: Ctx): Promise<WebhookOutcome> {
   let inv = event.data.object as InvoiceLike
-  const gross = Math.max(0, inv.amount_due ?? inv.total ?? 0)
+  // L27 : ajustement d'abord, commission ensuite sur le brut réellement facturé.
+  const adjustment = await applyLastInstallmentAdjustment(db, port, account, target, inv, invoiceSubscriptionId(inv))
+  const gross = Math.max(0, (inv.amount_due ?? inv.total ?? 0) + adjustment)
   const { platformFeeBps } = await resolveCurrentCustomerSubscriptionFee(db, target.companyId)
   const ext = invoiceSubscriptionId(inv)
   const opts = { stripeAccount: account }
@@ -1362,10 +1435,10 @@ async function onSubscriptionUpdated({ db, event, target }: Ctx): Promise<Webhoo
   })
 }
 
-async function onSubscriptionDeleted({ db, event, target }: Ctx): Promise<WebhookOutcome> {
+async function onSubscriptionDeleted({ db, port, event, account, target }: Ctx): Promise<WebhookOutcome> {
   const s = event.data.object as SubscriptionLike
   const endedAt = new Date((s.ended_at ?? s.canceled_at ?? event.created) * 1000)
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const row = await lockTenantSubscription(tx, target.companyId, target.id)
     if (isTerminalStatus(row.status)) return { handled: true as const, outcome: "subscription_deleted_noop" }
     const outcome = decideProviderDeletion(row, endedAt)
@@ -1379,4 +1452,7 @@ async function onSubscriptionDeleted({ db, event, target }: Ctx): Promise<Webhoo
     await emailEvents.ended(tx, row, endedAt, new Date())
     return { handled: true as const, outcome: `subscription_deleted_${outcome}` }
   })
+  // Après la fin persistée : un échec Stripe (≠ resource_missing) fait rejouer l'événement pour le seul nettoyage.
+  await deletePendingAdjustments(db, port, account, target)
+  return result
 }

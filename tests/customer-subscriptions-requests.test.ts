@@ -84,6 +84,7 @@ beforeAll(async () => {
     "scripts/customer-subscriptions-runtime-core-migration.sql",
     "scripts/customer-subscriptions-stripe-refunds-migration.sql",
     "scripts/customer-subscriptions-ui-v1-migration.sql",
+    "scripts/maintenance-rights-period-migration.sql",
   ]) {
     await pg.exec(read(f))
   }
@@ -183,7 +184,7 @@ describe("demandes publiques — création", () => {
       returnUrl: "https://evil.test",
       status: "accepted",
     })
-    expect(Object.keys(picked).sort()).toEqual(["customer", "message", "planId", "submissionId", "vehicle"])
+    expect(Object.keys(picked).sort()).toEqual(["customer", "message", "paymentScheduleChoice", "planId", "submissionId", "vehicle"])
     const res = await runSubmitSubscriptionRequest({ ...validInput(planActive, 10), companyId: companyB, priceCents: 1 }, { db, resolveCompanyId: async () => companyA, checkRateLimit: async () => ({ limited: false }), now: () => NOW })
     expect(res.ok).toBe(true)
     const [row] = await q<{ companyId: number; snap: { priceCents: number } }>(`SELECT "companyId", "planSnapshot" snap FROM maintenance_subscription_requests WHERE "submissionId"=$1`, [sid(10)])

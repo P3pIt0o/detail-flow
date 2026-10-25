@@ -142,6 +142,7 @@ beforeAll(async () => {
     "scripts/customer-subscriptions-runtime-core-migration.sql",
     "scripts/customer-subscriptions-stripe-refunds-migration.sql",
     "scripts/customer-subscriptions-ui-v1-migration.sql",
+    "scripts/maintenance-rights-period-migration.sql",
   ]) {
     await pg.exec(read(f))
   }

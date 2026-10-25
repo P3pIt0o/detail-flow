@@ -1745,6 +1745,11 @@ export const maintenancePlans = pgTable(
     allowPrepaidPayment: boolean("allowPrepaidPayment").notNull().default(false),
     // Prépaiement = N périodes de facturation (pas N mois).
     prepaidBillingCycles: integer("prepaidBillingCycles"),
+    // L27 — période de droits (1 | 3 | 12 mois) indépendante de l'échéancier ; NULL = V1.
+    // Renseignée : billingInterval = month × rightsPeriodMonths et priceCents = prix de la période.
+    rightsPeriodMonths: integer("rightsPeriodMonths"),
+    // period (en une fois par période) | monthly | customer_choice ; NULL = V1.
+    paymentSchedule: text("paymentSchedule"),
     // public | unlisted | private
     visibility: text("visibility").notNull().default("public"),
     // draft | active | archived
@@ -1789,6 +1794,10 @@ export const maintenancePlans = pgTable(
     ),
     statusValid: check("maintenance_plans_status_valid", sql`${t.status} in ('draft', 'active', 'archived')`),
     currencyIso: check("maintenance_plans_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    rightsPeriodValid: check(
+      "maintenance_plans_rights_period_valid",
+      sql`(${t.rightsPeriodMonths} is null and ${t.paymentSchedule} is null) or (${t.rightsPeriodMonths} in (1, 3, 12) and ${t.paymentSchedule} in ('period', 'monthly', 'customer_choice'))`,
+    ),
   }),
 )
 
@@ -1824,6 +1833,11 @@ export const maintenanceSubscriptions = pgTable(
     renewalModeSnapshot: text("renewalModeSnapshot").notNull(),
     renewalNoticeDaysSnapshot: integer("renewalNoticeDaysSnapshot"),
     prepaidBillingCyclesSnapshot: integer("prepaidBillingCyclesSnapshot"),
+    // L27 — paiement mensuel d'une période de droits ; NULL = V1 (droits = facturation).
+    // priceCentsSnapshot = mensualité ; la dernière échéance de chaque période porte l'écart d'arrondi.
+    rightsPeriodMonthsSnapshot: integer("rightsPeriodMonthsSnapshot"),
+    periodPriceCentsSnapshot: integer("periodPriceCentsSnapshot"),
+    installmentsPerPeriodSnapshot: integer("installmentsPerPeriodSnapshot"),
     // Prestation récurrente incluse : le nom accepté par le client fait foi.
     includedServiceId: integer("includedServiceId").references(() => services.id, { onDelete: "set null" }),
     includedServiceNameSnapshot: text("includedServiceNameSnapshot"),
@@ -1952,6 +1966,10 @@ export const maintenanceSubscriptions = pgTable(
       sql`${t.includedUsesPerCycleSnapshot} > 0`,
     ),
     currencyIso: check("maintenance_subscriptions_currency_iso", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    rightsPeriodValid: check(
+      "maintenance_subscriptions_rights_period_valid",
+      sql`(${t.rightsPeriodMonthsSnapshot} is null and ${t.periodPriceCentsSnapshot} is null and ${t.installmentsPerPeriodSnapshot} is null) or (${t.rightsPeriodMonthsSnapshot} > 0 and ${t.periodPriceCentsSnapshot} > 0 and ${t.installmentsPerPeriodSnapshot} > 0 and ${t.paymentMode} = 'recurring')`,
+    ),
   }),
 )
 
@@ -2265,6 +2283,8 @@ export const maintenanceSubscriptionRequests = pgTable(
     submissionId: text("submissionId").notNull(),
     planSnapshot: jsonb("planSnapshot").notNull(),
     planSnapshotVersion: text("planSnapshotVersion").notNull(),
+    // L27 — choix du client pour une formule « au choix » : period | monthly ; NULL sinon.
+    paymentScheduleChoice: text("paymentScheduleChoice"),
     convertedSubscriptionId: integer("convertedSubscriptionId"),
     // Note interne : JAMAIS envoyée au client (≠ customerDecisionMessage).
     internalDecisionNote: text("internalDecisionNote"),
@@ -2294,6 +2314,10 @@ export const maintenanceSubscriptionRequests = pgTable(
     statusValid: check(
       "maintenance_subscription_requests_status_valid",
       sql`${t.status} in ('pending', 'accepted', 'rejected', 'expired')`,
+    ),
+    scheduleChoiceValid: check(
+      "maintenance_subscription_requests_schedule_choice_valid",
+      sql`${t.paymentScheduleChoice} is null or ${t.paymentScheduleChoice} in ('period', 'monthly')`,
     ),
   }),
 )

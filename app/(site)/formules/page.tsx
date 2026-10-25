@@ -61,7 +61,7 @@ export default async function FormulesPage({
         </nav>
       )}
       {offer ? (
-        <PublicPlans offer={offer} heading="Formules d'entretien" />
+        <PublicPlans offer={offer} heading="Formules d'entretien" tenantSlug={tenant?.slug ?? null} />
       ) : (
         <section className="mx-auto flex max-w-xl flex-col gap-3 px-4 py-16 text-center">
           <h1 className="text-balance text-2xl font-semibold text-foreground">Formules d&apos;entretien</h1>

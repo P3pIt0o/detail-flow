@@ -41,6 +41,7 @@ export function pickAllowedRequestFields(body: unknown) {
     vehicle: { brand: v.brand, model: v.model, plate: v.plate, typeName: v.typeName } as never,
     message: b.message,
     submissionId: b.submissionId,
+    paymentScheduleChoice: b.paymentScheduleChoice,
   }
 }
 
