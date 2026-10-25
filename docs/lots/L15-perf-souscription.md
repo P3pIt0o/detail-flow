@@ -66,6 +66,9 @@ Rendre Performance souscriptible (avec essai unique de 30 jours) et lui attribue
 - `tests/launch-lot1-hardened.test.ts` : `SAAS_ADMIN_CHECKOUT_PLANS`, `DESIRED_PLANS`, statut de Performance, texte d'essai, lien public `plan=BUSINESS`.
   **Conservés :** Équipe `coming_soon` sans lien ; « BUSINESS / ENTERPRISE restent mappés côté Billing ».
 - `tests/pricing-source.test.ts` : « seuls Essentiel et Indépendant sont self_serve » devient « … et Performance ».
+- `tests/pricing-upcoming-features.test.ts` (garde L13) : **retirer** le test d'empreinte « PLAN_MATRIX strictement identique à main @ 0fe7302 »
+  (hash SHA-256 figé), qui échouera dès que L15 modifie les droits. Le test A7 du même fichier (Performance `coming_soon`,
+  `SAAS_ADMIN_CHECKOUT_PLANS` / `DESIRED_PLANS` = `["PRO"]`) est aussi à adapter.
 
 ## Tests de non-régression (existants)
 - `tests/billing-subscriptions.test.ts`, `tests/saas-billing-admin.test.ts`, `tests/refunds.test.ts`, `tests/billing-commercial-rules.test.ts`, `tests/platform-fee-ledger.test.ts`, `tests/customer-subscriptions-stripe.test.ts`, `tests/licensing-sms*.test.ts`, `tests/sms-*.test.ts`, `tests/billing-lifetime.test.ts`.
