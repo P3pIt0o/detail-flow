@@ -218,13 +218,26 @@ describe("I — rate limit réservation", () => {
       if (idx !== -1) expect(rl, op).toBeLessThan(idx)
     }
   })
-  it.each(["getQuoteAction", "getAvailabilityAction", "getAvailabilityRangeAction", "computeTravelAction", "validatePromoCodeAction"])(
+  it.each(["getAvailabilityAction", "getAvailabilityRangeAction", "computeTravelAction"])(
     "%s n'est pas rate-limité",
     (name) => {
       const body = fnBody(name)
-      if (body.length > 0) expect(body).not.toMatch(/isBookingRateLimited|checkRateLimit/)
+      if (body.length > 0) expect(body).not.toMatch(/isBookingRateLimited|isPromoRateLimited|checkRateLimit/)
     },
   )
+  // L24 : vérification des codes promo limitée par la règle distincte booking-promo.
+  it("validatePromoCodeAction est limité par booking-promo (jamais booking-create)", () => {
+    const body = fnBody("validatePromoCodeAction")
+    expect(body).toContain("isPromoRateLimited(")
+    expect(body).not.toContain("isBookingRateLimited(")
+  })
+  it("getQuoteAction n'est limité que lorsqu'un code est fourni", () => {
+    const body = fnBody("getQuoteAction")
+    const branch = body.indexOf("if (code && tenant)")
+    expect(branch).toBeGreaterThan(-1)
+    expect(body.indexOf("isPromoRateLimited(")).toBeGreaterThan(branch)
+    expect(body).not.toContain("isBookingRateLimited(")
+  })
 })
 
 describe("K — origine Stripe Billing", () => {

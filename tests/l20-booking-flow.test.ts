@@ -83,7 +83,7 @@ vi.mock("@/lib/analytics/queries", () => ({ recordBookingCompleted: async () => 
 vi.mock("@/lib/payments/queries", () => ({ getCompanyPaymentConfig: async () => null }))
 vi.mock("@/lib/payments/mode", () => ({ willRequireOnlinePayment: () => false }))
 vi.mock("@/lib/licensing/enforce", () => ({ canUseFeature: async () => true }))
-vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => false, BOOKING_RATE_LIMITED_MESSAGE: "Trop de demandes." }))
+vi.mock("@/lib/booking/rate-limit", () => ({ isBookingRateLimited: async () => false, isPromoRateLimited: async () => false, BOOKING_RATE_LIMITED_MESSAGE: "Trop de demandes." }))
 
 import { createBookingAction, getQuoteAction, validatePromoCodeAction } from "@/app/(site)/reservation/actions"
 
