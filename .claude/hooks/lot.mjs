@@ -63,6 +63,8 @@ function requireBranch(st) {
 }
 
 // ------------------------------------------------------------------ changements
+// Fiche du lot (docs/lots/<LOT>-*.md) : jamais « hors plan », jamais un obstacle à la baseline (kit 2.1.6).
+const isLotDoc = (f) => new RegExp(`^docs/lots/${LOT}-[^/]*\\.md$`).test(f)
 function changedFiles(base) {
   const files = new Map()
   const ns = git(top, ["diff", "--name-status", "--no-renames", base]) || ""
@@ -237,20 +239,36 @@ function computeTypecheckBaseline(commit) {
   return r.errors ? { v: TYPECHECK_BASELINE_VERSION, at: now(), head: commit, errors: r.errors } : { error: r.summary }
 }
 
-function runTests(mode, relatedFiles) {
+// Tests d'un commit dans une copie temporaire (kit 2.1.6) : la baseline se prend sur la base du lot,
+// même si la branche contient déjà des commits. null si la copie est impossible (bac à sable).
+function testsAtCommit(commit) {
+  const tmp = mkdtempSync(path.join(tmpdir(), "df-tests-"))
+  const wt = path.join(tmp, "wt")
+  const g = (args) => spawnSync("git", ["-C", top, ...args], { encoding: "utf8", timeout: 5 * 60 * 1000 })
+  try {
+    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) return null
+    if (existsSync(path.join(top, "node_modules"))) symlinkSync(path.join(top, "node_modules"), path.join(wt, "node_modules"))
+    return runTests("full", [], wt)
+  } finally {
+    g(["worktree", "remove", "--force", wt]); g(["worktree", "prune"])
+    rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+function runTests(mode, relatedFiles, dir = top) {
   const vitest = bin("vitest")
   if (!vitest) return { ok: false, summary: "vitest introuvable : dépendances non installées (le développeur doit lancer pnpm install)", failed: [] }
   const outFile = path.join(stateDir(top), `${LOT}.vitest.json`)
-  const cfg = path.join(top, ".claude", "hooks", "vitest.agent.config.mjs")
+  const cfg = existsSync(path.join(dir, ".claude", "hooks", "vitest.agent.config.mjs")) ? path.join(dir, ".claude", "hooks", "vitest.agent.config.mjs") : path.join(top, ".claude", "hooks", "vitest.agent.config.mjs")
   const base = mode === "quick" && relatedFiles.length ? ["related", "--run", ...relatedFiles] : ["run"]
   const r = spawnSync(vitest, [...base, "--config", cfg, "--reporter=json", `--outputFile=${outFile}`, "--passWithNoTests"], {
-    cwd: top, env: scrubbedEnv(), encoding: "utf8", timeout: 30 * 60 * 1000, maxBuffer: 64 * 1024 * 1024,
+    cwd: dir, env: scrubbedEnv(), encoding: "utf8", timeout: 30 * 60 * 1000, maxBuffer: 64 * 1024 * 1024,
   })
   const j = readJson(outFile)
   if (!j) return { ok: false, summary: `résultat vitest illisible (code ${r.status})`, failed: [], details: `${r.stderr || ""}`.split("\n").slice(-15) }
   const failed = []
   for (const tr of j.testResults || []) {
-    const file = path.relative(top, tr.name || "").split(path.sep).join("/")
+    const file = path.relative(realOr(dir), realOr(tr.name || "")).split(path.sep).join("/")
     const bad = (tr.assertionResults || []).filter((a) => a.status === "failed").map((a) => `${file} › ${a.fullName || a.title}`)
     if (bad.length) failed.push(...bad)
     else if (tr.status === "failed") failed.push(`${file} › (erreur de chargement du fichier)`)
@@ -271,7 +289,7 @@ function nextAction(st) {
     case "IMPLEMENTED": return `« pack ${LOT} » puis lancer uniquement les relecteurs indiqués`
     case "REVIEWED": return st.reviewOutcome === "OK" ? `« verify ${LOT} » final puis « done ${LOT} »` : `« fix ${LOT} » puis corriger les points BLOQUANT/MAJEUR`
     case "FIXING": return `corriger, committer, puis « verify ${LOT} »`
-    case "VERIFIED": return `« done ${LOT} » puis rapport final`
+    case "VERIFIED": return `« done ${LOT} » puis rapport final (lot critique avec tests BDD : le développeur lance d'abord « dfguard.mjs check ${LOT} »)`
     case "DONE": return "lot terminé : rapport final au développeur, rien d'autre à faire"
     case "BLOCKED": return `ARRÊT : limite de boucles atteinte ou incohérence. Faire un point au développeur (dfguard.mjs reset-loops ${LOT} pour relancer)`
     default: return "?"
@@ -308,21 +326,40 @@ function startCmd() {
   const st = { lot: LOT, branch, base, phase: "AUDIT", risk: null, fixLoops: 0, reReviews: 0, reviews: {}, createdAt: now(), kitVersion: POLICY.kitVersion }
   log(st, "start")
   save(st)
-  out(`LOT ${LOT} démarré sur ${branch} (base ${short(base)}). Prochaine action : ${nextAction(st)}`)
+  let bl = ""
+  if (!opts.has("--no-baseline")) {
+    const r = takeBaseline(st)
+    if (r.error) bl = `Baseline non prise : ${r.error}`
+    else { save(st); bl = `Baseline prise automatiquement (${st.baseline.where}) : ${r.t.summary}` }
+  }
+  out([`LOT ${LOT} démarré sur ${branch} (base ${short(base)}).`, bl, `Prochaine action : ${nextAction(st)}`].filter(Boolean))
+}
+
+// Baseline = tests + typecheck au commit de BASE du lot (copie temporaire). Si la copie est impossible
+// (bac à sable de l'agent) et que rien n'a changé, on mesure la copie de travail, identique à la base.
+function takeBaseline(st) {
+  const changed = [...changedFiles(st.base).keys()].filter((f) => !isLotDoc(f))
+  let t = testsAtCommit(st.base), where = `base ${short(st.base)}`
+  if (!t) {
+    if (changed.length) return { error: `copie de la base impossible ici et ${changed.length} fichier(s) déjà modifié(s) : le développeur lance « node .claude/hooks/lot.mjs baseline ${LOT} » dans son terminal` }
+    t = runTests("full", []); where = "copie de travail (= base)"
+  }
+  if (!t.ok && !t.failed.length) return { error: `tests de la base illisibles (${t.summary})` }
+  st.baseline = { at: now(), head: st.base, where, summary: t.summary, failed: t.failed, ok: t.ok }
+  const tb = computeTypecheckBaseline(st.base)
+  if (tb.error) delete st.typecheckBaseline; else st.typecheckBaseline = tb
+  log(st, "baseline")
+  return { t, tb }
 }
 
 function baselineCmd() {
   const st = requireState(); requireBranch(st)
   if (st.baseline && !opts.has("--force")) { out(`Baseline déjà enregistrée (${st.baseline.failed.length} test(s) en échec avant le lot).`); return }
-  const changed = changedFiles(st.base)
-  if (changed.size) fail("la baseline doit être prise AVANT toute modification (des changements existent déjà)")
-  const t = runTests("full", [])
-  st.baseline = { at: now(), head: head(), summary: t.summary, failed: t.failed, ok: t.ok }
-  const tb = computeTypecheckBaseline(head())
-  if (tb.error) delete st.typecheckBaseline; else st.typecheckBaseline = tb
-  log(st, "baseline")
+  const r = takeBaseline(st)
+  if (r.error) fail(r.error)
   save(st)
-  out([`Baseline : ${t.summary} | Typecheck : ${tb.error ? `INDISPONIBLE (${tb.error}) : verify échouera tant qu'elle ne pourra pas être calculée` : `${tb.errors.length} erreur(s) préexistante(s)`}`, ...(t.failed.length ? ["Déjà en échec AVANT le lot (ne pas les corriger sans accord) :", ...t.failed.slice(0, 20).map((x) => `  - ${x}`)] : [])])
+  const { t, tb } = r
+  out([`Baseline (${st.baseline.where}) : ${t.summary} | Typecheck : ${tb.error ? `INDISPONIBLE (${tb.error}) : verify échouera tant qu'elle ne pourra pas être calculée` : `${tb.errors.length} erreur(s) préexistante(s)`}`, ...(t.failed.length ? ["Déjà en échec AVANT le lot (ne pas les corriger sans accord) :", ...t.failed.slice(0, 20).map((x) => `  - ${x}`)] : [])])
 }
 
 // Lots qui changent l'interface : aperçu visuel obligatoire AVANT l'approbation (.lot-state/<LOT>.apercu.html).
@@ -410,6 +447,7 @@ function verifyCmd() {
     tcNew = v.fresh
     if (tc.errors) tc.details = v.fresh.slice(0, 15)
   }
+  if (!st.baseline && !quick) { const r = takeBaseline(st); if (r.error) W.push(`baseline automatique impossible : ${r.error}`) }
   const related = [...files.keys()].filter((f) => /\.(ts|tsx)$/.test(f) && existsSync(path.join(top, f)))
   const tests = runTests(quick ? "quick" : "full", related)
   const base = new Set(st.baseline?.failed || [])
@@ -457,7 +495,7 @@ function packCmd() {
   const postFix = (st.fixLoops || 0) > 0 && Object.keys(st.reviews || {}).length > 0
   // Après correction : on ne relance QUE les relecteurs qui avaient un BLOQUANT (+ le vérificateur si lot critique).
   const todo = (postFix
-    ? needed.filter((r) => (st.reviews?.[r]?.bloquants > 0 && st.reviews[r].verdict !== "OK") || (r === "verificateur" && st.risk === "critique"))
+    ? needed.filter((r) => ((st.reviews?.[r]?.bloquants > 0 || st.reviews?.[r]?.majeurs > 0) && st.reviews[r].verdict !== "OK") || (r === "verificateur" && st.risk === "critique"))
     : needed
   ).filter((r) => !already.includes(r))
   const sinceReview = Object.values(st.reviews || {}).filter((r) => r.verdict === "A_CORRIGER").map((r) => r.head).pop()
@@ -522,6 +560,12 @@ function fixCmd() {
   out(`Boucle de correction ${st.fixLoops}/${POLICY.maxFixLoops}. Corrige les BLOQUANT et MAJEUR, ajoute un test par bug, committe, puis « verify ${LOT} ». Ne relance ensuite QUE le relecteur qui avait un BLOQUANT, avec « pack ${LOT} --delta ».`)
 }
 
+// Tests qui ont besoin d'une vraie base (ignorés chez l'agent) parmi les fichiers du lot (kit 2.1.6).
+const DB_TEST_RX = /process\.env\.(DATABASE_URL|[A-Z_]*TEST_DATABASE_URL)|describe\.skipIf\([^)]*(DATABASE_URL|hasDb|HAS_DB)|integration réelle/
+function dbTestFiles(files) {
+  return [...files.keys()].filter((f) => /^tests\/.*\.test\.ts$/.test(f) && existsSync(path.join(top, f)) && DB_TEST_RX.test(readSafe(f)))
+}
+
 function doneCmd() {
   const st = requireState(); requireBranch(st)
   const h = head()
@@ -533,10 +577,15 @@ function doneCmd() {
     const rv = st.reviews[r]
     if (rv.verdict === "OK") continue
     if (rv.bloquants > 0) fail(`${r} a remonté ${rv.bloquants} BLOQUANT(S) : après correction, relance UNIQUEMENT ${r} sur le delta (« pack ${LOT} --delta ») pour qu'il confirme`)
+    if (rv.majeurs > 0 && st.risk === "critique") fail(`${r} a remonté ${rv.majeurs} MAJEUR(S) sur un lot critique : après correction, relance ${r} sur le delta (« pack ${LOT} --delta ») pour qu'il confirme OK`)
     if ((st.fixLoops || 0) < 1) fail(`${r} a demandé des corrections (MAJEUR/MINEUR) : « fix ${LOT} », corrige, puis « verify ${LOT} »`)
   }
   if (st.risk === "critique" && (st.fixLoops || 0) > 0 && !(st.reviews.verificateur?.verdict === "OK" && st.reviews.verificateur.head === h)) {
     fail("lot CRITIQUE corrigé après revue : le verificateur doit confirmer à ce HEAD (« pack " + LOT + " » puis lancer verificateur)")
+  }
+  const dbFiles = dbTestFiles(changedFiles(st.base))
+  if (st.risk === "critique" && dbFiles.length && !(st.dbCheck?.ok && st.dbCheck.head === h)) {
+    fail(`lot CRITIQUE avec des tests BDD (${dbFiles.join(", ")}) : le développeur lance dans son terminal « node .claude/hooks/dfguard.mjs check ${LOT} », puis relance /lot ${LOT}`)
   }
   st.phase = "DONE"
   log(st, "done")
@@ -550,7 +599,8 @@ function packExtras(st, h, files, verify) {
   const subject = git(top, ["log", "-1", "--format=%s"]) || ""
   const planText = existsSync(planPath(top, LOT)) ? readFileSync(planPath(top, LOT), "utf8") : ""
   const planned = planFiles(planText)
-  const outside = [...files.keys()].filter((f) => !matchesAny(f, planned))
+  const outside = [...files.keys()].filter((f) => !matchesAny(f, planned) && !isLotDoc(f))
+  const dbFiles = dbTestFiles(files)
   const notes = existsSync(path.join(stateDir(top), `${LOT}.notes.md`)) ? readFileSync(path.join(stateDir(top), `${LOT}.notes.md`), "utf8") : ""
   const points = notes.split(/^(?=## Revue )/m).filter((x) => x.startsWith("## Revue ")).map((x) => x.trim())
   return [
@@ -558,7 +608,9 @@ function packExtras(st, h, files, verify) {
     `- HEAD : ${short(h)} ${subject}`,
     `- Dernière vérification complète : ${st.lastVerify?.result ?? "?"} @${short(st.lastVerify?.head)} — typecheck ${verify.typecheck ?? "?"} — tests ${verify.tests ?? "?"}`,
     ...(verify.F || []).map((x) => `- BLOQUANT verify : ${x}`),
-    "- Tests BDD/réseau : ignorés chez l'agent. Ils ne sont JAMAIS « réussis » ; le développeur les lance avec dfguard.mjs test-db.",
+    "- Tests BDD/réseau : ignorés chez l'agent. Ils ne sont JAMAIS « réussis » ; le développeur les lance avec dfguard.mjs check.",
+    dbFiles.length ? `- Tests BDD du lot : ${dbFiles.map((f) => `\`${f}\``).join(", ")} — ${st.dbCheck?.head === h ? (st.dbCheck.ok ? `lancés par le développeur à ce HEAD : OK (${st.dbCheck.summary || ""})` : "lancés par le développeur à ce HEAD : ÉCHEC") : "pas encore lancés à ce HEAD"}` : "- Tests BDD du lot : aucun",
+    "- La fiche docs/lots/" + LOT + "-*.md fait partie du lot : ce n'est jamais un fichier hors plan.",
     `- Fichiers du plan approuvé : ${planned.map((f) => `\`${f}\``).join(", ") || "(aucun)"}`,
     outside.length ? `- HORS PLAN : ${outside.map((f) => `\`${f}\``).join(", ")}` : "- Hors plan : aucun fichier",
     "", "## Points des relecteurs précédents",

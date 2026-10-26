@@ -152,7 +152,7 @@ const SECRET_VAR_RX = new RegExp(String.raw`\$\{?(?:` + [
   String.raw`[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*`,
 ].join("|") + String.raw`)\b`)
 const ENV_FILE_RX = /(^|[\s/'"=<>:(])\.env(\.(?!example(?=$|[\s'";|&)<>]))[\w.-]+)?(?=$|[\s'";|&)<>/])/
-const SECRET_PATH_RX = /(\.ssh(\/|\b)|\.aws\/|\.config\/(gh|stripe|neonctl|detailflow-guard)|detailflow-guard|\.git-credentials|\.netrc|\.npmrc|\.pgpass|(^|[\s/'"])\.vercel(\/|\b)|com\.vercel\.cli|\.credentials\.json|\.claude\.json|id_rsa|id_ed25519|id_ecdsa|\.pem\b|\/proc\/[^\s]*\/environ|\.git\/config)/
+const SECRET_PATH_RX = /(\.ssh(\/|\b)|\.aws\/|\.config\/(gh|stripe|neonctl|detailflow-guard|detailflow)\b|detailflow-guard|df-testdb|\.git-credentials|\.netrc|\.npmrc|\.pgpass|(^|[\s/'"])\.vercel(\/|\b)|com\.vercel\.cli|\.credentials\.json|\.claude\.json|id_rsa|id_ed25519|id_ecdsa|\.pem\b|\/proc\/[^\s]*\/environ|\.git\/config)/
 const LIVE_SECRET_RX = /\b(sk|rk)_live_[0-9A-Za-z]{8,}|\bwhsec_[0-9A-Za-z]{8,}|\bgh[pousr]_[0-9A-Za-z]{20,}|github_pat_[0-9A-Za-z_]{20,}/
 const KIT_PATH_RX = /(\.claude\/|(^|[\s/'"])CLAUDE\.md\b|\.mcp\.json|\.lot-state\b|(^|[\s'"])\.git\/)/
 

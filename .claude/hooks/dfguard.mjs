@@ -6,6 +6,8 @@
 //   node .claude/hooks/dfguard.mjs revoke L1
 //   node .claude/hooks/dfguard.mjs reset-loops L1
 //   node .claude/hooks/dfguard.mjs test-db [fichiers de test…]
+//   node .claude/hooks/dfguard.mjs check L1     (verify complet + tests BDD du lot, enregistré pour la clôture)
+// Adresses des bases de test : ~/df-testdb.sh ou ~/.config/detailflow/test-db.env (lignes export X="…"), lues automatiquement.
 import { execFileSync, spawnSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
@@ -180,12 +182,17 @@ function resetLoops(lot) {
 }
 
 // ------------------------------------------------------------------ test-db (humain, hors sandbox)
-function testDb() {
-  const { top } = repoInfo(process.cwd())
-  if (!top) die("lance test-db depuis le dépôt")
-  const db = loadDb()
-  if (!db.devHosts.length) die("aucun hôte DEV déclaré : node .claude/hooks/dfguard.mjs init --dev-host <hôte-neon-de-dev>")
+const TESTDB_FILES = [path.join(homedir(), "df-testdb.sh"), path.join(homedir(), ".config", "detailflow", "test-db.env")]
+// « ep-xxx-pooler.region » et « ep-xxx.region » sont la même base Neon.
+const unpool = (h) => (h || "").replace(/-pooler(?=\.)/, "")
+
+function dbEnv(top) {
   const env = { ...process.env }
+  for (const f of TESTDB_FILES) {
+    if (!existsSync(f)) continue
+    const e = parseEnv(f)
+    for (const k of ["DATABASE_URL", "CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL"]) if (!env[k] && e[k]) env[k] = e[k]
+  }
   // Même ordre de résolution que vitest.config.ts.
   if (!env.DATABASE_URL) {
     for (const f of [".env.development.local", ".env.local", ".env"]) {
@@ -194,21 +201,67 @@ function testDb() {
     }
   }
   delete env.NEON_DATABASE_URL; delete env.NEON_DATABASE_URL_UNPOOLED
+  return env
+}
+
+// Contrôles de sécurité puis vitest sur les fichiers donnés. Renvoie le code de sortie (jamais 0 si refus).
+function runDbTests(top, files, { quiet = false } = {}) {
+  const db = loadDb()
+  if (!db.devHosts.length) die("aucun hôte DEV déclaré : node .claude/hooks/dfguard.mjs init --dev-host <hôte-neon-de-dev>")
+  const dev = new Set(db.devHosts.map(unpool)), prod = new Set(db.prodHosts.map(unpool))
+  const env = dbEnv(top)
   for (const k of ["DATABASE_URL", "CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL"]) {
     if (!env[k]) continue
     const h = hostOfDbUrl(env[k])
     if (!h) die(`${k} illisible`)
-    if (db.prodHosts.includes(h)) die(`${k} pointe vers la PRODUCTION (${h}) : refusé`)
-    if (!db.devHosts.includes(h)) die(`${k} pointe vers ${h}, qui n'est pas un hôte DEV déclaré : refusé`)
-    say(`${k} → ${h} (dev) : autorisé`)
+    if (prod.has(unpool(h))) die(`${k} pointe vers la PRODUCTION (${h}) : refusé`)
+    if (!dev.has(unpool(h))) die(`${k} pointe vers ${h}, qui n'est pas un hôte DEV déclaré : refusé (ajoute-le : dfguard.mjs init --dev-host ${unpool(h)})`)
+    if (!quiet) say(`${k} → ${h} (dev) : autorisé`)
   }
-  if (!env.DATABASE_URL) die("DATABASE_URL introuvable (env ou .env.development.local/.env.local/.env)")
+  if (env.DATABASE_URL && env.CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL && unpool(hostOfDbUrl(env.DATABASE_URL)) === unpool(hostOfDbUrl(env.CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL))) die("DATABASE_URL et CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL doivent viser deux bases différentes")
+  if (!env.DATABASE_URL) die(`DATABASE_URL introuvable : crée ~/df-testdb.sh avec les lignes export DATABASE_URL="…" (base dev)`)
   for (const k of Object.keys(env)) if (/^(sk|rk)_live_/.test(env[k] || "")) die(`${k} contient une clé Stripe LIVE : refusé`)
   const vitest = path.join(top, "node_modules", ".bin", "vitest")
   if (!existsSync(vitest)) die("vitest introuvable : pnpm install")
-  const files = rest.filter((a) => !a.startsWith("--"))
   const r = spawnSync(vitest, ["run", ...files], { cwd: top, env, stdio: "inherit" })
-  process.exit(r.status ?? 1)
+  return r.status ?? 1
+}
+
+function testDb() {
+  const { top } = repoInfo(process.cwd())
+  if (!top) die("lance test-db depuis le dépôt")
+  process.exit(runDbTests(top, rest.filter((a) => !a.startsWith("--"))))
+}
+
+// check L1 : tout ce que le développeur doit lancer pour un lot, en une commande (kit 2.1.6).
+function check(lot) {
+  const { top, branch } = repoInfo(process.cwd())
+  if (!top) die("lance check depuis le dépôt")
+  if (!/^L\d+$/.test(lot || "")) die("usage : dfguard.mjs check L1")
+  const sp = statePath(top, lot)
+  const st = readJson(sp)
+  if (!st) die(`aucun état pour ${lot}`)
+  if (branch !== st.branch) die(`place-toi sur ${st.branch} (actuelle : ${branch})`)
+  say(`1/2 Vérification complète de ${lot} (typecheck + tests, quelques minutes)…`)
+  const v = spawnSync(process.execPath, [path.join(top, ".claude", "hooks", "lot.mjs"), "verify", lot], { cwd: top, stdio: "inherit" })
+  if (v.status !== 0) die(`verify ${lot} en échec : colle la sortie à Claude (rien d'autre n'a été lancé)`)
+  const base = st.base
+  const changed = (spawnSync("git", ["-C", top, "diff", "--name-only", "--no-renames", base], { encoding: "utf8" }).stdout || "").split("\n").filter(Boolean)
+  const RX = /process\.env\.(DATABASE_URL|[A-Z_]*TEST_DATABASE_URL)|describe\.skipIf\([^)]*(DATABASE_URL|hasDb|HAS_DB)|integration réelle/
+  const files = changed.filter((f) => /^tests\/.*\.test\.ts$/.test(f) && existsSync(path.join(top, f)) && RX.test(readFileSync(path.join(top, f), "utf8")))
+  const head = (spawnSync("git", ["-C", top, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout || "").trim()
+  let ok = true, summary = "aucun test BDD dans ce lot"
+  if (files.length) {
+    say(`\n2/2 Tests BDD du lot : ${files.join(", ")}`)
+    ok = runDbTests(top, files, { quiet: true }) === 0
+    summary = `${files.length} fichier(s) BDD ${ok ? "OK" : "EN ÉCHEC"}`
+  } else say("\n2/2 Aucun test BDD dans ce lot.")
+  const cur = readJson(sp)
+  cur.dbCheck = { head, ok, files, summary, at: new Date().toISOString() }
+  ;(cur.history ||= []).push({ at: cur.dbCheck.at, event: `check (humain) ${ok ? "OK" : "ECHEC"}`, head: head.slice(0, 8) })
+  writeFileSync(sp, JSON.stringify(cur, null, 2) + "\n")
+  say(ok ? `\nCHECK ${lot} OK — dis à Claude : « check OK », ou relance /lot ${lot}.` : `\nCHECK ${lot} EN ÉCHEC — colle à Claude les lignes FAIL ci-dessus.`)
+  process.exit(ok ? 0 : 1)
 }
 
 // ------------------------------------------------------------------ main
@@ -219,7 +272,8 @@ switch (cmd) {
   case "revoke": revoke(rest[0]); break
   case "reset-loops": resetLoops(rest[0]); break
   case "test-db": testDb(); break
+  case "check": check(rest[0]); break
   default:
-    say("Usage : node .claude/hooks/dfguard.mjs <init|doctor|approve L1|revoke L1|reset-loops L1|test-db>")
+    say("Usage : node .claude/hooks/dfguard.mjs <init|doctor|approve L1|revoke L1|reset-loops L1|test-db|check L1>")
     process.exit(cmd ? 1 : 0)
 }

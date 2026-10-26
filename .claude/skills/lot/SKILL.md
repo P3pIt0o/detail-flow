@@ -22,8 +22,9 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 2. Appels séparés : `git switch main`, puis `git switch -c lot/$ARGUMENTS-<slug>` (slug = nom du fichier de la fiche, ex. `lot/L1-commissions`).
    Si Git refuse d'écrire dans `.git/` (bac à sable), demande au développeur de créer la branche lui-même
    (une seule fois : la configuration recommandée du kit autorise ces commandes hors bac à sable).
-3. Appels séparés : `node .claude/hooks/lot.mjs start $ARGUMENTS`, puis `node .claude/hooks/lot.mjs baseline $ARGUMENTS`
-   (mémorise les tests ET les erreurs TypeScript déjà présentes : seules les nouvelles bloquent).
+3. `node .claude/hooks/lot.mjs start $ARGUMENTS` : il prend aussi la baseline (tests ET erreurs TypeScript déjà présents au
+   commit de base ; seuls les nouveaux bloquent). La fiche `docs/lots/$ARGUMENTS-*.md` committée sur la branche ne la gêne pas.
+   Si `start` dit « Baseline non prise », continue : `verify` réessaiera ; sinon le développeur lance `lot.mjs baseline`.
 
 ## 2. Audit et plan (lecture seule imposée par la garde)
 - Si `.lot-state/$ARGUMENTS.notes.md` existe (fait par `/audit`), pars de ses constats et de ses réponses ; sinon revérifie
@@ -75,6 +76,9 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 - Point contesté : explique pourquoi avec une preuve dans le code, ne le « corrige » pas pour faire plaisir.
 
 ## 6. Clôture et rapport (format obligatoire)
+Lot **critique** qui modifie des tests BDD (`lot pack` les liste) : avant `done`, demande au développeur UNE seule commande,
+dans son terminal : `node .claude/hooks/dfguard.mjs check $ARGUMENTS` (verify + tests BDD, adresses lues automatiquement).
+Tu n'as jamais à lui demander `baseline`, `export`, ni `test-db` séparément.
 `lot done $ARGUMENTS`, puis rapport en français, court, dans cet ordre :
 1. État initial observé et preuves (commit de base, chemins, baseline des tests).
 2. Décisions confirmées utilisées / questions restées bloquantes.
@@ -84,7 +88,7 @@ au développeur (fichiers + intention) et demande : committer ou les jeter (c'es
 6. Relectures indépendantes et corrections, avec le HEAD auquel chaque verdict a été rendu. Les contrôles automatiques de `verify`
    ne prouvent pas l'absence de faille : dis-le si aucune revue IA n'a eu lieu (risque faible).
 7. Migrations SQL et variables d'environnement **à appliquer à la main** (Preview d'abord) ; tests BDD à lancer par le développeur :
-   `node .claude/hooks/dfguard.mjs test-db <fichiers>`.
+   `node .claude/hooks/dfguard.mjs check $ARGUMENTS` (déjà fait si `done` est passé sur un lot critique).
 8. Procédure de test Preview en 3 à 5 étapes, plan de retour arrière, rappel : validation humaine avant push/merge/déploiement
    (relecture ligne à ligne obligatoire si risque critique).
 9. Prochaine action exacte pour reprendre ou clore le lot.
