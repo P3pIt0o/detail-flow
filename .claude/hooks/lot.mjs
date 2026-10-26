@@ -225,7 +225,10 @@ function typecheckAtCommit(commit) {
   const wt = path.join(tmp, "wt")
   const g = (args) => spawnSync("git", ["-C", top, ...args], { encoding: "utf8", timeout: 5 * 60 * 1000 })
   try {
-    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) return { ok: false, summary: `impossible d'extraire ${short(commit)}`, errors: null }
+    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) {
+      if (workTreeEquivalent(commit)) return runTypecheck(top)
+      return { ok: false, summary: `impossible d'extraire ${short(commit)}`, errors: null }
+    }
     if (existsSync(path.join(top, "node_modules"))) symlinkSync(path.join(top, "node_modules"), path.join(wt, "node_modules"))
     return runTypecheck(wt)
   } finally {
@@ -239,6 +242,18 @@ function computeTypecheckBaseline(commit) {
   return r.errors ? { v: TYPECHECK_BASELINE_VERSION, at: now(), head: commit, errors: r.errors } : { error: r.summary }
 }
 
+// Repli quand la copie temporaire est impossible (bac à sable de l'agent, kit 2.1.7) : la copie de travail
+// est équivalente au commit si elle est propre et ne diffère du commit que par des fichiers sans effet
+// sur le typecheck et les tests (Markdown, images…).
+const NEUTRAL_RX = /\.(md|mdx|txt|png|jpe?g|webp|avif|svg|gif|ico)$/i
+function workTreeEquivalent(commit) {
+  if (!commit) return false
+  const dirty = (git(top, ["status", "--porcelain"]) || "").split("\n").filter((l) => l && !l.includes(".lot-state/"))
+  if (dirty.length) return false
+  const diff = (git(top, ["diff", "--name-only", "--no-renames", commit, "HEAD"]) || "").split("\n").filter(Boolean)
+  return diff.every((f) => NEUTRAL_RX.test(f))
+}
+
 // Tests d'un commit dans une copie temporaire (kit 2.1.6) : la baseline se prend sur la base du lot,
 // même si la branche contient déjà des commits. null si la copie est impossible (bac à sable).
 function testsAtCommit(commit) {
@@ -246,7 +261,7 @@ function testsAtCommit(commit) {
   const wt = path.join(tmp, "wt")
   const g = (args) => spawnSync("git", ["-C", top, ...args], { encoding: "utf8", timeout: 5 * 60 * 1000 })
   try {
-    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) return null
+    if (!commit || g(["worktree", "add", "--detach", "--quiet", wt, commit]).status !== 0) return workTreeEquivalent(commit) ? runTests("full", []) : null
     if (existsSync(path.join(top, "node_modules"))) symlinkSync(path.join(top, "node_modules"), path.join(wt, "node_modules"))
     return runTests("full", [], wt)
   } finally {
