@@ -7,8 +7,10 @@ import {
   COMMISSION_RULES,
   LIFETIME_COMMISSION_RULE,
   computeCappedPlatformFeeCents,
+  displayedCommissionFeeBps,
   resolveCommercialCommission,
 } from "@/lib/billing/commercial-rules"
+import { HELP } from "@/lib/customer-subscriptions/admin-labels"
 import { CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS, getCustomerSubscriptionPlatformFeeBps } from "@/lib/customer-subscriptions/plan-policy"
 import { resolvePlatformFeeBps } from "@/lib/customer-subscriptions/contract"
 import { buildCheckoutSessionParams, type ContractForCheckout } from "@/lib/customer-subscriptions/stripe-mapping"
@@ -186,5 +188,25 @@ describe("L29 — A13 : textes", () => {
       "Avec Essentiel, DetailFlow prélève une commission sur chaque paiement encaissé en ligne (2 %, plafonnée à 19,90 €/mois). Avec Indépendant, Performance et Équipe : 0 % de commission. Les frais de traitement Stripe s'appliquent en plus, côté Stripe.",
     )
     expect(JSON.stringify(LANDING_FAQ)).not.toMatch(/Indépendant : 1 %/)
+  })
+})
+
+describe("L29 — boucle 1 : affichage aligné sur ce qui est prélevé", () => {
+  it("badge : un override neutralisé par le plafond 0 s'affiche 0", () => {
+    for (const plan of PAID) expect(displayedCommissionFeeBps(resolveCommercialCommission(tenant(plan, 30), 0))).toBe(0)
+    expect(displayedCommissionFeeBps(resolveCommercialCommission(tenant("FREE", 30), 0))).toBe(30)
+    expect(displayedCommissionFeeBps(resolveCommercialCommission(tenant("FREE"), 0))).toBe(200)
+    // Fallback historique sans plafond connu : taux affiché tel quel.
+    expect(displayedCommissionFeeBps({ feeBps: 150, monthlyFeeCapCents: null, source: "fallback" })).toBe(150)
+  })
+
+  it("Paramètres › Paiements : le pourcentage affiché passe par le helper", () => {
+    expect(read("lib/payments/config.ts")).toMatch(/feePercent: formatBpsPercent\(displayedCommissionFeeBps\(commission\)\)/)
+  })
+
+  it("HELP.commission : texte validé mot pour mot", () => {
+    expect(HELP.commission).toBe(
+      "Avec Essentiel, DetailFlow prélève une commission sur chaque paiement d'abonnement. Avec Indépendant, Performance et Équipe : 0 % de commission.",
+    )
   })
 })

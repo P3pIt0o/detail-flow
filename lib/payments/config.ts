@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { platformSettings, companies, payments } from "@/lib/db/schema"
 import { eq, sql, desc } from "drizzle-orm"
 import { normalizePaymentMode, type PaymentMode } from "./mode"
-import { resolveCommercialCommission, type ResolvedCommission } from "@/lib/billing/commercial-rules"
+import { displayedCommissionFeeBps, resolveCommercialCommission, type ResolvedCommission } from "@/lib/billing/commercial-rules"
 import { getMonthlyPlatformFeeUsage } from "./platform-fee-ledger"
 
 /**
@@ -107,7 +107,7 @@ export async function getTenantPaymentConfig(companyId: number): Promise<TenantP
     paymentsEnabled: Boolean(row?.paymentsEnabled),
     paymentMode: mode,
     feeBps,
-    feePercent: formatBpsPercent(feeBps),
+    feePercent: formatBpsPercent(displayedCommissionFeeBps(commission)),
     monthlyFeeCapCents: commission.monthlyFeeCapCents,
     feeSource: commission.source,
     monthlyFeeUsage,

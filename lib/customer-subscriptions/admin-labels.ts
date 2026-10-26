@@ -150,7 +150,7 @@ export const HELP = {
   reminder: "Le client recevra un rappel avant son échéance ou son renouvellement.",
   uses: "Nombre de prestations que le client peut réserver pendant chaque période payée. Les prestations non utilisées ne sont pas reportées.",
   publicMode: "Ce réglage décide comment vos clients peuvent rejoindre une formule. Il ne modifie jamais les abonnements déjà en cours.",
-  commission: "DetailFlow prélève une petite commission sur chaque paiement d'abonnement encaissé. Elle s'ajoute aux frais du service de paiement. Vos clients ne la voient pas.",
+  commission: "Avec Essentiel, DetailFlow prélève une commission sur chaque paiement d'abonnement. Avec Indépendant, Performance et Équipe : 0 % de commission.",
   editing: "Les modifications s'appliqueront uniquement aux nouveaux abonnements. Vos abonnés actuels gardent les conditions qu'ils ont acceptées.",
   earlyCancellation: "Une demande d'arrêt anticipé n'est pas un remboursement. Rien n'est remboursé automatiquement.",
 } as const

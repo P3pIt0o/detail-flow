@@ -93,6 +93,15 @@ export function resolveCommercialCommission(
   return { feeBps: toNonNegativeInt(fallbackFeeBps), monthlyFeeCapCents: null, source: "fallback" }
 }
 
+/**
+ * Taux à AFFICHER au tenant : 0 quand le plafond de l'offre vaut 0 (override
+ * Super Admin neutralisé depuis L29), sinon le taux résolu. N'intervient
+ * jamais dans le calcul des frais.
+ */
+export function displayedCommissionFeeBps(commission: ResolvedCommission): number {
+  return commission.monthlyFeeCapCents === 0 ? 0 : commission.feeBps
+}
+
 /* -------------------------------------------------------------------------- */
 /*  2. Plafond par mois civil                                                 */
 /* -------------------------------------------------------------------------- */
