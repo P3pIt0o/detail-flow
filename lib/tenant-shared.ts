@@ -267,6 +267,42 @@ export function tenantCanonicalPathPrefix(slug: string): string | null {
   return TENANT_PATH_CANONICAL.has(slug) ? publicPagePath(slug) : null
 }
 
+/**
+ * Slug du tenant de chaque site sur mesure (clé de `customSiteMetaRegistry`).
+ * Table FERMÉE : le middleware (edge, sans DB) ne connaît pas `customSiteKey`.
+ * Un test impose qu'elle couvre exactement les clés enregistrées.
+ */
+export const CUSTOM_SITE_TENANT_SLUGS: Readonly<Record<string, string>> = Object.freeze({
+  "spirit-acs": "spirit-acs",
+  rozan: "rozancleaningservice",
+  cleanyzer: "cleanyzer",
+})
+
+const PATH_REWRITE_KEPT_SLUGS: ReadonlySet<string> = new Set([
+  ...Object.values(CUSTOM_SITE_TENANT_SLUGS),
+  ...Object.keys(TENANT_CANONICAL_HOST),
+  ...TENANT_PATH_CANONICAL,
+])
+
+/**
+ * Cible de redirection d'un `/p/<slug>[/reste]` de site STANDARD vers
+ * `/<reste>?…&tenant=<slug>` : les liens publics lisent `?tenant=` dans l'URL
+ * du navigateur, absent sous `/p/` (→ « Réserver » en 404). `null` = garder la
+ * réécriture historique : embed, sites sur mesure, domaines personnalisés,
+ * reste lui-même en `/p/…` (jamais de boucle). Paramètres conservés ; `tenant`
+ * est toujours celui du chemin. Fonction PURE.
+ */
+export function publicPagePathRedirect(pathname: string, searchParams: URLSearchParams): string | null {
+  const parsed = parsePublicPagePath(pathname)
+  if (!parsed) return null
+  if (searchParams.get("embed") === "1") return null
+  if (PATH_REWRITE_KEPT_SLUGS.has(parsed.slug)) return null
+  if (parsePublicPagePath(parsed.rest)) return null
+  const params = new URLSearchParams(searchParams)
+  params.set("tenant", parsed.slug)
+  return `${parsed.rest}?${params.toString()}`
+}
+
 /** Origine canonique absolue (`https://www.spiritacs.com`) d'un tenant, ou `null`. */
 export function tenantCanonicalOrigin(slug: string): string | null {
   const host = tenantCanonicalHost(slug)

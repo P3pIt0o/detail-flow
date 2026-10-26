@@ -11,8 +11,9 @@ type Device = "desktop" | "mobile"
  * bascule desktop / mobile. La source pointe vers `/p/<slug>` (résolu par le
  * middleware, exactement comme le site en production). `reloadKey` force un
  * rechargement après un enregistrement pour refléter la config à jour.
+ * « Ouvrir » vise `openUrl`, l'adresse publique canonique (celle des clients).
  */
-export function LivePreview({ previewPath, reloadKey }: { previewPath: string; reloadKey: number }) {
+export function LivePreview({ previewPath, openUrl, reloadKey }: { previewPath: string; openUrl: string; reloadKey: number }) {
   const [device, setDevice] = useState<Device>("desktop")
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -68,7 +69,7 @@ export function LivePreview({ previewPath, reloadKey }: { previewPath: string; r
             <RefreshCw className="size-4" aria-hidden="true" />
           </button>
           <a
-            href={previewPath}
+            href={openUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground hover:text-foreground"

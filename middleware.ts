@@ -3,6 +3,7 @@ import {
   DEFAULT_TENANT_SLUG,
   marketingOrigin,
   parsePublicPagePath,
+  publicPagePathRedirect,
   resolveHost,
 } from "@/lib/tenant-shared"
 
@@ -40,6 +41,14 @@ export function middleware(req: NextRequest) {
   // Cohabitation : les sous-domaines et domaines personnalisés ne passent jamais
   // par ce bloc (leur chemin ne commence pas par /p/) → priorité inchangée. Le
   // mécanisme `?tenant=` et `[localSlug]` existant n'est pas modifié.
+  //
+  // L30 : un site STANDARD sous `/p/<slug>` est redirigé vers `?tenant=<slug>`
+  // (sinon ses liens perdent le tenant → 404). Embed, sites sur mesure et
+  // domaines personnalisés gardent la réécriture ci-dessous.
+  const publicPageRedirect = publicPagePathRedirect(path, req.nextUrl.searchParams)
+  if (publicPageRedirect) {
+    return NextResponse.redirect(new URL(publicPageRedirect, req.nextUrl), 307)
+  }
   const publicPage = parsePublicPagePath(path)
   if (publicPage) {
     const ph = new Headers(req.headers)

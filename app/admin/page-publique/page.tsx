@@ -5,6 +5,7 @@ import { requireCompanyMember } from "@/lib/admin"
 import { getPublicPageConfigRow } from "@/lib/public-page/config"
 import { publicPagePath } from "@/lib/tenant-shared"
 import { withTenant } from "@/lib/tenant-link"
+import { humanSiteUrl } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { ConfigEditor } from "@/components/public-page/config-editor"
 import { marketingOrigin } from "@/lib/tenant-shared"
@@ -128,6 +129,7 @@ export default async function PagePubliquePage({
       <ConfigEditor
         slug={tenant.slug}
         previewPath={previewPath}
+        openUrl={humanSiteUrl(tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)}
         initial={{
           layoutVariant: row?.layoutVariant ?? null,
           heroImageUrl: row?.heroImageUrl ?? null,

@@ -34,10 +34,12 @@ export type ConfigEditorInitial = {
 export function ConfigEditor({
   slug,
   previewPath,
+  openUrl,
   initial,
 }: {
   slug: string
   previewPath: string
+  openUrl: string
   initial: ConfigEditorInitial
 }) {
   const router = useRouter()
@@ -270,7 +272,7 @@ export function ConfigEditor({
 
       {/* Colonne aperçu */}
       <div className="lg:sticky lg:top-6 lg:self-start">
-        <LivePreview previewPath={previewPath} reloadKey={reloadKey} />
+        <LivePreview previewPath={previewPath} openUrl={openUrl} reloadKey={reloadKey} />
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Aperçu de <span className="font-mono">{previewPath}</span> — enregistrez pour actualiser.
         </p>
