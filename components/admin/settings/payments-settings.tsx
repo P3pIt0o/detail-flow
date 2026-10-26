@@ -39,7 +39,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Quelle commission est prélevée ?",
-    a: "DetailFlow prélève une commission fixe sur chaque paiement encaissé en ligne. Elle est déduite automatiquement ; le reste vous revient. Les frais de traitement Stripe s'appliquent en plus, côté Stripe.",
+    a: "Avec Essentiel, DetailFlow prélève une commission sur chaque paiement encaissé en ligne (2 %, plafonnée à 19,90 €/mois). Avec Indépendant, Performance et Équipe : 0 % de commission. Les frais de traitement Stripe s'appliquent en plus, côté Stripe.",
   },
   {
     q: "Puis-je désactiver les paiements en ligne ?",

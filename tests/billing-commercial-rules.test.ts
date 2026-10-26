@@ -24,14 +24,15 @@ describe("commissions par offre", () => {
   it("FREE = 200 bps / cap 1990", () => {
     expect(COMMISSION_RULES.FREE).toEqual({ feeBps: 200, monthlyFeeCapCents: 1990 })
   })
-  it("PRO = 100 / 500", () => {
-    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 100, monthlyFeeCapCents: 500 })
+  // L29 (C1) : 0 % et plafond 0 sur les offres payantes.
+  it("PRO = 0 / 0", () => {
+    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
   })
-  it("BUSINESS = 50 / 500", () => {
-    expect(COMMISSION_RULES.BUSINESS).toEqual({ feeBps: 50, monthlyFeeCapCents: 500 })
+  it("BUSINESS = 0 / 0", () => {
+    expect(COMMISSION_RULES.BUSINESS).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
   })
-  it("ENTERPRISE = 25 / 600", () => {
-    expect(COMMISSION_RULES.ENTERPRISE).toEqual({ feeBps: 25, monthlyFeeCapCents: 600 })
+  it("ENTERPRISE = 0 / 0", () => {
+    expect(COMMISSION_RULES.ENTERPRISE).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
   })
   it("Lifetime = 0 / 0, cohérent avec LIFETIME_PLATFORM_FEE_BPS", () => {
     expect(LIFETIME_COMMISSION_RULE).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
@@ -47,13 +48,13 @@ describe("resolveCommercialCommission — priorité", () => {
     )
     expect(r).toEqual({ feeBps: 0, monthlyFeeCapCents: 0, source: "lifetime" })
   })
-  it("BUSINESS sans billingMode lifetime = taux Performance, JAMAIS 0 %", () => {
+  it("BUSINESS sans billingMode lifetime = taux de l'offre Performance (source plan, pas lifetime)", () => {
     const r = resolveCommercialCommission({ billingMode: "subscription", licensePlan: "BUSINESS", platformFeeBps: null }, 0)
-    expect(r).toEqual({ feeBps: 50, monthlyFeeCapCents: 500, source: "plan" })
+    expect(r).toEqual({ feeBps: 0, monthlyFeeCapCents: 0, source: "plan" })
   })
-  it("override Super Admin : taux override, plafond de l'offre conservé", () => {
+  it("override Super Admin : taux override, plafond de l'offre conservé (0 sur PRO depuis L29)", () => {
     const r = resolveCommercialCommission({ billingMode: "subscription", licensePlan: "PRO", platformFeeBps: 30 }, 0)
-    expect(r).toEqual({ feeBps: 30, monthlyFeeCapCents: 500, source: "override" })
+    expect(r).toEqual({ feeBps: 30, monthlyFeeCapCents: 0, source: "override" })
   })
   it("override explicite à 0 respecté", () => {
     const r = resolveCommercialCommission({ billingMode: "free", licensePlan: "FREE", platformFeeBps: 0 }, 0)
@@ -208,7 +209,7 @@ describe("fidélité — prix remisé", () => {
   it("la fidélité ne modifie pas la commission", () => {
     const before = resolveCommercialCommission({ billingMode: "subscription", licensePlan: "PRO", platformFeeBps: null }, 0)
     applyLoyaltyDiscountCents(1990, 2000)
-    expect(before).toEqual({ feeBps: 100, monthlyFeeCapCents: 500, source: "plan" })
-    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 100, monthlyFeeCapCents: 500 })
+    expect(before).toEqual({ feeBps: 0, monthlyFeeCapCents: 0, source: "plan" })
+    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
   })
 })

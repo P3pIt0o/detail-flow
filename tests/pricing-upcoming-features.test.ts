@@ -127,8 +127,9 @@ describe("L13 — N1 : points forts, valeurs issues des règles existantes", () 
   it("Performance : ordre et textes exacts", () => {
     expect(byId.ultime.highlights).toEqual([
       "Tout Indépendant",
-      "Abonnements clients illimités, sans commission DetailFlow",
-      "Paiements en ligne : 0,5 % de commission, plafonnée à 5 €/mois",
+      // L29 (C1) : textes de commission à 0 %.
+      "Abonnements clients illimités, 0 % de commission",
+      "0 % de commission sur vos paiements en ligne",
       "Gestion des prospects (CRM)",
       "Statistiques avancées et répartition du chiffre d'affaires",
     ])
@@ -137,19 +138,19 @@ describe("L13 — N1 : points forts, valeurs issues des règles existantes", () 
     )
   })
 
-  it("les chiffres affichés correspondent aux règles (aucune valeur modifiée)", () => {
-    expect(COMMISSION_RULES.BUSINESS).toEqual({ feeBps: 50, monthlyFeeCapCents: 500 })
-    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 100, monthlyFeeCapCents: 500 })
+  it("les chiffres affichés correspondent aux règles (0 % depuis L29)", () => {
+    expect(COMMISSION_RULES.BUSINESS).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
+    expect(COMMISSION_RULES.PRO).toEqual({ feeBps: 0, monthlyFeeCapCents: 0 })
     expect(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.BUSINESS).toBe(0)
-    expect(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.PRO).toBe(300)
+    expect(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.PRO).toBe(0)
     expect(PLAN_MATRIX.BUSINESS.limits.maxActiveCustomerSubscriptions).toBeNull()
   })
 
   it("Indépendant : point fort dépenses/rentabilité, adossé aux droits PRO", () => {
     expect(byId.pro.highlights[2]).toBe("Suivi des dépenses et analyse de rentabilité")
     expect(byId.pro.includedFeatures).toEqual(expect.arrayContaining(["expense_management", "profitability_analysis"]))
-    // Seul ajout : les autres points forts d'Indépendant sont conservés.
-    expect(byId.pro.highlights).toHaveLength(9)
+    // L13 : +1 point fort ; L29 : les 2 lignes de commission fusionnées en une.
+    expect(byId.pro.highlights).toHaveLength(8)
   })
 
   it("aucune note « 50 SMS » (réservée à L15)", () => {

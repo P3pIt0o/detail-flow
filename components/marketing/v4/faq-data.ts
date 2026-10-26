@@ -45,6 +45,6 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Comment fonctionne la commission DetailFlow ?",
-    a: "Vous ne payez une commission DetailFlow que lorsque vous encaissez en ligne. Essentiel : 2 %, plafonnée à 19,90 €/mois. Indépendant : 1 %, plafonnée à 5 €/mois. Les frais Stripe restent distincts.",
+    a: "Vous ne payez une commission DetailFlow que sur l'offre Essentiel, lorsque vous encaissez en ligne : 2 %, plafonnée à 19,90 €/mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts.",
   },
 ]

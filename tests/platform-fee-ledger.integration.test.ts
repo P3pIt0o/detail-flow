@@ -100,27 +100,42 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
     bookingSeq = 0
   })
 
-  it("PRO sous plafond : 1 % réservé et compté", async () => {
-    const c = await company({ licensePlan: "PRO", billingMode: "subscription", timezone: "Europe/Paris" })
+  // L29 (C1) : seule l'offre FREE (2 %, plafond 19,90 €) prélève encore ; les cas de calcul passent sur FREE.
+  it("FREE sous plafond : 2 % réservé et compté", async () => {
+    const c = await company({ licensePlan: "FREE", billingMode: "subscription", timezone: "Europe/Paris" })
     const r = await reserve(c, await booking(c), 10_000)
-    expect(r).toMatchObject({ feeBps: 100, feeCents: 100, monthlyCapCents: 500, source: "plan", monthKey: "2026-10", created: true })
-    expect(await counter(c, "2026-10")).toBe(100)
+    expect(r).toMatchObject({ feeBps: 200, feeCents: 200, monthlyCapCents: 1990, source: "plan", monthKey: "2026-10", created: true })
+    expect(await counter(c, "2026-10")).toBe(200)
   })
 
-  it("PRO proche du plafond : 470 + 120 théorique → 30", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    await seedCounter(c, "2026-10", 470)
+  it("FREE proche du plafond : 1960 + 240 théorique → 30", async () => {
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    await seedCounter(c, "2026-10", 1960)
     const r = await reserve(c, await booking(c), 12_000)
     expect(r.feeCents).toBe(30)
-    expect(await counter(c, "2026-10")).toBe(500)
+    expect(await counter(c, "2026-10")).toBe(1990)
   })
 
   it("plafond atteint → 0, compteur inchangé", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    await seedCounter(c, "2026-10", 500)
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    await seedCounter(c, "2026-10", 1990)
     const r = await reserve(c, await booking(c), 50_000)
     expect(r.feeCents).toBe(0)
-    expect(await counter(c, "2026-10")).toBe(500)
+    expect(await counter(c, "2026-10")).toBe(1990)
+  })
+
+  it("PRO → 0 % : rien réservé, compteur à 0", async () => {
+    const c = await company({ licensePlan: "PRO", billingMode: "subscription", timezone: "Europe/Paris" })
+    const r = await reserve(c, await booking(c), 50_000)
+    expect(r).toMatchObject({ feeBps: 0, feeCents: 0, monthlyCapCents: 0, source: "plan" })
+    expect(await counter(c, "2026-10")).toBe(0)
+  })
+
+  it("PRO + override Super Admin 300 bps → neutralisé par le plafond 0 (validé le 25/10)", async () => {
+    const c = await company({ licensePlan: "PRO", platformFeeBps: 300, timezone: "Europe/Paris" })
+    const r = await reserve(c, await booking(c), 50_000)
+    expect(r).toMatchObject({ feeBps: 300, source: "override", monthlyCapCents: 0, feeCents: 0 })
+    expect(await counter(c, "2026-10")).toBe(0)
   })
 
   it("Lifetime (licensePlan BUSINESS) → 0 %, même avec override", async () => {
@@ -131,13 +146,14 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
   })
 
   it("override tenant : taux override, plafond de l'offre conservé", async () => {
-    const c = await company({ licensePlan: "PRO", platformFeeBps: 300, timezone: "Europe/Paris" })
-    const r = await reserve(c, await booking(c), 50_000)
-    expect(r).toMatchObject({ feeBps: 300, source: "override", monthlyCapCents: 500, feeCents: 500 })
+    const c = await company({ licensePlan: "FREE", platformFeeBps: 300, timezone: "Europe/Paris" })
+    // 100 000 c × 3 % = 3 000 théoriques → plafonné à 1 990 (plafond FREE conservé).
+    const r = await reserve(c, await booking(c), 100_000)
+    expect(r).toMatchObject({ feeBps: 300, source: "override", monthlyCapCents: 1990, feeCents: 1990 })
   })
 
   it("mois civil dans le fuseau du tenant (pas UTC)", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     // 31/10 23:30 UTC = 01/11 00:30 à Paris → novembre.
     const r = await reserve(c, await booking(c), 1_000, new Date("2026-10-31T23:30:00Z"))
     expect(r.monthKey).toBe("2026-11")
@@ -147,16 +163,16 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
   })
 
   it("session du 31 expirée le 1er : libère le mois ORIGINAL ; rejeu = aucune double libération", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const r = await reserve(c, await booking(c), 10_000, new Date("2026-10-31T20:00:00Z"))
     await attachExternalPaymentId({ reservationId: r.reservationId, companyId: c, externalPaymentId: `cs_${c}_a` }, deps())
-    await seedCounter(c, "2026-11", 200)
-    expect(await counter(c, "2026-10")).toBe(100)
+    await seedCounter(c, "2026-11", 350)
+    expect(await counter(c, "2026-10")).toBe(200)
 
     const first = await releasePlatformFeeByExternalId({ externalPaymentId: `cs_${c}_a`, companyId: c, reason: "checkout_expired" }, deps())
-    expect(first).toEqual({ released: true, releasedCents: 100, monthKey: "2026-10" })
+    expect(first).toEqual({ released: true, releasedCents: 200, monthKey: "2026-10" })
     expect(await counter(c, "2026-10")).toBe(0)
-    expect(await counter(c, "2026-11")).toBe(200)
+    expect(await counter(c, "2026-11")).toBe(350)
 
     const replay = await releasePlatformFeeByExternalId({ externalPaymentId: `cs_${c}_a`, companyId: c, reason: "checkout_expired" }, deps())
     expect(replay.released).toBe(false)
@@ -164,9 +180,9 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
   })
 
   it("échec Stripe create → réservation libérée une seule fois", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const r = await reserve(c, await booking(c), 10_000)
-    expect(await counter(c, "2026-10")).toBe(100)
+    expect(await counter(c, "2026-10")).toBe(200)
     const a = await releasePlatformFeeReservation({ reservationId: r.reservationId, companyId: c, reason: "stripe_create_failed" }, deps())
     const b = await releasePlatformFeeReservation({ reservationId: r.reservationId, companyId: c, reason: "stripe_create_failed" }, deps())
     expect(a.released).toBe(true)
@@ -179,47 +195,47 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
   })
 
   it("double clic (même tentative logique) → une seule réservation", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const b = await booking(c)
     const [x, y] = await Promise.all([reserve(c, b, 10_000), reserve(c, b, 10_000)])
     expect(x.reservationId).toBe(y.reservationId)
     expect([x.created, y.created].sort()).toEqual([false, true])
-    expect(await counter(c, "2026-10")).toBe(100)
+    expect(await counter(c, "2026-10")).toBe(200)
   })
 
   it("paiement réussi → consommé, aucun second incrément, rejeu idempotent", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const r = await reserve(c, await booking(c), 10_000)
     await attachExternalPaymentId({ reservationId: r.reservationId, companyId: c, externalPaymentId: `cs_${c}_p` }, deps())
     expect(await consumePlatformFeeReservation({ externalPaymentId: `cs_${c}_p`, companyId: c }, deps())).toBe("consumed")
     expect(await consumePlatformFeeReservation({ externalPaymentId: `cs_${c}_p`, companyId: c }, deps())).toBe("already_consumed")
-    expect(await counter(c, "2026-10")).toBe(100)
+    expect(await counter(c, "2026-10")).toBe(200)
     // Une expiration tardive ne libère pas une commission encaissée.
     const late = await releasePlatformFeeByExternalId({ externalPaymentId: `cs_${c}_p`, companyId: c, reason: "checkout_expired" }, deps())
     expect(late.released).toBe(false)
-    expect(await counter(c, "2026-10")).toBe(100)
+    expect(await counter(c, "2026-10")).toBe(200)
   })
 
-  it("deux paiements concurrents (470/500) : 30 + 0, plafond jamais dépassé", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    await seedCounter(c, "2026-10", 470)
+  it("deux paiements concurrents (1960/1990) : 30 + 0, plafond jamais dépassé", async () => {
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    await seedCounter(c, "2026-10", 1960)
     const [b1, b2] = [await booking(c), await booking(c)]
     const res = await Promise.all([reserve(c, b1, 3_000), reserve(c, b2, 3_000)])
     expect(res.map((r) => r.feeCents).sort((a, b) => a - b)).toEqual([0, 30])
-    expect(await counter(c, "2026-10")).toBe(500)
+    expect(await counter(c, "2026-10")).toBe(1990)
   })
 
   it("rafale de 20 paiements concurrents : total exactement égal au plafond", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const bookings = await Promise.all(Array.from({ length: 20 }, () => booking(c)))
-    const res = await Promise.all(bookings.map((b) => reserve(c, b, 4_000)))
+    const res = await Promise.all(bookings.map((b) => reserve(c, b, 10_000)))
     const total = res.reduce((s, r) => s + r.feeCents, 0)
-    expect(total).toBe(500)
-    expect(await counter(c, "2026-10")).toBe(500)
+    expect(total).toBe(1990)
+    expect(await counter(c, "2026-10")).toBe(1990)
   })
 
   it("remboursement : libère la part réellement restituée, jamais deux fois, jamais au-delà", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     const r = await reserve(c, await booking(c), 10_000)
     const ext = `cs_${c}_r`
     await attachExternalPaymentId({ reservationId: r.reservationId, companyId: c, externalPaymentId: ext }, deps())
@@ -229,13 +245,13 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
       releaseRefundedApplicationFee({ externalPaymentId: ext, companyId: c, applicationFeeRefundedTotalCents: total }, deps())
     expect(await rel(40)).toEqual({ releasedCents: 40 })
     expect(await rel(40)).toEqual({ releasedCents: 0 })
-    expect(await rel(9_999)).toEqual({ releasedCents: 60 })
+    expect(await rel(9_999)).toEqual({ releasedCents: 160 })
     expect(await counter(c, "2026-10")).toBe(0)
     await expect(rel(-1)).rejects.toBeInstanceOf(PlatformFeeLedgerError)
   })
 
   it("consumedCents jamais négatif (contrainte DB + GREATEST)", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
     await expect(seedCounter(c, "2026-10", -1)).rejects.toThrow()
     const r = await reserve(c, await booking(c), 10_000)
     await admin.query(`UPDATE "platform_fee_monthly_counters" SET "consumedCents" = 10 WHERE "companyId" = $1`, [c])
@@ -244,27 +260,27 @@ describe.skipIf(!connectionString)("platform fee ledger (integration réelle)", 
   })
 
   it("isolation stricte entre companyId", async () => {
-    const a = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    const b = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    await seedCounter(a, "2026-10", 500)
+    const a = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    const b = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    await seedCounter(a, "2026-10", 1990)
     const r = await reserve(b, await booking(b), 10_000)
-    expect(r.feeCents).toBe(100)
+    expect(r.feeCents).toBe(200)
     // Un autre tenant ne peut ni libérer ni consommer la réservation de b.
     const cross = await releasePlatformFeeReservation({ reservationId: r.reservationId, companyId: a, reason: "x" }, deps())
     expect(cross.released).toBe(false)
-    expect(await counter(a, "2026-10")).toBe(500)
-    expect(await counter(b, "2026-10")).toBe(100)
+    expect(await counter(a, "2026-10")).toBe(1990)
+    expect(await counter(b, "2026-10")).toBe(200)
   })
 
   it("isolation entre monthKey", async () => {
-    const c = await company({ licensePlan: "PRO", timezone: "Europe/Paris" })
-    await seedCounter(c, "2026-09", 500)
+    const c = await company({ licensePlan: "FREE", timezone: "Europe/Paris" })
+    await seedCounter(c, "2026-09", 1990)
     const r = await reserve(c, await booking(c), 10_000)
-    expect(r.feeCents).toBe(100)
-    expect(await counter(c, "2026-09")).toBe(500)
+    expect(r.feeCents).toBe(200)
+    expect(await counter(c, "2026-09")).toBe(1990)
     expect(await getMonthlyPlatformFeeUsage({ companyId: c, timezone: "Europe/Paris", now: OCT }, deps())).toEqual({
       monthKey: "2026-10",
-      consumedCents: 100,
+      consumedCents: 200,
     })
   })
 

@@ -570,8 +570,9 @@ export function Pricing() {
         </StaggerGroup>
 
         <p className="mx-auto mt-6 max-w-2xl text-pretty text-center text-sm leading-relaxed text-muted-foreground">
-          Vous ne payez une commission DetailFlow que lorsque vous encaissez en ligne. Elle est plafonnée chaque mois.
-          Les frais Stripe restent distincts.
+          {
+            "Avec Essentiel, une commission DetailFlow s'applique uniquement lorsque vous encaissez en ligne, plafonnée chaque mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts."
+          }
         </p>
 
         <LifetimeOffer />
