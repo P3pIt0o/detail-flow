@@ -12,7 +12,7 @@ Stripe (Billing plateforme + Connect), Resend, Vercel Blob, SMS AllMySMS. Tests 
 - Vérification d'un lot (typecheck + tests + contrôles) : `node .claude/hooks/lot.mjs verify <LOT>` (`--quick` pendant le dev)
 - Ponctuel : `pnpm exec vitest run tests/<fichier>.test.ts`, `pnpm exec tsc --noEmit`
 - `pnpm lint` ne fonctionne pas (ESLint absent du projet) : ne le lance pas.
-- Les tests BDD/réseau sont ignorés chez toi (pas d'accès BDD, c'est voulu). Le développeur les lance via `dfguard.mjs test-db`.
+- Les tests BDD/réseau sont ignorés chez toi (pas d'accès BDD, c'est voulu). Le développeur les lance via `dfguard.mjs check <LOT>` (une seule commande).
 
 ## Où se trouve quoi
 Prix affichés `lib/pricing/plans.ts` · droits/limites par plan `lib/licensing/registry.ts` (PLAN_MATRIX) et
