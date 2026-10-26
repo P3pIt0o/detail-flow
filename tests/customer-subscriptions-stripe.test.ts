@@ -855,6 +855,26 @@ describe("V2 : commission selon plan DetailFlow effectif", () => {
     expect(r.handled).toBe(true)
     expect((await getPayments(id)).find((p) => p.externalInvoiceId === invId)?.platformFeeAmountCents).toBe(623)
   })
+
+  // L29 — exception `invoice_zero_fee` acceptée (Clément, 25/10) : Stripe refuse 0 sur la facture brouillon.
+  it("PRO à 0 % : refus de application_fee_amount=0 → trace, aucune commission inventée, abonnement remis à 0 % pour la suite", async () => {
+    const c = await seedCompany("PRO")
+    const id = await seedSub(c)
+    const invId = uid("in_zero")
+    const { port, calls } = fakePort({ failInvoiceUpdate: true, invoices: { [invId]: { id: invId, status: "draft" } } })
+    const { ext } = await payFirstInvoice(port, c, id)
+    const evt = invoiceEvent("invoice.created", c.acct, { id: invId, subscription: ext, status: "draft", amount_due: 8900, metadata: moduleMeta(c.companyId, id) })
+    expect(await payments.handleCustomerSubscriptionWebhook(db, port, evt)).toEqual({ handled: true, outcome: "invoice_created_fee_pending" })
+
+    // Factures suivantes : taux numérique 0 posé sur la Subscription Stripe.
+    const sync = calls.find((x) => x.method === "updateSubscription")!
+    expect(sync.params).toEqual({ application_fee_percent: 0 })
+    expect(sync.opts).toMatchObject({ stripeAccount: c.acct, idempotencyKey: `df-sub-fee:${invId}:0` })
+    // Aucune ligne de paiement inventée : la commission réelle sera lue au paiement.
+    expect((await getPayments(id)).find((p) => p.externalInvoiceId === invId)).toBeUndefined()
+    const trail = await db.select().from(schema.maintenanceAuditLog).where(eq(schema.maintenanceAuditLog.subscriptionId, id))
+    expect(trail.find((a) => a.action === "provider_sync_failed")?.meta).toMatchObject({ invoiceId: invId, operation: "invoice_zero_fee", platformFeeBps: 0 })
+  })
 })
 
 describe("V2 : frais Stripe réels / charge.updated", () => {
