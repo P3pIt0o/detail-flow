@@ -12,7 +12,7 @@ import {
 import { SUBSCRIPTION_TRIAL_DAYS, describeSubscriptionPlan, isCompanyTrialEligible } from "@/lib/billing/subscription-core"
 import { createPgSubscriptionStore } from "@/lib/billing/subscription-server"
 import { parseDesiredPlan } from "@/lib/pricing/desired-plan"
-import { getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
+import { INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT, getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SaasCheckoutButton, SaasPortalButton } from "@/components/admin/saas-billing/billing-buttons"
@@ -156,6 +156,12 @@ export default async function SaasBillingPage({
                       <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="size-4 text-primary" aria-hidden="true" />
                         {trialEligible ? `${SUBSCRIPTION_TRIAL_DAYS} jours gratuits` : "Essai gratuit déjà utilisé"}
+                      </p>
+                    ) : null}
+                    {plan === "PRO" ? (
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        {INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT}
                       </p>
                     ) : null}
                     {purchasable && trialEligible ? (
