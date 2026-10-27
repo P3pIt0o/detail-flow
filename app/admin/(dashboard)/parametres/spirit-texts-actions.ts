@@ -208,7 +208,8 @@ export async function saveSpiritSiteTexts(input: Record<string, string>): Promis
   const scope = and(eq(companies.id, tenant.id), eq(companies.customSiteKey, SPIRIT_SITE_TEXTS_KEY))
   const next = await db.transaction(async (tx) => {
     const [row] = await tx.select({ siteContent: companies.siteContent }).from(companies).where(scope).limit(1).for("update")
-    const existing = (row?.siteContent as Record<string, unknown> | null) ?? {}
+    if (!row) return null
+    const existing = (row.siteContent as Record<string, unknown> | null) ?? {}
     const draft: Record<string, unknown> = structuredClone(existing)
     for (const change of jsonChanges) {
       if (change.value.length === 0) deleteAtPath(draft, change.path)
@@ -219,6 +220,7 @@ export async function saveSpiritSiteTexts(input: Record<string, string>): Promis
     await tx.update(companies).set(setValues).where(scope)
     return draft
   })
+  if (!next) return { ok: false, error: "Enregistrement impossible. Réessayez." }
 
   for (const [path, mode] of REVALIDATE_PATHS) {
     if (mode) revalidatePath(path, mode)

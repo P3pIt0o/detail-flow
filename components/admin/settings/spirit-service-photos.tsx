@@ -103,6 +103,8 @@ function PhotoSlot({
       const res = await resetSpiritServicePhoto(photo.key)
       if (!res.ok || !res.photos) return setError(res.error ?? "Enregistrement impossible. Réessayez.")
       onSaved(res.photos)
+    } catch {
+      setError("Action impossible. Vérifiez votre connexion puis réessayez.")
     } finally {
       setPending(false)
     }

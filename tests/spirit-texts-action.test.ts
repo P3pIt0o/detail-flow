@@ -38,7 +38,8 @@ vi.mock("@/lib/db", () => {
       lockedRead = mode === "update"
       return c
     }
-    c.then = (res: (v: unknown) => unknown) => Promise.resolve([{ siteContent: dbSiteContent }]).then(res)
+    c.then = (res: (v: unknown) => unknown) =>
+      Promise.resolve(dbSiteContent === undefined ? [] : [{ siteContent: dbSiteContent }]).then(res)
     return c
   }
   return { db: { update, transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ select, update }) } }
@@ -101,6 +102,14 @@ describe("L32 — écriture sur la valeur relue sous verrou", () => {
     expect(res.ok).toBe(true)
     expect(lockedRead).toBe(true)
     expect(captured!.siteContent).toEqual({ spiritAcs: { home: { zoneText: "Nouvelle zone" }, servicePhotos: { moto: photo } } })
+  })
+
+  it("entreprise introuvable au moment de l'écriture → échec, rien n'est écrit", async () => {
+    setMember({})
+    dbSiteContent = undefined // aucune ligne (id + site Spirit) en base
+    const res = await saveSpiritSiteTexts({ zoneText: "Nouvelle zone" })
+    expect(res).toEqual({ ok: false, error: "Enregistrement impossible. Réessayez." })
+    expect(captured).toBeNull()
   })
 })
 

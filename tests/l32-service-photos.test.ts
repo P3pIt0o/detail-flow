@@ -90,10 +90,9 @@ describe("S5 — sans photo choisie, rien ne change", () => {
     expect(o.services).toEqual({})
   })
 
-  it("les composants retombent sur l'image d'origine du code", () => {
-    const configurator = read("components/custom-sites/spirit-acs/configurator/spirit-configurator.tsx")
-    expect(configurator).toContain("familyPhotos?.[f.key]?.src ?? f.image")
-    expect(configurator).toContain("familyPhotos?.[f.key]?.alt ?? f.alt")
+  // Configurateur : vrai rendu dans tests/l32-configurator-render.test.ts. Accueil et page de
+  // prestation sont des composants serveur branchés sur la BDD : contrôle du repli dans le code.
+  it("accueil et page de prestation retombent sur l'image d'origine du code", () => {
     const servicePage = read("components/custom-sites/spirit-acs/service-page.tsx")
     expect(servicePage).toMatch(/photo\?\.src \?\? service\.image/)
     const home = read("components/custom-sites/spirit-acs/home-page.tsx")
@@ -109,7 +108,7 @@ describe("S4 — photo choisie : configurateur, accueil et page liés seulement"
     expect(o.services).toEqual({ "polissage-automobile": { src, alt: "Polissage & protection céramique" } })
   })
 
-  it("Protection céramique : page et carte d'accueil, aucune carte du configurateur", () => {
+  it("Protection céramique : sa page seulement (pas de carte d'accueil ni de carte du configurateur)", () => {
     const o = spiritPhotoOverrides("spirit-acs", { "protection-ceramique": pathFor("protection-ceramique") })
     expect(o.families).toEqual({})
     expect(Object.keys(o.services)).toEqual(["protection-ceramique"])
