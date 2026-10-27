@@ -107,7 +107,22 @@ describe("POST jeton d'envoi", () => {
     })
   })
 
+  it("corps de requête mal formé → 400, aucun jeton", async () => {
+    const res = await POST(
+      new NextRequest("https://www.detailflow.fr/api/admin/spirit-service-photo-upload", { method: "POST", body: "{pas du json" }),
+    )
+    expect(res.status).toBe(400)
+    expect(tokenOptions).toBeNull()
+  })
+
+  it("nettoyage-textile : accepté sous sa propre clé", async () => {
+    expect((await post("spirit-service-photo-upload/company-42-nettoyage-textile-1700000000.webp")).status).toBe(200)
+  })
+
   it.each([
+    "spirit-service-photo-upload/company-42-nettoyage-x-1.jpg", // ni nettoyage ni nettoyage-textile
+    "spirit-service-photo-upload/company-42-moto-1.gif",
+    "spirit-service-photo-upload/company-42-moto-abc.jpg",
     "spirit-service-photo-upload/company-99-moto-1.jpg",
     "spirit-service-photo-upload/company-42-inconnue-1.jpg",
     "spirit-service-photo/company-42-moto-1.webp",

@@ -17,9 +17,9 @@ import {
   SPIRIT_PHOTO_SLOTS,
   isSpiritOptimizedPhotoPath,
   isSpiritPhotoKey,
+  isSpiritPhotoUploadPath,
   readSpiritServicePhotos,
   spiritOptimizedPhotoPrefix,
-  spiritPhotoUploadPrefix,
   spiritServicePhotoSrc,
 } from "@/components/custom-sites/spirit-acs/service-photos"
 
@@ -170,11 +170,7 @@ export async function saveSpiritServicePhoto(key: string, uploadPathname: string
 
   if (!isSpiritPhotoKey(key)) return { ok: false, error: "Prestation inconnue." }
   // Jamais lu ni supprimé hors du préfixe de CETTE entreprise (peut appartenir à un autre tenant).
-  if (
-    typeof uploadPathname !== "string" ||
-    !uploadPathname.startsWith(spiritPhotoUploadPrefix(tenant.id, key)) ||
-    uploadPathname.includes("..")
-  ) {
+  if (!isSpiritPhotoUploadPath(uploadPathname, key, tenant.id)) {
     return { ok: false, error: "Fichier non autorisé." }
   }
 

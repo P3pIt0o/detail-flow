@@ -4,7 +4,7 @@ import { getSpiritEditor } from "@/lib/custom-sites/spirit-editor"
 import {
   SPIRIT_PHOTO_MAX_BYTES,
   SPIRIT_PHOTO_SLOTS,
-  spiritPhotoUploadPrefix,
+  isSpiritPhotoUploadPath,
 } from "@/components/custom-sites/spirit-acs/service-photos"
 
 export const runtime = "nodejs"
@@ -24,15 +24,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!editor.ok) return NextResponse.json({ error: editor.error }, { status: 403 })
   const companyId = editor.ctx.tenant.id
 
-  const body = (await request.json()) as HandleUploadBody
   try {
+    const body = (await request.json()) as HandleUploadBody
     const json = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        const allowed =
-          !pathname.includes("..") && SPIRIT_PHOTO_SLOTS.some((s) => pathname.startsWith(spiritPhotoUploadPrefix(companyId, s.key)))
-        if (!allowed) throw new Error("Chemin de téléversement non autorisé.")
+        if (!SPIRIT_PHOTO_SLOTS.some((s) => isSpiritPhotoUploadPath(pathname, s.key, companyId))) {
+          throw new Error("Chemin de téléversement non autorisé.")
+        }
         return {
           access: "private",
           addRandomSuffix: true,

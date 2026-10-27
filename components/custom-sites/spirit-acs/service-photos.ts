@@ -67,6 +67,18 @@ export function spiritOptimizedPhotoPrefix(companyId: number, key: string): stri
   return `spirit-service-photo/company-${companyId}-${key}-`
 }
 
+/**
+ * Vrai si `pathname` est un fichier BRUT envoyé pour cette clé et cette entreprise :
+ * `<préfixe><horodatage>[-<suffixe aléatoire du stockage>].jpg|png|webp`. Strict, pour
+ * que le préfixe de `nettoyage` ne capte pas `nettoyage-textile`.
+ */
+export function isSpiritPhotoUploadPath(pathname: unknown, key: string, companyId: number): pathname is string {
+  if (typeof pathname !== "string") return false
+  return new RegExp(
+    `^spirit-service-photo-upload/company-${companyId}-${escapeRegExp(key)}-\\d+(?:-[A-Za-z0-9]+)?\\.(?:jpg|png|webp)$`,
+  ).test(pathname)
+}
+
 /** Vrai si `pathname` est un WebP optimisé de cette clé (et de cette entreprise si fournie). */
 export function isSpiritOptimizedPhotoPath(pathname: unknown, key: string, companyId?: number): pathname is string {
   if (typeof pathname !== "string") return false

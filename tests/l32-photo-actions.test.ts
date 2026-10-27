@@ -169,7 +169,23 @@ describe("S2 — isolation", () => {
     expect(log).toEqual([])
   })
 
+  it("le préfixe d'une clé ne capte pas une autre clé (nettoyage ≠ nettoyage-textile)", async () => {
+    const textile = "spirit-service-photo-upload/company-42-nettoyage-textile-1700000000.jpg"
+    blobs.set(textile, { bytes: JPEG })
+    expect(await saveSpiritServicePhoto("nettoyage", textile)).toMatchObject({ ok: false, error: "Fichier non autorisé." })
+    expect(log).toEqual([])
+  })
+
+  it("nom de fichier envoyé avec suffixe aléatoire du stockage : accepté", async () => {
+    const suffixed = "spirit-service-photo-upload/company-42-moto-1700000000-Ab12Cd34.png"
+    blobs.set(suffixed, { bytes: PNG })
+    expect((await saveSpiritServicePhoto("moto", suffixed)).ok).toBe(true)
+  })
+
   it.each([
+    "spirit-service-photo-upload/company-42-moto-1700000000.gif", // extension non acceptée
+    "spirit-service-photo-upload/company-42-moto-abc.jpg", // pas un horodatage
+    "spirit-service-photo-upload/company-42-moto-1/2.jpg",
     "spirit-service-photo-upload/company-42-nettoyage-1.jpg", // autre clé
     "spirit-service-photo/company-42-moto-abc.webp", // pas un fichier d'envoi
     "spirit-service-photo-upload/company-42-moto-../company-99-moto-1.jpg",
