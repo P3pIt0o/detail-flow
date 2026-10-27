@@ -6,7 +6,8 @@ import { and, eq } from "drizzle-orm"
 import { del, get, put } from "@vercel/blob"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
-import { requireSpiritEditor } from "@/lib/custom-sites/spirit-editor"
+import { requireCompanyMember } from "@/lib/admin"
+import { checkSpiritEditor } from "@/lib/custom-sites/spirit-editor"
 import { optimizeSpiritPhoto } from "@/lib/custom-sites/spirit-photo-optimize"
 import { sniffImageMime } from "@/lib/quote-photos/magic"
 import { SPIRIT_SITE_TEXTS_KEY } from "@/components/custom-sites/spirit-acs/site-texts"
@@ -36,6 +37,9 @@ export type SpiritPhotoView = {
 export type SpiritPhotosResult = { ok: boolean; error?: string; photos?: SpiritPhotoView[] }
 
 const ACCEPTED = new Set(["image/jpeg", "image/png", "image/webp"])
+
+/** Membre OWNER/ADMIN + tenant Spirit + licence `website` (cf. lib/custom-sites/spirit-editor.ts). */
+const requireSpiritEditor = async () => checkSpiritEditor(await requireCompanyMember(["OWNER", "ADMIN"]))
 
 /** Accueil (cartes + configurateur) et pages de prestation. */
 const REVALIDATE_PATHS: Array<[string] | [string, "layout"]> = [

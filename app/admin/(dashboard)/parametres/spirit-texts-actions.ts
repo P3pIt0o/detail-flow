@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
-import { requireSpiritEditor } from "@/lib/custom-sites/spirit-editor"
+import { requireCompanyMember } from "@/lib/admin"
+import { checkSpiritEditor } from "@/lib/custom-sites/spirit-editor"
 import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { resolveCustomRequestsConfig, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import {
@@ -27,6 +28,9 @@ export type SpiritTextsResult = {
  * layout couvrent hero, prestations, présentation, zone, flotte, galeries,
  * avis et demande de devis ; les pages prestations et /contact sont explicites.
  */
+/** Membre OWNER/ADMIN + tenant Spirit + licence `website` (cf. lib/custom-sites/spirit-editor.ts). */
+const requireSpiritEditor = async () => checkSpiritEditor(await requireCompanyMember(["OWNER", "ADMIN"]))
+
 const REVALIDATE_PATHS: Array<[string] | [string, "layout" | "page"]> = [
   ["/admin/parametres"],
   ["/", "layout"],

@@ -1,10 +1,10 @@
 import "server-only"
 
-import { getCompanyMemberContext, requireCompanyMember, type MemberContext } from "@/lib/admin"
+import { getCompanyMemberContext, type MemberContext } from "@/lib/admin"
 import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 import { SPIRIT_SITE_TEXTS_KEY } from "@/components/custom-sites/spirit-acs/site-texts"
 
-/**
+/*
  * Garde commune des réglages du site Spirit ACS (textes, photos) : membre
  * OWNER/ADMIN d'une entreprise + licence `website` + tenant Spirit ACS. Un
  * super-admin plateforme conserve un accès de maintenance (requireCompanyMember
@@ -12,14 +12,10 @@ import { SPIRIT_SITE_TEXTS_KEY } from "@/components/custom-sites/spirit-acs/site
  * d'erreur sûr (jamais de détail technique au client).
  *
  * Hors d'un fichier "use server" : exportée d'une action, elle deviendrait
- * elle-même appelable depuis le navigateur.
+ * elle-même appelable depuis le navigateur. Les actions appellent
+ * `requireCompanyMember(["OWNER", "ADMIN"])` elles-mêmes (visible dans chaque
+ * fichier, cf. tests/admin-actions-membership-guard.test.ts) puis `checkSpiritEditor`.
  */
-export async function requireSpiritEditor(): Promise<
-  { ok: true; ctx: MemberContext } | { ok: false; error: string }
-> {
-  const ctx = await requireCompanyMember(["OWNER", "ADMIN"])
-  return checkSpiritEditor(ctx)
-}
 
 /** Variante sans redirection, pour les routes API (null = non connecté). */
 export async function getSpiritEditor(): Promise<
@@ -33,7 +29,7 @@ export async function getSpiritEditor(): Promise<
   return checkSpiritEditor(ctx)
 }
 
-async function checkSpiritEditor(
+export async function checkSpiritEditor(
   ctx: MemberContext,
 ): Promise<{ ok: true; ctx: MemberContext } | { ok: false; error: string }> {
   if (ctx.tenant.customSiteKey !== SPIRIT_SITE_TEXTS_KEY) {
