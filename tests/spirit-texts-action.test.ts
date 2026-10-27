@@ -21,16 +21,28 @@ vi.mock("@/lib/licensing/enforce", () => ({
   canUseFeature: (...a: unknown[]) => canUseFeature(...(a as [])),
   FEATURE_LOCKED_MESSAGE: "Fonctionnalité indisponible.",
 }))
-vi.mock("@/lib/db", () => ({
-  db: {
-    update: () => ({
-      set: (v: Record<string, unknown>) => {
-        captured = v
-        return { where: () => Promise.resolve() }
-      },
-    }),
-  },
-}))
+// Contenu RÉEL en base au moment de l'écriture (relu sous verrou), par défaut celui du membre.
+let dbSiteContent: unknown = null
+let lockedRead = false
+vi.mock("@/lib/db", () => {
+  const update = () => ({
+    set: (v: Record<string, unknown>) => {
+      captured = v
+      return { where: () => Promise.resolve() }
+    },
+  })
+  const select = () => {
+    const c: Record<string, unknown> = {}
+    for (const m of ["from", "where", "limit"]) c[m] = () => c
+    c.for = (mode: string) => {
+      lockedRead = mode === "update"
+      return c
+    }
+    c.then = (res: (v: unknown) => unknown) => Promise.resolve([{ siteContent: dbSiteContent }]).then(res)
+    return c
+  }
+  return { db: { update, transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ select, update }) } }
+})
 vi.mock("@/lib/db/schema", () => ({
   companies: { id: "companies.id", customSiteKey: "companies.customSiteKey" },
 }))
@@ -57,6 +69,7 @@ vi.mock("@/lib/custom-requests", () => ({
 import { saveSpiritSiteTexts, getSpiritSiteTexts } from "@/app/admin/(dashboard)/parametres/spirit-texts-actions"
 
 function setMember(opts: { customSiteKey?: string | null; siteContent?: unknown; heroSubtitle?: string | null; isSuperAdmin?: boolean }) {
+  dbSiteContent = opts.siteContent ?? null
   requireCompanyMember.mockResolvedValue({
     user: { id: "u1", email: "a@b.c", name: "A" },
     tenant: {
@@ -76,6 +89,19 @@ beforeEach(() => {
   canUseFeature.mockReset()
   canUseFeature.mockResolvedValue(true)
   captured = null
+  lockedRead = false
+})
+
+describe("L32 — écriture sur la valeur relue sous verrou", () => {
+  it("une photo enregistrée en même temps (présente en base, absente de l'instantané) est conservée", async () => {
+    setMember({ siteContent: { spiritAcs: { home: { zoneText: "z" } } } })
+    const photo = "spirit-service-photo/company-42-moto-abc123.webp"
+    dbSiteContent = { spiritAcs: { home: { zoneText: "z" }, servicePhotos: { moto: photo } } }
+    const res = await saveSpiritSiteTexts({ zoneText: "Nouvelle zone" })
+    expect(res.ok).toBe(true)
+    expect(lockedRead).toBe(true)
+    expect(captured!.siteContent).toEqual({ spiritAcs: { home: { zoneText: "Nouvelle zone" }, servicePhotos: { moto: photo } } })
+  })
 })
 
 describe("autorisation", () => {

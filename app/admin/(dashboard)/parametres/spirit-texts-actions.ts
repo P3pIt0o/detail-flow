@@ -202,22 +202,23 @@ export async function saveSpiritSiteTexts(input: Record<string, string>): Promis
     }
   }
 
-  // 2) Appliquer sur une COPIE des données existantes (préserve tout le reste).
-  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? {}
-  const next: Record<string, unknown> = structuredClone(existing)
-  for (const change of jsonChanges) {
-    if (change.value.length === 0) deleteAtPath(next, change.path)
-    else setAtPath(next, change.path, change.value)
-  }
-
-  // 3) Écriture unique, verrouillée au tenant Spirit courant.
-  const setValues: Record<string, unknown> = { siteContent: next, updatedAt: new Date() }
-  if (heroProvided) setValues.heroSubtitle = heroValue
-
-  await db
-    .update(companies)
-    .set(setValues)
-    .where(and(eq(companies.id, tenant.id), eq(companies.customSiteKey, SPIRIT_SITE_TEXTS_KEY)))
+  // 2) + 3) Appliquer sur une COPIE de la valeur relue SOUS VERROU (préserve tout
+  // le reste, y compris une photo de prestation enregistrée en même temps), puis
+  // écriture unique, verrouillée au tenant Spirit courant.
+  const scope = and(eq(companies.id, tenant.id), eq(companies.customSiteKey, SPIRIT_SITE_TEXTS_KEY))
+  const next = await db.transaction(async (tx) => {
+    const [row] = await tx.select({ siteContent: companies.siteContent }).from(companies).where(scope).limit(1).for("update")
+    const existing = (row?.siteContent as Record<string, unknown> | null) ?? {}
+    const draft: Record<string, unknown> = structuredClone(existing)
+    for (const change of jsonChanges) {
+      if (change.value.length === 0) deleteAtPath(draft, change.path)
+      else setAtPath(draft, change.path, change.value)
+    }
+    const setValues: Record<string, unknown> = { siteContent: draft, updatedAt: new Date() }
+    if (heroProvided) setValues.heroSubtitle = heroValue
+    await tx.update(companies).set(setValues).where(scope)
+    return draft
+  })
 
   for (const [path, mode] of REVALIDATE_PATHS) {
     if (mode) revalidatePath(path, mode)
