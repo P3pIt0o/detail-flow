@@ -26,6 +26,7 @@
  */
 
 import { SPIRIT_SERVICES, SPIRIT_ZONE_TEXT } from "./seo-content"
+import { readSpiritServicePhotos } from "./service-photos"
 
 /** Clé technique du seul tenant concerné. */
 export const SPIRIT_SITE_TEXTS_KEY = "spirit-acs"
@@ -242,6 +243,8 @@ export type SpiritEffectiveTexts = {
   serviceIntros: Record<string, string[]>
   contactHeading: string
   contactIntro: string
+  /** Photos des prestations choisies (clé → pathname WebP optimisé), voir `service-photos.ts`. */
+  servicePhotos: Record<string, string>
 }
 
 /**
@@ -285,6 +288,7 @@ export function resolveSpiritEffectiveTexts(spiritAcsRaw: unknown): SpiritEffect
     serviceIntros,
     contactHeading: readStringAtPath(root, ["spiritAcs", "contact", "heading"]) ?? SPIRIT_CONTACT_HEADING_FALLBACK,
     contactIntro: readStringAtPath(root, ["spiritAcs", "contact", "intro"]) ?? SPIRIT_CONTACT_INTRO_FALLBACK,
+    servicePhotos: readSpiritServicePhotos(spiritAcsRaw),
   }
 }
 
