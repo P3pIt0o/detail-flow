@@ -139,6 +139,9 @@ export const PRICING_COPY = {
  * `self_serve`. « Performance » et « Équipe » sont `coming_soon` (aucun
  * Checkout, aucun lien).
  */
+/** Argument Indépendant (L29), partagé par les cartes de tarifs et « Mon abonnement ». */
+export const INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT = "0 % de commission sur vos paiements et abonnements"
+
 export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
   {
     id: "starter",
@@ -184,7 +187,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "Clients, devis et factures illimités",
       "Suivi des dépenses et analyse de rentabilité",
       "10 abonnements clients actifs",
-      "0 % de commission sur vos paiements et abonnements",
+      INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT,
       "Rappels & demandes d'avis automatiques",
       "Statistiques de base",
       "20 SMS crédités chaque mois · packs supplémentaires disponibles",
