@@ -14,8 +14,8 @@ dans Paramètres › Site public › « Textes du site » (`components/admin/set
 ## Décisions (tranchées, Clément 26/10/2026)
 
 - [x] **7 photos modifiables** (Clément, 27/10/2026) : les 6 familles visibles sur le site (nettoyage, polissage-ceramique,
-  ppf-personnalisation, renovation-phares, moto, nettoyage-textile) + « Protection céramique » (page et carte d'accueil
-  qui utilisent ceramique-bmw-m4.jpg), indépendante de Polissage. Entretien régulier et Moteur & échappement : exclus
+  ppf-personnalisation, renovation-phares, moto, nettoyage-textile) + « Protection céramique » (page de la prestation,
+  qui utilise ceramique-bmw-m4.jpg ; pas de carte d'accueil : grille de 5 cartes inchangée), indépendante de Polissage. Entretien régulier et Moteur & échappement : exclus
   (aucune image visible). Chaque photo s'affiche aussi sur la carte « Nos prestations » de l'accueil.
   La photo choisie remplace l'image de cette famille **partout où elle s'affiche** : carte du configurateur et page de la
   prestation (`seo-content.ts`) quand c'est la même image d'origine.
