@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
-import { requireCompanyMember, type MemberContext } from "@/lib/admin"
-import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
+import { requireSpiritEditor } from "@/lib/custom-sites/spirit-editor"
 import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { resolveCustomRequestsConfig, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import {
@@ -40,25 +39,6 @@ const REVALIDATE_PATHS: Array<[string] | [string, "layout" | "page"]> = [
   ["/prestations/detailing-moto"],
   ["/prestations/nettoyage-textile"],
 ]
-
-/**
- * Garde commune : membre OWNER/ADMIN d'une entreprise + licence `website` +
- * tenant Spirit ACS. Un super-admin plateforme conserve un accès de maintenance
- * (requireCompanyMember laisse toujours passer le super-admin). Renvoie le
- * contexte, ou un message d'erreur sûr (jamais de détail technique au client).
- */
-async function requireSpiritEditor(): Promise<
-  { ok: true; ctx: MemberContext } | { ok: false; error: string }
-> {
-  const ctx = await requireCompanyMember(["OWNER", "ADMIN"])
-  if (ctx.tenant.customSiteKey !== SPIRIT_SITE_TEXTS_KEY) {
-    return { ok: false, error: "Cette fonctionnalité est réservée au site Spirit ACS." }
-  }
-  if (!(await canUseFeature(ctx.tenant.id, "website"))) {
-    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
-  }
-  return { ok: true, ctx }
-}
 
 /** Fallback des champs réutilisant leur emplacement historique (hors `spiritAcs`). */
 function reusedFallback(fieldId: string): string {
