@@ -35,8 +35,6 @@ import { CustomRequestsSettings } from "@/components/admin/settings/custom-reque
 import { resolveCustomRequestsConfig } from "@/lib/custom-requests"
 import { SpiritSiteTexts } from "@/components/admin/settings/spirit-site-texts"
 import { getSpiritSiteTexts } from "./spirit-texts-actions"
-import { SpiritServicePhotos } from "@/components/admin/settings/spirit-service-photos"
-import { getSpiritServicePhotos } from "./spirit-photos-actions"
 import { SmsSettings } from "@/components/admin/settings/sms-settings"
 import { NotificationsSettings } from "@/components/admin/settings/notifications-settings"
 import { getLotDSettings, notificationsSchemaReady } from "@/lib/notifications/settings-store"
@@ -87,7 +85,6 @@ export default async function ParametresPage({
   // serveur, jamais depuis le client.
   const canEditSpiritTexts = isSpiritSite && (isSuperAdmin || role === "OWNER" || role === "ADMIN")
   const spiritTextsResult = canEditSpiritTexts ? await getSpiritSiteTexts() : null
-  const spiritPhotosResult = canEditSpiritTexts ? await getSpiritServicePhotos() : null
   // Parcours d'onboarding RÉSOLU côté serveur (customSiteKey non nul => null,
   // priorité au comportement custom). booking_only => la catégorie « Site
   // public » (réglages de vitrine) est masquée : le pro a déjà son site.
@@ -352,11 +349,6 @@ export default async function ParametresPage({
                           Les textes du site sont modifiables par un administrateur du compte.
                         </p>
                       )}
-                      {spiritPhotosResult?.ok && spiritPhotosResult.photos ? (
-                        <div className="mt-10 border-t border-border pt-8">
-                          <SpiritServicePhotos companyId={tenant.id} initialPhotos={spiritPhotosResult.photos} />
-                        </div>
-                      ) : null}
                       <div className="mt-10 border-t border-border pt-8">
                         <h2 className="mb-4 text-lg font-semibold text-foreground">CGV et réseaux sociaux</h2>
                         <SiteBranding

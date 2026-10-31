@@ -31,7 +31,6 @@ import { SpiritAvisGoogle } from "./spirit-avis-google"
 import { resolveTenantReviews, getTenantGoogleRating } from "@/lib/reviews/public"
 import { withTenant } from "@/lib/tenant-link"
 import { getSpiritPublicCatalog } from "./public-catalog"
-import { spiritPhotoOverrides } from "./service-photos"
 import { listNavigationServicePages } from "@/lib/public-site/provider"
 import { SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
 import {
@@ -142,14 +141,9 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
   // céramique » n'y figure pas comme carte autonome (intégrée à « Polissage &
   // protection céramique »). Sa PAGE SEO dédiée et son URL restent inchangées
   // (elle demeure dans le catalogue, le sitemap et le maillage interne).
-  // Photos choisies dans l'admin (L32) ; sans photo, l'image d'origine reste.
-  const photos = spiritPhotoOverrides(data.tenant.slug, spiritTexts.servicePhotos)
-  const navServices = listNavigationServicePages(publicCatalog)
-    .filter((page) => page.slug !== "protection-ceramique")
-    .map((p) => {
-      const photo = photos.services[p.slug]
-      return photo ? { ...p, image: photo.src, imageAlt: photo.alt } : p
-    })
+  const navServices = listNavigationServicePages(publicCatalog).filter(
+    (page) => page.slug !== "protection-ceramique",
+  )
   const hasPrestations = navServices.length > 0
 
   // Navigation par ancres : un lien n'apparaît que si sa section est rendue.
@@ -255,12 +249,7 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       )}
 
       {quoteEnabled && (
-        <SpiritDemandeDevis
-          title={quoteTexts?.title ?? null}
-          intro={quoteTexts?.description ?? null}
-          types={quoteTypes}
-          familyPhotos={photos.families}
-        />
+        <SpiritDemandeDevis title={quoteTexts?.title ?? null} intro={quoteTexts?.description ?? null} types={quoteTypes} />
       )}
 
       {hasReviews && reviewsResolved.source === "manual" && (
