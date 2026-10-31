@@ -25,7 +25,6 @@ import { SpiritFaq } from "./spirit-faq"
 import { Reveal } from "@/components/ui/reveal"
 import { buildSpiritShellPropsForSubpage } from "./shell-props"
 import { SPIRIT_SERVICES, type ServiceContent } from "./seo-content"
-import { spiritPhotoOverrides } from "./service-photos"
 
 /**
  * Prestations complémentaires pour le maillage interne. Utilise la sélection
@@ -68,10 +67,6 @@ export async function SpiritServicePage({
   // paragraphes exacts de `SPIRIT_SERVICES` (aucun autre contenu n'est modifié —
   // H1, breadcrumb, méta, tarifs, FAQ, mode de conversion restent statiques).
   const introParagraphs = spiritTexts.serviceIntros[service.slug] ?? service.intro
-  // Photo choisie dans l'admin (L32) ; sinon l'image d'origine du code.
-  const photo = spiritPhotoOverrides(slug, spiritTexts.servicePhotos).services[service.slug]
-  const image = photo?.src ?? service.image
-  const imageAlt = photo?.alt ?? service.imageAlt
 
   // Fil d'Ariane : Accueil → Prestations → prestation courante. Les URL du
   // JSON-LD sont ABSOLUES et tenant-aware (canonique DetailFlow tant que le
@@ -146,12 +141,12 @@ export async function SpiritServicePage({
           </Reveal>
 
           {/* Image illustrative réelle (si disponible) */}
-          {image && (
+          {service.image && (
             <Reveal delay={0.05}>
               <div className="relative mt-6 aspect-[16/9] overflow-hidden rounded-sm ring-1 ring-black/5">
                 <Image
-                  src={image || "/placeholder.svg"}
-                  alt={imageAlt || service.cardTitle}
+                  src={service.image || "/placeholder.svg"}
+                  alt={service.imageAlt || service.cardTitle}
                   fill
                   sizes="(min-width: 1024px) 56rem, 100vw"
                   className="object-cover"

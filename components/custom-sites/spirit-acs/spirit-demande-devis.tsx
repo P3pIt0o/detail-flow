@@ -19,17 +19,14 @@ import { SpiritSplash } from "./spirit-splash"
 import { SpiritSentences } from "./spirit-sentences"
 import { SPIRIT_SECTIONS } from "./tokens"
 import { SpiritConfigurator } from "./configurator/spirit-configurator"
-import type { SpiritPhotoOverride } from "./service-photos"
 
 type SpiritDemandeDevisProps = {
   title: string | null
   intro: string | null
   types: CustomRequestType[]
-  /** Photos choisies dans l'admin, par famille (L32) ; absentes → images d'origine. */
-  familyPhotos?: Record<string, SpiritPhotoOverride>
 }
 
-export function SpiritDemandeDevis({ title, intro, types, familyPhotos }: SpiritDemandeDevisProps) {
+export function SpiritDemandeDevis({ title, intro, types }: SpiritDemandeDevisProps) {
   return (
     <section
       id={SPIRIT_SECTIONS.demandeDevis}
@@ -69,7 +66,7 @@ export function SpiritDemandeDevis({ title, intro, types, familyPhotos }: Spirit
             la palette sombre Spirit, scopé à ce conteneur uniquement. */}
         <Reveal delay={0.1}>
           <div className="spirit-form-skin rounded-2xl border border-white/10 bg-[var(--spirit-navy-2)] p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)] sm:p-7">
-            <SpiritConfigurator types={types} familyPhotos={familyPhotos} />
+            <SpiritConfigurator types={types} />
           </div>
         </Reveal>
       </div>

@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { companies } from "@/lib/db/schema"
-import { requireCompanyMember } from "@/lib/admin"
-import { checkSpiritEditor } from "@/lib/custom-sites/spirit-editor"
+import { requireCompanyMember, type MemberContext } from "@/lib/admin"
+import { canUseFeature, FEATURE_LOCKED_MESSAGE } from "@/lib/licensing/enforce"
 import { SITE_CONTENT_DEFAULTS } from "@/lib/site-content"
 import { resolveCustomRequestsConfig, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import {
@@ -28,9 +28,6 @@ export type SpiritTextsResult = {
  * layout couvrent hero, prestations, présentation, zone, flotte, galeries,
  * avis et demande de devis ; les pages prestations et /contact sont explicites.
  */
-/** Membre OWNER/ADMIN + tenant Spirit + licence `website` (cf. lib/custom-sites/spirit-editor.ts). */
-const requireSpiritEditor = async () => checkSpiritEditor(await requireCompanyMember(["OWNER", "ADMIN"]))
-
 const REVALIDATE_PATHS: Array<[string] | [string, "layout" | "page"]> = [
   ["/admin/parametres"],
   ["/", "layout"],
@@ -43,6 +40,25 @@ const REVALIDATE_PATHS: Array<[string] | [string, "layout" | "page"]> = [
   ["/prestations/detailing-moto"],
   ["/prestations/nettoyage-textile"],
 ]
+
+/**
+ * Garde commune : membre OWNER/ADMIN d'une entreprise + licence `website` +
+ * tenant Spirit ACS. Un super-admin plateforme conserve un accès de maintenance
+ * (requireCompanyMember laisse toujours passer le super-admin). Renvoie le
+ * contexte, ou un message d'erreur sûr (jamais de détail technique au client).
+ */
+async function requireSpiritEditor(): Promise<
+  { ok: true; ctx: MemberContext } | { ok: false; error: string }
+> {
+  const ctx = await requireCompanyMember(["OWNER", "ADMIN"])
+  if (ctx.tenant.customSiteKey !== SPIRIT_SITE_TEXTS_KEY) {
+    return { ok: false, error: "Cette fonctionnalité est réservée au site Spirit ACS." }
+  }
+  if (!(await canUseFeature(ctx.tenant.id, "website"))) {
+    return { ok: false, error: FEATURE_LOCKED_MESSAGE }
+  }
+  return { ok: true, ctx }
+}
 
 /** Fallback des champs réutilisant leur emplacement historique (hors `spiritAcs`). */
 function reusedFallback(fieldId: string): string {
@@ -202,25 +218,22 @@ export async function saveSpiritSiteTexts(input: Record<string, string>): Promis
     }
   }
 
-  // 2) + 3) Appliquer sur une COPIE de la valeur relue SOUS VERROU (préserve tout
-  // le reste, y compris une photo de prestation enregistrée en même temps), puis
-  // écriture unique, verrouillée au tenant Spirit courant.
-  const scope = and(eq(companies.id, tenant.id), eq(companies.customSiteKey, SPIRIT_SITE_TEXTS_KEY))
-  const next = await db.transaction(async (tx) => {
-    const [row] = await tx.select({ siteContent: companies.siteContent }).from(companies).where(scope).limit(1).for("update")
-    if (!row) return null
-    const existing = (row.siteContent as Record<string, unknown> | null) ?? {}
-    const draft: Record<string, unknown> = structuredClone(existing)
-    for (const change of jsonChanges) {
-      if (change.value.length === 0) deleteAtPath(draft, change.path)
-      else setAtPath(draft, change.path, change.value)
-    }
-    const setValues: Record<string, unknown> = { siteContent: draft, updatedAt: new Date() }
-    if (heroProvided) setValues.heroSubtitle = heroValue
-    await tx.update(companies).set(setValues).where(scope)
-    return draft
-  })
-  if (!next) return { ok: false, error: "Enregistrement impossible. Réessayez." }
+  // 2) Appliquer sur une COPIE des données existantes (préserve tout le reste).
+  const existing = (tenant.siteContent as Record<string, unknown> | null) ?? {}
+  const next: Record<string, unknown> = structuredClone(existing)
+  for (const change of jsonChanges) {
+    if (change.value.length === 0) deleteAtPath(next, change.path)
+    else setAtPath(next, change.path, change.value)
+  }
+
+  // 3) Écriture unique, verrouillée au tenant Spirit courant.
+  const setValues: Record<string, unknown> = { siteContent: next, updatedAt: new Date() }
+  if (heroProvided) setValues.heroSubtitle = heroValue
+
+  await db
+    .update(companies)
+    .set(setValues)
+    .where(and(eq(companies.id, tenant.id), eq(companies.customSiteKey, SPIRIT_SITE_TEXTS_KEY)))
 
   for (const [path, mode] of REVALIDATE_PATHS) {
     if (mode) revalidatePath(path, mode)
