@@ -184,6 +184,7 @@ export async function saveSpiritServicePhoto(key: string, uploadPathname: string
       return { ok: false, error: "Format non accepté : JPG, PNG ou WebP uniquement." }
     }
     const out = await optimizeSpiritPhoto(file)
+    if (!out.ok && out.unavailable) return { ok: false, error: "La photo n'a pas pu être traitée, réessayez plus tard." }
     if (!out.ok) return { ok: false, error: "Image illisible ou trop grande. Essayez une autre photo." }
     optimized = out.data
   } catch (e) {
