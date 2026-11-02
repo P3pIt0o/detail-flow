@@ -33,6 +33,7 @@ import { withTenant } from "@/lib/tenant-link"
 import { MAX_PHOTOS } from "@/lib/quote-photos/config"
 import { submitCustomRequest, finalizeCustomRequest, type DemandeFormState } from "@/app/(site)/demande/actions"
 import type { CustomRequestType } from "@/lib/custom-requests"
+import type { SpiritPhotoOverride } from "../service-photos"
 import { CustomRequestForm } from "@/components/custom-request-form"
 import { usePhotoUploads, type UsePhotoUploads } from "@/components/quote-photo-uploader"
 import {
@@ -296,7 +297,13 @@ function reducer(state: State, action: Action): State {
 /*  COMPONENT                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
+export function SpiritConfigurator({
+  types,
+  familyPhotos,
+}: {
+  types: CustomRequestType[]
+  familyPhotos?: Record<string, SpiritPhotoOverride>
+}) {
   const [s, dispatch] = useReducer(reducer, initialState)
   const patch = (p: Partial<State>) => dispatch({ type: "patch", patch: p })
 
@@ -498,7 +505,7 @@ export function SpiritConfigurator({ types }: { types: CustomRequestType[] }) {
               </p>
             )}
             <div className="rq-scroll">
-              <Step s={s} dispatch={dispatch} patch={patch} family={family} mainFamily={mainFamily} stepKey={stepKey} uploader={uploader} />
+              <Step s={s} dispatch={dispatch} patch={patch} family={family} mainFamily={mainFamily} stepKey={stepKey} uploader={uploader} familyPhotos={familyPhotos} />
             </div>
             <FlowFooter
               s={s}
@@ -732,6 +739,7 @@ function Step({
   mainFamily,
   stepKey,
   uploader,
+  familyPhotos,
 }: {
   s: State
   dispatch: React.Dispatch<Action>
@@ -740,10 +748,11 @@ function Step({
   mainFamily?: ReturnType<typeof getMainFamily>
   stepKey: string
   uploader: UsePhotoUploads
+  familyPhotos?: Record<string, SpiritPhotoOverride>
 }) {
   switch (stepKey) {
     case "famille":
-      return <FamilleStep s={s} dispatch={dispatch} />
+      return <FamilleStep s={s} dispatch={dispatch} familyPhotos={familyPhotos} />
     case "prestation":
       return <PrestationSousStep s={s} dispatch={dispatch} mainFamily={mainFamily} />
     case "formules":
@@ -779,7 +788,15 @@ function StepIntro({ title, sub }: { title: string; sub?: string }) {
 }
 
 /** NIVEAU 1 — écran des 6 grandes familles. Clic = famille + avance (§3). */
-function FamilleStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Action> }) {
+function FamilleStep({
+  s,
+  dispatch,
+  familyPhotos,
+}: {
+  s: State
+  dispatch: React.Dispatch<Action>
+  familyPhotos?: Record<string, SpiritPhotoOverride>
+}) {
   return (
     <section>
       <StepIntro title="Choisissez votre prestation" sub="Sélectionnez la famille correspondant à votre besoin." />
@@ -793,7 +810,11 @@ function FamilleStep({ s, dispatch }: { s: State; dispatch: React.Dispatch<Actio
               onClick={() => dispatch({ type: "chooseFamily", familyKey: f.key })}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.image || "/placeholder.svg"} alt={f.alt} className="rq-card-img" />
+              <img
+                src={familyPhotos?.[f.key]?.src ?? f.image ?? "/placeholder.svg"}
+                alt={familyPhotos?.[f.key]?.alt ?? f.alt}
+                className="rq-card-img"
+              />
               <span className="rq-card-veil" />
               <span className="rq-card-body">
                 <span className="rq-card-title">{f.title}</span>
