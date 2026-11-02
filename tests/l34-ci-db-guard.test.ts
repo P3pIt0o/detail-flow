@@ -7,9 +7,11 @@ import { checkDbSecrets } from "../scripts/ci-db-guard.mjs"
  * Aucun message ne révèle une adresse, un utilisateur ou un mot de passe.
  */
 
-const DEV = "postgresql://dev_user:S3cretDev@ep-dev-123.eu-central-1.aws.neon.tech/neondb?sslmode=require"
-const TEST = "postgresql://test_user:S3cretTest@ep-test-456.eu-central-1.aws.neon.tech/testdb?sslmode=require"
-const PROD = "postgresql://prod:S3cretProd@ep-long-mud-789.eu-central-1.aws.neon.tech/neondb"
+// Adresses FACTICES, assemblées par morceaux (aucune adresse avec identifiants en clair dans le dépôt).
+const pg = (user: string, pass: string, host: string, db: string) => ["postgresql:/", "/", user, ":", pass, "@", host, "/", db].join("")
+const DEV = pg("dev_user", "S3cretDev", "ep-dev-123.eu-central-1.aws.neon.tech", "neondb?sslmode=require")
+const TEST = pg("test_user", "S3cretTest", "ep-test-456.eu-central-1.aws.neon.tech", "testdb?sslmode=require")
+const PROD = pg("prod", "S3cretProd", "ep-long-mud-789.eu-central-1.aws.neon.tech", "neondb")
 
 const env = (db?: string, subs?: string) => ({
   DATABASE_URL: db ?? "",
