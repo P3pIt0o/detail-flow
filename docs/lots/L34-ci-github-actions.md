@@ -6,8 +6,8 @@ Risque : CRITIQUE (`.github/**`). Branche partie de `main` (après L33). Premier
 À chaque PR vers `main` (et à chaque push sur `main`), GitHub lance automatiquement typecheck + tests + tests sur base de test, et affiche une coche verte ou une croix rouge dans la PR.
 
 ## Constat
-- Aucun dossier `.github/workflows/`. `pnpm test` = `vitest run`. pnpm 10, Node 22 (à confirmer à l'audit).
-- Dette : 9 tests en échec et 44 erreurs TypeScript sur `main` ; une CI « tout doit passer » serait rouge en permanence.
+- Aucun dossier `.github/workflows/`. `pnpm test` = `vitest run`. pnpm 10.34.7, Node 24 (comme Vercel).
+- Dette : 11 tests en échec et 44 erreurs TypeScript sur `main` ; une CI « tout doit passer » serait rouge en permanence.
 - Tests BDD ignorés sans `DATABASE_URL` ; abonnements clients via `CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL`.
 
 ## Décisions (tranchées, Clément 31/10/2026)
