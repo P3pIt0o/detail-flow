@@ -1,0 +1,61 @@
+# CI DetailFlow (L34) : typecheck + tests à chaque PR vers main et à chaque push sur main.
+# Verdict rendu par scripts/ci-check.mjs : rouge seulement pour un échec ABSENT de
+# tests/known-failures.json. Tests BDD avec les secrets CI_* (absents sur une PR de fork :
+# ignorés et signalés). Aucun autre secret (Stripe, Resend, Blob…) n'est fourni à la CI.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.7
+
+      - name: Installer Node (même version que Vercel)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+
+      # Le code de sortie de tsc est ignoré ici : le verdict compare les erreurs à la liste connue.
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit --pretty false --incremental false -p tsconfig.json > tsc-output.txt || true
+
+      - name: Garde-fou des bases de test
+        run: node scripts/ci-db-guard.mjs
+        env:
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+          CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL: ${{ secrets.CI_CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL }}
+
+      # Idem : le code de sortie de vitest est ignoré, le verdict vient de l'étape suivante.
+      - name: Tests
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile.json=vitest-results.json || true
+        env:
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+          CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL: ${{ secrets.CI_CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL }}
+
+      - name: Verdict (échecs nouveaux uniquement)
+        run: node scripts/ci-check.mjs tsc-output.txt vitest-results.json tests/known-failures.json
