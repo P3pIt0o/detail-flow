@@ -11,7 +11,8 @@ const LABELS = { DATABASE_URL: "base dev", CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_
 function hostOf(url) {
   try {
     const u = new URL(String(url).trim().replace(/^["']|["']$/g, ""))
-    return u.hostname ? u.hostname.toLowerCase() : null
+    // Neon : « ep-x-pooler.… » et « ep-x.… » désignent la même base.
+    return u.hostname ? u.hostname.toLowerCase().replace(/^([^.]+)-pooler\./, "$1.") : null
   } catch {
     return null
   }
@@ -22,7 +23,7 @@ export function checkDbSecrets(env) {
   const vars = Object.keys(LABELS)
   const set = vars.filter((v) => (env[v] || "").trim())
   if (set.length === 0) {
-    return { status: "skip", message: "Secrets des bases absents (ex. PR de fork) : tests BDD ignorés." }
+    return { status: "skip", message: "Bases de test non fournies (PR : réservées au push sur main) : tests BDD ignorés." }
   }
   if (set.length < vars.length) {
     const missing = vars.filter((v) => !set.includes(v)).map((v) => LABELS[v])

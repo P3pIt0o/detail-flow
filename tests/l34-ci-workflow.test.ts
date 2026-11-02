@@ -17,10 +17,27 @@ describe("ci.yml", () => {
     expect(yml).toMatch(/push:\s*\n\s+branches: \[main\]/)
   })
 
-  it("droits en lecture seule, délai maximal, exécutions concurrentes annulées", () => {
+  it("droits en lecture seule, délai maximal ; annulation des exécutions en cours pour les PR seulement (jamais sur main)", () => {
     expect(yml).toMatch(/permissions:\s*\n\s+contents: read/)
     expect(yml).toMatch(/timeout-minutes: 15/)
-    expect(yml).toMatch(/cancel-in-progress: true/)
+    expect(yml).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
+    expect(yml).not.toMatch(/cancel-in-progress: true/)
+  })
+
+  it("option (a) — chaque secret n'est fourni que sur un push (vers main), jamais à une PR", () => {
+    const lines = yml.split("\n").filter((l) => l.includes("secrets."))
+    expect(lines.length).toBe(4)
+    for (const l of lines) expect(l).toMatch(/\$\{\{ github\.event_name == 'push' && secrets\.[A-Z0-9_]+ \|\| '' \}\}/)
+  })
+
+  it("revue sécurité 1 — le code de sortie de tsc est conservé pour le verdict", () => {
+    expect(step("Typecheck")).toContain('> tsc-output.txt || echo "tsc-exit=$?" >> tsc-output.txt')
+  })
+
+  it("revue métier (C4) — la sortie détaillée de vitest va dans un fichier, pas dans le journal", () => {
+    const run = step("Tests")
+    expect(run).toContain("> vitest-output.txt 2>&1")
+    expect(steps[steps.length - 1]).toContain("vitest-output.txt")
   })
 
   it("Node 24 (comme Vercel), pnpm 10.34.7, installation figée", () => {

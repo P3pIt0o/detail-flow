@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { compareWithKnown, runCheck, tscKeys, vitestKeys } from "../scripts/ci-check.mjs"
+import {
+  compareWithKnown,
+  runCheck,
+  tscExitCode,
+  tscKeys,
+  unhandledErrorCount,
+  vitestKeys,
+} from "../scripts/ci-check.mjs"
 
 /**
  * L34 — `scripts/ci-check.mjs` : la CI n'échoue que pour un échec ABSENT de
@@ -84,6 +91,45 @@ describe("comparaison avec la liste des échecs connus", () => {
 
   it("résultat des tests absent ou illisible → 1", () => {
     expect(runCheck(null, known).code).toBe(1)
+  })
+})
+
+describe("revue sécurité 1 — typecheck qui plante sans écrire d'erreur", () => {
+  const known = { tests: [], typescript: ["lib/a.ts: TS1: connue"] }
+
+  it("code de sortie de tsc lu dans sa sortie (absent → 0)", () => {
+    expect(tscExitCode("lib/a.ts(1,1): error TS1: connue\ntsc-exit=2\n")).toBe(2)
+    expect(tscExitCode("")).toBe(0)
+  })
+
+  it("tsc en erreur sans aucune erreur lue → 1 (pas de coche verte sur un typecheck qui n'a pas tourné)", () => {
+    const r = runCheck({ tests: [], typescript: [], tscExit: 137 }, known)
+    expect(r.code).toBe(1)
+    expect(r.lines.join("\n")).toMatch(/typecheck n'a pas abouti/)
+  })
+
+  it("tsc en erreur avec ses erreurs connues → 0 (cas normal tant que la dette existe)", () => {
+    expect(runCheck({ tests: [], typescript: ["lib/a.ts: TS1: connue"], tscExit: 2 }, known).code).toBe(0)
+  })
+})
+
+describe("revue sécurité 2 — erreurs vitest hors test", () => {
+  const known = { tests: ["tests/a.test.ts › connu"], typescript: [] }
+
+  it("nombre d'erreurs non gérées lu dans la sortie de vitest", () => {
+    expect(unhandledErrorCount("…\nVitest caught 2 unhandled errors during the test run.\n")).toBe(2)
+    expect(unhandledErrorCount("Vitest caught 1 unhandled error during the test run.")).toBe(1)
+    expect(unhandledErrorCount("Test Files  3 passed (3)")).toBe(0)
+  })
+
+  it("erreur non gérée, même avec seulement des échecs connus → 1", () => {
+    const r = runCheck({ tests: ["tests/a.test.ts › connu"], typescript: [], unhandled: 1 }, known)
+    expect(r.code).toBe(1)
+    expect(r.lines.join("\n")).toMatch(/erreur\(s\) non gérée\(s\)/)
+  })
+
+  it("vitest en échec sans aucun test identifiable → 1", () => {
+    expect(runCheck({ tests: [], typescript: [], vitestFailed: true }, { tests: [], typescript: [] }).code).toBe(1)
   })
 })
 

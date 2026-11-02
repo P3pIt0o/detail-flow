@@ -2,7 +2,7 @@
 // tests/known-failures.json. Clés identiques au kit (.claude/hooks/lib.mjs tscErrorKeys,
 // .claude/hooks/lot.mjs runTests) : logique recopiée, le kit n'est ni importé ni modifié.
 //
-// Usage : node scripts/ci-check.mjs <sortie-tsc.txt> <resultat-vitest.json> [tests/known-failures.json]
+// Usage : node scripts/ci-check.mjs <sortie-tsc.txt> <resultat-vitest.json> <sortie-vitest.txt> [tests/known-failures.json]
 import { readFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -47,6 +47,18 @@ export function vitestKeys(json, cwd) {
   return keys
 }
 
+/** Code de sortie de tsc, ajouté par le workflow (« tsc-exit=N ») ; absent = 0. */
+export function tscExitCode(output) {
+  const m = /^tsc-exit=(\d+)\s*$/m.exec(String(output))
+  return m ? Number(m[1]) : 0
+}
+
+/** Erreurs non gérées signalées par vitest (« Vitest caught N unhandled error(s) »), hors de tout test. */
+export function unhandledErrorCount(output) {
+  const m = /Vitest caught (\d+) unhandled errors?/.exec(String(output))
+  return m ? Number(m[1]) : 0
+}
+
 /** Écarts en multiensemble : une clé répétée plus souvent que dans la liste est nouvelle. */
 function diff(current, known) {
   const left = new Map()
@@ -67,17 +79,27 @@ export function compareWithKnown(current, known) {
   return { newTests: t.fresh, newTypescript: ts.fresh, fixedTests: t.gone, fixedTypescript: ts.gone }
 }
 
-/** `current` = { tests, typescript } ou null si le résultat des tests est absent/illisible. */
+/**
+ * `current` = { tests, typescript, tscExit?, unhandled?, vitestFailed? }, ou null si le résultat des tests est
+ * absent/illisible. Échecs « sans clé » (tsc qui plante, erreurs non gérées de vitest) : toujours rouges.
+ */
 export function runCheck(current, known) {
   if (!current) return { code: 1, lines: ["::error::Résultat des tests absent ou illisible : verdict impossible."] }
   const r = compareWithKnown(current, known)
   const lines = []
+  const crashes = []
+  if ((current.tscExit || 0) !== 0 && current.typescript.length === 0) {
+    crashes.push(`Le typecheck n'a pas abouti (tsc code ${current.tscExit}, aucune erreur lisible).`)
+  }
+  if ((current.unhandled || 0) > 0) crashes.push(`Vitest signale ${current.unhandled} erreur(s) non gérée(s) hors des tests.`)
+  if (current.vitestFailed && current.tests.length === 0) crashes.push("Vitest est en échec sans aucun test identifiable.")
+  for (const c of crashes) lines.push(`::error::${c}`)
   for (const k of r.newTests) lines.push(`::error::Nouveau test en échec : ${k}`)
   for (const k of r.newTypescript) lines.push(`::error::Nouvelle erreur TypeScript : ${k}`)
   for (const k of [...r.fixedTests, ...r.fixedTypescript]) {
     lines.push(`::warning::Échec connu qui ne se produit plus (à retirer de tests/known-failures.json) : ${k}`)
   }
-  const nNew = r.newTests.length + r.newTypescript.length
+  const nNew = r.newTests.length + r.newTypescript.length + crashes.length
   lines.push(
     `Tests en échec : ${current.tests.length} (dont ${r.newTests.length} nouveau(x)) · ` +
       `Erreurs TypeScript : ${current.typescript.length} (dont ${r.newTypescript.length} nouvelle(s))`,
@@ -86,13 +108,20 @@ export function runCheck(current, known) {
   return { code: nNew ? 1 : 0, lines }
 }
 
-function main([tscFile, vitestFile, knownFile = "tests/known-failures.json"]) {
+function main([tscFile, vitestFile, vitestOutputFile, knownFile = "tests/known-failures.json"]) {
   const cwd = process.cwd()
   const known = JSON.parse(readFileSync(knownFile, "utf8"))
   let current = null
   try {
     const json = JSON.parse(readFileSync(vitestFile, "utf8"))
-    current = { tests: vitestKeys(json, cwd), typescript: tscKeys(readFileSync(tscFile, "utf8"), cwd) }
+    const tscOut = readFileSync(tscFile, "utf8")
+    current = {
+      tests: vitestKeys(json, cwd),
+      typescript: tscKeys(tscOut, cwd),
+      tscExit: tscExitCode(tscOut),
+      unhandled: unhandledErrorCount(readFileSync(vitestOutputFile, "utf8")),
+      vitestFailed: json.success === false,
+    }
   } catch {
     current = null
   }

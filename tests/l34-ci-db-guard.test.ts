@@ -60,6 +60,13 @@ describe("checkDbSecrets", () => {
     expect(r.message).toMatch(/même hôte/)
   })
 
+  it("revue sécurité 5 — adresse directe et adresse -pooler de la même base → même hôte, échec", () => {
+    const pooler = TEST.replace("ep-test-456", "ep-dev-123-pooler")
+    const r = checkDbSecrets(env(DEV, pooler))
+    expect(r.status).toBe("error")
+    expect(r.message).toMatch(/même hôte/)
+  })
+
   it("adresse illisible → échec", () => {
     expect(checkDbSecrets(env("pas une url", TEST)).status).toBe("error")
   })
