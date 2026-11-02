@@ -1,0 +1,65 @@
+# CI DetailFlow (L34) : typecheck + tests à chaque PR vers main et à chaque push sur main.
+# Verdict rendu par scripts/ci-check.mjs : rouge seulement pour un échec ABSENT de
+# tests/known-failures.json (ou un typecheck/vitest qui plante).
+# Tests BDD : secrets CI_* fournis UNIQUEMENT sur un push vers main (décision Clément 02/11/2026,
+# le code d'une PR ne reçoit jamais l'adresse d'une base). Aucun autre secret n'est fourni à la CI.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Sur main, chaque commit garde son verdict : on n'annule que les exécutions de PR.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Typecheck et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.7
+
+      - name: Installer Node (même version que Vercel)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+
+      # L'étape ne s'arrête pas sur les erreurs connues ; le code de sortie est gardé pour le verdict
+      # (un tsc qui plante sans erreur lisible fait échouer la CI).
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit --pretty false --incremental false -p tsconfig.json > tsc-output.txt || echo "tsc-exit=$?" >> tsc-output.txt
+
+      - name: Garde-fou des bases de test
+        run: node scripts/ci-db-guard.mjs
+        env:
+          DATABASE_URL: ${{ github.event_name == 'push' && secrets.CI_DATABASE_URL || '' }}
+          CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL: ${{ github.event_name == 'push' && secrets.CI_CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL || '' }}
+
+      # Sortie détaillée dans un fichier, pas dans le journal (une erreur de connexion peut citer l'hôte).
+      # Le verdict lit le JSON et compte les erreurs non gérées dans cette sortie.
+      - name: Tests
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile.json=vitest-results.json > vitest-output.txt 2>&1 || true
+        env:
+          DATABASE_URL: ${{ github.event_name == 'push' && secrets.CI_DATABASE_URL || '' }}
+          CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL: ${{ github.event_name == 'push' && secrets.CI_CUSTOMER_SUBSCRIPTIONS_TEST_DATABASE_URL || '' }}
+
+      - name: Verdict (échecs nouveaux uniquement)
+        run: node scripts/ci-check.mjs tsc-output.txt vitest-results.json vitest-output.txt tests/known-failures.json
