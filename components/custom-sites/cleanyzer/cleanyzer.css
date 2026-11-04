@@ -23,20 +23,25 @@
   --clz-ink: #0a0b0d; /* fond sombre de base */
   --clz-ink-2: #111318;
 
-  /* Base claire (sections claires) */
-  --clz-bg: #ffffff;
-  --clz-surface: #ffffff;
-  --clz-surface-2: #f5f6f8;
+  /* Base « nuit néon » (L37, maquette validée par Tom) : plus aucune section claire. */
+  --clz-bg: #04050a;
+  --clz-surface: #0a0c14;
+  --clz-surface-2: #0a0c14;
 
   /* Texte */
-  --clz-fg: #0a0b0d; /* sur clair */
-  --clz-muted: #5c636e; /* secondaire sur clair */
+  --clz-fg: #f2f4fa;
+  --clz-muted: rgba(226, 232, 245, 0.66);
   --clz-on-dark: #f4f7fb; /* sur sombre */
   --clz-on-dark-muted: rgba(244, 247, 251, 0.66);
 
   /* Filets */
-  --clz-line: rgba(10, 11, 13, 0.1);
+  --clz-line: rgba(160, 180, 255, 0.14);
   --clz-line-dark: rgba(255, 255, 255, 0.14);
+
+  /* Néon (maquette) ; fond des boutons principaux un ton plus sombre pour un texte blanc ≥ 4,5:1. */
+  --clz-neon-blue: #1f7bff;
+  --clz-neon-red: #ff2b45;
+  --clz-btn-blue: #1f6cf5;
 
   /* Accent doré discret (cahier : conserver seulement les dorés existants) */
   --clz-gold: #cBa15a;
@@ -45,25 +50,33 @@
 
   background-color: var(--clz-bg);
   color: var(--clz-fg);
-  color-scheme: light;
+  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Dégradé sombre premium réutilisable : #000 → #0A84FF (cahier §1). */
+/* Sections sombres (L37) : nuit de la maquette + léger halo néon en coin. */
 .cleanyzer .clz-dark {
-  background:
-    radial-gradient(120% 120% at 85% 0%, rgba(10, 132, 255, 0.28) 0%, rgba(10, 132, 255, 0) 55%),
-    linear-gradient(160deg, #000000 0%, #04070f 42%, #061a3a 78%, #0a3f86 100%);
+  background: radial-gradient(80% 60% at 90% 0%, rgba(31, 123, 255, 0.16), transparent 60%), var(--clz-bg);
   color: var(--clz-on-dark);
 }
 
-/* Variante "renforcée" pour la section Réalisations (cahier : renforcer le dégradé). */
+/* Variante « renforcée » (Réalisations) : halos rouge et bleu, comme l'avant/après de la maquette. */
 .cleanyzer .clz-dark-strong {
   background:
-    radial-gradient(130% 100% at 100% 100%, rgba(10, 132, 255, 0.5) 0%, rgba(10, 132, 255, 0) 60%),
-    linear-gradient(150deg, #000000 0%, #051027 45%, #0a3f86 88%, #0a84ff 100%);
+    radial-gradient(80% 50% at 15% 0%, rgba(255, 43, 69, 0.16), transparent 60%),
+    radial-gradient(70% 50% at 90% 10%, rgba(31, 123, 255, 0.14), transparent 60%),
+    var(--clz-bg);
   color: var(--clz-on-dark);
+}
+
+/* Fonds de section (L37) : halo radial léger en coin, alterné bleu / rouge, sans animation.
+   :where() = spécificité nulle : ne prend jamais le pas sur un fond explicite (clz-dark, néon…). */
+.cleanyzer :where(main section:nth-of-type(odd)) {
+  background-image: radial-gradient(60% 50% at 100% 0%, rgba(31, 123, 255, 0.12), transparent 60%);
+}
+.cleanyzer :where(main section:nth-of-type(even)) {
+  background-image: radial-gradient(60% 50% at 0% 0%, rgba(255, 43, 69, 0.1), transparent 60%);
 }
 
 /* Titres d'affichage : serif éditoriale élégante. */
@@ -97,31 +110,25 @@
   font-family: var(--font-clz-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Libellé au-dessus des titres : capitales espacées, gris clair (maquette). */
 .cleanyzer .clz-eyebrow {
   font-family: var(--font-clz-sans), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.26em;
   font-weight: 600;
-  font-size: 0.72rem;
-  color: var(--clz-blue);
-}
-.cleanyzer .clz-dark .clz-eyebrow,
-.cleanyzer .clz-dark-strong .clz-eyebrow {
-  color: #6fb6ff;
+  font-size: 0.75rem;
+  color: var(--clz-muted);
 }
 
 /* Accent doré discret pour un mot mis en valeur. */
 .cleanyzer .clz-gold {
   color: var(--clz-gold);
 }
-/* Accent éditorial des titres : mot en bleu + italique serif (maquettes). */
+/* Accent éditorial des titres : mot en italique néon avec halo (maquette L35). */
 .cleanyzer .clz-accent {
-  color: var(--clz-blue);
+  color: var(--clz-neon-blue);
   font-style: italic;
-}
-.cleanyzer .clz-dark .clz-accent,
-.cleanyzer .clz-dark-strong .clz-accent {
-  color: #4d9bff;
+  text-shadow: 0 0 24px rgba(31, 123, 255, 0.5);
 }
 
 /* Filet d'accent au-dessus des titres. */
@@ -152,31 +159,27 @@
 .cleanyzer .clz-btn:active {
   transform: translateY(1px);
 }
+/* Principal : bleu néon avec halo ; secondaire : contour clair (maquette). */
 .cleanyzer .clz-btn-primary {
-  background: var(--clz-blue);
+  background: var(--clz-btn-blue);
   color: #ffffff;
+  box-shadow: 0 0 26px rgba(31, 123, 255, 0.5);
 }
 .cleanyzer .clz-btn-primary:hover {
   background: var(--clz-blue-strong);
 }
 .cleanyzer .clz-btn-ghost {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--clz-fg);
-  border-color: var(--clz-line);
-}
-.cleanyzer .clz-dark .clz-btn-ghost,
-.cleanyzer .clz-dark-strong .clz-btn-ghost {
-  color: var(--clz-on-dark);
-  border-color: var(--clz-line-dark);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 .cleanyzer .clz-btn-ghost:hover {
-  border-color: var(--clz-blue);
-  color: var(--clz-blue);
-}
-.cleanyzer .clz-dark .clz-btn-ghost:hover,
-.cleanyzer .clz-dark-strong .clz-btn-ghost:hover {
-  border-color: #6fb6ff;
+  border-color: var(--clz-neon-blue);
   color: #ffffff;
+}
+.cleanyzer .clz-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
 }
 
 /* Carte générique */
@@ -366,7 +369,7 @@
 .cleanyzer .clz-neon-h2 em { font-style: italic; color: var(--clz-neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
 .cleanyzer .clz-neon-stars { color: #ffc940; letter-spacing: 1px; }
 .cleanyzer .clz-neon-btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; }
-.cleanyzer .clz-neon-btn-primary { background: var(--clz-neon-blue); color: #fff; box-shadow: 0 0 26px rgba(31,123,255,.5); }
+.cleanyzer .clz-neon-btn-primary { background: var(--clz-btn-blue); color: #fff; box-shadow: 0 0 26px rgba(31,123,255,.5); }
 .cleanyzer .clz-neon-btn-ghost { color: var(--clz-neon-fg); border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.04); }
 .cleanyzer .clz-neon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .cleanyzer .clz-neon-btn[disabled] { opacity: .7; cursor: progress; }
@@ -481,7 +484,8 @@
 .cleanyzer .clz-neon-dock { position: fixed; z-index: 40; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(4,5,10,.62); border: 1px solid var(--clz-neon-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px -12px #000; transition: transform .35s ease, opacity .35s ease; opacity: 0; pointer-events: none; max-width: calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))); }
 .cleanyzer .clz-neon-dock.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 .cleanyzer .clz-neon-dock a { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 0 13px; border-radius: 999px; font-weight: 600; font-size: 12.5px; text-decoration: none; color: var(--clz-neon-fg); }
-.cleanyzer .clz-neon-dock-book { color: #fff; background: linear-gradient(120deg, var(--clz-neon-blue), #6a3cff 55%, var(--clz-neon-red)); box-shadow: 0 0 10px -4px rgba(31,123,255,.6); }
+/* Dégradé de la maquette (bleu → violet → rouge), extrémités un ton plus sombres : texte blanc ≥ 4,5:1 (L37). */
+.cleanyzer .clz-neon-dock-book { color: #fff; background: linear-gradient(120deg, #1f6cf5, #6a3cff 55%, #e0203a); box-shadow: 0 0 10px -4px rgba(31,123,255,.6); }
 .cleanyzer .clz-neon-dock-ghost { border: 1px solid rgba(255,255,255,.14); background: transparent; color: rgba(242,244,250,.85); }
 .cleanyzer .clz-neon-dock-ghost svg { width: 14px; height: 14px; }
 .cleanyzer .clz-neon-dock a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

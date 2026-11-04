@@ -49,7 +49,7 @@
 .v3-veh{display:inline-flex;gap:4px;margin-top:.75rem;border-bottom:1px solid rgba(111,182,255,.25)}
 .v3-veh button{border:0;background:transparent;color:rgba(244,247,251,.6);padding:.4rem .8rem;font-size:.85rem;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
 .v3-veh button[aria-pressed="true"]{color:#fff;border-bottom-color:var(--clz-blue)}
-.v3-fbox{margin-top:.9rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem;background:#fff;color:var(--clz-fg);border-radius:16px;padding:.9rem 1.1rem;max-width:min(40rem,100%);text-align:left}
+.v3-fbox{margin-top:.9rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem;background:var(--clz-surface);border:1px solid var(--clz-line);color:var(--clz-fg);border-radius:16px;padding:.9rem 1.1rem;max-width:min(40rem,100%);text-align:left}
 .v3-fbox .pr{font-family:var(--font-clz-display);font-weight:500;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .v3-fbox .tx{flex:1 1 15rem;min-width:0;font-size:.875rem;color:var(--clz-muted);line-height:1.45}
 .v3-fbox .tx b{color:var(--clz-fg)}

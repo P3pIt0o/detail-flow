@@ -21,6 +21,9 @@ import {
   CLZ_AREA_SERVED,
   CLZ_PRICE_RANGE,
 } from "@/components/custom-sites/cleanyzer/seo-content"
+import { clzAppThemeClass } from "@/components/custom-sites/cleanyzer/app-theme"
+// Règles limitées à `.clz-app-theme` (classe posée pour Cleanyzer seulement) : sans effet ailleurs.
+import "@/components/custom-sites/cleanyzer/app-theme.css"
 
 /**
  * MÉTADONNÉES DE PARTAGE PAR TENANT (Open Graph / Twitter / SEO).
@@ -169,7 +172,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
   if (useOwnShell) {
     return (
-      <div style={hasBrandColors ? brandStyle : undefined}>
+      // L37 : habillage nuit néon de Cleanyzer (réservation, devis) d'après le site sur mesure résolu
+      // côté serveur ci-dessus — aucun autre tenant ne reçoit la classe.
+      <div className={clzAppThemeClass(customSite?.key)} style={hasBrandColors ? brandStyle : undefined}>
         {tenant && <SiteTracker />}
         {localBusinessJsonLd && <StructuredData jsonLd={localBusinessJsonLd} />}
         {/* Le bouton WhatsApp des sites à shell propre est monté PAR leur shell

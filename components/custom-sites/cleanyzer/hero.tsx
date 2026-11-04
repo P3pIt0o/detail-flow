@@ -43,7 +43,7 @@ export function heroVideoSources(
 /** Délai (ms) au-delà duquel une arrivée qui n'a jamais démarré laisse place à la boucle. */
 export const HERO_INTRO_GUARD_MS = 4000
 
-type HeroVideo = Pick<HTMLVideoElement, "play" | "currentTime" | "duration" | "addEventListener" | "removeEventListener">
+type HeroVideo = Pick<HTMLVideoElement, "play" | "pause" | "currentTime" | "duration" | "addEventListener" | "removeEventListener">
 
 /**
  * Enchaînement arrivée → boucle. La boucle démarre à la fin de l'arrivée, mais aussi si l'arrivée
@@ -63,6 +63,8 @@ export function runHeroSequence(
     if (swapped) return
     swapped = true
     clearTimeout(guard)
+    // L37 : l'arrivée n'est plus affichée, on arrête son téléchargement.
+    intro.pause()
     loop.currentTime = 0
     loop.play().then(
       () => raf(() => onPhase("loop")),

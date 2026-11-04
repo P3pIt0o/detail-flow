@@ -202,12 +202,14 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #fff;
-  background: rgba(10, 11, 13, 0.78);
+  background: rgba(4, 5, 10, 0.72);
+  border: 1px solid rgba(255, 43, 69, 0.55);
   border-radius: 999px;
   padding: 4px 9px;
 }
+/* « Après » : même pastille sombre que « Avant » (maquette L35). */
 .cleanyzer .clz-pair-label.is-after {
-  background: var(--clz-blue);
+  background: rgba(4, 5, 10, 0.72);
 }
 
 @media (max-width: 860px) {
@@ -289,6 +291,11 @@
   left: auto;
   right: 8px;
 }
+/* L37 : liseré, ligne et poignée en néon rouge avec lueur (maquette). */
+.cleanyzer .clz-cmp {
+  border: 1px solid rgba(255, 43, 69, 0.35);
+  box-shadow: 0 0 0 1px rgba(255, 43, 69, 0.12), 0 0 28px -6px rgba(255, 43, 69, 0.55), 0 24px 50px -28px #000;
+}
 .cleanyzer .clz-cmp-line {
   position: absolute;
   top: 0;
@@ -296,8 +303,8 @@
   left: var(--clz-cmp);
   width: 2px;
   transform: translateX(-50%);
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  background: var(--clz-neon-red);
+  box-shadow: 0 0 10px var(--clz-neon-red), 0 0 24px var(--clz-neon-red);
   pointer-events: none;
 }
 .cleanyzer .clz-cmp-handle {
@@ -310,11 +317,11 @@
   width: 44px;
   height: 44px;
   transform: translate(-50%, -50%);
-  border: 2px solid #fff;
+  border: 2px solid var(--clz-neon-red);
   border-radius: 999px;
-  background: var(--clz-blue);
+  background: var(--clz-bg);
   color: #fff;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 16px rgba(255, 43, 69, 0.7);
 }
 .cleanyzer .clz-cmp-range {
   position: absolute;
