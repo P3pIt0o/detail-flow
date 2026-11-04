@@ -9,8 +9,10 @@ import { CLZ_HOME_HREF, CLZ_PREVIEW_BASE, CLZ_SECTIONS, type ClzNavItem } from "
 export const CLZ_SITE_NAV_ITEMS: ClzNavItem[] = [
   { id: CLZ_SECTIONS.prestations, label: "Prestations", href: `${CLZ_HOME_HREF}#prestations` },
   { id: CLZ_SECTIONS.realisations, label: "Réalisations", href: `${CLZ_HOME_HREF}#realisations` },
-  { id: CLZ_SECTIONS.apropos, label: "À propos", href: `${CLZ_HOME_HREF}#apropos` },
-  { id: CLZ_SECTIONS.zone, label: "Zone d'intervention", href: `${CLZ_HOME_HREF}#zone` },
+  // L37 : la section « Derrière CLEANYZER » a quitté l'accueil (L35) et /a-propos n'existe pas en public :
+  // « À propos » mène à la Présentation qui la remplace.
+  { id: CLZ_SECTIONS.apropos, label: "À propos", href: `${CLZ_HOME_HREF}#presentation` },
+  { id: CLZ_SECTIONS.zone, label: "Zone d'intervention", short: "Zone", href: `${CLZ_HOME_HREF}#zone` },
   { id: CLZ_SECTIONS.faq, label: "Questions fréquentes", href: `${CLZ_HOME_HREF}#faq` },
 ]
 

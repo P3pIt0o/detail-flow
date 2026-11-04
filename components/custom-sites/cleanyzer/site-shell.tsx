@@ -17,7 +17,7 @@ import { ClzContactPill } from "./contact-pill"
 import { BRAND, TRAVEL } from "./content"
 import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "./seo-content"
 import { CLZ_FILM_ANCHOR, CLZ_VISIT_ANCHOR } from "./journey"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, clzPath, type ClzNavItem } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, CLZ_SECTIONS, clzPath, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
@@ -151,8 +151,8 @@ export function CleanyzerShell({
       ? "border-b border-[var(--clz-line-dark)] bg-[var(--clz-ink)]/85 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur-md"
       : "border-b border-transparent bg-transparent"
     : solidSurface
-      ? "border-b border-[var(--clz-line)] bg-white/80 shadow-sm backdrop-blur-md"
-      : "border-b border-transparent bg-white/50 backdrop-blur-sm"
+      ? "border-b border-[var(--clz-line-dark)] bg-[var(--clz-ink)]/85 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur-md"
+      : "border-b border-transparent bg-[var(--clz-ink)]/60 backdrop-blur-sm"
 
   return (
     <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
@@ -178,57 +178,48 @@ export function CleanyzerShell({
               width={200}
               height={200}
               priority
-              className="h-11 w-11 rounded-full md:h-14 md:w-14"
+              className="h-10 w-10 rounded-full md:h-12 md:w-12"
             />
             <span className="sr-only">{BRAND.name}</span>
           </Link>
 
-          <nav className="hidden items-center gap-7 lg:flex" aria-label="Navigation principale">
-            {navItems.map((item) => {
-              const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
-              const isActive = active === item.label
-              return (
-                <Link
-                  key={item.id}
-                  href={href}
-                  className={`text-sm font-medium transition-colors ${
-                    immersive
-                      ? isActive
-                        ? "text-white"
-                        : "text-white/80 hover:text-white"
-                      : isActive
-                        ? "text-[var(--clz-blue)]"
-                        : "text-[var(--clz-fg)] hover:text-[var(--clz-blue)]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
+          {/* L37 : une seule ligne dès 1100 px ; « Questions fréquentes » reste au burger et au pied de page. */}
+          <nav className="hidden items-center gap-6 whitespace-nowrap min-[1100px]:flex" aria-label="Navigation principale">
+            {navItems
+              .filter((item) => item.id !== CLZ_SECTIONS.faq)
+              .map((item) => {
+                const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
+                const isActive = active === item.label
+                return (
+                  <Link
+                    key={item.id}
+                    href={href}
+                    className={`text-sm font-medium transition-colors ${
+                      isActive ? "text-white" : "text-white/80 hover:text-white"
+                    }`}
+                  >
+                    {item.short ?? item.label}
+                  </Link>
+                )
+              })}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-2 whitespace-nowrap min-[1100px]:flex">
             <Link
               href={devisHref}
-              className={`clz-btn clz-btn-ghost !px-4 !py-2 !text-sm ${
-                immersive ? "!border-white/30 !text-white hover:!border-white hover:!text-white" : ""
-              }`}
+              className="clz-btn clz-btn-ghost !px-3.5 !py-1.5 !text-sm !border-white/30 !text-white hover:!border-white hover:!text-white"
             >
-              Demande personnalisée
+              Devis
             </Link>
             <Link href={reserverHref} className="clz-btn clz-btn-primary !px-4 !py-2 !text-sm">
-              Réserver un nettoyage auto
+              Réserver
             </Link>
           </div>
 
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors lg:hidden ${
-              immersive
-                ? "border border-white/25 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
-                : "border border-[var(--clz-line)] text-[var(--clz-fg)]"
-            }`}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 min-[1100px]:hidden"
             aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
             aria-expanded={open}
           >
@@ -238,11 +229,7 @@ export function CleanyzerShell({
 
         {/* Menu mobile */}
         {open && (
-          <div
-            className={`relative lg:hidden ${
-              immersive ? "border-t border-white/10 bg-[var(--clz-ink)]" : "border-t border-[var(--clz-line)] bg-white"
-            }`}
-          >
+          <div className="relative border-t border-white/10 bg-[var(--clz-ink)] min-[1100px]:hidden">
             <nav className="mx-auto flex max-w-6xl flex-col px-4 py-3" aria-label="Navigation mobile">
               {navItems.map((item) => {
                 const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
@@ -251,9 +238,7 @@ export function CleanyzerShell({
                     key={item.id}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className={`py-3 text-base font-medium last:border-0 ${
-                      immersive ? "border-b border-white/10 text-white" : "border-b border-[var(--clz-line)] text-[var(--clz-fg)]"
-                    }`}
+                    className="border-b border-white/10 py-3 text-base font-medium text-white last:border-0"
                   >
                     {item.label}
                   </Link>
@@ -263,12 +248,12 @@ export function CleanyzerShell({
                 <Link
                   href={devisHref}
                   onClick={() => setOpen(false)}
-                  className={`clz-btn clz-btn-ghost ${immersive ? "!border-white/30 !text-white" : ""}`}
+                  className="clz-btn clz-btn-ghost !border-white/30 !text-white"
                 >
-                  Demande personnalisée
+                  Devis
                 </Link>
                 <Link href={reserverHref} onClick={() => setOpen(false)} className="clz-btn clz-btn-primary">
-                  Réserver un nettoyage auto
+                  Réserver
                 </Link>
               </div>
             </nav>

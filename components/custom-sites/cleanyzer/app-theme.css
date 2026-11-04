@@ -1,0 +1,28 @@
+/**
+ * L37 — couleurs du thème standard redéfinies en « nuit néon » pour le seul tenant Cleanyzer
+ * (classe posée par app/(site)/layout.tsx via clzAppThemeClass). Sert la réservation (BookingV2)
+ * et la demande de devis sans modifier ces composants communs. Aucun effet hors `.clz-app-theme`.
+ */
+.clz-app-theme {
+  --background: #04050a;
+  --foreground: #f2f4fa;
+  --card: #0a0c14;
+  --card-foreground: #f2f4fa;
+  --popover: #0a0c14;
+  --popover-foreground: #f2f4fa;
+  --primary: #1f6cf5;
+  --primary-foreground: #ffffff;
+  --secondary: #111522;
+  --secondary-foreground: #f2f4fa;
+  --muted: #111522;
+  --muted-foreground: rgba(226, 232, 245, 0.7);
+  --accent: rgba(31, 123, 255, 0.16);
+  --accent-foreground: #f2f4fa;
+  --border: rgba(160, 180, 255, 0.18);
+  --input: rgba(160, 180, 255, 0.24);
+  --ring: #1f7bff;
+  background-color: #04050a;
+  color: #f2f4fa;
+  color-scheme: dark;
+  min-height: 100dvh;
+}

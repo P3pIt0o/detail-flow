@@ -13,7 +13,8 @@ export const CLZ_SECTIONS = {
   faq: "faq",
 } as const
 
-export type ClzNavItem = { id: string; label: string; href?: string }
+/** `short` : libellé de l'en-tête sur une ligne (L37), le pied de page et le burger gardent `label`. */
+export type ClzNavItem = { id: string; label: string; href?: string; short?: string }
 
 /** Base du préfixe des routes de maquette (pour liens internes des mockups). */
 export const CLZ_PREVIEW_BASE = "/cleanyzer-preview"

@@ -91,6 +91,7 @@ describe("haut de page", () => {
         this.played++
         return this.ok ? Promise.resolve() : Promise.reject(new Error("bloquée"))
       }
+      pause() {}
     }
     const flush = () => new Promise((r) => setTimeout(r, 0))
     const raf = (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number
