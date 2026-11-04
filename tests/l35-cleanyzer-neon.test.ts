@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/p/cleanyzer" }))
 import { CleanyzerHero, heroVideoQuality, heroVideoSources } from "@/components/custom-sites/cleanyzer/hero"
 import { ClzPresentation } from "@/components/custom-sites/cleanyzer/presentation"
 import { ClzFournisseurs } from "@/components/custom-sites/cleanyzer/fournisseurs"
-import { Visit3DLazy } from "@/components/custom-sites/cleanyzer/visit-3d-lazy"
+import { Visit3DLazy, createPendingVisit } from "@/components/custom-sites/cleanyzer/visit-3d-lazy"
 import { ClzContactPill, clzWhatsappNumber } from "@/components/custom-sites/cleanyzer/contact-pill"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
 import { BRAND } from "@/components/custom-sites/cleanyzer/content"
@@ -148,6 +148,18 @@ describe("Visite 3D au clic", () => {
     const h = html(createElement(Visit3DLazy))
     expect(h).toContain("Explorer en 3D")
     expect(h).not.toMatch(/<canvas/)
+  })
+
+  it("lien du film avant le clic : la zone demandée est mémorisée puis rejouée une seule fois après chargement", () => {
+    const pending = createPendingVisit()
+    expect(pending.take()).toBeNull()
+    pending.remember("rims")
+    pending.remember("seats") // dernier lien cliqué
+    expect(pending.take()).toBe("seats")
+    expect(pending.take()).toBeNull()
+    const lazy = read("components/custom-sites/cleanyzer/visit-3d-lazy.tsx")
+    // Rejouée avec l'origine du parcours déjà enregistrée, une fois la 3D montée.
+    expect(lazy).toMatch(/goVisit\(\s*zone,\s*journey\.origin\s*\)/)
   })
 
   it("le module 3D n'est importé que dynamiquement", () => {

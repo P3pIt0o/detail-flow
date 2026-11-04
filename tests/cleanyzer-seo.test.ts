@@ -204,7 +204,8 @@ describe("Cleanyzer — rendu public sans mentions de maquette", () => {
   it("un seul H1 dans le hero, avec les mots-clés", () => {
     const hero = read(`${CLZ}/hero.tsx`)
     expect(hero.match(/<h1[\s>]/g)?.length).toBe(1)
-    expect(hero).toMatch(/<h1[\s\S]*Nettoyage automobile à domicile à Annecy[\s\S]*<\/h1>/)
+    // L35 (fiche) : nouveau H1 du haut de page néon.
+    expect(hero).toMatch(/<h1[\s\S]*Nettoyage auto &amp; detailing à domicile, à Annecy et alentours[\s\S]*<\/h1>/)
   })
 
   it("le pied de page n'affiche plus « à confirmer » et réserve la mention maquette à l'aperçu", () => {
