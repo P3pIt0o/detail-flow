@@ -139,7 +139,8 @@ export function PrestationsPreview() {
     },
   ]
   return (
-    <section className="bg-[var(--clz-surface-2)]">
+    // Ancre visée par « Voir les tarifs » (L35).
+    <section id="tarifs" className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Prestations & tarifs" title="Des formules claires, dès le premier euro" />
         <div className="mt-12 grid gap-6 md:grid-cols-3">

@@ -81,9 +81,11 @@ export const CLZ_AREA_SERVED = ["Annecy"]
 /*  Accueil                                                                    */
 /* -------------------------------------------------------------------------- */
 
+// L35 : textes exacts de la fiche (20 km = TRAVEL.includedKmOneWay, 5/5 = BRAND.googleRating).
 export const CLZ_HOME_META = {
-  title: `Nettoyage voiture à domicile à Annecy | ${BRAND.name}`,
-  description: `Nettoyage intérieur et extérieur de voiture à domicile à Annecy et alentours, 7j/7. Formules dès ${CLZ_PRICES.exterieurMin} €, réservation en ligne. Canapé et textile sur demande.`,
+  title: "Nettoyage auto à domicile à Annecy | Cleanyzer",
+  description:
+    "Nettoyage intérieur et extérieur de votre voiture à domicile, à Annecy et jusqu'à 20 km. Produits professionnels, noté 5/5 sur Google. Réservez en ligne.",
 }
 
 /* -------------------------------------------------------------------------- */

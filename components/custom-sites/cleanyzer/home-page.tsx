@@ -1,9 +1,9 @@
 /**
- * Page d'accueil CLEANYZER (maquette Phase 1, isolée sous /cleanyzer-preview).
- * Ordre conversion : hero (vidéo) → avant/après (ISUZU + paires de Tom) →
- * univers/prestations → prestations/tarifs → visite 3D → prestations au
- * défilement (vidéos de Tom) → galerie des réalisations → service à domicile →
- * zone → avis → témoignages → FAQ → CTA final.
+ * Page d'accueil CLEANYZER.
+ * Ordre (L35, maquette néon validée par Tom) : hero néon → présentation (vidéo de Tom au clic) →
+ * avant/après → prestations & tarifs → produits & fournisseurs → visite 3D (au clic) → univers →
+ * prestations au défilement → réalisations → service à domicile → zone → avis → témoignages →
+ * FAQ → CTA final. « Derrière CLEANYZER » est remplacée par la présentation sur l'accueil.
  */
 
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
@@ -13,7 +13,6 @@ import {
   UniversSection,
   PrestationsPreview,
   ServiceADomicile,
-  AProposSection,
   ZoneSection,
   AvisSection,
   TemoignagesSection,
@@ -23,7 +22,9 @@ import {
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { ClzReveal } from "./motion"
 import { PrestationsFilm } from "./prestations-film"
-import { Visit3D } from "./visit-3d"
+import { Visit3DLazy } from "./visit-3d-lazy"
+import { ClzPresentation } from "./presentation"
+import { ClzFournisseurs } from "./fournisseurs"
 import { AvantApresSection, RealisationsTom } from "./realisations-tom"
 import { CLZ_FAQ } from "./faq-content"
 import { buildFaqJsonLd } from "@/lib/seo/structured-data"
@@ -52,14 +53,15 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
       <CleanyzerHero />
+      <ClzPresentation />
       <AvantApresSection />
-      <UniversSection />
       <PrestationsPreview />
-      <Visit3D />
+      <ClzFournisseurs />
+      <Visit3DLazy />
+      <UniversSection />
       <PrestationsFilm />
       <RealisationsTom />
       <ServiceADomicile />
-      <AProposSection />
       <ZoneSection />
       <AvisSection />
       <TemoignagesSection />
