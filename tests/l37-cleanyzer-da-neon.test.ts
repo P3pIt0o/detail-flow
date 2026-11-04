@@ -110,8 +110,15 @@ describe("C4 — contraste AA (≥ 4,5:1) sur les jetons", () => {
     ["texte / surface", "--clz-fg", surface],
     ["texte secondaire / fond", "--clz-muted", bg],
     ["texte secondaire / surface", "--clz-muted", surface],
+    ["texte bleu / fond", "--clz-blue-text", bg],
+    ["texte bleu / surface", "--clz-blue-text", surface],
   ])("%s", (_l, name, back) => {
     expect(contrast(token(css, ".cleanyzer", name), back)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it("aucun texte en --clz-blue-strong (≈ 3,3:1 sur fond nuit) — revue métier L37", () => {
+    const sources = walk(CLZ).filter((f) => /\.(tsx|css)$/.test(f) && !f.endsWith("preview-nav.tsx")).map(read).join("\n")
+    expect(sources).not.toMatch(/text-\[var\(--clz-blue-strong\)\]|-foreground:\s*var\(--clz-blue-strong\)/)
   })
 
   it("texte blanc sur les boutons principaux (fond bleu des boutons, dégradé de la pilule)", () => {

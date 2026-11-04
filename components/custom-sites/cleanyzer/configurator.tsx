@@ -244,7 +244,7 @@ export function CleanyzerConfigurator() {
 
                       {isDiamond && (
                         <div className="sm:col-span-2 flex items-start gap-3 rounded-xl border border-[var(--clz-blue)] bg-[var(--clz-blue-soft)] p-4 text-sm">
-                          <Info className="mt-0.5 h-4 w-4 flex-none text-[var(--clz-blue-strong)]" />
+                          <Info className="mt-0.5 h-4 w-4 flex-none text-[var(--clz-blue-text)]" />
                           <div className="flex-1">
                             <p className="font-medium text-[var(--clz-fg)]">
                               La formule Diamond est entièrement personnalisée : aucun prix automatique.
@@ -318,7 +318,7 @@ export function CleanyzerConfigurator() {
                         placeholder="Numéro, rue, commune…"
                         className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
                       />
-                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--clz-blue-soft)] p-3 text-xs text-[var(--clz-blue-strong)]">
+                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--clz-blue-soft)] p-3 text-xs text-[var(--clz-blue-text)]">
                         <Info className="mt-0.5 h-3.5 w-3.5 flex-none" />
                         Maquette : la saisie d'adresse Google Maps et le calcul de distance automatique seront branchés en Phase 2. Choisissez une distance de démonstration ci-dessous.
                       </div>
@@ -499,7 +499,7 @@ function Stepper({ step, onGo }: { step: number; onGo: (i: number) => void }) {
                 active
                   ? "bg-[var(--clz-blue)] text-white"
                   : done
-                    ? "bg-[var(--clz-blue-soft)] text-[var(--clz-blue-strong)]"
+                    ? "bg-[var(--clz-blue-soft)] text-[var(--clz-blue-text)]"
                     : "text-[var(--clz-muted)]"
               } ${i < step ? "cursor-pointer" : "cursor-default"}`}
             >
@@ -620,7 +620,7 @@ function DateSlotStep({
   const slots = ["08:00", "09:30", "11:00", "14:00", "15:30", "17:00", "18:30"]
   return (
     <div className="mt-6">
-      <div className="flex items-start gap-2 rounded-lg bg-[var(--clz-blue-soft)] p-3 text-xs text-[var(--clz-blue-strong)]">
+      <div className="flex items-start gap-2 rounded-lg bg-[var(--clz-blue-soft)] p-3 text-xs text-[var(--clz-blue-text)]">
         <Info className="mt-0.5 h-3.5 w-3.5 flex-none" />
         Maquette : créneaux de démonstration. Les disponibilités réelles proviendront de DetailFlow en Phase 2.
       </div>

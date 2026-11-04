@@ -16,6 +16,8 @@
   /* Bleu de marque — SOURCE DE VÉRITÉ (Tom) */
   --clz-blue: #0a84ff;
   --clz-blue-strong: #0060d0;
+  /* L37 : texte bleu sur fond nuit (#0060d0 n'atteint que ~3,3:1). */
+  --clz-blue-text: #6fb6ff;
   --clz-blue-soft: rgba(10, 132, 255, 0.12);
 
   /* Noirs / encres */
@@ -274,7 +276,7 @@
   --muted: var(--clz-surface-2);
   --muted-foreground: var(--clz-muted);
   --accent: var(--clz-blue-soft);
-  --accent-foreground: var(--clz-blue-strong);
+  --accent-foreground: var(--clz-blue-text);
   --border: var(--clz-line);
   --input: var(--clz-line);
   --ring: var(--clz-blue);
