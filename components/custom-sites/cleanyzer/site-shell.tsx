@@ -12,7 +12,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Fraunces, Inter } from "next/font/google"
-import { Menu, X, ArrowRight } from "lucide-react"
+import { Menu, X } from "lucide-react"
+import { ClzContactPill } from "./contact-pill"
 import { BRAND, TRAVEL } from "./content"
 import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "./seo-content"
 import { CLZ_FILM_ANCHOR, CLZ_VISIT_ANCHOR } from "./journey"
@@ -99,20 +100,19 @@ export function CleanyzerShell({
     return () => window.removeEventListener("scroll", onScroll)
   }, [open])
 
-  // Sticky mobile : masquée tant que les CTA du hero sont visibles. Un seul
+  // Pilule de contact (L35) : masquée tant que le haut de page est visible. Un seul
   // IntersectionObserver (pas de listener scroll) → un rerender par franchissement.
+  // Sous-pages (pas de haut de page néon) : visible d'emblée.
   const pathname = usePathname()
   const [stickyVisible, setStickyVisible] = useState(false)
   useEffect(() => {
-    const target = document.getElementById("clz-hero-ctas")
+    const target = document.getElementById("clz-hero")
     if (!target || !("IntersectionObserver" in window)) {
       setStickyVisible(true)
       return
     }
     setStickyVisible(false)
-    const observer = new IntersectionObserver(([entry]) => {
-      setStickyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0)
-    })
+    const observer = new IntersectionObserver(([entry]) => setStickyVisible(!entry.isIntersecting), { threshold: 0.15 })
     observer.observe(target)
     return () => observer.disconnect()
   }, [pathname])
@@ -280,26 +280,11 @@ export function CleanyzerShell({
 
       <CleanyzerFooter navItems={navItems} contact={contact} preview={pathname?.startsWith(CLZ_PREVIEW_BASE) ?? false} />
 
-      {/* CTA sticky mobile — apparaît une fois les CTA du hero sortis de l'écran. */}
-      <div
-        inert={!showSticky}
-        aria-hidden={!showSticky}
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-white/80 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:hidden ${
-          showSticky ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
-        }`}
-      >
-        <div className="mx-auto flex max-w-md gap-2">
-          <Link href={devisHref} className="clz-btn clz-btn-ghost min-h-12 flex-1 !bg-white/70 !py-3">
-            Devis textile
-          </Link>
-          <Link href={reserverHref} className="clz-btn clz-btn-primary min-h-12 flex-[1.4] !py-3">
-            Réserver
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
-      {/* Espaceur pour ne pas masquer le contenu derrière le CTA sticky mobile. */}
-      <div className="h-20 lg:hidden" aria-hidden />
+      {/* Pilule de contact (L35) — remplace l'ancienne barre mobile « Devis textile · Réserver ».
+          Le devis textile reste dans le menu (desktop et mobile) et sur la carte Univers de l'accueil. */}
+      <ClzContactPill phoneRaw={contact?.phoneRaw ?? null} visible={showSticky} />
+      {/* Espaceur pour ne pas masquer la fin du contenu derrière la pilule. */}
+      <div className="h-16" aria-hidden />
     </div>
   )
 }

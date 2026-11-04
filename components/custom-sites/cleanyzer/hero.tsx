@@ -1,179 +1,175 @@
 "use client"
 
 /**
- * HERO CLEANYZER.
- * Cahier §4/§6 : vidéo (avec son) en fond de hero, à la place de la photo.
- * - <video> autoplay/muted/loop/playsInline, poster = première image de la vidéo (PERF V1).
- * - Le son démarre coupé (contrainte navigateur autoplay) avec un bouton
- *   son on/off explicite et accessible.
- * - `prefers-reduced-motion` : autoplay neutralisé, vidéo en pause (aucune image de remplacement).
+ * HERO CLEANYZER « néon » (L35, maquette validée par Tom le 04/11/2026).
+ * - Deux vidéos superposées : `hero-arrivee` joue une fois, puis `hero-boucle` (déjà chargée,
+ *   arrêtée sur sa 1re image = dernière image de l'arrivée) démarre et l'arrivée se masque :
+ *   aucun écran noir. 720p jusqu'à 760 px de large, 1080p au-delà. Vidéos muettes.
+ * - Image LCP : poster de l'arrivée (`fetchpriority="high"`), affichée tout de suite ; les
+ *   sources vidéo ne sont posées qu'après le montage.
+ * - `prefers-reduced-motion` ou économie de données : aucune vidéo, la boucle reste sur son poster.
+ * - Arrivée en erreur ou qui ne démarre pas : la boucle prend le relais (`runHeroSequence`).
  *
- * Preuve sociale Google : 5,0/5 — 86 avis (relevé sur la fiche Google Maps
- * officielle, source unique : BRAND dans content.ts). Ne pas modifier sans instruction.
+ * Preuve sociale Google : 5,0 — 92 avis (BRAND dans content.ts, relevé manuel). Ne pas modifier
+ * sans instruction.
  */
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowRight, ArrowUpRight, Star, Volume2, VolumeX } from "lucide-react"
 import { BRAND } from "./content"
-import { CLZ_DEMANDE_HREF, CLZ_HOME_HREF } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_HOME_HREF } from "./tokens"
 
-// Variantes H.264 + AAC encodées depuis hero.mp4 (même scène, son conservé).
-// Une seule est téléchargée, choisie au montage selon la largeur d'écran.
-const VIDEO_DESKTOP = "/custom-sites/cleanyzer/hero-1280.mp4"
-const VIDEO_MOBILE = "/custom-sites/cleanyzer/hero-720.mp4"
-// Première image de la vidéo originale : affichée immédiatement (LCP).
-const POSTER = "/custom-sites/cleanyzer/hero-poster.webp"
+const NEON = "/custom-sites/cleanyzer/neon"
+const POSTER_ARRIVEE = `${NEON}/hero-arrivee-poster.webp`
+const POSTER_BOUCLE = `${NEON}/hero-boucle-poster.webp`
+/** Largeur maximale (px) servie en 720p ; au-delà, 1080p. */
+export const HERO_MOBILE_MAX = 760
 
-function pickHeroVideo(): string | null {
-  const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
-  if (conn?.saveData) return null
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null
-  return window.matchMedia("(min-width: 768px)").matches ? VIDEO_DESKTOP : VIDEO_MOBILE
+export function heroVideoQuality(width: number): "720" | "1080" {
+  return width <= HERO_MOBILE_MAX ? "720" : "1080"
 }
 
-const GOOGLE_RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
-const GOOGLE_REVIEWS = BRAND.googleReviewCount
-const GOOGLE_REVIEWS_URL = BRAND.googleReviewsUrl
+/** Sources des deux vidéos ; `null` (poster seul) si le mouvement est réduit ou en économie de données. */
+export function heroVideoSources(
+  width: number,
+  reducedMotion: boolean,
+  saveData = false,
+): { arrivee: string; boucle: string } | null {
+  if (reducedMotion || saveData) return null
+  const q = heroVideoQuality(width)
+  return { arrivee: `${NEON}/hero-arrivee-${q}.mp4`, boucle: `${NEON}/hero-boucle-${q}.mp4` }
+}
+
+/** Délai (ms) au-delà duquel une arrivée qui n'a jamais démarré laisse place à la boucle. */
+export const HERO_INTRO_GUARD_MS = 4000
+
+type HeroVideo = Pick<HTMLVideoElement, "play" | "currentTime" | "duration" | "addEventListener" | "removeEventListener">
+
+/**
+ * Enchaînement arrivée → boucle. La boucle démarre à la fin de l'arrivée, mais aussi si l'arrivée
+ * échoue ou ne démarre jamais (délai de garde) ; si la boucle échoue à son tour : image fixe.
+ * Jamais d'écran noir. Renvoie la fonction de nettoyage.
+ */
+export function runHeroSequence(
+  intro: HeroVideo,
+  loop: HeroVideo,
+  onPhase: (phase: "loop" | "still") => void,
+  { raf = requestAnimationFrame, guardMs = HERO_INTRO_GUARD_MS }: { raf?: (cb: FrameRequestCallback) => number; guardMs?: number } = {},
+): () => void {
+  let swapped = false
+  let started = false
+  let guard: ReturnType<typeof setTimeout> | undefined
+  const toLoop = () => {
+    if (swapped) return
+    swapped = true
+    clearTimeout(guard)
+    loop.currentTime = 0
+    loop.play().then(
+      () => raf(() => onPhase("loop")),
+      () => onPhase("still"),
+    )
+  }
+  // Bascule juste avant la dernière image : la boucle démarre sur la même image.
+  const onTime = () => {
+    if (intro.duration && intro.currentTime > intro.duration - 0.08) toLoop()
+  }
+  const onPlaying = () => {
+    started = true
+    clearTimeout(guard)
+  }
+  intro.addEventListener("timeupdate", onTime)
+  intro.addEventListener("ended", toLoop)
+  intro.addEventListener("error", toLoop)
+  intro.addEventListener("playing", onPlaying)
+  guard = setTimeout(() => {
+    if (!started) toLoop()
+  }, guardMs)
+  intro.play().catch(toLoop)
+  return () => {
+    clearTimeout(guard)
+    intro.removeEventListener("timeupdate", onTime)
+    intro.removeEventListener("ended", toLoop)
+    intro.removeEventListener("error", toLoop)
+    intro.removeEventListener("playing", onPlaying)
+  }
+}
+
+/** Ancre de la section « Prestations & tarifs » (PrestationsPreview). */
+export const CLZ_TARIFS_HREF = `${CLZ_HOME_HREF}#tarifs`
+
+const TRADES = ["Nettoyage auto", "Detailing", "Matelas", "Canapés", "Tapis & moquettes"]
+const RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
 
 export function CleanyzerHero() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [muted, setMuted] = useState(true)
-  const [reduceMotion, setReduceMotion] = useState(false)
-  const [src, setSrc] = useState<string | null>(null)
+  const introRef = useRef<HTMLVideoElement>(null)
+  const loopRef = useRef<HTMLVideoElement>(null)
+  // "intro" : arrivée en cours (ou poster) · "loop" : boucle visible · "still" : mouvement réduit.
+  const [phase, setPhase] = useState<"intro" | "loop" | "still">("intro")
 
   useEffect(() => {
-    setSrc(pickHeroVideo())
-  }, [])
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const apply = () => setReduceMotion(mq.matches)
-    apply()
-    mq.addEventListener("change", apply)
-    return () => mq.removeEventListener("change", apply)
-  }, [])
-
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v || !src) return
-    if (reduceMotion) {
-      v.pause()
-    } else {
-      v.play().catch(() => {})
+    const intro = introRef.current
+    const loop = loopRef.current
+    if (!intro || !loop) return
+    const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData)
+    const sources = heroVideoSources(
+      window.innerWidth,
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      saveData,
+    )
+    if (!sources) {
+      setPhase("still")
+      return
     }
-  }, [reduceMotion, src])
-
-  function toggleSound() {
-    const v = videoRef.current
-    if (!v) return
-    const next = !muted
-    v.muted = next
-    setMuted(next)
-    if (!next) v.play().catch(() => {})
-  }
+    loop.src = sources.boucle
+    loop.load()
+    intro.src = sources.arrivee
+    return runHeroSequence(intro, loop, setPhase)
+  }, [])
 
   return (
-    <section className="clz-dark relative isolate overflow-hidden">
-      {/* Fond vidéo plein cadre. Poster = première image de la vidéo, affiché
-          immédiatement. Mouvement réduit ou économie de données : la vidéo n'est
-          pas téléchargée, seule cette première image reste affichée. */}
-      <div className="absolute inset-0 -z-10 bg-[var(--clz-ink)]">
-        <video
-          ref={videoRef}
-          className="h-full w-full object-cover object-[50%_38%]"
-          src={src ?? undefined}
-          poster={POSTER}
-          autoPlay={!reduceMotion}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          aria-label="Détaillage automobile CLEANYZER à domicile près d'Annecy"
-        />
-        {/* Overlays de lisibilité (cahier §4). */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/55 to-black/85" />
-        <div className="absolute inset-0 bg-gradient-to-tr from-black/70 via-transparent to-[rgba(10,132,255,0.28)]" />
+    <section id="clz-hero" className="clz-neon-hero" data-phase={phase}>
+      <div className="clz-neon-scene" aria-hidden="true">
+        {/* Image LCP : poster de l'arrivée, servi tout de suite (la vidéo vient après). */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="clz-neon-poster" src={POSTER_ARRIVEE} alt="" fetchPriority="high" decoding="async" width={1920} height={1080} />
+        <video ref={loopRef} className="clz-neon-loop" poster={POSTER_BOUCLE} muted loop playsInline preload="auto" width={1920} height={1080} />
+        <video ref={introRef} className="clz-neon-intro" poster={POSTER_ARRIVEE} muted playsInline preload="auto" width={1920} height={1080} />
       </div>
 
-      {/* Le logo n'apparaît QUE dans le header (brief §2) : aucun filigrane,
-          aucun watermark, aucun logo superposé à la vidéo du hero. */}
-
-      <div className="relative mx-auto flex min-h-[100svh] max-w-6xl flex-col justify-center px-6 pb-28 pt-24 md:px-6 md:pb-24">
-        <span className="clz-eyebrow">
-          {BRAND.name} — {BRAND.area}
-        </span>
-        {/* Signature visuelle (composition imposée en 3 lignes, maquette).
-            SEO : ce n'est PAS le titre de la page — le H1 est la ligne
-            descriptive ci-dessous (mots-clés « nettoyage automobile à
-            domicile » + « Annecy »), sans aucun changement visuel. */}
-        <p className="clz-display clz-hero-title clz-rise mt-4 max-w-[16ch] text-white">
-          <span className="block">Le détail</span>{" "}
-          <span className="block">fait toute</span>{" "}
-          <span className="clz-accent block">la différence.</span>
-        </p>
-        {/* H1 : deux lignes tenues (maquette), taille réduite avant tout
-            retour supplémentaire — autorisé seulement sur très petits écrans. */}
-        <h1 className="clz-rise clz-rise-2 mt-6 max-w-md text-pretty text-base font-normal leading-relaxed text-[var(--clz-on-dark-muted)] sm:text-lg">
-          <span className="block">Nettoyage automobile à domicile à Annecy.</span>{" "}
-          <span className="block">Intérieur, extérieur &amp; detailing.</span>
-        </h1>
-
-        {/* id observé par la barre sticky mobile (site-shell) pour son apparition. */}
-        <div id="clz-hero-ctas" className="clz-rise clz-rise-3 mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
-          <Link href={`${CLZ_HOME_HREF}#prestations`} className="clz-btn clz-btn-primary !px-6 !py-3 !text-[0.95rem]">
-            Découvrir nos prestations
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href={CLZ_DEMANDE_HREF}
-            className="group inline-flex items-center gap-1.5 text-base font-medium text-white/85 transition hover:text-white"
-          >
-            Demander un devis
-            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
-        </div>
-
-        {/* Preuve sociale Google : 5,0/5 — 86 avis (fiche Google Maps officielle). */}
-        <div className="mt-10 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div className="flex" aria-hidden>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className="h-4 w-4 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />
-            ))}
+      <div className="clz-neon-copy">
+        <div className="clz-neon-wrap">
+          <div className="clz-neon-title">
+            <p className="clz-neon-mega">CLEANYZER</p>
+            <p className="clz-neon-sub">La propreté à l&apos;état pur</p>
+            <span className="clz-neon-rule" aria-hidden="true" />
+            <h1 className="clz-neon-promise">Nettoyage auto &amp; detailing à domicile, à Annecy et alentours</h1>
+            {/* Masqués jusqu'à 760 px (maquette). */}
+            <div className="clz-neon-ctas">
+              <Link href={CLZ_BOOKING_HREF} className="clz-neon-btn clz-neon-btn-primary">
+                Réserver mon nettoyage
+              </Link>
+              <Link href={CLZ_TARIFS_HREF} className="clz-neon-btn clz-neon-btn-ghost">
+                Voir les tarifs
+              </Link>
+            </div>
           </div>
-          <p className="text-sm text-[var(--clz-on-dark-muted)]">
-            <span className="font-semibold text-white">
-              {GOOGLE_RATING}/5
-            </span>{" "}
-            — {GOOGLE_REVIEWS} avis Google
-          </p>
-          {GOOGLE_REVIEWS_URL && (
-            <a
-              href={GOOGLE_REVIEWS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm font-medium text-white/85 underline-offset-4 transition hover:text-white hover:underline"
-            >
-              Voir les avis Google
-              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-              <span className="sr-only">(nouvel onglet)</span>
-            </a>
-          )}
         </div>
       </div>
 
-      {/* Bouton son on/off (la vidéo démarre coupée par contrainte navigateur). */}
-      {!reduceMotion && src && (
-        <button
-          type="button"
-          onClick={toggleSound}
-          aria-pressed={!muted}
-          aria-label={muted ? "Activer le son de la vidéo" : "Couper le son de la vidéo"}
-          className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/45 px-3.5 py-2 text-xs font-medium text-white/85 backdrop-blur transition hover:bg-black/65"
-        >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          {muted ? "Son coupé" : "Son activé"}
-        </button>
+      <ul className="clz-neon-trades" aria-label="Nos métiers">
+        {TRADES.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+
+      {BRAND.googleReviewsUrl && BRAND.googleReviewCount != null && (
+        <a className="clz-neon-gproof" href={BRAND.googleReviewsUrl} target="_blank" rel="noopener noreferrer">
+          <span className="clz-neon-stars" aria-hidden="true">
+            ★★★★★
+          </span>{" "}
+          <b>{RATING}</b> · {BRAND.googleReviewCount} avis Google
+          <span className="sr-only"> (nouvel onglet)</span>
+        </a>
       )}
     </section>
   )

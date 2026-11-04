@@ -108,10 +108,10 @@ describe("L28 — comparateur avant/après", () => {
     expect(read(`${CLZ}/home-page.tsx`)).not.toContain("RealisationsPreview")
   })
 
-  it("la section avant/après est la première section sous le héros", () => {
+  it("la section avant/après suit le héros et la présentation (ordre L35)", () => {
     const page = read(`${CLZ}/home-page.tsx`)
     const order = [...page.matchAll(/^\s*<(\w+) \/>$/gm)].map((m) => m[1])
-    expect(order.slice(0, 3)).toEqual(["CleanyzerHero", "AvantApresSection", "UniversSection"])
+    expect(order.slice(0, 4)).toEqual(["CleanyzerHero", "ClzPresentation", "AvantApresSection", "PrestationsPreview"])
     // La galerie reste à sa place (après le film des prestations).
     expect(order.indexOf("RealisationsTom")).toBe(order.indexOf("PrestationsFilm") + 1)
   })

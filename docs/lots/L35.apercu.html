@@ -1,0 +1,651 @@
+<title>Cleanyzer Néon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800;9..144,900&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Mise en page : un hero 3D plein cadre (nuit, néons rouge/bleu, sol mouillé), puis le hero actuel glissé dessous, puis les avant/après sur fond sombre. Univers unique sombre. */
+:root {
+  --ink: #04050a;          /* fond nuit */
+  --ink-2: #0a0c14;        /* surfaces */
+  --line: rgba(160, 180, 255, 0.14);
+  --fg: #f2f4fa;
+  --fg-muted: rgba(226, 232, 245, 0.66);
+  --neon-blue: #1f7bff;    /* bleu Cleanyzer, poussé néon */
+  --neon-red: #ff2b45;     /* rouge néon */
+  --amber: #ffb02e;        /* warnings */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--ink); }
+body { background: var(--ink); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+a { color: inherit; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* ---------- Bandeau de maquette ---------- */
+.proto {
+  position: relative; z-index: 30; background: #10131d; border-bottom: 1px solid var(--line);
+  font-size: 12.5px; color: var(--fg-muted);
+}
+.proto .wrap { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: space-between; padding-block: 8px; }
+.proto b { color: var(--fg); font-weight: 600; }
+.proto button {
+  font: inherit; font-weight: 600; color: var(--fg); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer;
+}
+.proto button:hover, .proto button:focus-visible { border-color: var(--neon-blue); outline: none; }
+
+/* ---------- HERO NÉON ---------- */
+.hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  height: clamp(560px, 92svh, 860px);
+  background: radial-gradient(120% 80% at 30% 60%, #0b1430 0%, var(--ink) 60%);
+}
+.hero::after { /* vignette basse pour enchaîner avec la suite */
+  content: ""; position: absolute; inset: auto 0 0 0; height: 22%; z-index: 0; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--ink));
+}
+/* Scène photo : un cadre au ratio de l'image qui couvre le hero ; les effets sont posés en % de l'image */
+.hero { container-type: size; }
+.scene {
+  position: absolute; z-index: -1; aspect-ratio: 1672 / 941;
+  width: max(100cqw, 177.7cqh); top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+/* Plans successifs : fondu enchaîné + mouvement lent propre à chaque plan */
+.shot { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; overflow: hidden; }
+.shot.on { opacity: 1; }
+.shot > img, .shot > .fx, .shot > .off { will-change: transform; }
+.s1.on { animation: kb1 9s ease-out both; transform-origin: 30% 45%; }
+.s2.on img { animation: kb2 8s linear both; }
+.s3.on img, .s3.on .off { animation: kb3 8s ease-out both; transform-origin: 80% 45%; }
+.s4.on img { animation: kb4 8s linear both; transform-origin: 45% 60%; }
+@keyframes kb1 { from { transform: scale(1); } to { transform: scale(1.05); } }
+@keyframes kb2 { from { transform: scale(1.08) translateX(2.5%); } to { transform: scale(1.08) translateX(-2.5%); } }
+@keyframes kb3 { from { transform: scale(1.14); } to { transform: scale(1.02); } }
+@keyframes kb4 { from { transform: scale(1.03) translateX(-1.5%); } to { transform: scale(1.1) translateX(1.5%); } }
+/* Warnings du gros plan : zones orange éteintes une demi-seconde sur deux */
+.off { position: absolute; border-radius: 40%; background: rgba(40, 6, 4, .88); filter: blur(5px); mix-blend-mode: multiply; opacity: 0; }
+.o1 { left: 71.5%; top: 42%; width: 22.5%; height: 9.5%; }
+.o2 { left: 20.2%; top: 42.6%; width: 3.6%; height: 5.6%; }
+.hero.hazards .s3.on .off { animation: kb3 8s ease-out both, blinkOff .8s steps(1, end) infinite; }
+@keyframes blinkOff { 0% { opacity: 0; } 50% { opacity: 1; } }
+/* voile sombre derrière le titre, pour qu'il reste lisible sur tous les plans */
+.hero-copy::before {
+  content: ""; position: absolute; z-index: -1; inset: -40% 0 -40% 35%; pointer-events: none;
+  background: radial-gradient(60% 50% at 75% 50%, rgba(3,4,10,.62), transparent 70%);
+}
+.scene video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#hintro.done { visibility: hidden; }
+.scene img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; max-width: none; }
+.hero.boot .plate { animation: boot 2.4s ease-out both; }
+.puddle { clip-path: inset(52% 0 0 0); mix-blend-mode: screen; opacity: .35; animation: shimmer 3.2s ease-in-out infinite; transform-origin: 50% 52%; }
+.fx { position: absolute; pointer-events: none; mix-blend-mode: screen; border-radius: 50%; }
+.tube { width: 3.2%; filter: blur(14px); opacity: .5; animation: breathe 4.5s ease-in-out infinite; }
+.tube.b { background: radial-gradient(closest-side, rgba(60,140,255,.9), transparent); }
+.tube.r { background: radial-gradient(closest-side, rgba(255,50,70,.9), transparent); }
+.t1 { left: 4.8%; top: 1.5%; height: 49%; transform: rotate(13deg); }
+.t2 { left: 14.2%; top: 10.5%; height: 22%; transform: rotate(-11deg); animation-delay: -1.2s; }
+.t3 { left: 43.6%; top: 12.8%; height: 22%; transform: rotate(11deg); animation-delay: -2.1s; }
+.t4 { left: 51.5%; top: 9.8%; height: 38%; transform: rotate(10deg); animation-delay: -3s; }
+.tail { left: 26%; top: 36.6%; width: 21.5%; height: 4.4%; background: radial-gradient(closest-side, rgba(255,40,50,.85), transparent); filter: blur(6px); opacity: 0; }
+.hero.lit .tail { animation: tailOn 1.2s ease-out 1s both; }
+.haz { width: 3.6%; aspect-ratio: 1; background: radial-gradient(closest-side, rgba(255,190,70,1), rgba(255,140,20,.55) 45%, transparent); opacity: 0; }
+.haz.l { left: 23.8%; top: 35%; }
+.haz.r { left: 45.2%; top: 35.4%; }
+.hero.hazards .haz { animation: blink .8s steps(1, end) 2.2s infinite; }
+@keyframes boot {
+  0% { filter: brightness(.05); } 12% { filter: brightness(.55); } 16% { filter: brightness(.12); }
+  24% { filter: brightness(.8); } 28% { filter: brightness(.3); } 45%, 100% { filter: brightness(1); }
+}
+@keyframes drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+@keyframes shimmer { 0%, 100% { transform: translateY(0) scaleY(1); opacity: .28; } 50% { transform: translateY(.35%) scaleY(1.012); opacity: .42; } }
+@keyframes breathe { 0%, 100% { opacity: .38; } 50% { opacity: .62; } }
+@keyframes tailOn { 0% { opacity: 0; } 60% { opacity: .95; } 100% { opacity: .55; } }
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } }
+.hero::before { /* fondu haut pour la lisibilité du menu */
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 26%; z-index: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(3,4,10,.75), transparent);
+}
+
+.nav {
+  position: absolute; z-index: 5; inset: 0 0 auto 0;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 18px; }
+.brand { font-family: var(--font-display); font-weight: 800; letter-spacing: .06em; font-size: 15px; text-decoration: none; white-space: nowrap; }
+.brand span { color: var(--neon-blue); }
+.links { display: flex; gap: 26px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.links a { text-decoration: none; color: var(--fg-muted); padding-block: 6px; border-bottom: 1px solid transparent; }
+.links a:first-child { color: var(--fg); border-color: var(--neon-blue); }
+.links a:hover, .links a:focus-visible { color: var(--fg); outline: none; }
+.btn-book {
+  font-size: 13px; font-weight: 600; text-decoration: none; padding: 9px 16px; border-radius: 999px;
+  background: var(--neon-blue); color: #fff; box-shadow: 0 0 22px rgba(31,123,255,.55);
+}
+.btn-book:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+.hero-copy {
+  position: absolute; z-index: 4; right: 0; left: 0; top: 50%; transform: translateY(-50%);
+  pointer-events: none;
+}
+.hero-copy .wrap { display: flex; justify-content: flex-end; }
+.title-block { text-align: right; }
+.mega {
+  margin: 0; font-family: var(--font-display); font-weight: 900; line-height: .86;
+  font-size: clamp(64px, 9vw, 132px); letter-spacing: -.01em; white-space: nowrap;
+  color: var(--neon-blue);
+  transform: scaleX(.8); transform-origin: right center;
+  text-shadow: 0 0 6px rgba(31,123,255,.65), 0 0 26px rgba(31,123,255,.55), 0 0 70px rgba(31,123,255,.35);
+}
+.sub {
+  margin: 10px 0 0; font-family: var(--font-display); font-weight: 800; text-transform: uppercase;
+  font-size: clamp(19px, 2.6vw, 36px); letter-spacing: .01em; line-height: 1;
+  transform: scaleX(.82); transform-origin: right center; color: #fff;
+  text-shadow: 0 2px 18px rgba(0,0,0,.8);
+}
+.rule { display: block; width: 72px; height: 2px; background: var(--neon-blue); margin: 18px 0 0 auto; box-shadow: 0 0 12px var(--neon-blue); }
+.cue {
+  position: absolute; z-index: 4; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--fg-muted); text-decoration: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.cue::after { content: ""; width: 1px; height: 30px; background: linear-gradient(var(--fg-muted), transparent); }
+
+@media (max-width: 760px) {
+  .links { display: none; }
+  .hero { height: clamp(600px, 88svh, 760px); }
+  .hero-copy::before { inset: -30% -10%; background: radial-gradient(70% 60% at 50% 45%, rgba(3,4,10,.6), transparent 75%); }
+  .scene { top: auto; bottom: -4cqh; width: auto; height: 80cqh; left: 50%; transform: translateX(-30%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24%); mask-image: linear-gradient(to bottom, transparent 0, #000 24%); }
+  .hero-copy { top: 104px; transform: none; }
+  .hero-copy .wrap { justify-content: center; }
+  .title-block { text-align: center; }
+  .mega { font-size: clamp(60px, 19vw, 96px); transform-origin: center; }
+  .sub { font-size: clamp(17px, 5.4vw, 24px); transform-origin: center; }
+  .rule { margin: 14px auto 0; }
+}
+
+/* ---------- Métiers, en petit sous la voiture ---------- */
+.trades {
+  position: absolute; z-index: 4; left: 0; right: 0; bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  margin: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  font-size: 11.5px; letter-spacing: .22em; text-transform: uppercase; color: rgba(242,244,250,.82);
+  text-shadow: 0 1px 10px rgba(0,0,0,.9);
+}
+.trades li { display: flex; align-items: center; }
+.trades li + li::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--neon-red); box-shadow: 0 0 8px var(--neon-red); margin: 0 14px; }
+.gproof { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: calc(46px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 4px 11px; border-radius: 999px; font-size: 12px; color: var(--fg-muted); text-decoration: none; background: rgba(4,5,10,.45); border: 1px solid rgba(255,201,64,.28); text-shadow: 0 1px 8px rgba(0,0,0,.9); }
+.gproof .stars { color: #ffc940; letter-spacing: 1px; font-size: 11px; }
+.gproof b { color: var(--fg); }
+.gproof:hover, .gproof:focus-visible { color: var(--fg); border-color: rgba(255,201,64,.6); outline: none; }
+@media (max-width: 760px) { .gproof { bottom: calc(42px + env(safe-area-inset-bottom, 0px)); font-size: 11.5px; } }
+@media (max-width: 760px) { .trades { font-size: 10.5px; letter-spacing: .18em; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); } .trades li + li::before { margin: 0 10px; } }
+
+/* ---------- Ancien hero (vidéo de présentation) ---------- */
+.present { position: relative; isolation: isolate; overflow: hidden; }
+.present video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; z-index: -2;
+}
+.present::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background:
+    linear-gradient(to bottom, rgba(4,5,10,.92), rgba(4,5,10,.55) 45%, rgba(4,5,10,.9)),
+    linear-gradient(105deg, rgba(255,43,69,.22), transparent 40%, transparent 60%, rgba(31,123,255,.3));
+}
+.present .wrap { padding-block: clamp(80px, 12vw, 140px); }
+.eyebrow { font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--fg-muted); }
+.display {
+  margin: 14px 0 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(44px, 7vw, 88px);
+  line-height: .98; letter-spacing: -.02em; text-wrap: balance; max-width: 13ch;
+}
+.display em { font-style: italic; color: var(--neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
+.lede { margin: 20px 0 0; max-width: 40ch; color: var(--fg-muted); font-size: 17px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 999px;
+  font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent;
+}
+.btn-primary { background: var(--neon-blue); color: #fff; box-shadow: 0 0 26px rgba(31,123,255,.5); }
+.btn-ghost { color: var(--fg); border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.04); }
+.btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.rating { margin-top: 26px; display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--fg-muted); }
+.stars { color: #ffc940; letter-spacing: 2px; font-size: 15px; }
+.rating b { color: var(--fg); }
+.sound {
+  position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 18px;
+  font: 600 12px var(--font-body); color: var(--fg); background: rgba(4,5,10,.55);
+  border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+}
+.sound:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Fournisseur ---------- */
+.supplier .wrap { padding-block: clamp(56px, 8vw, 96px); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: center; max-width: 900px; }
+.sup-badge {
+  width: 112px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(from 90deg, #1f4fd6 0 33.3%, #f2f4fa 0 66.6%, #e0283f 0);
+  box-shadow: 0 0 0 6px var(--ink), 0 0 0 7px var(--line), 0 0 36px rgba(31,123,255,.35);
+}
+.sup-badge span { width: 64%; aspect-ratio: 1; border-radius: 50%; background: var(--ink); display: grid; place-items: center; font: 800 22px var(--font-display); letter-spacing: .08em; }
+.supplier h2 { margin: 12px 0 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 3.6vw, 42px); line-height: 1.08; letter-spacing: -.015em; text-wrap: balance; }
+.supplier h2 em { font-style: italic; color: var(--neon-blue); }
+.supplier p { color: var(--fg-muted); margin: 14px 0 22px; max-width: 54ch; }
+.supplier p b { color: var(--fg); }
+@media (max-width: 560px) { .supplier .wrap { grid-template-columns: minmax(0, 1fr); } .sup-badge { width: 88px; } }
+
+/* ---------- Avant / après ---------- */
+.results { background: radial-gradient(80% 50% at 15% 0%, rgba(255,43,69,.16), transparent 60%), radial-gradient(70% 50% at 90% 10%, rgba(31,123,255,.14), transparent 60%), var(--ink); }
+.results .wrap { padding-block: clamp(72px, 10vw, 120px); }
+.results h2 { margin: 12px 0 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(36px, 5vw, 60px); line-height: 1; letter-spacing: -.02em; text-wrap: balance; }
+.results h2 em { font-style: italic; color: var(--neon-red); text-shadow: 0 0 22px rgba(255,43,69,.6), 0 0 48px rgba(255,43,69,.3); }
+.res-lede { color: var(--fg-muted); margin: 16px 0 0; }
+.pairs { margin-top: 44px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.pair h3 { margin: 16px 0 0; font-size: 16px; font-weight: 600; }
+.pair p { margin: 4px 0 0; font-size: 14px; color: var(--fg-muted); }
+.ba {
+  position: relative; width: 100%; max-width: 100%; aspect-ratio: 3 / 4; border-radius: 18px; overflow: hidden;
+  background: var(--ink-2); border: 1px solid rgba(255,43,69,.35);
+  box-shadow: 0 0 0 1px rgba(255,43,69,.12), 0 0 28px -6px rgba(255,43,69,.55), 0 24px 50px -28px #000;
+  --pos: 50%;
+}
+.ba img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.ba .before { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
+.ba .handle {
+  position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; transform: translateX(-1px); pointer-events: none;
+  background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red), 0 0 24px var(--neon-red);
+}
+.ba .handle::after {
+  content: "‹ ›"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); border: 2px solid var(--neon-red); color: #fff; font-weight: 700; font-size: 14px; letter-spacing: 2px;
+  box-shadow: 0 0 16px rgba(255,43,69,.7);
+}
+.ba .tag {
+  position: absolute; top: 12px; font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase;
+  padding: 5px 10px; border-radius: 999px; background: rgba(4,5,10,.72); border: 1px solid rgba(255,43,69,.55); color: #fff;
+}
+.ba .tag.l { left: 12px; }
+.ba .tag.r { right: 12px; }
+.ba input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
+.ba:has(input:focus-visible) { outline: 2px solid #fff; outline-offset: 4px; }
+@media (max-width: 860px) { .pairs { grid-template-columns: minmax(0, 1fr); max-width: 440px; } }
+
+/* ---------- Suite de page ---------- */
+.next .wrap { padding-block: 56px 72px; border-top: 1px solid var(--line); }
+.next h3 { margin: 0; font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--fg-muted); font-weight: 600; }
+.next ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.next li { padding: 16px 18px; border-radius: 14px; background: var(--ink-2); border: 1px solid var(--line); font-size: 14.5px; color: var(--fg-muted); }
+.next li b { display: block; color: var(--fg); font-weight: 600; margin-bottom: 4px; }
+.next .credit { margin-top: 22px; font-size: 12px; color: var(--fg-muted); }
+
+@media (max-width: 860px) {
+}
+
+/* ---------- Présentation : texte + vidéo de Tom en carte ---------- */
+.present { background: radial-gradient(70% 60% at 85% 40%, rgba(31,123,255,.14), transparent 60%), var(--ink); }
+.present::before { display: none; }
+.present .wrap.present-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); align-items: center; padding-block: clamp(72px, 10vw, 120px); }
+.tomvid { position: relative; margin: 0; aspect-ratio: 4 / 5; max-width: 100%; border-radius: 22px; overflow: hidden; background: #0a0c14 url("assets/hero-poster.webp") center / cover; border: 1px solid rgba(31,123,255,.35); box-shadow: 0 0 34px -8px rgba(31,123,255,.55), 0 30px 60px -30px #000; }
+.tomvid video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tomvid .play { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: linear-gradient(to top, rgba(4,5,10,.7), rgba(4,5,10,.15)); border: 0; color: #fff; font: 600 15px var(--font-body); cursor: pointer; }
+.tomvid .play .tri { width: 72px; height: 72px; border-radius: 50%; background: var(--neon-blue); box-shadow: 0 0 30px rgba(31,123,255,.7); position: relative; }
+.tomvid .play .tri::after { content: ""; position: absolute; left: 29px; top: 22px; border-left: 20px solid #fff; border-top: 14px solid transparent; border-bottom: 14px solid transparent; }
+.tomvid .play:focus-visible { outline: 2px solid #fff; outline-offset: -6px; }
+@media (max-width: 860px) { .present .wrap.present-grid { grid-template-columns: minmax(0, 1fr); } .tomvid { aspect-ratio: 16 / 11; } }
+
+/* ---------- Produits & fournisseurs ---------- */
+.products { background: radial-gradient(60% 70% at 100% 40%, rgba(31,123,255,.12), transparent 60%), var(--ink); }
+.pgrid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 5vw, 72px); align-items: center; padding-block: clamp(64px, 9vw, 110px); }
+.products h2 { margin: 12px 0 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(32px, 4.4vw, 52px); line-height: 1.04; letter-spacing: -.02em; text-wrap: balance; }
+.products h2 em { font-style: italic; color: var(--neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
+.plede { color: var(--fg-muted); margin: 16px 0 0; max-width: 46ch; }
+.proofs { list-style: none; margin: 24px 0 0; padding: 0; }
+.proofs li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); }
+.proofs li:last-child { border-bottom: 1px solid var(--line); }
+.proofs .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); }
+.proofs .dot.b { background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
+.proofs b { display: block; font-weight: 600; }
+.proofs span { color: var(--fg-muted); font-size: 14.5px; }
+.shelf { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: 1fr 1fr; gap: 14px; aspect-ratio: 6 / 5; max-width: 100%; }
+.ph { position: relative; margin: 0; border-radius: 18px; overflow: hidden; border: 1px solid rgba(31,123,255,.35); box-shadow: 0 0 30px -8px rgba(31,123,255,.5); display: flex; align-items: flex-end; background: #0a0c14; }
+.ph.big { grid-row: 1 / 3; border-color: rgba(255,43,69,.4); box-shadow: 0 0 34px -8px rgba(255,43,69,.6); }
+.ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.ph figcaption { position: relative; margin: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(4,5,10,.75); border: 1px solid var(--line); font-size: 12.5px; font-weight: 500; }
+@media (max-width: 860px) { .pgrid { grid-template-columns: minmax(0, 1fr); } .shelf { aspect-ratio: auto; grid-template-rows: 200px 200px; } }
+@media (max-width: 420px) { .shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px 160px 160px; } .ph.big { grid-row: auto; } }
+.band { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(10,12,20,.6); padding-block: 22px; overflow: hidden; }
+.marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.track { display: flex; align-items: center; gap: 80px; width: max-content; animation: marq 26s linear infinite; }
+.sup { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; height: 40px; text-decoration: none; }
+.sup b { font-family: var(--font-display); font-weight: 800; font-size: clamp(20px, 2.4vw, 28px); letter-spacing: .02em; color: rgba(242,244,250,.86); }
+a.sup:hover img, a.sup:focus-visible img { opacity: 1; }
+a.sup:focus-visible { outline: 2px solid #fff; outline-offset: 6px; border-radius: 6px; }
+.sup img { height: 28px; width: auto; max-width: none; display: block; opacity: .88; }
+@keyframes marq { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 36px)); } }
+
+/* ---------- Visite 3D au clic ---------- */
+.visit .wrap { padding-block: clamp(56px, 8vw, 96px); }
+.vcard { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); border-radius: 22px; overflow: hidden; background: var(--ink-2); border: 1px solid var(--line); }
+.vcard img { width: 100%; height: 100%; object-fit: cover; min-height: 240px; max-width: 100%; }
+.vcopy { padding: clamp(24px, 4vw, 44px); display: flex; flex-direction: column; gap: 14px; align-items: flex-start; justify-content: center; }
+.vcopy h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.06; text-wrap: balance; }
+.vcopy h2 em { font-style: italic; color: var(--neon-blue); }
+.vcopy p { margin: 0; color: var(--fg-muted); }
+.vnote { font-size: 13px; }
+@media (max-width: 760px) { .vcard { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .track { animation: none; } }
+
+/* ---------- Haut de page : promesse, CTA, preuve ---------- */
+.title-block .promise { margin: 18px 0 0 auto; max-width: 30ch; font-family: var(--font-body); font-weight: 500; font-size: clamp(15px, 1.4vw, 18px); line-height: 1.45; color: rgba(242,244,250,.9); text-shadow: 0 1px 12px rgba(0,0,0,.9); text-wrap: balance; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 20px; pointer-events: auto; }
+.hero-proof { margin: 14px 0 0; font-size: 13.5px; color: var(--fg-muted); text-shadow: 0 1px 10px rgba(0,0,0,.9); }
+.hero-proof b { color: var(--fg); }
+.hero-proof .stars { color: #ffc940; letter-spacing: 1px; }
+@media (max-width: 760px) {
+  .title-block .promise { margin: 14px auto 0; }
+  .hero-cta { justify-content: center; }
+  .title-block .promise { font-size: 13.5px; max-width: 32ch; color: rgba(242,244,250,.82); }
+  .hero-cta, .hero-proof { display: none; }
+  .hero-cta { gap: 8px; margin-top: 14px; }
+  .hero-cta .btn { padding: 7px 14px; font-size: 13px; font-weight: 600; box-shadow: none; }
+  .hero-cta .btn-primary { background: rgba(31,123,255,.85); box-shadow: 0 0 12px rgba(31,123,255,.35); }
+  .hero-cta .btn-ghost { background: rgba(4,5,10,.35); border-color: rgba(255,255,255,.22); }
+  .hero-proof { margin-top: 10px; font-size: 12px; }
+}
+
+/* ---------- Tarifs ---------- */
+.tarifs .wrap { padding-block: clamp(64px, 9vw, 110px); }
+.tarifs h2, .resa h2 { margin: 12px 0 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(30px, 4.2vw, 50px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
+.tarifs h2 em, .resa h2 em { font-style: italic; color: var(--neon-blue); text-shadow: 0 0 22px rgba(31,123,255,.45); }
+.tlede { color: var(--fg-muted); margin: 14px 0 0; }
+.ttabs { display: inline-flex; gap: 4px; margin-top: 28px; padding: 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--ink-2); }
+.ttabs button { font: 600 14px var(--font-body); color: var(--fg-muted); background: transparent; border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer; }
+.ttabs button[aria-selected="true"] { background: var(--neon-blue); color: #fff; box-shadow: 0 0 18px rgba(31,123,255,.5); }
+.ttabs button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tpanel { margin-top: 18px; }
+.tscroll { overflow-x: auto; border-radius: 16px; border: 1px solid var(--line); }
+.tarifs table { width: 100%; min-width: 560px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tarifs th, .tarifs td { text-align: left; padding: 16px 18px; border-top: 1px solid var(--line); vertical-align: top; }
+.tarifs thead th { border-top: 0; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--fg-muted); font-weight: 600; background: var(--ink-2); }
+.tarifs tbody th { font-weight: 400; width: 52%; }
+.tarifs tbody th b { display: block; font-size: 17px; }
+.tarifs tbody th span { display: block; color: var(--fg-muted); font-size: 14px; margin-top: 4px; }
+.tarifs td { font-weight: 700; font-size: 17px; white-space: nowrap; }
+.see3d { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--neon-blue); text-decoration: none; }
+.see3d:hover, .see3d:focus-visible { text-decoration: underline; }
+.textra { display: grid; gap: 6px; margin-top: 18px; color: var(--fg-muted); font-size: 14.5px; }
+.textra p { margin: 0; } .textra b { color: var(--fg); }
+.tcta { margin-top: 26px; }
+
+/* ---------- Réservation ---------- */
+.resa .wrap { padding-block: clamp(56px, 8vw, 100px); }
+.steps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; font-size: 13px; color: var(--fg-muted); }
+.steps span { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); }
+.steps .on { color: #fff; border-color: var(--neon-blue); box-shadow: 0 0 12px rgba(31,123,255,.4); }
+.rchoices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+.rchoice { display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: 16px; background: var(--ink-2); border: 1px solid rgba(31,123,255,.3); text-decoration: none; transition: border-color .2s, box-shadow .2s; }
+.rchoice:hover, .rchoice:focus-visible { border-color: var(--neon-blue); box-shadow: 0 0 20px -4px rgba(31,123,255,.6); outline: none; }
+.rchoice b { font-size: 16px; } .rchoice span { color: var(--fg-muted); font-size: 14px; }
+.rchoice.soft { border-color: rgba(255,43,69,.3); }
+@media (max-width: 860px) { .rchoices { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Vidéo en grand par-dessus la page ---------- */
+.lightbox { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(2,3,6,.94); padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.lightbox video { max-width: 100%; max-height: 100%; width: auto; height: auto; border-radius: 16px; box-shadow: 0 0 40px -10px rgba(31,123,255,.6); background: #000; }
+.lb-close { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); z-index: 1; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(4,5,10,.6); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+.lb-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Barre de contact discrète ---------- */
+.dock { position: fixed; z-index: 40; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(4,5,10,.62); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px -12px #000; transition: transform .35s ease, opacity .35s ease; opacity: 0; width: auto; max-width: calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))); }
+.dock.show { transform: translate(-50%, 0); opacity: 1; }
+.dock a { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 0 13px; border-radius: 999px; font: 600 12.5px var(--font-body); text-decoration: none; color: var(--fg); }
+.d-book { color: #fff !important; background: linear-gradient(120deg, var(--neon-blue), #6a3cff 55%, var(--neon-red)); box-shadow: 0 0 10px -4px rgba(31,123,255,.6); }
+.d-ghost { border: 1px solid rgba(255,255,255,.14); background: transparent; color: rgba(242,244,250,.85) !important; }
+.d-ghost svg { width: 14px; height: 14px; }
+.dock a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .dock { transition: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+  .shot, .shot img, .shot .off, .puddle, .tube, .hero.boot .plate { animation: none !important; }
+  .hero.hazards .haz { animation: none; opacity: .8; }
+}
+</style>
+
+<div class="proto" role="note">
+  <div class="wrap">
+    <span><b>Aperçu</b> · page d'accueil Cleanyzer</span>
+    <span style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" id="replay">Rejouer depuis le début</button>
+    </span>
+  </div>
+</div>
+
+<header class="hero boot" id="hero">
+  <div class="scene" aria-hidden="true">
+    <video id="hloop" poster="assets/hero-boucle-poster.jpg" muted loop playsinline preload="auto" width="1920" height="1080"></video>
+    <video id="hintro" class="plate" poster="assets/hero-arrivee-poster.jpg" muted playsinline preload="auto" width="1920" height="1080"></video>
+  </div>
+
+  <nav class="nav" aria-label="Navigation principale">
+    <div class="wrap">
+      <a class="brand" href="#hero">CLEAN<span>YZER</span></a>
+      <div class="links">
+        <a href="#hero">Accueil</a>
+        <a href="#suite">Prestations</a>
+        <a href="#resultats">Réalisations</a>
+        <a href="#suite">À propos</a>
+      </div>
+      <a class="btn-book" href="#suite">Réserver</a>
+    </div>
+  </nav>
+
+  <div class="hero-copy">
+    <div class="wrap">
+      <div class="title-block">
+        <p class="mega">CLEANYZER</p>
+        <p class="sub">La propreté à l'état pur</p>
+        <span class="rule"></span>
+        <h1 class="promise">Nettoyage auto &amp; detailing à domicile, à Annecy et alentours</h1>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#suite">Réserver mon nettoyage</a>
+          <a class="btn btn-ghost" href="#suite">Voir les tarifs</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <ul class="trades" aria-label="Nos métiers">
+    <li>Nettoyage auto</li><li>Detailing</li><li>Matelas</li><li>Canapés</li><li>Tapis &amp; moquettes</li>
+  </ul>
+  <a class="gproof" href="https://www.google.com/maps/search/?api=1&amp;query=Cleanyzer%20Choisy" target="_blank" rel="noopener"><span class="stars" aria-hidden="true">★★★★★</span> <b>5,0</b> · 92 avis Google</a>
+</header>
+
+<section class="present" id="presentation" aria-labelledby="present-title">
+  <div class="wrap present-grid">
+    <div class="present-copy">
+      <span class="eyebrow">Cleanyzer — Annecy &amp; alentours</span>
+      <p class="display" id="present-title">Le détail<br>fait toute<br><em>la différence.</em></p>
+      <p class="lede">Nettoyage automobile à domicile à Annecy. Intérieur, extérieur &amp; detailing.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#suite">Voir les prestations et tarifs →</a>
+        <a class="btn btn-ghost" href="#suite">Réserver</a>
+      </div>
+      <div class="rating"><span class="stars" aria-hidden="true">★★★★★</span><span><b>5,0/5</b> — 92 avis Google</span></div>
+    </div>
+    <figure class="tomvid" id="tomvid">
+      <video id="pvideo" poster="assets/hero-poster.webp" playsinline preload="none" aria-label="Tom nettoie une voiture à domicile près d'Annecy"></video>
+      <button type="button" class="play" id="playTom" aria-haspopup="dialog"><span class="tri" aria-hidden="true"></span><span>Découvrir Cleanyzer en vidéo</span></button>
+    </figure>
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Vidéo Cleanyzer" hidden>
+      <button type="button" class="lb-close" id="lbClose" aria-label="Fermer la vidéo">×</button>
+      <video id="lbvideo" playsinline controls preload="none" poster="assets/hero-poster.webp"></video>
+    </div>
+  </div>
+</section>
+
+
+<section class="results" id="resultats" aria-labelledby="res-title">
+  <div class="wrap">
+    <span class="eyebrow">Avant / après</span>
+    <h2 id="res-title">Des résultats <em>qui se voient.</em></h2>
+    <p class="res-lede">Le résultat en images. Faites glisser pour comparer.</p>
+    <div class="pairs">
+      <article class="pair">
+        <div class="ba">
+          <img src="assets/phare-apres-1.webp" alt="Même phare redevenu transparent après rénovation" width="900" height="1200" loading="lazy">
+          <img class="before" src="assets/phare-avant-1.webp" alt="Phare avant jauni et opaque, avant rénovation" width="900" height="1200" loading="lazy">
+          <span class="handle"></span>
+          <span class="tag l">Avant</span><span class="tag r">Après</span>
+          <input type="range" min="0" max="100" value="50" aria-label="Comparer avant et après : Rénovation des optiques de phares">
+        </div>
+        <h3>Rénovation des optiques de phares</h3>
+        <p>Option extérieure · 65 €</p>
+      </article>
+      <article class="pair">
+        <div class="ba">
+          <img src="assets/phare-apres-2.webp" alt="Même phare LED transparent après rénovation" width="900" height="1200" loading="lazy">
+          <img class="before" src="assets/phare-avant-2.webp" alt="Phare LED voilé sur une citadine noire, avant rénovation" width="900" height="1200" loading="lazy">
+          <span class="handle"></span>
+          <span class="tag l">Avant</span><span class="tag r">Après</span>
+          <input type="range" min="0" max="100" value="50" aria-label="Comparer avant et après : Rénovation des optiques de phares">
+        </div>
+        <h3>Rénovation des optiques de phares</h3>
+        <p>Option extérieure · 65 €</p>
+      </article>
+      <article class="pair">
+        <div class="ba">
+          <img src="assets/siege-apres.webp" alt="Même siège beige propre et uniforme après shampoing" width="900" height="1200" loading="lazy">
+          <img class="before" src="assets/siege-avant.webp" alt="Siège en tissu beige taché et moquette sale avant nettoyage" width="900" height="1200" loading="lazy">
+          <span class="handle"></span>
+          <span class="tag l">Avant</span><span class="tag r">Après</span>
+          <input type="range" min="0" max="100" value="50" aria-label="Comparer avant et après : Shampoing des sièges et des tapis">
+        </div>
+        <h3>Shampoing des sièges et des tapis</h3>
+        <p>Inclus dans la formule Excellence intérieur</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="products" aria-labelledby="prod-title">
+  <div class="wrap pgrid">
+    <div>
+      <span class="eyebrow">Nos fournisseurs</span>
+      <h2 id="prod-title">Des produits de detailing professionnels <em>pour votre voiture, à Annecy.</em></h2>
+      <p class="plede">Pour chaque nettoyage auto à domicile à Annecy et alentours, Cleanyzer travaille avec des gammes professionnelles testées en laboratoire, dont des marques 100 % françaises. Les mêmes exigences, du lavage extérieur au shampoing des sièges.</p>
+      <ul class="proofs">
+        <li><span class="dot" aria-hidden="true"></span><div><b>Gammes professionnelles</b><span>Des produits de pro, pas de grande surface.</span></div></li>
+        <li><span class="dot b" aria-hidden="true"></span><div><b>Testées en laboratoire</b><span>Des formules contrôlées, conformes aux normes européennes.</span></div></li>
+        <li><span class="dot" aria-hidden="true"></span><div><b>Dont des marques 100 % françaises</b><span>Choisies par Tom pour leurs résultats.</span></div></li>
+      </ul>
+    </div>
+    <div class="shelf" aria-label="Tom au travail avec ses produits">
+      <figure class="ph big"><img src="assets/mousse-porsche.webp" alt="Porsche recouverte de mousse de prélavage pendant un lavage Cleanyzer" loading="lazy"><figcaption>Prélavage à la mousse</figcaption></figure>
+      <figure class="ph"><img src="assets/tapis-brosse.webp" alt="Tom brosse un tapis de sol avec une brosse et des gants" loading="lazy" style="object-position:50% 60%"><figcaption>Shampoing des tapis</figcaption></figure>
+      <figure class="ph"><img src="assets/siege-apres.webp" alt="Siège en tissu propre après shampoing" loading="lazy"><figcaption>Intérieur &amp; textile</figcaption></figure>
+    </div>
+  </div>
+  <div class="band" aria-label="Nos fournisseurs professionnels">
+    <div class="marquee"><div class="track">
+      <a class="sup" href="https://www.oryshine.fr/" target="_blank" rel="noopener"><img src="../../public/custom-sites/cleanyzer/neon/logos/oryshine.webp" alt="OryShine, produits de nettoyage auto fabriqués en France"></a><a class="sup" href="https://www.koch-chemie.com/" target="_blank" rel="noopener"><img src="../../public/custom-sites/cleanyzer/neon/logos/kochchemie.webp" alt="Koch-Chemie, produits professionnels de detailing"></a><span class="sup"><img src="../../public/custom-sites/cleanyzer/neon/logos/fraber.webp" alt="Fraber, produits de lavage automobile"></span><span class="sup"><b>Alchimy</b></span>
+      <a class="sup" href="https://www.oryshine.fr/" target="_blank" rel="noopener" aria-hidden="true" tabindex="-1"><img src="../../public/custom-sites/cleanyzer/neon/logos/oryshine.webp" alt=""></a><a class="sup" href="https://www.koch-chemie.com/" target="_blank" rel="noopener" aria-hidden="true" tabindex="-1"><img src="../../public/custom-sites/cleanyzer/neon/logos/kochchemie.webp" alt=""></a><span class="sup" aria-hidden="true"><img src="../../public/custom-sites/cleanyzer/neon/logos/fraber.webp" alt=""></span><span class="sup" aria-hidden="true"><b>Alchimy</b></span>
+    </div></div>
+  </div>
+</section>
+
+<section class="visit" id="visite" aria-labelledby="visit-title">
+  <div class="wrap">
+    <div class="vcard">
+      <img src="assets/hero-boucle-poster.jpg" alt="" loading="lazy">
+      <div class="vcopy">
+        <span class="eyebrow">Visite 3D</span>
+        <h2 id="visit-title">Choisissez votre formule, <em>zone par zone.</em></h2>
+        <p>Tournez autour de la voiture et découvrez ce que comprend chaque prestation.</p>
+        <button type="button" class="btn btn-primary" id="visitBtn">Explorer en 3D</button>
+        <p class="vnote" id="visitNote" hidden>La visite 3D se charge ici, seulement quand le visiteur la lance.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<nav class="dock" id="dock" aria-label="Contact rapide" hidden>
+  <a class="d-book" href="#suite">Réserver</a>
+  <a class="d-ghost" href="tel:+33769768571" aria-label="Appeler Cleanyzer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg><span>Appeler</span></a>
+  <a class="d-ghost" href="https://wa.me/33769768571" target="_blank" rel="noopener" aria-label="Écrire à Cleanyzer sur WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .78.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.25-.12-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.12-.17.25-.64.8-.79.97-.14.16-.29.18-.54.06a6.7 6.7 0 0 1-3.3-2.9c-.25-.43.25-.4.71-1.33.08-.16.04-.3-.02-.42l-.76-1.83c-.2-.48-.4-.41-.56-.42h-.48a.9.9 0 0 0-.66.31 2.8 2.8 0 0 0-.86 2.07 4.9 4.9 0 0 0 1.02 2.6 11.2 11.2 0 0 0 4.3 3.8c1.6.69 2.23.75 3.03.63.49-.07 1.47-.6 1.68-1.18.2-.58.2-1.08.14-1.18-.06-.1-.23-.16-.48-.28z"/></svg><span>WhatsApp</span></a>
+</nav>
+
+<section class="next" id="suite">
+  <div class="wrap">
+    <h3>La suite de la page, inchangée sur le fond</h3>
+    <ul>
+      <li><b>Prestations &amp; tarifs</b>La section actuelle du site, avec tous les prix. Le bouton « Voir les tarifs » y mène directement.</li>
+      <li><b>Réservation</b>Le module de réservation actuel. Tous les boutons « Réserver » y mènent directement.</li>
+            <li><b>Réalisations &amp; avis</b>Photos de Tom, liseré néon rouge et bleu.</li>
+      <li><b>Zone &amp; FAQ</b>Carte d'intervention et questions fréquentes.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+(() => {
+  /* ---------- Avant / après ---------- */
+  document.querySelectorAll(".ba").forEach((ba) => {
+    const range = ba.querySelector("input");
+    range.addEventListener("input", () => ba.style.setProperty("--pos", range.value + "%"));
+  });
+
+
+  /* ---------- Onglets des tarifs ---------- */
+  const tabs = [...document.querySelectorAll('.ttabs [role="tab"]')];
+  tabs.forEach((t) => t.addEventListener("click", () => {
+    tabs.forEach((x) => { const on = x === t; x.setAttribute("aria-selected", String(on)); document.getElementById(x.getAttribute("aria-controls")).hidden = !on; });
+  }));
+  /* ---------- Barre de contact : apparaît une fois le haut de page dépassé ---------- */
+  const dock = document.getElementById("dock"); dock.hidden = false;
+  const heroEl = document.getElementById("hero");
+  new IntersectionObserver(([e]) => dock.classList.toggle("show", !e.isIntersecting), { threshold: 0.15 }).observe(heroEl);
+  /* ---------- Vidéo de Tom : rien ne bouge tant qu'on ne clique pas ; lecture avec le son ---------- */
+  const playTom = document.getElementById("playTom"), lb = document.getElementById("lightbox"), lv = document.getElementById("lbvideo"), lbClose = document.getElementById("lbClose");
+  const openLb = () => {
+    if (!lv.src) lv.src = "assets/hero-720.mp4";
+    lb.hidden = false; document.body.style.overflow = "hidden";
+    lv.muted = false; lv.currentTime = 0; lv.play().catch(() => {}); lbClose.focus();
+  };
+  const closeLb = () => { lv.pause(); lb.hidden = true; document.body.style.overflow = ""; playTom.focus(); };
+  playTom.addEventListener("click", openLb);
+  lbClose.addEventListener("click", closeLb);
+  lb.addEventListener("click", (e) => { if (e.target === lb) closeLb(); });
+  lv.addEventListener("ended", closeLb);
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !lb.hidden) closeLb(); });
+  const vb = document.getElementById("visitBtn"), vn = document.getElementById("visitNote");
+  vb.addEventListener("click", () => { vn.hidden = false; });
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Haut de page : arrivée de la voiture une fois, puis boucle (720p sur téléphone) ---------- */
+  const hero = document.getElementById("hero");
+  /* Deux vidéos superposées : l'arrivée au-dessus, la boucle dessous, déjà chargée et arrêtée sur sa première image
+     (identique à la dernière image de l'arrivée). À la fin de l'arrivée, la boucle démarre et l'arrivée s'efface : aucun écran noir. */
+  const intro = document.getElementById("hintro"), loop = document.getElementById("hloop");
+  const q = matchMedia("(max-width: 760px)").matches ? "720" : "1080";
+  loop.src = `assets/hero-boucle-${q}.mp4`; loop.load();
+  intro.src = `assets/hero-arrivee-${q}.mp4`;
+  let swapped = false;
+  const toLoop = () => {
+    if (swapped) return; swapped = true;
+    loop.currentTime = 0;
+    const p = loop.play(); const hide = () => intro.classList.add("done");
+    p && p.then ? p.then(() => requestAnimationFrame(hide)).catch(hide) : hide();
+  };
+  intro.addEventListener("timeupdate", () => { if (intro.duration && intro.currentTime > intro.duration - 0.08) toLoop(); });
+  intro.addEventListener("ended", toLoop);
+  const playIntro = () => {
+    swapped = false; loop.pause(); loop.currentTime = 0; intro.classList.remove("done");
+    intro.currentTime = 0; intro.play().catch(toLoop);
+  };
+  if (reduce) { intro.classList.add("done"); } else { playIntro(); }
+  document.getElementById("replay").addEventListener("click", playIntro);
+})();
+</script>
+
