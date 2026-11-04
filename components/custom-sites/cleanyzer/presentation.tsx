@@ -17,13 +17,15 @@ const POSTER = "/custom-sites/cleanyzer/hero-poster.webp"
 const RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
 
 export function ClzPresentation() {
-  const [open, setOpen] = useState(false)
+  // Source choisie au clic (taille d'écran lue à ce moment) ; null = fenêtre fermée.
+  const [src, setSrc] = useState<string | null>(null)
+  const open = src !== null
   const playRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const close = useCallback(() => {
-    setOpen(false)
-    document.body.style.overflow = ""
+    setSrc(null)
     playRef.current?.focus()
   }, [])
 
@@ -33,9 +35,19 @@ export function ClzPresentation() {
     closeRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close()
+      // Fenêtre modale : Tab reste entre « Fermer » et la vidéo.
+      if (e.key === "Tab") {
+        const items = [closeRef.current, videoRef.current].filter((el): el is HTMLButtonElement | HTMLVideoElement => el !== null)
+        const i = items.indexOf(document.activeElement as HTMLButtonElement | HTMLVideoElement)
+        e.preventDefault()
+        items[(i + (e.shiftKey ? items.length - 1 : 1)) % items.length]?.focus()
+      }
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      document.body.style.overflow = ""
+    }
   }, [open, close])
 
   return (
@@ -71,7 +83,13 @@ export function ClzPresentation() {
           )}
         </div>
         <figure className="clz-neon-tomvid" style={{ backgroundImage: `url(${POSTER})` }}>
-          <button ref={playRef} type="button" className="clz-neon-play" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+          <button
+            ref={playRef}
+            type="button"
+            className="clz-neon-play"
+            aria-haspopup="dialog"
+            onClick={() => setSrc(`/custom-sites/cleanyzer/hero-${window.innerWidth <= HERO_MOBILE_MAX ? "720" : "1280"}.mp4`)}
+          >
             <span className="clz-neon-tri" aria-hidden="true" />
             <span>Découvrir Cleanyzer en vidéo</span>
           </button>
@@ -92,7 +110,8 @@ export function ClzPresentation() {
             ×
           </button>
           <video
-            src={`/custom-sites/cleanyzer/hero-${window.innerWidth <= HERO_MOBILE_MAX ? "720" : "1280"}.mp4`}
+            ref={videoRef}
+            src={src}
             poster={POSTER}
             controls
             autoPlay

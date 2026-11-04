@@ -281,7 +281,7 @@ export function AvisSection() {
     <section className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
         <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
-        {/* Preuve sociale Google : 5,0/5 — 86 avis (fiche Google Maps officielle). */}
+        {/* Preuve sociale Google : note et nombre d'avis lus dans BRAND (content.ts, fiche Google Maps officielle). */}
         <div className="mx-auto mt-10 inline-flex flex-col items-center gap-4 rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-8 py-7 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
             <GoogleGlyph className="h-5 w-5" />

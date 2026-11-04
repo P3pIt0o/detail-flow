@@ -16,13 +16,19 @@ vi.mock("next/font/google", () => ({
 }))
 vi.mock("next/navigation", () => ({ usePathname: () => "/p/cleanyzer" }))
 
-import { CleanyzerHero, heroVideoQuality, heroVideoSources } from "@/components/custom-sites/cleanyzer/hero"
+import {
+  CleanyzerHero,
+  HERO_INTRO_GUARD_MS,
+  heroVideoQuality,
+  heroVideoSources,
+  runHeroSequence,
+} from "@/components/custom-sites/cleanyzer/hero"
 import { ClzPresentation } from "@/components/custom-sites/cleanyzer/presentation"
 import { ClzFournisseurs } from "@/components/custom-sites/cleanyzer/fournisseurs"
 import { Visit3DLazy, createPendingVisit } from "@/components/custom-sites/cleanyzer/visit-3d-lazy"
 import { ClzContactPill, clzWhatsappNumber } from "@/components/custom-sites/cleanyzer/contact-pill"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
-import { BRAND } from "@/components/custom-sites/cleanyzer/content"
+import { BRAND, TRAVEL } from "@/components/custom-sites/cleanyzer/content"
 import { CLZ_HOME_META } from "@/components/custom-sites/cleanyzer/seo-content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF } from "@/components/custom-sites/cleanyzer/tokens"
 import { CLZ_SITE_NAV_ITEMS } from "@/components/custom-sites/cleanyzer/nav"
@@ -65,9 +71,79 @@ describe("haut de page", () => {
     })
     expect(heroVideoSources(390, false)?.boucle).toBe("/custom-sites/cleanyzer/neon/hero-boucle-720.mp4")
     expect(heroVideoSources(1366, true)).toBeNull()
+    // Revue métier (majeur 1) : économie de données → aucune vidéo, comme l'ancien hero.
+    expect(heroVideoSources(390, false, true)).toBeNull()
+    expect(heroVideoSources(390, false, false)).not.toBeNull()
     for (const q of ["720", "1080"]) {
       for (const k of ["arrivee", "boucle"]) expect(publicFile(`/custom-sites/cleanyzer/neon/hero-${k}-${q}.mp4`)).toBe(true)
     }
+  })
+
+  describe("enchaînement arrivée → boucle (revue métier, majeur 2)", () => {
+    class FakeVideo extends EventTarget {
+      currentTime = 0
+      duration = NaN
+      played = 0
+      constructor(private readonly ok = true) {
+        super()
+      }
+      play() {
+        this.played++
+        return this.ok ? Promise.resolve() : Promise.reject(new Error("bloquée"))
+      }
+    }
+    const flush = () => new Promise((r) => setTimeout(r, 0))
+    const raf = (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number
+
+    it("fin normale de l'arrivée → la boucle démarre", async () => {
+      const intro = new FakeVideo(), loop = new FakeVideo(), phases: string[] = []
+      runHeroSequence(intro as never, loop as never, (p) => phases.push(p), { raf })
+      intro.dispatchEvent(new Event("ended"))
+      await flush(); await flush()
+      expect(loop.played).toBe(1)
+      expect(phases).toEqual(["loop"])
+    })
+
+    it("erreur de l'arrivée → la boucle démarre quand même", async () => {
+      const intro = new FakeVideo(), loop = new FakeVideo(), phases: string[] = []
+      runHeroSequence(intro as never, loop as never, (p) => phases.push(p), { raf })
+      intro.dispatchEvent(new Event("error"))
+      await flush(); await flush()
+      expect(phases).toEqual(["loop"])
+    })
+
+    it("arrivée qui ne démarre jamais (réseau qui cale) → la boucle après le délai de garde", async () => {
+      vi.useFakeTimers()
+      try {
+        const intro = new FakeVideo(), loop = new FakeVideo(), phases: string[] = []
+        runHeroSequence(intro as never, loop as never, (p) => phases.push(p), { raf: (cb) => (cb(0), 0) })
+        await vi.advanceTimersByTimeAsync(HERO_INTRO_GUARD_MS + 10)
+        expect(loop.played).toBe(1)
+        expect(phases).toEqual(["loop"])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("arrivée qui joue : pas de bascule prématurée par le délai de garde", async () => {
+      vi.useFakeTimers()
+      try {
+        const intro = new FakeVideo(), loop = new FakeVideo(), phases: string[] = []
+        runHeroSequence(intro as never, loop as never, (p) => phases.push(p), { raf: (cb) => (cb(0), 0) })
+        intro.dispatchEvent(new Event("playing"))
+        await vi.advanceTimersByTimeAsync(HERO_INTRO_GUARD_MS + 10)
+        expect(loop.played).toBe(0)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("la boucle échoue aussi → image fixe (poster), jamais d'écran noir", async () => {
+      const intro = new FakeVideo(false), loop = new FakeVideo(false), phases: string[] = []
+      runHeroSequence(intro as never, loop as never, (p) => phases.push(p), { raf })
+      await flush(); await flush(); await flush()
+      expect(phases).toEqual(["still"])
+    })
   })
 
   it("boutons : Réserver → BookingV2, Voir les tarifs → section des prix", () => {
@@ -177,6 +253,8 @@ describe("pilule de contact", () => {
     expect(clzWhatsappNumber("+33769768571")).toBe("33769768571")
     expect(clzWhatsappNumber("0033769768571")).toBe("33769768571")
     expect(clzWhatsappNumber("33769768571")).toBe("33769768571")
+    // Revue sécurité (mineur 2) : « +33 (0)6… » ne garde pas le 0.
+    expect(clzWhatsappNumber("+33 (0)7 69 76 85 71")).toBe("33769768571")
     expect(clzWhatsappNumber(null)).toBeNull()
   })
 
@@ -235,6 +313,11 @@ describe("accueil", () => {
 })
 
 describe("SEO", () => {
+  it("la description reste cohérente avec la zone incluse et la note Google du site", () => {
+    expect(CLZ_HOME_META.description).toContain(`jusqu'à ${TRAVEL.includedKmOneWay} km`)
+    expect(CLZ_HOME_META.description).toContain(`noté ${BRAND.googleRating}/5`)
+  })
+
   it("titre et description de l'accueil conformes à la fiche", () => {
     expect(CLZ_HOME_META.title).toBe("Nettoyage auto à domicile à Annecy | Cleanyzer")
     expect(CLZ_HOME_META.description).toBe(

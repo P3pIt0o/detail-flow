@@ -11,7 +11,8 @@ import { CLZ_BOOKING_HREF } from "./tokens"
 
 /** Numéro WhatsApp international sans « + » (wa.me) depuis un numéro français ou international. */
 export function clzWhatsappNumber(phoneRaw: string | null | undefined): string | null {
-  const digits = (phoneRaw ?? "").replace(/[^\d+]/g, "")
+  // « +33 (0)6… » : le (0) national ne fait pas partie du numéro international.
+  const digits = (phoneRaw ?? "").replace(/\(0\)/g, "").replace(/[^\d+]/g, "")
   if (!digits) return null
   if (digits.startsWith("+")) return digits.slice(1) || null
   if (digits.startsWith("00")) return digits.slice(2) || null

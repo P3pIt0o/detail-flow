@@ -7,7 +7,8 @@
  *   aucun écran noir. 720p jusqu'à 760 px de large, 1080p au-delà. Vidéos muettes.
  * - Image LCP : poster de l'arrivée (`fetchpriority="high"`), affichée tout de suite ; les
  *   sources vidéo ne sont posées qu'après le montage.
- * - `prefers-reduced-motion` : aucune vidéo, la boucle reste sur son poster.
+ * - `prefers-reduced-motion` ou économie de données : aucune vidéo, la boucle reste sur son poster.
+ * - Arrivée en erreur ou qui ne démarre pas : la boucle prend le relais (`runHeroSequence`).
  *
  * Preuve sociale Google : 5,0 — 92 avis (BRAND dans content.ts, relevé manuel). Ne pas modifier
  * sans instruction.
@@ -28,11 +29,69 @@ export function heroVideoQuality(width: number): "720" | "1080" {
   return width <= HERO_MOBILE_MAX ? "720" : "1080"
 }
 
-/** Sources des deux vidéos pour une largeur d'écran ; `null` si le mouvement est réduit. */
-export function heroVideoSources(width: number, reducedMotion: boolean): { arrivee: string; boucle: string } | null {
-  if (reducedMotion) return null
+/** Sources des deux vidéos ; `null` (poster seul) si le mouvement est réduit ou en économie de données. */
+export function heroVideoSources(
+  width: number,
+  reducedMotion: boolean,
+  saveData = false,
+): { arrivee: string; boucle: string } | null {
+  if (reducedMotion || saveData) return null
   const q = heroVideoQuality(width)
   return { arrivee: `${NEON}/hero-arrivee-${q}.mp4`, boucle: `${NEON}/hero-boucle-${q}.mp4` }
+}
+
+/** Délai (ms) au-delà duquel une arrivée qui n'a jamais démarré laisse place à la boucle. */
+export const HERO_INTRO_GUARD_MS = 4000
+
+type HeroVideo = Pick<HTMLVideoElement, "play" | "currentTime" | "duration" | "addEventListener" | "removeEventListener">
+
+/**
+ * Enchaînement arrivée → boucle. La boucle démarre à la fin de l'arrivée, mais aussi si l'arrivée
+ * échoue ou ne démarre jamais (délai de garde) ; si la boucle échoue à son tour : image fixe.
+ * Jamais d'écran noir. Renvoie la fonction de nettoyage.
+ */
+export function runHeroSequence(
+  intro: HeroVideo,
+  loop: HeroVideo,
+  onPhase: (phase: "loop" | "still") => void,
+  { raf = requestAnimationFrame, guardMs = HERO_INTRO_GUARD_MS }: { raf?: (cb: FrameRequestCallback) => number; guardMs?: number } = {},
+): () => void {
+  let swapped = false
+  let started = false
+  let guard: ReturnType<typeof setTimeout> | undefined
+  const toLoop = () => {
+    if (swapped) return
+    swapped = true
+    clearTimeout(guard)
+    loop.currentTime = 0
+    loop.play().then(
+      () => raf(() => onPhase("loop")),
+      () => onPhase("still"),
+    )
+  }
+  // Bascule juste avant la dernière image : la boucle démarre sur la même image.
+  const onTime = () => {
+    if (intro.duration && intro.currentTime > intro.duration - 0.08) toLoop()
+  }
+  const onPlaying = () => {
+    started = true
+    clearTimeout(guard)
+  }
+  intro.addEventListener("timeupdate", onTime)
+  intro.addEventListener("ended", toLoop)
+  intro.addEventListener("error", toLoop)
+  intro.addEventListener("playing", onPlaying)
+  guard = setTimeout(() => {
+    if (!started) toLoop()
+  }, guardMs)
+  intro.play().catch(toLoop)
+  return () => {
+    clearTimeout(guard)
+    intro.removeEventListener("timeupdate", onTime)
+    intro.removeEventListener("ended", toLoop)
+    intro.removeEventListener("error", toLoop)
+    intro.removeEventListener("playing", onPlaying)
+  }
 }
 
 /** Ancre de la section « Prestations & tarifs » (PrestationsPreview). */
@@ -51,7 +110,12 @@ export function CleanyzerHero() {
     const intro = introRef.current
     const loop = loopRef.current
     if (!intro || !loop) return
-    const sources = heroVideoSources(window.innerWidth, window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData)
+    const sources = heroVideoSources(
+      window.innerWidth,
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      saveData,
+    )
     if (!sources) {
       setPhase("still")
       return
@@ -59,25 +123,7 @@ export function CleanyzerHero() {
     loop.src = sources.boucle
     loop.load()
     intro.src = sources.arrivee
-    let swapped = false
-    const toLoop = () => {
-      if (swapped) return
-      swapped = true
-      loop.currentTime = 0
-      const show = () => requestAnimationFrame(() => setPhase("loop"))
-      loop.play().then(show, show)
-    }
-    // Bascule juste avant la dernière image : la boucle démarre sur la même image.
-    const onTime = () => {
-      if (intro.duration && intro.currentTime > intro.duration - 0.08) toLoop()
-    }
-    intro.addEventListener("timeupdate", onTime)
-    intro.addEventListener("ended", toLoop)
-    intro.play().catch(toLoop)
-    return () => {
-      intro.removeEventListener("timeupdate", onTime)
-      intro.removeEventListener("ended", toLoop)
-    }
+    return runHeroSequence(intro, loop, setPhase)
   }, [])
 
   return (
