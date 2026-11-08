@@ -7,8 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { saveLocationSettings } from "@/app/admin/(dashboard)/parametres/location-actions"
-import { isWorkshopAddressComplete, type LocationConfig } from "@/lib/booking/location-shared"
+import { saveLocationLabels, saveLocationSettings } from "@/app/admin/(dashboard)/parametres/location-actions"
+import {
+  DEFAULT_LOCATION_LABELS,
+  LOCATION_LABEL_MAX,
+  isWorkshopAddressComplete,
+  type LocationConfig,
+  type LocationLabel,
+  type LocationLabelsInput,
+  type LocationType,
+} from "@/lib/booking/location-shared"
 import { TravelSettings } from "./travel-settings"
 
 type TravelProps = React.ComponentProps<typeof TravelSettings>
@@ -21,19 +29,43 @@ type TravelProps = React.ComponentProps<typeof TravelSettings>
  */
 export function LocationSettings({
   initial,
+  initialLabels,
   travel,
   available,
 }: {
   initial: LocationConfig
+  /** Libellés saisis (siteContent.locationLabels) ; vide = texte par défaut. */
+  initialLabels: LocationLabelsInput
   travel: TravelProps
   /** false tant que la migration « lieu » n'est pas appliquée. */
   available: boolean
 }) {
   const [config, setConfig] = useState(initial)
+  const [labels, setLabels] = useState(initialLabels)
   const [modeMsg, setModeMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [addrMsg, setAddrMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [labelsMsg, setLabelsMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [pendingMode, startMode] = useTransition()
   const [pendingAddr, startAddr] = useTransition()
+  const [pendingLabels, startLabels] = useTransition()
+
+  function setLabel(mode: LocationType, field: keyof LocationLabel, value: string) {
+    setLabels({ ...labels, [mode]: { ...labels[mode], [field]: value } })
+    setLabelsMsg(null)
+  }
+
+  function saveLabels() {
+    setLabelsMsg(null)
+    startLabels(async () => {
+      // Les champs d'une carte désactivée sont masqués mais renvoyés : leurs valeurs sont conservées.
+      const res = await saveLocationLabels(labels)
+      setLabelsMsg(res.ok ? { ok: true, text: "Enregistré" } : { ok: false, text: res.error })
+    })
+  }
+
+  const labelFields = (mode: LocationType) => (
+    <LabelFields mode={mode} value={labels[mode] ?? {}} disabled={pendingLabels} onChange={setLabel} />
+  )
 
   function toggle(key: "mobileEnabled" | "workshopEnabled", value: boolean) {
     const next = { ...config, [key]: value }
@@ -88,27 +120,48 @@ export function LocationSettings({
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <ModeCard
-            id="mode-mobile"
-            icon={<Car className="size-5" aria-hidden="true" />}
-            title="Je me déplace chez mes clients"
-            text="Vous intervenez à l'adresse du client."
-            checked={config.mobileEnabled}
-            disabled={!available || pendingMode}
-            onChange={(v) => toggle("mobileEnabled", v)}
-          />
-          <ModeCard
-            id="mode-workshop"
-            icon={<Store className="size-5" aria-hidden="true" />}
-            title="J'ai un atelier"
-            text="Vos clients viennent directement chez vous."
-            checked={config.workshopEnabled}
-            disabled={!available || pendingMode}
-            onChange={(v) => toggle("workshopEnabled", v)}
-          />
+          <div className="flex flex-col gap-3">
+            <ModeCard
+              id="mode-mobile"
+              icon={<Car className="size-5" aria-hidden="true" />}
+              title="Je me déplace chez mes clients"
+              text="Vous intervenez à l'adresse du client."
+              checked={config.mobileEnabled}
+              disabled={!available || pendingMode}
+              onChange={(v) => toggle("mobileEnabled", v)}
+            />
+            {available && config.mobileEnabled && labelFields("client")}
+          </div>
+          <div className="flex flex-col gap-3">
+            <ModeCard
+              id="mode-workshop"
+              icon={<Store className="size-5" aria-hidden="true" />}
+              title="J'ai un atelier"
+              text="Vos clients viennent directement chez vous."
+              checked={config.workshopEnabled}
+              disabled={!available || pendingMode}
+              onChange={(v) => toggle("workshopEnabled", v)}
+            />
+            {available && config.workshopEnabled && labelFields("workshop")}
+          </div>
         </div>
 
         <StatusLine pending={pendingMode} msg={modeMsg} />
+
+        {available && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground text-pretty">
+              Facultatif. Laissé vide, le texte grisé s&apos;affiche. Visible par vos clients quand vous proposez les
+              deux lieux.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={saveLabels} disabled={pendingLabels} className="h-12 px-6 text-base">
+                {pendingLabels ? "Enregistrement…" : "Enregistrer les libellés"}
+              </Button>
+              <StatusLine pending={false} msg={labelsMsg} />
+            </div>
+          </div>
+        )}
       </section>
 
       {config.workshopEnabled && available && (
@@ -209,6 +262,52 @@ function ModeCard({
       </span>
       <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} className="mt-1" />
     </label>
+  )
+}
+
+/** Titre + description affichés aux clients pour un lieu ; placeholder = texte par défaut. */
+function LabelFields({
+  mode,
+  value,
+  disabled,
+  onChange,
+}: {
+  mode: LocationType
+  value: Partial<LocationLabel>
+  disabled: boolean
+  onChange: (mode: LocationType, field: keyof LocationLabel, value: string) => void
+}) {
+  const fields: { field: keyof LocationLabel; label: string }[] = [
+    { field: "title", label: "Titre affiché aux clients" },
+    { field: "text", label: "Description" },
+  ]
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+      {fields.map(({ field, label }) => {
+        const id = `location-label-${mode}-${field}`
+        const v = value[field] ?? ""
+        const max = LOCATION_LABEL_MAX[field]
+        return (
+          <div key={field} className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor={id}>{label}</Label>
+              <span className="text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+                {v.length}/{max}
+              </span>
+            </div>
+            <Input
+              id={id}
+              value={v}
+              maxLength={max}
+              disabled={disabled}
+              placeholder={DEFAULT_LOCATION_LABELS[mode][field]}
+              onChange={(e) => onChange(mode, field, e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

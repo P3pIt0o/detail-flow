@@ -3,7 +3,7 @@
 import { useState } from "react"
 import useSWR from "swr"
 import { AlertCircle, Car, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, Store } from "lucide-react"
-import type { LocationType, PublicLocation } from "@/lib/booking/location-shared"
+import { DEFAULT_LOCATION_LABELS, type LocationType, type PublicLocation } from "@/lib/booking/location-shared"
 import { cn } from "@/lib/utils"
 import { formatKm } from "@/lib/format"
 import { dateWindow, formatPriceCompact, formatSlotLabel, groupSlots } from "@/lib/booking/v2"
@@ -170,6 +170,7 @@ export function StepDateTime({
   }
 
   const offersChoice = location.mobile && location.workshop
+  const labels = location.labels ?? DEFAULT_LOCATION_LABELS
 
   return (
     <div>
@@ -182,15 +183,15 @@ export function StepDateTime({
               selected={locationType === "client"}
               onSelect={() => onLocationType("client")}
               icon={<Car className="size-5" aria-hidden="true" />}
-              title="Chez vous"
-              text="Le professionnel vient à votre adresse."
+              title={labels.client.title}
+              text={labels.client.text}
             />
             <LocationOption
               selected={locationType === "workshop"}
               onSelect={() => onLocationType("workshop")}
               icon={<Store className="size-5" aria-hidden="true" />}
-              title="À l'atelier"
-              text="Vous vous rendez directement à l'atelier."
+              title={labels.workshop.title}
+              text={labels.workshop.text}
             />
           </div>
         </>
