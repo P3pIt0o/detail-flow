@@ -707,6 +707,38 @@ export function verificationEmail(opts: {
   }
 }
 
+/* -------------- Réinitialisation du mot de passe (compte admin) -------------- */
+
+export function resetPasswordEmail(opts: { url: string; name?: string | null; businessName: string }) {
+  const greeting = opts.name ? `Bonjour ${esc(opts.name)},` : "Bonjour,"
+  return {
+    subject: "Réinitialisez votre mot de passe DetailFlow",
+    html: layout({
+      businessName: opts.businessName,
+      heading: "Réinitialisez votre mot de passe",
+      bodyHtml: `
+        <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
+          ${greeting} vous avez demandé à réinitialiser le mot de passe de votre espace professionnel.
+          Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
+        </p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="${esc(opts.url)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 28px;border-radius:10px;">
+            Choisir un nouveau mot de passe
+          </a>
+        </div>
+        <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:0 0 8px;">
+          Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
+        </p>
+        <p style="font-size:12px;line-height:1.5;color:${BRAND};word-break:break-all;margin:0;">
+          ${esc(opts.url)}
+        </p>
+        <p style="font-size:13px;line-height:1.6;color:${MUTED};margin:20px 0 0;">
+          Ce lien expire dans 1 heure. Si vous n&apos;êtes pas à l&apos;origine de cette demande, ignorez cet email.
+        </p>`,
+    }),
+  }
+}
+
 /* ------------ Invitation propriétaire (compte créé depuis l'admin) ------------ */
 
 export function ownerInvitationEmail(opts: {

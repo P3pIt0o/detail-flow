@@ -17,7 +17,7 @@ import { siteConfig } from "@/config/site"
  *   L'email doit ensuite être confirmé via le lien reçu.
  * - mode "login"  : connexion d'un administrateur existant.
  */
-export function AdminAuthForm({ mode }: { mode: "signup" | "login" }) {
+export function AdminAuthForm({ mode, notice }: { mode: "signup" | "login"; notice?: string }) {
   const router = useRouter()
   const isSignup = mode === "signup"
 
@@ -130,6 +130,11 @@ export function AdminAuthForm({ mode }: { mode: "signup" | "login" }) {
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {notice && (
+          <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary" role="status">
+            {notice}
+          </p>
+        )}
         {isSignup && (
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Nom</Label>
@@ -164,6 +169,14 @@ export function AdminAuthForm({ mode }: { mode: "signup" | "login" }) {
             minLength={8}
             autoComplete={isSignup ? "new-password" : "current-password"}
           />
+          {!isSignup && (
+            <Link
+              href="/admin/mot-de-passe-oublie"
+              className="self-end text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Mot de passe oublié ?
+            </Link>
+          )}
         </div>
         {isSignup && (
           <div className="flex flex-col gap-2">
@@ -230,7 +243,7 @@ export function AdminAuthForm({ mode }: { mode: "signup" | "login" }) {
 }
 
 /** Enveloppe visuelle commune (carte centrée). */
-function AuthShell({
+export function AuthShell({
   icon,
   title,
   subtitle,

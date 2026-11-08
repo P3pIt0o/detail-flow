@@ -7,10 +7,20 @@ export const metadata = { title: "Connexion", robots: { index: false, follow: fa
 // Rendu dynamique : la redirection dépend de la session courante.
 export const dynamic = "force-dynamic"
 
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reinitialise?: string }>
+}) {
   // Déjà connecté : aller directement au dashboard.
   const session = await getSession()
   if (session?.user) redirect("/admin")
 
-  return <AdminAuthForm mode="login" />
+  const { reinitialise } = await searchParams
+  return (
+    <AdminAuthForm
+      mode="login"
+      notice={reinitialise === "1" ? "Mot de passe modifié, vous pouvez vous connecter." : undefined}
+    />
+  )
 }
