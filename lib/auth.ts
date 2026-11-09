@@ -1,8 +1,32 @@
-import { betterAuth } from "better-auth"
+import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { pool } from "@/lib/db"
 import { getSettings } from "@/lib/booking/queries"
 import { sendEmail } from "@/lib/email/send"
-import { verificationEmail } from "@/lib/email/templates"
+import { resetPasswordEmail, verificationEmail } from "@/lib/email/templates"
+import { siteConfig } from "@/config/site"
+
+/**
+ * Envoi du lien « mot de passe oublié ». Toute erreur est capturée et journalisée :
+ * Better Auth attend cette fonction, une erreur ne visant que les comptes existants
+ * révélerait qu'une adresse a un compte.
+ */
+export async function sendResetPasswordEmail({
+  user,
+  url,
+}: {
+  user: { email: string; name?: string | null }
+  url: string
+}) {
+  try {
+    const brand = siteConfig.brand.name
+    const { subject, html } = resetPasswordEmail({ url, name: user.name, businessName: brand })
+    const res = await sendEmail({ to: user.email, subject, html, fromName: brand })
+    // Le détail (pouvant contenir l'adresse) est déjà tracé par sendEmail.
+    if (!res.ok && !res.skipped) console.error("[auth] Email de réinitialisation non envoyé")
+  } catch (e) {
+    console.error("[auth] Email de réinitialisation non envoyé :", e instanceof Error ? e.message : e)
+  }
+}
 
 /**
  * Configuration Better Auth (authentification email + mot de passe).
@@ -13,7 +37,7 @@ import { verificationEmail } from "@/lib/email/templates"
  *
  * Le même Pool PostgreSQL que Drizzle est réutilisé (une seule connexion).
  */
-export const auth = betterAuth({
+export const authOptions = {
   database: pool,
   // On ne fige `baseURL` que si elle est explicitement fournie. Sinon Better
   // Auth la déduit de la requête entrante — indispensable derrière le proxy
@@ -26,6 +50,11 @@ export const auth = betterAuth({
     // l'adresse email doit être confirmée avant de pouvoir se connecter.
     requireEmailVerification: true,
     autoSignIn: true,
+    // Mot de passe oublié : flux natif Better Auth (jeton à usage unique, 1 h),
+    // puis toutes les sessions de l'utilisateur sont supprimées.
+    sendResetPassword: sendResetPasswordEmail,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
   },
   emailVerification: {
     // Envoi automatique du lien de confirmation à l'inscription.
@@ -103,4 +132,6 @@ export const auth = betterAuth({
         },
       }
     : {}),
-})
+} satisfies BetterAuthOptions
+
+export const auth = betterAuth(authOptions)
