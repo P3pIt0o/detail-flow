@@ -8,6 +8,8 @@ import { validatePlanConfig, type ValidatedPlanConfig } from "./plan-validation"
 import { isPlanPubliclyAccessible, parsePublicMode, type PlanPublicAccess } from "./public-mode"
 import { formatEuros, periodWords, serviceNoun } from "./plan-form"
 import { isMonthlyInstallments, splitInstallments } from "./rights-period"
+import { loadPlanVehicleTypes } from "./plan-vehicle-type"
+import type { PlanVehicleTypeView } from "./plan-groups"
 
 /**
  * Vue PUBLIQUE des formules d'un tenant. Fail-closed : toute condition non
@@ -32,6 +34,8 @@ export type PublicPlanView = {
   paymentOptions: { mode: "recurring" | "prepaid"; label: string }[]
   /** L27 : carte « N prestations par période » (null = formule V1, affichage inchangé). */
   period: PublicPeriodView | null
+  /** L36 : catégorie de véhicule active (libellé + rang, jamais l'id) ; absent = carte non regroupable. */
+  vehicleType?: PlanVehicleTypeView | null
 }
 
 export type PublicPeriodView = {
@@ -193,14 +197,15 @@ async function buildViews(
     if (plan.initialServiceId != null) ids.add(plan.initialServiceId)
   }
   const names = await serviceNames(db, companyId, [...ids])
-  return valid
-    .filter(({ plan }) => names.has(plan.includedServiceId as number))
-    .map(({ id, plan }) =>
-      toPublicPlanView(id, plan, {
-        included: names.get(plan.includedServiceId as number) ?? null,
-        initial: plan.initialServiceId != null ? names.get(plan.initialServiceId) ?? null : null,
-      }),
-    )
+  const shown = valid.filter(({ plan }) => names.has(plan.includedServiceId as number))
+  const vehicleTypes = await loadPlanVehicleTypes(db, companyId, shown.map(({ id }) => id))
+  return shown.map(({ id, plan }) => ({
+    ...toPublicPlanView(id, plan, {
+      included: names.get(plan.includedServiceId as number) ?? null,
+      initial: plan.initialServiceId != null ? names.get(plan.initialServiceId) ?? null : null,
+    }),
+    vehicleType: vehicleTypes.get(id) ?? null,
+  }))
 }
 
 /** Liste publique (formules `public` uniquement). null = section masquée. */

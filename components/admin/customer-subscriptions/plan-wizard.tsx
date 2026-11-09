@@ -8,6 +8,7 @@ import { withTenant } from "@/lib/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
   WIZARD_STEPS,
@@ -17,6 +18,7 @@ import {
   serviceNoun,
   wizardClientPreview,
   wizardIssuesForStep,
+  wizardVehicleTypeChange,
   type WizardFormState,
   type WizardPeriod,
 } from "@/lib/customer-subscriptions/plan-form"
@@ -64,6 +66,7 @@ export function PlanWizard({
   paymentsReady,
   hasSubscribers,
   publicMode,
+  vehicleTypes = [],
 }: {
   planId: number | null
   initial: WizardFormState
@@ -71,6 +74,8 @@ export function PlanWizard({
   paymentsReady: boolean
   hasSubscribers: boolean
   publicMode: string
+  /** L36 : catégories actives du tenant ; vide = champ masqué (aucune catégorie ou migration absente). */
+  vehicleTypes?: { id: number; name: string }[]
 }) {
   const router = useRouter()
   const tenant = useSearchParams().get("tenant")
@@ -94,6 +99,8 @@ export function PlanWizard({
   const cents = parseEurosToCents(form.priceEuros)
   const split = monthly && cents > 0 ? splitInstallments(cents, form.periodMonths) : null
   const isLast = stepIndex === WIZARD_STEPS.length - 1
+  // Catégorie enregistrée mais désactivée (absente des options actives) : affichée telle quelle, conservée tant que le pro n'y touche pas.
+  const inactiveVehicleType = initial.vehicleTypeId != null && !vehicleTypes.some((v) => v.id === initial.vehicleTypeId)
 
   function setPeriod(p: WizardPeriod) {
     // Par mois : payer « chaque mois » = « en une fois » ; pas d'engagement imposé.
@@ -122,7 +129,7 @@ export function PlanWizard({
       }
     }
     startTransition(async () => {
-      const r = await saveWizardPlanAction(planId, form)
+      const r = await saveWizardPlanAction(planId, { ...form, vehicleTypeId: wizardVehicleTypeChange(initial, form) })
       if (!r.ok) return setServerError(r.message)
       router.push(plansListHref)
     })
@@ -183,6 +190,34 @@ export function PlanWizard({
                 <Label htmlFor="name">Nom de la formule</Label>
                 <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ex. Formule Sérénité" maxLength={120} aria-invalid={!!err("name")} aria-describedby="name-error" className="h-11" />
                 <FieldError id="name-error" message={err("name")} />
+              </div>
+              {(vehicleTypes.length > 0 || inactiveVehicleType) && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="vehicleType">Catégorie de véhicule (facultatif)</Label>
+                  <select id="vehicleType" className={selectClass} value={form.vehicleTypeId ?? ""} onChange={(e) => set("vehicleTypeId", e.target.value ? Number(e.target.value) : null)} aria-describedby="vehicleType-hint">
+                    <option value="">Toutes les catégories</option>
+                    {inactiveVehicleType && <option value={initial.vehicleTypeId!}>Catégorie inactive</option>}
+                    {vehicleTypes.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p id="vehicleType-hint" className="text-sm text-muted-foreground">
+                    Les formules qui ont le même nom et une catégorie différente sont regroupées dans une seule carte.
+                  </p>
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="description">Description (facultatif)</Label>
+                <Textarea id="description" value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} maxLength={2000} aria-invalid={!!err("description")} aria-describedby={err("description") ? "description-error" : "description-hint"} />
+                {err("description") ? (
+                  <FieldError id="description-error" message={err("description")} />
+                ) : (
+                  <p id="description-hint" className="text-sm text-muted-foreground">
+                    Quelques mots pour donner envie à votre client.
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="service">Prestation incluse</Label>

@@ -43,7 +43,10 @@ export async function savePlanAction(planId: number | null, form: PlanFormState)
 export async function saveWizardPlanAction(planId: number | null, form: WizardFormState): Promise<ActionResult> {
   if (planId !== null && !validId(planId)) return { ok: false, message: errorMessage("INVALID_SUBMISSION") }
   const input = wizardToPlanConfigInput(form)
-  const r = planId === null ? await createPlanForCurrentTenant(input) : await updatePlanForCurrentTenant(planId, input)
+  // L36 : seul l'id de catégorie vient du navigateur ; le moteur le re-vérifie dans le tenant de la session.
+  // Absent = inchangé (le wizard ne l'envoie que si le pro l'a modifié).
+  const vehicleTypeId = form?.vehicleTypeId
+  const r = planId === null ? await createPlanForCurrentTenant(input, vehicleTypeId) : await updatePlanForCurrentTenant(planId, input, vehicleTypeId)
   if (!r.ok) return fail(r)
   revalidatePath(BASE)
   return { ok: true, id: r.value.planId }

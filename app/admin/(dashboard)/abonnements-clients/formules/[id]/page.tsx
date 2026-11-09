@@ -9,6 +9,8 @@ import { planFormFromConfig, wizardFromConfig } from "@/lib/customer-subscriptio
 import { PlanConfigurator } from "@/components/admin/customer-subscriptions/plan-configurator"
 import { PlanWizard } from "@/components/admin/customer-subscriptions/plan-wizard"
 import { EmptyState } from "@/components/admin/customer-subscriptions/ui"
+import { db } from "@/lib/db"
+import { listPlanVehicleTypeOptions, readPlanVehicleTypeId } from "@/lib/customer-subscriptions/plan-vehicle-type"
 
 export const metadata: Metadata = { title: "Modifier la formule" }
 export const dynamic = "force-dynamic"
@@ -26,16 +28,20 @@ export default async function EditPlanPage({
   const planId = Number(id)
   if (!Number.isInteger(planId) || planId <= 0) notFound()
 
-  const [found, services, overview] = await Promise.all([
+  const [found, services, overview, vehicleTypes, vehicleTypeId] = await Promise.all([
     getPlanForEdit(companyId, planId),
     listServiceOptions(companyId),
     getAdminOverview(companyId),
+    listPlanVehicleTypeOptions(db, companyId),
+    readPlanVehicleTypeId(db, companyId, planId),
   ])
   if (!found) notFound()
   const { company } = overview
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
   const config = planRowToConfig(found.plan)
-  const wizard = wizardFromConfig(config)
+  const fromConfig = wizardFromConfig(config)
+  // Catégorie enregistrée telle quelle : une catégorie inactive s'affiche « Catégorie inactive » et n'est jamais effacée sans choix du pro.
+  const wizard = fromConfig && { ...fromConfig, vehicleTypeId }
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +54,7 @@ export default async function EditPlanPage({
       {found.plan.status === "archived" ? (
         <EmptyState title="Cette formule est archivée">Elle n&apos;est plus proposée. Vos abonnés actuels gardent leurs conditions.</EmptyState>
       ) : wizard ? (
-        <PlanWizard planId={planId} initial={wizard} services={services} paymentsReady={paymentsReady} hasSubscribers={found.hasSubscribers} publicMode={company.publicMode} />
+        <PlanWizard planId={planId} initial={wizard} services={services} paymentsReady={paymentsReady} hasSubscribers={found.hasSubscribers} publicMode={company.publicMode} vehicleTypes={vehicleTypes} />
       ) : (
         // Réglages non exprimables en 3 étapes (semaines, prépayé, engagement libre…) : ancien formulaire.
         <PlanConfigurator
