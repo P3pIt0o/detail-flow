@@ -15,7 +15,7 @@ const LEGACY_TABS = [
 ]
 
 // Onglets AJOUTÉS (LOT D). Additifs : ne remplacent aucun onglet historique.
-const NEW_TABS = ["notifications"]
+const NEW_TABS = ["notifications", "digital-card"]
 
 // Ensemble attendu = historiques + nouveaux (aucun autre onglet orphelin).
 const EXPECTED_TABS = [...LEGACY_TABS, ...NEW_TABS]

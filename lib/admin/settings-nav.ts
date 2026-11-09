@@ -64,6 +64,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { value: "gallery", label: "Galerie" },
       { value: "reviews", label: "Avis" },
       { value: "custom-requests", label: "Demandes spéciales" },
+      { value: "digital-card", label: "Carte digitale" },
     ],
   },
   {
@@ -139,6 +140,12 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
 }
 
 /**
+ * Seuls onglets de « Site public » conservés en `booking_only` : outils utiles même sans
+ * vitrine DetailFlow (la carte digitale L45 est un outil de partage, pas un réglage de vitrine).
+ */
+const BOOKING_ONLY_SITE_TABS = new Set(["digital-card"])
+
+/**
  * Catégories visibles pour un tenant.
  *
  * - Standard (`customSiteKey` nul/autre, intention nulle) : liste complète
@@ -147,8 +154,8 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
  *   (ex. « Réservations ») disparaît de la grille.
  * - `booking_only` : le professionnel a déjà son site ; DetailFlow ne fournit
  *   que le moteur de réservation. La catégorie « Site public » (contenu du site,
- *   apparence, galerie, avis, demandes = réglages de VITRINE) est masquée dans
- *   son intégralité. Aucune donnée n'est supprimée, aucune route n'est retirée :
+ *   apparence, galerie, avis, demandes = réglages de VITRINE) ne garde que les
+ *   onglets de BOOKING_ONLY_SITE_TABS. Aucune donnée n'est supprimée, aucune route n'est retirée :
  *   seuls les liens/onglets de création de vitrine disparaissent de SON espace.
  *
  * `onboardingIntent` doit être l'intention DÉJÀ RÉSOLUE (`resolveDashboardIntent`),
@@ -168,7 +175,9 @@ export function getVisibleSettingsCategories(
   }
 
   if (onboardingIntent === "booking_only") {
-    return SETTINGS_CATEGORIES.filter((c) => c.id !== "site")
+    return SETTINGS_CATEGORIES.map((c) =>
+      c.id === "site" ? { ...c, subTabs: c.subTabs.filter((t) => BOOKING_ONLY_SITE_TABS.has(t.value)) } : c,
+    ).filter((c) => c.subTabs.length > 0)
   }
 
   return SETTINGS_CATEGORIES

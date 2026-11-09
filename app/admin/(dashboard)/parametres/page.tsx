@@ -68,6 +68,9 @@ import { OnlineBookingSettings } from "@/components/admin/settings/online-bookin
 import { buildWidgetPrimaryAction, resolveDashboardPrimaryMode } from "@/lib/admin/primary-action"
 import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 import { buildEmbedScriptSnippet } from "@/lib/embed/snippet"
+import { DigitalCardSettings } from "@/components/admin/settings/digital-card-settings"
+import { cardLine, resolveDigitalCard } from "@/lib/digital-card"
+import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 
 export const metadata: Metadata = { title: "Paramètres" }
 
@@ -437,6 +440,16 @@ export default async function ParametresPage({
                     <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
                   </TabsContent>
                 )}
+                <TabsContent value="digital-card" className="mt-6">
+                  <DigitalCardSettings
+                    initial={resolveDigitalCard((tenant.siteContent as { digitalCard?: unknown } | null)?.digitalCard, tenant.brandPrimary)}
+                    name={settings.businessName?.trim() || tenant.name}
+                    line={cardLine(resolveSiteContent(tenant.siteContent).footer.tagline, tenant.city)}
+                    logoSrc={tenant.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : null}
+                    cardUrl={tenantPublicPathUrl("/carte", tenant.slug, rootDomain)}
+                    slug={tenant.slug}
+                  />
+                </TabsContent>
               </>
             )}
 

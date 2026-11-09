@@ -108,9 +108,9 @@ describe("Super Admin — présentation publique contextuelle", () => {
 })
 
 describe("Espace admin — réglages adaptés au produit", () => {
-  it("booking_only → la catégorie « Site public » (réglages de vitrine) est masquée", () => {
+  it("booking_only → « Site public » ne garde que la carte digitale (réglages de vitrine masqués)", () => {
     const cats = getVisibleSettingsCategories(null, "booking_only")
-    expect(cats.some((c) => c.id === "site")).toBe(false)
+    expect(cats.find((c) => c.id === "site")?.subTabs.map((t) => t.value)).toEqual(["digital-card"])
     // Les modules métier communs restent présents (aucune capacité retirée).
     expect(cats.some((c) => c.id === "reservations")).toBe(true)
     expect(cats.some((c) => c.id === "billing")).toBe(true)
