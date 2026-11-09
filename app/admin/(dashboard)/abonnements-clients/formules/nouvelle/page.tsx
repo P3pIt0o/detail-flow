@@ -6,6 +6,8 @@ import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { getAdminOverview, listServiceOptions } from "@/lib/customer-subscriptions/admin-queries"
 import { DEFAULT_WIZARD_FORM } from "@/lib/customer-subscriptions/plan-form"
 import { PlanWizard } from "@/components/admin/customer-subscriptions/plan-wizard"
+import { db } from "@/lib/db"
+import { listPlanVehicleTypeOptions } from "@/lib/customer-subscriptions/plan-vehicle-type"
 
 export const metadata: Metadata = { title: "Nouvelle formule" }
 export const dynamic = "force-dynamic"
@@ -14,7 +16,11 @@ export default async function NewPlanPage({ searchParams }: { searchParams: Prom
   await requireAdmin()
   const companyId = await requireAdminCompanyId()
   const { tenant = null } = await searchParams
-  const [services, overview] = await Promise.all([listServiceOptions(companyId), getAdminOverview(companyId)])
+  const [services, overview, vehicleTypes] = await Promise.all([
+    listServiceOptions(companyId),
+    getAdminOverview(companyId),
+    listPlanVehicleTypeOptions(db, companyId),
+  ])
   const { company } = overview
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
 
@@ -33,6 +39,7 @@ export default async function NewPlanPage({ searchParams }: { searchParams: Prom
         paymentsReady={paymentsReady}
         hasSubscribers={false}
         publicMode={company.publicMode}
+        vehicleTypes={vehicleTypes}
       />
     </div>
   )

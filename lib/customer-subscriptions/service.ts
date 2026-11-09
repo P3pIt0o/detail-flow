@@ -39,11 +39,12 @@ const MUTATORS: MemberRole[] = ["OWNER", "ADMIN"]
 
 export const getCapacityForCurrentTenant = () => run(undefined, (companyId) => engine.getCustomerSubscriptionCapacity(db, companyId))
 
-export const createPlanForCurrentTenant = (input: PlanConfigInput) =>
-  run(MUTATORS, (companyId, actor) => engine.createPlan(db, companyId, actor, input))
+/** `vehicleTypeId` (L36) est re-vérifié dans le tenant par le moteur ; undefined = inchangé. */
+export const createPlanForCurrentTenant = (input: PlanConfigInput, vehicleTypeId?: unknown) =>
+  run(MUTATORS, (companyId, actor) => engine.createPlan(db, companyId, actor, input, vehicleTypeId))
 
-export const updatePlanForCurrentTenant = (planId: number, input: PlanConfigInput) =>
-  run(MUTATORS, (companyId, actor) => engine.updatePlan(db, companyId, actor, planId, input))
+export const updatePlanForCurrentTenant = (planId: number, input: PlanConfigInput, vehicleTypeId?: unknown) =>
+  run(MUTATORS, (companyId, actor) => engine.updatePlan(db, companyId, actor, planId, input, vehicleTypeId))
 
 export const archivePlanForCurrentTenant = (planId: number) =>
   run(MUTATORS, (companyId, actor) => engine.archivePlan(db, companyId, actor, planId))

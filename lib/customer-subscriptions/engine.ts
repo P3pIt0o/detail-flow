@@ -47,6 +47,7 @@ import {
   type CapacityView,
 } from "./contract"
 import { assertValidPlanConfig, type PlanConfigInput, type ValidatedPlanConfig } from "./plan-validation"
+import { writePlanVehicleType } from "./plan-vehicle-type"
 import { CUSTOMER_SUBSCRIPTION_CAPACITY_STATUSES, isTerminalStatus } from "./statuses"
 import { normalizeVehicle, type VehicleInput } from "./vehicle"
 import { rightsInterval } from "./rights-period"
@@ -274,9 +275,10 @@ export type PlanMutationResult = { planId: number; appliesTo: "new_subscriptions
 
 /**
  * Brouillon possible sans Stripe ; PUBLICATION (status active) refusée tant que
- * le paiement n'est pas opérationnel.
+ * le paiement n'est pas opérationnel. `vehicleTypeId` (L36) : hors configuration
+ * (aucun impact snapshot/Stripe) ; undefined = inchangé, null = toutes catégories.
  */
-export async function createPlan(db: Executor, companyId: number, actor: Actor, input: PlanConfigInput): Promise<PlanMutationResult> {
+export async function createPlan(db: Executor, companyId: number, actor: Actor, input: PlanConfigInput, vehicleTypeId?: unknown): Promise<PlanMutationResult> {
   assertCanMutate(actor)
   const plan = assertValidPlanConfig(input)
   return db.transaction(async (tx) => {
@@ -287,13 +289,14 @@ export async function createPlan(db: Executor, companyId: number, actor: Actor, 
       .insert(maintenancePlans)
       .values({ ...plan, companyId, archivedAt: plan.status === "archived" ? new Date() : null })
       .returning({ id: maintenancePlans.id })
+    await writePlanVehicleType(tx, companyId, row.id, vehicleTypeId)
     await appendMaintenanceAudit(tx, { companyId, action: "plan_created", actorType: "user", actorUserId: actor.userId, meta: { planId: row.id, status: plan.status } })
     return { planId: row.id, appliesTo: "new_subscriptions_only" as const }
   })
 }
 
 /** Modifier une formule ne concerne QUE les futurs abonnements (snapshots intacts). */
-export async function updatePlan(db: Executor, companyId: number, actor: Actor, planId: number, input: PlanConfigInput): Promise<PlanMutationResult> {
+export async function updatePlan(db: Executor, companyId: number, actor: Actor, planId: number, input: PlanConfigInput, vehicleTypeId?: unknown): Promise<PlanMutationResult> {
   assertCanMutate(actor)
   const plan = assertValidPlanConfig(input)
   return db.transaction(async (tx) => {
@@ -310,6 +313,7 @@ export async function updatePlan(db: Executor, companyId: number, actor: Actor, 
       .update(maintenancePlans)
       .set({ ...plan, updatedAt: new Date(), archivedAt: plan.status === "archived" ? new Date() : null })
       .where(and(eq(maintenancePlans.id, planId), eq(maintenancePlans.companyId, companyId)))
+    await writePlanVehicleType(tx, companyId, planId, vehicleTypeId)
     await appendMaintenanceAudit(tx, {
       companyId,
       action: plan.status === "archived" ? "plan_archived" : "plan_updated",

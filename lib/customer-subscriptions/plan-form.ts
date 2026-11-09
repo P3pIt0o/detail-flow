@@ -253,6 +253,8 @@ export type WizardFormState = {
   initialServiceId: number | null
   status: "draft" | "active"
   visibility: PlanVisibility
+  /** L36 : catégorie de véhicule (null = toutes). Hors configuration : transmise à part, re-vérifiée serveur. */
+  vehicleTypeId: number | null
 }
 
 export const DEFAULT_WIZARD_FORM: WizardFormState = {
@@ -269,6 +271,7 @@ export const DEFAULT_WIZARD_FORM: WizardFormState = {
   initialServiceId: null,
   status: "active",
   visibility: "public",
+  vehicleTypeId: null,
 }
 
 export const WIZARD_STEPS = [
@@ -360,6 +363,7 @@ export function wizardFromConfig(plan: ValidatedPlanConfig): WizardFormState | n
     initialServiceId: plan.initialServiceId,
     status: plan.status === "draft" ? "draft" : "active",
     visibility: plan.visibility,
+    vehicleTypeId: null,
   }
 }
 
