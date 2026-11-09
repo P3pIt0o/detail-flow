@@ -135,7 +135,8 @@ describe("après migration : enregistrement et sémantique undefined / null", ()
     const { planId } = await engine.createPlan(db, A.companyId, owner, formule(A, { name: "Gardée" }), A.types[1])
     await pg.query(`UPDATE vehicle_types SET active = false WHERE id = $1`, [A.types[1]])
     const initial = { ...DEFAULT_WIZARD_FORM, vehicleTypeId: await readPlanVehicleTypeId(db, A.companyId, planId) }
-    const sent = wizardVehicleTypeChange(initial, { ...initial, name: "Gardée v2" })
+    const edited = { ...initial, name: "Gardée v2" }
+    const sent = wizardVehicleTypeChange(initial, edited)
     expect(sent).toBeUndefined()
     await engine.updatePlan(db, A.companyId, owner, planId, formule(A, { name: "Gardée v2" }), sent)
     expect(await columnValue(planId)).toBe(A.types[1])
