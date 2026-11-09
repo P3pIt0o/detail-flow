@@ -46,6 +46,42 @@
  */
 
 import type { FeatureKey, LicensePlan } from "@/lib/licensing/types"
+// Module pur (n'importe que des types) : plans.ts reste importable partout.
+import { COMMISSION_RULES } from "@/lib/billing/commercial-rules"
+
+/* ------------------------------------------------------------------------- */
+/*  FORMATEUR UNIQUE DES MONTANTS AFFICHÉS (L41)                              */
+/* ------------------------------------------------------------------------- */
+// Espaces ordinaires (pas Intl, qui produit des insécables) : textes identiques au caractère près.
+
+const groupThousands = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+
+/** Centimes entiers → « 790 € », « 19,90 € », « 1 990 € » (décimales seulement si non nulles). */
+export function formatPriceCents(cents: number): string {
+  const euros = Math.floor(cents / 100)
+  const rest = cents % 100
+  return `${groupThousands(euros)}${rest ? `,${String(rest).padStart(2, "0")}` : ""} €`
+}
+
+/** Points de base → « 2 % », « 2,5 % », « 0,01 % ». */
+export function formatBpsPercent(bps: number): string {
+  const whole = Math.floor(bps / 100)
+  const rest = bps % 100
+  return `${whole}${rest ? `,${String(rest).padStart(2, "0").replace(/0$/, "")}` : ""} %`
+}
+
+/** Prix mensuel d'Indépendant (centimes), partagé par l'offre et les textes d'essai. */
+const INDEPENDANT_MONTHLY_PRICE_CENTS = 1990
+
+/** Montants de commission affichés, dérivés de `COMMISSION_RULES` (paiements en ligne). */
+export const COMMISSION_DISPLAY = {
+  /** Taux Essentiel (« 2 % »). */
+  essentielRate: formatBpsPercent(COMMISSION_RULES.FREE.feeBps),
+  /** Plafond mensuel Essentiel (« 19,90 € »). */
+  essentielMonthlyCap: formatPriceCents(COMMISSION_RULES.FREE.monthlyFeeCapCents),
+  /** Taux Indépendant, Performance et Équipe (« 0 % ») — identiques (invariant testé). */
+  paidPlansRate: formatBpsPercent(COMMISSION_RULES.PRO.feeBps),
+} as const
 
 /**
  * Plan technique attribué à TOUT compte créé en self-service aujourd'hui.
@@ -126,7 +162,7 @@ export const PRICING_COPY = {
   lead: "Commencez gratuitement. Passez à la formule supérieure quand votre activité grandit.",
   trialHeadline: "30 jours gratuits sur Indépendant, sans carte bancaire.",
   trialSub:
-    "Ajoutez un moyen de paiement avant la fin de l'essai pour continuer sur Indépendant à 19,90 €/mois. Sinon, votre espace repasse automatiquement sur Essentiel.",
+    `Ajoutez un moyen de paiement avant la fin de l'essai pour continuer sur Indépendant à ${formatPriceCents(INDEPENDANT_MONTHLY_PRICE_CENTS)}/mois. Sinon, votre espace repasse automatiquement sur Essentiel.`,
   note: "Prix indiqués hors taxes.",
   comingSoonLabel: "Bientôt disponible",
   compareLabel: "Comparer les fonctionnalités",
@@ -161,7 +197,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
       "10 devis et 10 factures / mois",
       "Jusqu'à 2 abonnements clients actifs",
       "Abonnements clients : 7 % de commission DetailFlow",
-      "Paiements en ligne : 2 % de commission DetailFlow, plafonnée à 19,90 €/mois (frais Stripe distincts)",
+      `Paiements en ligne : ${COMMISSION_DISPLAY.essentielRate} de commission DetailFlow, plafonnée à ${COMMISSION_DISPLAY.essentielMonthlyCap}/mois (frais Stripe distincts)`,
       "SMS disponibles en option via packs",
     ],
     // Features gated réellement ouvertes par PLAN_MATRIX.FREE.
@@ -179,7 +215,7 @@ export const COMMERCIAL_PLANS: readonly CommercialPlan[] = [
     licensePlan: "PRO",
     price: "19,90 €",
     period: "/ mois",
-    monthlyPriceCents: 1990,
+    monthlyPriceCents: INDEPENDANT_MONTHLY_PRICE_CENTS,
     description: "Pour le detailer indépendant qui veut gérer sérieusement son activité.",
     trial: "30 jours gratuits, sans carte bancaire",
     highlights: [
@@ -348,6 +384,9 @@ export const CUSTOM_PLATFORM_OFFER = {
     href: "mailto:contact@detailflow.fr?subject=Mon%20projet%20DetailFlow%20sur%20mesure",
   },
 } as const
+
+/** Encart « Site internet sur mesure » (prestation distincte de la plateforme métier). */
+export const CUSTOM_SITE_OFFER = { fromPriceCents: 79000 } as const
 
 /* ------------------------------------------------------------------------- */
 /*  OFFRE LIFETIME — ALTERNATIVE « PAIEMENT UNIQUE » (MARKETING ONLY)         */

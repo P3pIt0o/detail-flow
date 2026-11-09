@@ -1,7 +1,12 @@
 /**
  * FAQ de la landing — réponses vérifiées dans le code (aucune promesse d'une
  * fonctionnalité non livrée). Partagée entre le composant FAQ et le JSON-LD.
+ * Montants dérivés de `lib/pricing/plans.ts` (L41 : aucun prix en dur ici).
  */
+import { COMMISSION_DISPLAY, formatPriceCents, getCommercialPlanByLicensePlan } from "@/lib/pricing/plans"
+
+const INDEPENDANT_PRICE = formatPriceCents(getCommercialPlanByLicensePlan("PRO")?.monthlyPriceCents ?? 0)
+
 export const LANDING_FAQ: { q: string; a: string }[] = [
   {
     q: "DetailFlow est-il réservé au detailing automobile ?",
@@ -37,7 +42,7 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Combien coûte DetailFlow ?",
-    a: "Essentiel est gratuit et disponible dès maintenant. Indépendant coûte 19,90 €/mois avec 30 jours gratuits et est également disponible. Les offres Performance et Équipe sont présentées dans la section Tarifs et seront bientôt disponibles. Automatisations avancées, Marketing avancé, Campagnes et relances clients et Domaine personnalisé sont en préparation et ne sont incluses dans aucune offre actuellement.",
+    a: `Essentiel est gratuit et disponible dès maintenant. Indépendant coûte ${INDEPENDANT_PRICE}/mois avec 30 jours gratuits et est également disponible. Les offres Performance et Équipe sont présentées dans la section Tarifs et seront bientôt disponibles. Automatisations avancées, Marketing avancé, Campagnes et relances clients et Domaine personnalisé sont en préparation et ne sont incluses dans aucune offre actuellement.`,
   },
   {
     q: "Les SMS sont-ils inclus ?",
@@ -45,6 +50,6 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Comment fonctionne la commission DetailFlow ?",
-    a: "Vous ne payez une commission DetailFlow que sur l'offre Essentiel, lorsque vous encaissez en ligne : 2 %, plafonnée à 19,90 €/mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts.",
+    a: `Vous ne payez une commission DetailFlow que sur l'offre Essentiel, lorsque vous encaissez en ligne : ${COMMISSION_DISPLAY.essentielRate}, plafonnée à ${COMMISSION_DISPLAY.essentielMonthlyCap}/mois. Indépendant, Performance et Équipe : ${COMMISSION_DISPLAY.paidPlansRate} de commission. Les frais Stripe restent distincts.`,
   },
 ]
