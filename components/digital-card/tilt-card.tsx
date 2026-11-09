@@ -50,21 +50,27 @@ function initials(name: string) {
 
 type PermissionApi = { requestPermission?: () => Promise<string> }
 
-export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }: Props) {
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-  const shadowRef = useRef<HTMLDivElement>(null)
-  const specRef = useRef<HTMLDivElement>(null)
-  const holoRef = useRef<HTMLDivElement>(null)
-  const enableRef = useRef<(() => void) | null>(null)
-  const [needsPermission, setNeedsPermission] = useState(false)
+export type TiltNodes = {
+  wrap: HTMLElement
+  card: HTMLElement
+  shadow: HTMLElement
+  spec: () => HTMLElement | null
+  holo: () => HTMLElement | null
+}
 
-  useEffect(() => {
-    const wrap = wrapRef.current
-    const card = cardRef.current
-    const shadow = shadowRef.current
-    if (!wrap || !card || !shadow) return
-
+/**
+ * Branche le mouvement sur les nœuds (extrait de l'effet pour être testable sans DOM).
+ * Renvoie le nettoyage ; `onPermission(enable)` est appelé sur iOS pour afficher le bouton.
+ */
+export function attachTiltMotion(
+  { wrap, card, shadow, spec, holo }: TiltNodes,
+  window: Window,
+  document: Document,
+  onPermission: (enable: (() => void) | null) => void,
+): () => void {
+  const requestAnimationFrame = window.requestAnimationFrame.bind(window)
+  const cancelAnimationFrame = window.cancelAnimationFrame.bind(window)
+  {
     let frozen = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const target: Tilt = { x: 0, y: 0 }
     let sx: SpringState = { value: 0, velocity: 0 }
@@ -79,9 +85,11 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
       shadow.style.transform = `translate3d(${sh.x}px, ${sh.y}px, 0) scale(${sh.scale})`
       shadow.style.opacity = String(sh.opacity)
       const sp = specularOffset(tilt, reduced)
-      if (specRef.current) specRef.current.style.transform = `translate3d(${sp.x}%, ${sp.y}%, 0)`
+      const specEl = spec()
+      if (specEl) specEl.style.transform = `translate3d(${sp.x}%, ${sp.y}%, 0)`
       const ho = holoTransform(tilt)
-      if (holoRef.current) holoRef.current.style.transform = `translate3d(${ho.x}%, ${ho.y}%, 0) rotate(${ho.rotate}deg)`
+      const holoEl = holo()
+      if (holoEl) holoEl.style.transform = `translate3d(${ho.x}%, ${ho.y}%, 0) rotate(${ho.rotate}deg)`
     }
     const frame = (ms: number) => {
       sx = stepSpring(sx, target.x)
@@ -125,14 +133,14 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
     }
     const onVisibility = () => (document.visibilityState === "visible" ? start() : stop())
 
-    if (frozen) return
+    if (frozen) return () => {}
 
     const api = (window as unknown as { DeviceOrientationEvent?: PermissionApi }).DeviceOrientationEvent
     const listenOrientation = () => window.addEventListener("deviceorientation", onOrientation)
     if (typeof api?.requestPermission === "function") {
       // iOS : l'autorisation ne peut être demandée qu'au toucher.
-      enableRef.current = () => {
-        setNeedsPermission(false)
+      onPermission(() => {
+        onPermission(null)
         api.requestPermission!().then(
           (r) => {
             if (r === "granted") {
@@ -142,8 +150,7 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
           },
           freeze,
         )
-      }
-      setNeedsPermission(true)
+      })
     } else if (api) {
       listenOrientation()
     }
@@ -154,11 +161,40 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
 
     return () => {
       stop()
-      enableRef.current = null
       window.removeEventListener("deviceorientation", onOrientation)
       wrap.removeEventListener("pointermove", onMove)
       wrap.removeEventListener("pointerleave", onLeave)
       document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }
+}
+
+export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }: Props) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const shadowRef = useRef<HTMLDivElement>(null)
+  const specRef = useRef<HTMLDivElement>(null)
+  const holoRef = useRef<HTMLDivElement>(null)
+  const enableRef = useRef<(() => void) | null>(null)
+  const [needsPermission, setNeedsPermission] = useState(false)
+
+  useEffect(() => {
+    const wrap = wrapRef.current
+    const card = cardRef.current
+    const shadow = shadowRef.current
+    if (!wrap || !card || !shadow) return
+    const cleanup = attachTiltMotion(
+      { wrap, card, shadow, spec: () => specRef.current, holo: () => holoRef.current },
+      window,
+      document,
+      (enable) => {
+        enableRef.current = enable
+        setNeedsPermission(enable !== null)
+      },
+    )
+    return () => {
+      cleanup()
+      enableRef.current = null
     }
   }, [])
 
