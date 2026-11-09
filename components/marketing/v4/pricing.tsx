@@ -2,9 +2,12 @@ import Link from "next/link"
 import { ArrowRight, Check, ChevronDown, Clock, Gift, Minus } from "lucide-react"
 import {
   COMMERCIAL_PLANS,
+  COMMISSION_DISPLAY,
   CUSTOM_PLATFORM_OFFER,
+  CUSTOM_SITE_OFFER,
   PLAN_JOURNEY,
   PRICING_COPY,
+  formatPriceCents,
   type CommercialPlan,
 } from "@/lib/pricing/plans"
 import { StaggerGroup, StaggerItem } from "@/components/ui/reveal"
@@ -263,7 +266,9 @@ function CustomSiteCta() {
         <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-6 lg:items-stretch">
           <p className="flex items-baseline gap-2">
             <span className="text-sm text-muted-foreground">À partir de</span>
-            <span className="text-3xl font-semibold tracking-tight text-foreground">790 €</span>
+            <span className="text-3xl font-semibold tracking-tight text-foreground">
+              {formatPriceCents(CUSTOM_SITE_OFFER.fromPriceCents)}
+            </span>
           </p>
           <p className="-mt-1 text-xs text-muted-foreground">Sur devis, selon les besoins et fonctionnalités.</p>
           <Link
@@ -571,7 +576,7 @@ export function Pricing() {
 
         <p className="mx-auto mt-6 max-w-2xl text-pretty text-center text-sm leading-relaxed text-muted-foreground">
           {
-            "Avec Essentiel, une commission DetailFlow s'applique uniquement lorsque vous encaissez en ligne, plafonnée chaque mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts."
+            `Avec Essentiel, une commission DetailFlow s'applique uniquement lorsque vous encaissez en ligne, plafonnée chaque mois. Indépendant, Performance et Équipe : ${COMMISSION_DISPLAY.paidPlansRate} de commission. Les frais Stripe restent distincts.`
           }
         </p>
 
