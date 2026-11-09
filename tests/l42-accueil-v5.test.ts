@@ -167,6 +167,9 @@ describe("L42 — C3 montants et citations", () => {
   })
 
   it("FAQ : commission recalculée", () => {
+    // « Rien sur les offres payantes » est écrit en dur : il n'est vrai que si Pro et Business sont à 0.
+    expect(COMMISSION_RULES.PRO.feeBps).toBe(0)
+    expect(COMMISSION_RULES.BUSINESS.feeBps).toBe(0)
     expect(FAQ_V5[3].a).toBe(
       `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} % des paiements en ligne, plafonnés à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois. Les frais de Stripe s'appliquent à part.`,
     )
