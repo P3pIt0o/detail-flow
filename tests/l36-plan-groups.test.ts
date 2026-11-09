@@ -78,6 +78,11 @@ describe("groupPublicPlans", () => {
   it("suffixe de prix : minuscule, sigles conservés", () => {
     expect(categorySuffix("Berline")).toBe("berline")
     expect(categorySuffix("SUV")).toBe("SUV")
+    // Un mot entièrement en majuscules (sigle) : libellé conservé tel quel.
+    expect(categorySuffix("Mini SUV")).toBe("Mini SUV")
+    expect(categorySuffix("Petit 4X4")).toBe("Petit 4X4")
+    expect(categorySuffix("Grande Berline")).toBe("grande berline")
+    expect(categorySuffix("Utilitaire 3m3")).toBe("utilitaire 3m3")
   })
 })
 
@@ -122,6 +127,21 @@ describe("PublicPlans (rendu réel)", () => {
     expect(html).not.toContain("24,00 €")
     // Aucun texte de vente nouveau : libellé du bouton existant.
     expect(html).toContain("Demander cette formule")
+  })
+
+  it("mode « direct » : aucun regroupement, une carte par formule comme avant (le lien contact ne porte pas la formule)", () => {
+    const plans: PublicPlanView[] = [
+      { ...base, id: 10, name: "Confort", period: null, priceLabel: "45,00 €", vehicleType: vt(0) },
+      { ...base, id: 11, name: "Confort", period: null, priceLabel: "52,00 €", vehicleType: vt(1) },
+      { ...base, id: 12, name: "Confort", period: null, priceLabel: "60,00 €", vehicleType: vt(2) },
+    ]
+    const html = render("direct", plans)
+    expect(html.match(/<h3/g)).toHaveLength(3)
+    expect(html).not.toContain("aria-pressed")
+    for (const price of ["45,00 €", "52,00 €", "60,00 €"]) expect(html).toContain(price)
+    expect(html.match(/>Souscrire</g)).toHaveLength(3)
+    // Le mode « request » regroupe toujours ces mêmes formules.
+    expect(render("request", plans).match(/<h3/g)).toHaveLength(1)
   })
 
   it("C1 — la description saisie est affichée", () => {

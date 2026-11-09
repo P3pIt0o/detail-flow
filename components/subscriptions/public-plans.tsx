@@ -132,7 +132,8 @@ export function PublicPlans({
           </p>
         </div>
         <ul className="grid gap-6 md:grid-cols-2">
-          {groupPublicPlans(offer.plans).map((card) => {
+          {/* Mode « direct » : le lien contact ne transmet pas la formule, donc une carte par formule comme avant. */}
+          {(offer.mode === "direct" ? offer.plans.map((plan) => ({ kind: "single" as const, plan })) : groupPublicPlans(offer.plans)).map((card) => {
             if (card.kind === "single") return renderPlan(card.plan)
             // Clé = id de la formule affichée : changer de catégorie remonte la carte (formulaire neuf, bon planId).
             const current = selectedOption(card.options, selectedRank)

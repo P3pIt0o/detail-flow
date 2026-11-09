@@ -54,7 +54,8 @@ export function selectedOption<P>(options: PlanGroupOption<P>[], selectedRank: n
   return options.find((o) => o.rank === selectedRank) ?? options[0]
 }
 
-/** « Berline » → « berline » ; les sigles (« SUV ») restent tels quels. */
+/** « Berline » → « berline » ; un libellé contenant un sigle (« SUV », « Mini SUV ») reste tel quel. */
 export function categorySuffix(label: string): string {
-  return label === label.toLocaleUpperCase("fr-FR") ? label : label.toLocaleLowerCase("fr-FR")
+  const hasAcronym = label.split(/\s+/).some((w) => /\p{L}/u.test(w) && w === w.toLocaleUpperCase("fr-FR"))
+  return hasAcronym ? label : label.toLocaleLowerCase("fr-FR")
 }
