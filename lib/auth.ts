@@ -21,7 +21,8 @@ export async function sendResetPasswordEmail({
     const brand = siteConfig.brand.name
     const { subject, html } = resetPasswordEmail({ url, name: user.name, businessName: brand })
     const res = await sendEmail({ to: user.email, subject, html, fromName: brand })
-    if (!res.ok && !res.skipped) console.error("[auth] Email de réinitialisation non envoyé :", res.error)
+    // Le détail (pouvant contenir l'adresse) est déjà tracé par sendEmail.
+    if (!res.ok && !res.skipped) console.error("[auth] Email de réinitialisation non envoyé")
   } catch (e) {
     console.error("[auth] Email de réinitialisation non envoyé :", e instanceof Error ? e.message : e)
   }

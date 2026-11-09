@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { KeyRound } from "lucide-react"
+import { KeyRound, MailCheck } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,6 +63,9 @@ export function ForgotPasswordForm() {
     setMessage(requestResetMessage(error))
   }
 
+  // Hors 429, le formulaire disparaît : pas de renvois répétés.
+  if (message === REQUEST_SENT_MESSAGE) return <ResetRequestSent />
+
   return (
     <AuthShell
       icon={<KeyRound className="size-6" aria-hidden="true" />}
@@ -90,11 +93,30 @@ export function ForgotPasswordForm() {
           {loading ? "Veuillez patienter..." : "Envoyer le lien"}
         </Button>
       </form>
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        <Link href="/admin/login" className="text-foreground underline underline-offset-4">
-          Retour à la connexion
-        </Link>
-      </p>
+      <BackToLogin />
+    </AuthShell>
+  )
+}
+
+function BackToLogin() {
+  return (
+    <p className="mt-6 text-center text-sm text-muted-foreground">
+      <Link href="/admin/login" className="text-foreground underline underline-offset-4">
+        Retour à la connexion
+      </Link>
+    </p>
+  )
+}
+
+/** Vue après une demande acceptée (message identique, compte existant ou non). */
+export function ResetRequestSent() {
+  return (
+    <AuthShell
+      icon={<MailCheck className="size-6" aria-hidden="true" />}
+      title="Vérifiez votre boîte de réception"
+      subtitle={REQUEST_SENT_MESSAGE}
+    >
+      <BackToLogin />
     </AuthShell>
   )
 }
@@ -107,9 +129,15 @@ export function InvalidResetLink() {
       title="Lien invalide"
       subtitle={INVALID_LINK_MESSAGE}
     >
-      <Button render={<Link href="/admin/mot-de-passe-oublie" />} nativeButton={false} className="w-full">
+      <Button
+        render={<Link href="/admin/mot-de-passe-oublie" />}
+        nativeButton={false}
+        variant="secondary"
+        className="w-full"
+      >
         Refaire une demande
       </Button>
+      <BackToLogin />
     </AuthShell>
   )
 }
@@ -147,8 +175,8 @@ export function ResetPasswordForm({ token, error }: { token: string | null; erro
   return (
     <AuthShell
       icon={<KeyRound className="size-6" aria-hidden="true" />}
-      title="Nouveau mot de passe"
-      subtitle="Choisissez un nouveau mot de passe (8 caractères minimum)."
+      title="Choisissez un nouveau mot de passe"
+      subtitle="8 caractères minimum."
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -181,7 +209,7 @@ export function ResetPasswordForm({ token, error }: { token: string | null; erro
           </p>
         )}
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Veuillez patienter..." : "Modifier le mot de passe"}
+          {loading ? "Veuillez patienter..." : "Enregistrer le mot de passe"}
         </Button>
       </form>
     </AuthShell>

@@ -718,7 +718,7 @@ export function resetPasswordEmail(opts: { url: string; name?: string | null; bu
       heading: "Réinitialisez votre mot de passe",
       bodyHtml: `
         <p style="font-size:14px;line-height:1.6;color:${MUTED};margin:0 0 16px;">
-          ${greeting} vous avez demandé à réinitialiser le mot de passe de votre espace professionnel.
+          ${greeting} vous avez demandé à changer le mot de passe de votre espace professionnel ${esc(opts.businessName)}.
           Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
         </p>
         <div style="text-align:center;margin:24px 0;">
