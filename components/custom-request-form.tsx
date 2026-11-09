@@ -42,14 +42,17 @@ export function CustomRequestForm({
    * y demeure facultatif et toujours visible, sans sélecteur d'audience.
    */
   audienceToggle = false,
+  initialType,
 }: {
   types: CustomRequestType[]
   audienceToggle?: boolean
+  /** Type présélectionné (déjà validé côté serveur parmi les types actifs). */
+  initialType?: string
 }) {
   const [state, setState] = useState<DemandeFormState>(initialState)
   const [phase, setPhase] = useState<Phase>("form")
   const [pending, setPending] = useState(false)
-  const [selectedType, setSelectedType] = useState(types[0]?.key ?? "")
+  const [selectedType, setSelectedType] = useState(initialType ?? types[0]?.key ?? "")
   const showFleet = isFleetType(selectedType)
   const selectedLabel = types.find((t) => t.key === selectedType)?.label ?? ""
   const isTextile = TEXTILE_PATTERN.test(`${selectedType} ${selectedLabel}`)
@@ -274,6 +277,11 @@ export function CustomRequestForm({
           placeholder={isTextile ? "Type de textile ou mobilier (canapé, matelas, tapis…), quantité, matière, taches éventuelles…" : undefined}
           aria-invalid={!!state.errors?.description}
         />
+        {isTextile && (
+          <p className="text-sm text-muted-foreground">
+            Précisez les articles et quantités (ex. canapé 3 places, 2 tapis 2 × 3 m).
+          </p>
+        )}
         {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description}</p>}
       </div>
 

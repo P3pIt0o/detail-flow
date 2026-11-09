@@ -108,9 +108,10 @@ describe("Super Admin — présentation publique contextuelle", () => {
 })
 
 describe("Espace admin — réglages adaptés au produit", () => {
-  it("booking_only → la catégorie « Site public » (réglages de vitrine) est masquée", () => {
+  it("booking_only → « Site public » réduite aux Demandes spéciales (réglages de vitrine masqués)", () => {
     const cats = getVisibleSettingsCategories(null, "booking_only")
-    expect(cats.some((c) => c.id === "site")).toBe(false)
+    // L44 : la catégorie site ne garde que le sous-onglet custom-requests.
+    expect(cats.find((c) => c.id === "site")?.subTabs.map((t) => t.value)).toEqual(["custom-requests"])
     // Les modules métier communs restent présents (aucune capacité retirée).
     expect(cats.some((c) => c.id === "reservations")).toBe(true)
     expect(cats.some((c) => c.id === "billing")).toBe(true)

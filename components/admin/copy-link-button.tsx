@@ -20,8 +20,10 @@ export function CopyLinkButton({
   url,
   variant = "solid",
   className,
+  label = "Copier mon lien",
 }: {
   url: string | null
+  label?: string
   /** `solid` = header desktop/mobile ; `ghost` = à l'intérieur d'un menu. */
   variant?: "solid" | "ghost"
   className?: string
@@ -88,7 +90,7 @@ export function CopyLinkButton({
       ) : (
         <>
           <Link2 className="size-4 shrink-0" aria-hidden="true" />
-          {error ? "Réessayer" : "Copier mon lien"}
+          {error ? "Réessayer" : label}
         </>
       )}
     </button>

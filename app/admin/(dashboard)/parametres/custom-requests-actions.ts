@@ -7,6 +7,7 @@ import { companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import {
   BUILTIN_KEYS,
+  BUILTIN_TYPES,
   RETIRED_TYPE_KEYS,
   resolveCustomRequestsConfig,
   type CustomRequestsConfig,
@@ -42,9 +43,10 @@ export async function saveCustomRequestsConfig(input: CustomRequestsConfig): Pro
 
   // Types intégrés : on ne conserve QUE leur clé + état d'activation.
   const builtins: CustomRequestType[] = []
-  for (const key of BUILTIN_KEYS) {
-    const found = input.types?.find((t) => t.key === key)
-    builtins.push({ key, label: "", enabled: found ? found.enabled !== false : true, builtin: true })
+  for (const def of BUILTIN_TYPES) {
+    const found = input.types?.find((t) => t.key === def.key)
+    // Absent de l'entrée → valeur par défaut du type (textile reste éteint).
+    builtins.push({ key: def.key, label: "", enabled: found ? found.enabled !== false : def.enabled, builtin: true })
   }
 
   // Types personnalisés : nom requis, clé slugifiée unique, description courte.

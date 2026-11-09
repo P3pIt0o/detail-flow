@@ -9,7 +9,7 @@ import { getPublicServices } from "@/lib/catalog-queries"
 import { getCategories, getVehicleTypes, getOptions } from "@/lib/booking/queries"
 import { CustomRequestCard } from "@/components/custom-request-card"
 import { getPublicCustomRequestsConfig } from "@/lib/site-content"
-import { resolveCustomRequestTexts } from "@/lib/custom-requests"
+import { findRequestType, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { getCurrentTenant } from "@/lib/tenant"
 import { withTenant } from "@/lib/tenant-link"
 import { requireWebsiteFeature } from "@/lib/licensing/website-guard"
@@ -51,6 +51,10 @@ export default async function PrestationsPage() {
   // activé la fonctionnalité (sinon page identique à aujourd'hui).
   const crTexts = resolveCustomRequestTexts(crConfig)
   const demandeHref = withTenant("/demande", tenant?.slug ?? null)
+  // Carte « Nettoyage textile » : site standard uniquement, module ET type textile actifs.
+  const showTextileCard =
+    crConfig.enabled && !tenant?.customSiteKey && findRequestType(crConfig, "textile") !== null
+  const textileHref = withTenant("/demande?type=textile", tenant?.slug ?? null)
 
   // Prestations sans catégorie regroupées à part.
   const uncategorized = visibleServices.filter(
@@ -129,6 +133,16 @@ export default async function PrestationsPage() {
                 href={demandeHref}
               />
             </Reveal>
+            {showTextileCard && (
+              <Reveal delay={0.08}>
+                <CustomRequestCard
+                  title="Nettoyage textile"
+                  description="Canapés, matelas, tapis et moquettes, sur devis."
+                  ctaLabel="Demander un devis"
+                  href={textileHref}
+                />
+              </Reveal>
+            )}
           </div>
         </section>
       )}

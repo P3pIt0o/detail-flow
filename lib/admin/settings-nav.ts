@@ -146,10 +146,10 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
  * - Spirit ACS : sous-onglets masqués retirés, et toute catégorie devenue vide
  *   (ex. « Réservations ») disparaît de la grille.
  * - `booking_only` : le professionnel a déjà son site ; DetailFlow ne fournit
- *   que le moteur de réservation. La catégorie « Site public » (contenu du site,
- *   apparence, galerie, avis, demandes = réglages de VITRINE) est masquée dans
- *   son intégralité. Aucune donnée n'est supprimée, aucune route n'est retirée :
- *   seuls les liens/onglets de création de vitrine disparaissent de SON espace.
+ *   que le moteur de réservation. La catégorie « Site public » est réduite au
+ *   seul sous-onglet « Demandes spéciales » (lien /demande à poser sur son site) ;
+ *   contenu, apparence, galerie et avis (réglages de VITRINE) restent masqués.
+ *   Aucune donnée n'est supprimée, aucune route n'est retirée.
  *
  * `onboardingIntent` doit être l'intention DÉJÀ RÉSOLUE (`resolveDashboardIntent`),
  * donc null pour tout site 100 % personnalisé → priorité au comportement custom.
@@ -168,7 +168,10 @@ export function getVisibleSettingsCategories(
   }
 
   if (onboardingIntent === "booking_only") {
-    return SETTINGS_CATEGORIES.filter((c) => c.id !== "site")
+    // Widget : seule la page /demande est utile (lien à poser sur son propre site).
+    return SETTINGS_CATEGORIES.map((c) =>
+      c.id === "site" ? { ...c, subTabs: c.subTabs.filter((t) => t.value === "custom-requests") } : c,
+    )
   }
 
   return SETTINGS_CATEGORIES

@@ -61,6 +61,7 @@ import { SettingsCategoryGrid } from "@/components/admin/settings/settings-categ
 import { findCategoryByTab, getVisibleSettingsCategories } from "@/lib/admin/settings-nav"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { withTenant } from "@/lib/tenant-link"
+import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { smsCredits } from "@/lib/db/schema"
@@ -434,7 +435,14 @@ export default async function ParametresPage({
                 </TabsContent>
                 {!isSpiritSite && (
                   <TabsContent value="custom-requests" className="mt-6">
-                    <CustomRequestsSettings config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)} />
+                    <CustomRequestsSettings
+                      config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)}
+                      requestPageUrl={
+                        dashboardIntent === "booking_only"
+                          ? tenantPublicPathUrl("/demande", tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+                          : null
+                      }
+                    />
                   </TabsContent>
                 )}
               </>

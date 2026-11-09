@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Save, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { CopyLinkButton } from "@/components/admin/copy-link-button"
 import { saveCustomRequestsConfig } from "@/app/admin/(dashboard)/parametres/custom-requests-actions"
 import {
   CUSTOM_REQUEST_DEFAULTS,
@@ -16,7 +17,14 @@ const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
 const labelClass = "mb-1.5 block text-sm font-medium text-foreground"
 
-export function CustomRequestsSettings({ config }: { config: CustomRequestsConfig }) {
+export function CustomRequestsSettings({
+  config,
+  requestPageUrl = null,
+}: {
+  config: CustomRequestsConfig
+  /** Mode widget uniquement : URL publique /demande (calculée côté serveur). */
+  requestPageUrl?: string | null
+}) {
   const router = useRouter()
   const [values, setValues] = useState<CustomRequestsConfig>(config)
   const [pending, startTransition] = useTransition()
@@ -209,6 +217,23 @@ export function CustomRequestsSettings({ config }: { config: CustomRequestsConfi
         )}
         Enregistrer
       </Button>
+
+      {requestPageUrl && (
+        <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
+          <h3 className="text-base font-semibold text-foreground">Lien à mettre sur votre site</h3>
+          {/* État ENREGISTRÉ (props serveur), pas l'interrupteur non sauvegardé. */}
+          {config.enabled ? (
+            <>
+              <p className="break-all rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+                {requestPageUrl}
+              </p>
+              <CopyLinkButton url={requestPageUrl} label="Copier le lien" />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Activez le module pour obtenir votre lien.</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
