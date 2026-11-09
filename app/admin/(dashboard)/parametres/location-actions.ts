@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache"
 import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { settings } from "@/lib/db/schema"
+import { companies, settings } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { saveLocationConfig } from "@/lib/booking/location"
-import { isWorkshopAddressComplete, type LocationConfig } from "@/lib/booking/location-shared"
+import { isWorkshopAddressComplete, sanitizeLocationLabels, type LocationConfig } from "@/lib/booking/location-shared"
 
 export type LocationActionResult = { ok: true } | { ok: false; error: string }
 
@@ -45,6 +45,35 @@ export async function saveLocationSettings(input: LocationConfig): Promise<Locat
   revalidatePath("/admin/parametres")
   revalidatePath("/admin/ma-reservation")
   revalidatePath("/admin")
+  revalidatePath("/reservation")
+  return { ok: true }
+}
+
+/**
+ * Libellés des cartes « Chez vous » / « À l'atelier » (L39), stockés dans
+ * `companies.siteContent.locationLabels`. Les autres clés de `siteContent` sont
+ * relues sous verrou et préservées. Écriture limitée au tenant du membre connecté.
+ */
+export async function saveLocationLabels(input: unknown): Promise<LocationActionResult> {
+  const { tenant } = await requireCompanyMember()
+  const clean = sanitizeLocationLabels(input)
+  if (!clean.ok) return clean
+
+  const scope = eq(companies.id, tenant.id)
+  const saved = await db.transaction(async (tx) => {
+    const [row] = await tx.select({ siteContent: companies.siteContent }).from(companies).where(scope).limit(1).for("update")
+    if (!row) return false
+    const current = row.siteContent
+    const next: Record<string, unknown> =
+      typeof current === "object" && current !== null && !Array.isArray(current) ? { ...current } : {}
+    if (Object.keys(clean.value).length) next.locationLabels = clean.value
+    else delete next.locationLabels
+    await tx.update(companies).set({ siteContent: next, updatedAt: new Date() }).where(scope)
+    return true
+  })
+  if (!saved) return { ok: false, error: "Enregistrement impossible. Réessayez." }
+
+  revalidatePath("/admin/parametres")
   revalidatePath("/reservation")
   return { ok: true }
 }

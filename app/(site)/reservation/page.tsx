@@ -23,7 +23,7 @@ import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
 import { getLocationConfig } from "@/lib/booking/location"
-import { DEFAULT_LOCATION_CONFIG, toPublicLocation } from "@/lib/booking/location-shared"
+import { DEFAULT_LOCATION_CONFIG, resolveLocationLabels, toPublicLocation } from "@/lib/booking/location-shared"
 
 /** Mêmes conditions que `createBookingAction` pour décider d'un paiement en ligne. */
 async function resolveTenantPaymentPlan(settings: { depositType: string; depositValue: number }): Promise<PaymentPlan> {
@@ -103,7 +103,10 @@ export default async function ReservationPage({
   if (!usesLegacyBookingWizard(requestTenant?.customSiteKey) && !settings.vacationMode) {
     // Même configuration de lieu pour le site standard ET le widget (?embed=1).
     const tenant = await resolveRequestTenant()
-    const location = toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG)
+    const location = {
+      ...toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG),
+      labels: resolveLocationLabels((tenant?.siteContent as { locationLabels?: unknown } | null)?.locationLabels),
+    }
     return (
       <>
         {isEmbed && (

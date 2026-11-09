@@ -21,7 +21,13 @@ import { getGooglePlaceDetails } from "@/lib/reviews/google-places"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { LocationSettings } from "@/components/admin/settings/location-settings"
 import { getLocationConfig, locationColumnsExist } from "@/lib/booking/location"
-import { DEFAULT_LOCATION_CONFIG } from "@/lib/booking/location-shared"
+import { DEFAULT_LOCATION_CONFIG, sanitizeLocationLabels } from "@/lib/booking/location-shared"
+
+/** Libellés de lieu tels que saisis (vide = texte par défaut affiché en placeholder). */
+function storedLocationLabels(raw: unknown) {
+  const res = sanitizeLocationLabels(raw)
+  return res.ok ? res.value : {}
+}
 import { PlanningSettings } from "@/components/admin/settings/planning-settings"
 import { HoursSettings } from "@/components/admin/settings/hours-settings"
 import { TimeOffSettings } from "@/components/admin/settings/timeoff-settings"
@@ -317,6 +323,7 @@ export default async function ParametresPage({
                 <TabsContent value="travel" className="mt-6">
                   <LocationSettings
                     initial={locationConfig ?? DEFAULT_LOCATION_CONFIG}
+                    initialLabels={storedLocationLabels((tenant.siteContent as { locationLabels?: unknown } | null)?.locationLabels)}
                     available={locationAvailable}
                     travel={{
                       businessAddress: settings.businessAddress ?? "",
