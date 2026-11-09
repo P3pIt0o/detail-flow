@@ -18,6 +18,7 @@ import {
   serviceNoun,
   wizardClientPreview,
   wizardIssuesForStep,
+  wizardVehicleTypeChange,
   type WizardFormState,
   type WizardPeriod,
 } from "@/lib/customer-subscriptions/plan-form"
@@ -98,6 +99,8 @@ export function PlanWizard({
   const cents = parseEurosToCents(form.priceEuros)
   const split = monthly && cents > 0 ? splitInstallments(cents, form.periodMonths) : null
   const isLast = stepIndex === WIZARD_STEPS.length - 1
+  // Catégorie enregistrée mais désactivée (absente des options actives) : affichée telle quelle, conservée tant que le pro n'y touche pas.
+  const inactiveVehicleType = initial.vehicleTypeId != null && !vehicleTypes.some((v) => v.id === initial.vehicleTypeId)
 
   function setPeriod(p: WizardPeriod) {
     // Par mois : payer « chaque mois » = « en une fois » ; pas d'engagement imposé.
@@ -126,7 +129,7 @@ export function PlanWizard({
       }
     }
     startTransition(async () => {
-      const r = await saveWizardPlanAction(planId, form)
+      const r = await saveWizardPlanAction(planId, { ...form, vehicleTypeId: wizardVehicleTypeChange(initial, form) })
       if (!r.ok) return setServerError(r.message)
       router.push(plansListHref)
     })
@@ -188,11 +191,12 @@ export function PlanWizard({
                 <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ex. Formule Sérénité" maxLength={120} aria-invalid={!!err("name")} aria-describedby="name-error" className="h-11" />
                 <FieldError id="name-error" message={err("name")} />
               </div>
-              {vehicleTypes.length > 0 && (
+              {(vehicleTypes.length > 0 || inactiveVehicleType) && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="vehicleType">Catégorie de véhicule (facultatif)</Label>
                   <select id="vehicleType" className={selectClass} value={form.vehicleTypeId ?? ""} onChange={(e) => set("vehicleTypeId", e.target.value ? Number(e.target.value) : null)} aria-describedby="vehicleType-hint">
                     <option value="">Toutes les catégories</option>
+                    {inactiveVehicleType && <option value={initial.vehicleTypeId!}>Catégorie inactive</option>}
                     {vehicleTypes.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}

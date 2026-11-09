@@ -253,8 +253,18 @@ export type WizardFormState = {
   initialServiceId: number | null
   status: "draft" | "active"
   visibility: PlanVisibility
-  /** L36 : catégorie de véhicule (null = toutes). Hors configuration : transmise à part, re-vérifiée serveur. */
-  vehicleTypeId: number | null
+  /**
+   * L36 : catégorie de véhicule (null = toutes). Hors configuration : transmise à part, re-vérifiée serveur.
+   * Absente (undefined) dans l'envoi = inchangée (voir wizardVehicleTypeChange).
+   */
+  vehicleTypeId?: number | null
+}
+
+/** L36 : n'envoie la catégorie que si le pro l'a changée ; sinon undefined = inchangée (une catégorie inactive n'est jamais effacée en silence). */
+export function wizardVehicleTypeChange(initial: Pick<WizardFormState, "vehicleTypeId">, form: Pick<WizardFormState, "vehicleTypeId">): number | null | undefined {
+  const before = initial.vehicleTypeId ?? null
+  const after = form.vehicleTypeId ?? null
+  return after === before ? undefined : after
 }
 
 export const DEFAULT_WIZARD_FORM: WizardFormState = {

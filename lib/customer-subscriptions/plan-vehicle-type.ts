@@ -23,7 +23,7 @@ export async function planVehicleTypeColumnExists(db: Executor): Promise<boolean
   if (columnKnown) return true
   const res = await db.execute(sql`
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'maintenance_plans' AND column_name = 'vehicleTypeId'
+    WHERE table_schema = current_schema() AND table_name = 'maintenance_plans' AND column_name = 'vehicleTypeId'
   `)
   columnKnown = rowsOf(res).length > 0
   return columnKnown

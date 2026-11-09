@@ -40,8 +40,8 @@ export default async function EditPlanPage({
   const paymentsReady = Boolean(company.stripeAccountId && company.stripeChargesEnabled && company.paymentsEnabled)
   const config = planRowToConfig(found.plan)
   const fromConfig = wizardFromConfig(config)
-  // Catégorie inactive ou supprimée : affichée « Toutes les catégories », comme sur la page publique.
-  const wizard = fromConfig && { ...fromConfig, vehicleTypeId: vehicleTypes.some((v) => v.id === vehicleTypeId) ? vehicleTypeId : null }
+  // Catégorie enregistrée telle quelle : une catégorie inactive s'affiche « Catégorie inactive » et n'est jamais effacée sans choix du pro.
+  const wizard = fromConfig && { ...fromConfig, vehicleTypeId }
 
   return (
     <div className="flex flex-col gap-6">

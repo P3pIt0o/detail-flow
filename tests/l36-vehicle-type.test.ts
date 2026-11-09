@@ -9,7 +9,7 @@ vi.mock("@vercel/firewall", () => ({ checkRateLimit: async () => ({ rateLimited:
 
 import * as schema from "@/lib/db/schema"
 import * as engine from "@/lib/customer-subscriptions/engine"
-import { DEFAULT_WIZARD_FORM, wizardFromConfig, wizardToPlanConfigInput } from "@/lib/customer-subscriptions/plan-form"
+import { DEFAULT_WIZARD_FORM, wizardFromConfig, wizardToPlanConfigInput, wizardVehicleTypeChange } from "@/lib/customer-subscriptions/plan-form"
 import { validatePlanConfig, type PlanConfigInput } from "@/lib/customer-subscriptions/plan-validation"
 import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
 import { groupPublicPlans } from "@/lib/customer-subscriptions/plan-groups"
@@ -91,6 +91,15 @@ describe("avant migration : rien ne casse, la catégorie est ignorée", () => {
     expect(offer?.plans.find((p) => p.id === planId)?.vehicleType).toBeNull()
     await pg.query(`UPDATE maintenance_plans SET status = 'archived' WHERE id = $1`, [planId])
   })
+
+  it("une table maintenance_plans d'un AUTRE schéma ne fait pas croire la colonne présente", async () => {
+    await pg.exec(`CREATE SCHEMA autre; CREATE TABLE autre.maintenance_plans (id serial PRIMARY KEY, "vehicleTypeId" integer);`)
+    const { planId } = await engine.createPlan(db, A.companyId, owner, formule(A, { name: "Schéma" }), A.types[1])
+    expect(await readPlanVehicleTypeId(db, A.companyId, planId)).toBeNull()
+    expect(await listPlanVehicleTypeOptions(db, A.companyId)).toEqual([])
+    await pg.exec(`DROP SCHEMA autre CASCADE`)
+    await pg.query(`UPDATE maintenance_plans SET status = 'archived' WHERE id = $1`, [planId])
+  })
 })
 
 describe("migration", () => {
@@ -120,6 +129,21 @@ describe("après migration : enregistrement et sémantique undefined / null", ()
     expect(await readPlanVehicleTypeId(db, A.companyId, planId)).toBe(A.types[1])
     await engine.updatePlan(db, A.companyId, owner, planId, formule(A), null)
     expect(await columnValue(planId)).toBeNull()
+  })
+
+  it("catégorie devenue inactive : enregistrer depuis le wizard sans toucher au champ la conserve", async () => {
+    const { planId } = await engine.createPlan(db, A.companyId, owner, formule(A, { name: "Gardée" }), A.types[1])
+    await pg.query(`UPDATE vehicle_types SET active = false WHERE id = $1`, [A.types[1]])
+    const initial = { ...DEFAULT_WIZARD_FORM, vehicleTypeId: await readPlanVehicleTypeId(db, A.companyId, planId) }
+    const sent = wizardVehicleTypeChange(initial, { ...initial, name: "Gardée v2" })
+    expect(sent).toBeUndefined()
+    await engine.updatePlan(db, A.companyId, owner, planId, formule(A, { name: "Gardée v2" }), sent)
+    expect(await columnValue(planId)).toBe(A.types[1])
+    // Changement explicite vers « Toutes les catégories » : effacement voulu.
+    await engine.updatePlan(db, A.companyId, owner, planId, formule(A, { name: "Gardée v2" }), wizardVehicleTypeChange(initial, { vehicleTypeId: null }))
+    expect(await columnValue(planId)).toBeNull()
+    await pg.query(`UPDATE vehicle_types SET active = true WHERE id = $1`, [A.types[1]])
+    await pg.query(`UPDATE maintenance_plans SET status = 'archived' WHERE id = $1`, [planId])
   })
 
   it("valeurs invalides ou catégorie inactive : INVALID_PLAN, rien n'est écrit", async () => {
