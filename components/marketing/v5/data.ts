@@ -5,9 +5,8 @@
  * vérité (offres, commissions, droits par plan, SMS). Les textes viennent de la
  * maquette validée `docs/lots/L42.apercu.html`.
  */
-import { COMMERCIAL_PLANS, INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT, type CommercialPlan } from "@/lib/pricing/plans"
+import { COMMERCIAL_PLANS, INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT, formatBpsPercent, type CommercialPlan } from "@/lib/pricing/plans"
 import { COMMISSION_RULES } from "@/lib/billing/commercial-rules"
-import { formatBpsPercent } from "@/lib/payments/config"
 import { formatPrice } from "@/lib/format"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
@@ -77,7 +76,7 @@ export const FAQ_V5: readonly { q: string; a: string }[] = [
   },
   {
     q: "Combien prend DetailFlow sur mes paiements ?",
-    a: `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${OFFER.freeFeePercent} % des paiements en ligne, plafonnés à ${OFFER.freeFeeCap} par mois. Les frais de Stripe s'appliquent à part.`,
+    a: `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${OFFER.freeFeePercent} des paiements en ligne, plafonnés à ${OFFER.freeFeeCap} par mois. Les frais de Stripe s'appliquent à part.`,
   },
 ]
 

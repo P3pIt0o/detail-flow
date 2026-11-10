@@ -26,7 +26,7 @@ export function Pricing() {
     <section id="tarifs" className="py-20">
       <div className={UI.wrap}>
         <h2 className={UI.h2}>
-          Gratuit pour commencer. {OFFER.proFeePercent} % de commission dès {pro.price}.
+          Gratuit pour commencer. {OFFER.proFeePercent} de commission dès {pro.price}.
         </h2>
         <p className="m-0 mt-3.5 max-w-[56ch] text-lg leading-[1.55] text-[#4d4a44]">
           Sans engagement, résiliable à tout moment. Prix hors taxes.
@@ -38,7 +38,7 @@ export function Pricing() {
             <Price price={free.price} period="/ mois" />
             <p className={planText}>
               Page de réservation, agenda, clients illimités, {OFFER.freeQuotes} devis et {OFFER.freeInvoices} factures
-              par mois. Commission de {OFFER.freeFeePercent} % sur les paiements en ligne, plafonnée à {OFFER.freeFeeCap}{" "}
+              par mois. Commission de {OFFER.freeFeePercent} sur les paiements en ligne, plafonnée à {OFFER.freeFeeCap}{" "}
               par mois.
             </p>
             {free.cta.href ? (
@@ -69,7 +69,7 @@ export function Pricing() {
             <Price price={perf.price} period={perf.period} />
             <p className={planText}>
               Tout Indépendant, abonnements clients illimités, prospects (CRM), statistiques avancées.{" "}
-              {OFFER.businessFeePercent} % de commission.
+              {OFFER.businessFeePercent} de commission.
             </p>
             {perf.availability === "coming_soon" || !perf.cta.href ? (
               <span className={`mt-2 text-[15px] font-semibold ${UI.muted}`}>{PRICING_COPY.comingSoonLabel}</span>

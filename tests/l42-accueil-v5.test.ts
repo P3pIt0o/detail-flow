@@ -5,7 +5,7 @@ import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { COMMERCIAL_PLANS, INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT, PRICING_COPY } from "@/lib/pricing/plans"
 import { COMMISSION_RULES } from "@/lib/billing/commercial-rules"
-import { formatBpsPercent } from "@/lib/payments/config"
+import { formatBpsPercent } from "@/lib/pricing/plans"
 import { formatPrice } from "@/lib/format"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
@@ -124,11 +124,17 @@ describe("L42 — C3 montants et citations", () => {
   it.each(sources)("%s : aucun montant ni pourcentage en dur", (_f, src) => {
     expect(src).not.toMatch(/\d+([,.]\d+)?\s?€/)
     expect(src).not.toMatch(/\d+\s?%/)
+    // lib/payments/* est server-only (base de données) : interdit dans la vitrine.
+    expect(src).not.toMatch(/@\/lib\/payments\//)
+  })
+
+  it("aucun « % » en double (formatBpsPercent de plans.ts inclut déjà « % »)", () => {
+    for (const t of [text(pricing), text(faq), ...FAQ_V5.map((i) => i.a)]) expect(t).not.toMatch(/%\s*%/)
   })
 
   it("titre tarifs : commission Indépendant et prix lus dans les sources", () => {
     expect(text(pricing)).toContain(
-      `Gratuit pour commencer. ${formatBpsPercent(COMMISSION_RULES.PRO.feeBps)} % de commission dès ${plan("pro").price}.`,
+      `Gratuit pour commencer. ${formatBpsPercent(COMMISSION_RULES.PRO.feeBps)} de commission dès ${plan("pro").price}.`,
     )
   })
 
@@ -145,11 +151,11 @@ describe("L42 — C3 montants et citations", () => {
       `${PLAN_MATRIX.FREE.limits.maxQuotesPerMonth} devis et ${PLAN_MATRIX.FREE.limits.maxInvoicesPerMonth} factures par mois`,
     )
     expect(t).toContain(
-      `Commission de ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} % sur les paiements en ligne, plafonnée à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois.`,
+      `Commission de ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} sur les paiements en ligne, plafonnée à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois.`,
     )
     expect(t).toContain(`${SMS_MONTHLY_INCLUDED_BY_PLAN.PRO} SMS par mois`)
     expect(t).toContain(`${INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT}.`)
-    expect(t).toContain(`${formatBpsPercent(COMMISSION_RULES.BUSINESS.feeBps)} % de commission.`)
+    expect(t).toContain(`${formatBpsPercent(COMMISSION_RULES.BUSINESS.feeBps)} de commission.`)
     expect(t).toContain("le plus choisi")
     expect(t).not.toContain(plan("entreprise").price)
   })
@@ -171,7 +177,7 @@ describe("L42 — C3 montants et citations", () => {
     expect(COMMISSION_RULES.PRO.feeBps).toBe(0)
     expect(COMMISSION_RULES.BUSINESS.feeBps).toBe(0)
     expect(FAQ_V5[3].a).toBe(
-      `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} % des paiements en ligne, plafonnés à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois. Les frais de Stripe s'appliquent à part.`,
+      `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} des paiements en ligne, plafonnés à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois. Les frais de Stripe s'appliquent à part.`,
     )
     expect(faq.match(/<details/g)).toHaveLength(4)
     for (const item of FAQ_V5) expect(text(faq)).toContain(item.q)
