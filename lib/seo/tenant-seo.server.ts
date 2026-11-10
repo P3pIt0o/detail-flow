@@ -117,10 +117,10 @@ export const resolveTenantSeo = cache(async (): Promise<ResolvedTenantSeo> => {
  * les helpers sous-jacents.
  */
 /**
- * Prépublication V1 Cleanyzer (validation par Tom) : indexation temporairement
- * désactivée, liens suivis. À retirer lors de la mise en ligne officielle.
+ * Sites en prépublication : indexation temporairement désactivée, liens suivis.
+ * Vide depuis la mise en ligne de Cleanyzer sur www.cleanyzer.fr (L50).
  */
-const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set(["cleanyzer"])
+const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set<string>()
 const PREPUBLICATION_ROBOTS: Metadata["robots"] = { index: false, follow: true }
 
 function isPrepublicationSite(customSiteKey: string | null | undefined): boolean {

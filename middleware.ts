@@ -3,6 +3,7 @@ import {
   DEFAULT_TENANT_SLUG,
   marketingOrigin,
   parsePublicPagePath,
+  publicPageDomainRedirect,
   publicPagePathRedirect,
   resolveHost,
 } from "@/lib/tenant-shared"
@@ -45,6 +46,13 @@ export function middleware(req: NextRequest) {
   // L30 : un site STANDARD sous `/p/<slug>` est redirigé vers `?tenant=<slug>`
   // (sinon ses liens perdent le tenant → 404). Embed, sites sur mesure et
   // domaines personnalisés gardent la réécriture ci-dessous.
+  //
+  // L50 : `/p/cleanyzer/*` (table fermée) redirige en 308 vers son domaine
+  // personnalisé, hors Preview. Évalué avant L30.
+  const domainRedirect = publicPageDomainRedirect(path, req.nextUrl.searchParams, res.kind)
+  if (domainRedirect) {
+    return NextResponse.redirect(domainRedirect, 308)
+  }
   const publicPageRedirect = publicPagePathRedirect(path, req.nextUrl.searchParams)
   if (publicPageRedirect) {
     return NextResponse.redirect(new URL(publicPageRedirect, req.nextUrl), 307)

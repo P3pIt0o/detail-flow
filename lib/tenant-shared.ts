@@ -215,6 +215,7 @@ export function parsePublicPagePath(pathname: string): { slug: string; rest: str
  */
 export const CUSTOM_DOMAIN_TENANTS: Record<string, string> = {
   "spiritacs.com": "spirit-acs",
+  "cleanyzer.fr": "cleanyzer",
 }
 
 /**
@@ -239,6 +240,7 @@ export function resolveCustomDomainSlug(cleanHost: string): string | null {
  */
 export const TENANT_CANONICAL_HOST: Record<string, string> = {
   "spirit-acs": "www.spiritacs.com",
+  cleanyzer: "www.cleanyzer.fr",
 }
 
 /** Hôte canonique (`www.spiritacs.com`) d'un tenant, ou `null`. Fonction PURE. */
@@ -256,7 +258,7 @@ export function tenantCanonicalHost(slug: string): string | null {
  * Table FERMÉE : un tenant absent garde exactement la forme `?tenant=`.
  * Dès qu'un domaine est ajouté dans `TENANT_CANONICAL_HOST`, il est prioritaire.
  */
-export const TENANT_PATH_CANONICAL: ReadonlySet<string> = new Set(["cleanyzer"])
+export const TENANT_PATH_CANONICAL: ReadonlySet<string> = new Set<string>()
 
 /**
  * Préfixe canonique `/p/<slug>` d'un tenant (voir `TENANT_PATH_CANONICAL`), ou
@@ -301,6 +303,35 @@ export function publicPagePathRedirect(pathname: string, searchParams: URLSearch
   const params = new URLSearchParams(searchParams)
   params.set("tenant", parsed.slug)
   return `${parsed.rest}?${params.toString()}`
+}
+
+/**
+ * Slugs dont l'ancien chemin `/p/<slug>[/reste]` redirige (308) vers leur
+ * domaine personnalisé. Table FERMÉE : Spirit garde sa réécriture `/p/spirit-acs`.
+ */
+const PATH_TO_DOMAIN_REDIRECT: ReadonlySet<string> = new Set(["cleanyzer"])
+
+/**
+ * Cible ABSOLUE de redirection `/p/<slug>[/reste]` → `https://<domaine>/<reste>`
+ * pour un slug de `PATH_TO_DOMAIN_REDIRECT`. `null` = aucune redirection :
+ * Preview (le site reste testable sous `/p/`), embed, slug hors table, domaine
+ * absent, ou reste lui-même en `/p/…` (jamais de boucle). Paramètres conservés.
+ * Fonction PURE.
+ */
+export function publicPageDomainRedirect(
+  pathname: string,
+  searchParams: URLSearchParams,
+  kind: HostResolution["kind"],
+): string | null {
+  if (kind === "preview") return null
+  const parsed = parsePublicPagePath(pathname)
+  if (!parsed || !PATH_TO_DOMAIN_REDIRECT.has(parsed.slug)) return null
+  if (searchParams.get("embed") === "1") return null
+  if (parsePublicPagePath(parsed.rest)) return null
+  const origin = tenantCanonicalOrigin(parsed.slug)
+  if (!origin) return null
+  const query = searchParams.toString()
+  return `${origin}${parsed.rest}${query ? `?${query}` : ""}`
 }
 
 /** Origine canonique absolue (`https://www.spiritacs.com`) d'un tenant, ou `null`. */
