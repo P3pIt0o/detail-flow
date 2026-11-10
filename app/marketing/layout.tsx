@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from "next"
 import { MARKETING_MAINTENANCE_ENABLED } from "@/lib/marketing/maintenance"
-import { SiteNav } from "@/components/marketing/v4/site-nav"
-import { SiteFooter } from "@/components/marketing/v4/site-footer"
+import { Schibsted_Grotesk } from "next/font/google"
+import { SiteHeader } from "@/components/marketing/v5/site-header"
+import { SiteFooter } from "@/components/marketing/v5/site-footer"
+
+// Police de la vitrine v5 (L42), chargée uniquement ici.
+const schibsted = Schibsted_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap" })
 
 // `title.absolute` évite le gabarit "%s | DetailFlow" du root layout : la marque
 // n'apparaît donc qu'UNE fois dans le <title> de la home marketing.
@@ -42,7 +46,7 @@ export const metadata: Metadata = {
 }
 
 export function generateViewport(): Viewport {
-  return MARKETING_MAINTENANCE_ENABLED ? {} : { themeColor: "#fbfcfe", colorScheme: "light" }
+  return MARKETING_MAINTENANCE_ENABLED ? {} : { themeColor: "#f7f5f0", colorScheme: "light" }
 }
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
@@ -56,14 +60,14 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   // `.df-mkt` : thème clair SCOPÉ à la vitrine (voir globals.css). Aucun tenant
   // ni espace admin ne porte cette classe.
   return (
-    <div className="df-mkt min-h-screen bg-background font-sans text-foreground antialiased">
+    <div className={`df-mkt ${schibsted.className} min-h-screen bg-[#f7f5f0] text-[#16181d] antialiased`}>
       <a
         href="#contenu"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-foreground focus:px-4 focus:py-2 focus:text-sm focus:text-background"
       >
         Aller au contenu
       </a>
-      <SiteNav />
+      <SiteHeader />
       <main id="contenu">{children}</main>
       <SiteFooter />
     </div>

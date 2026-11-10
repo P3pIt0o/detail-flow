@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>DetailFlow — accueil</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0;background:#f7f5f0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px;box-sizing:border-box}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:8px;font-size:16px;font-weight:600;text-decoration:none}
+.bp{background:#1d5fd0;color:#fff}.bp:hover{background:#174ead;color:#fff}
+.bs{color:#16181d;border:1px solid #c9c5bb}.bs:hover{border-color:#16181d;color:#16181d}
+.h2{margin:0;font-size:clamp(28px,3.4vw,42px);font-weight:700;letter-spacing:-.02em;line-height:1.1;max-width:20ch}
+.lead{margin:14px 0 0;font-size:18px;line-height:1.55;color:#4d4a44;max-width:56ch}
+.muted{color:#6b675e}
+.shot{display:block;width:100%;height:auto;border-radius:10px;border:1px solid #2a2e36;background:#0d1117;box-shadow:0 1px 0 #fff inset,0 30px 60px -30px rgba(22,24,29,.45)}
+.feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:40px 64px;align-items:center;padding:56px 0;border-top:1px solid #e2ddd2}
+.feat h3{margin:0;font-size:26px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.feat p{margin:12px 0 0;font-size:17px;line-height:1.6;color:#4d4a44;max-width:46ch}
+.feat ul{margin:16px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:16px}
+.feat li{padding-left:18px;position:relative}.feat li:before{content:"";position:absolute;left:0;top:.62em;width:8px;height:2px;background:#1d5fd0}
+.plan{padding:24px 0 0;border-top:3px solid #16181d;display:flex;flex-direction:column;gap:10px}
+.plan p{margin:0}
+.nav a.l{color:#33302b;text-decoration:none;font-size:15px;font-weight:500}
+details{border-top:1px solid #e2ddd2;padding:18px 0}
+summary{cursor:pointer;font-size:17px;font-weight:600;list-style:none}
+summary::-webkit-details-marker{display:none}
+a{color:#1d5fd0}a:hover{color:#174ead}
+@media (max-width:720px){.navlinks,.nav .l{display:none}.feat{padding:40px 0}.rev{order:0}}
+</style>
+</helmet>
+<div style="font-family:'Schibsted Grotesk',Georgia,serif;color:#16181d;background:#f7f5f0">
+
+  <header class="nav" style="position:sticky;top:0;background:rgba(247,245,240,.94);border-bottom:1px solid #e2ddd2;z-index:5">
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px">
+      <a href="#" style="font-size:20px;font-weight:800;color:#16181d;text-decoration:none;letter-spacing:-.02em">DetailFlow</a>
+      <nav class="navlinks" style="display:flex;gap:28px" aria-label="Navigation principale">
+        <a class="l" href="Fonctionnalites.dc.html">Fonctionnalités</a><a class="l" href="#tarifs">Tarifs</a><a class="l" href="Blog.dc.html">Blog</a><a class="l" href="#faq">Questions</a>
+      </nav>
+      <div style="display:flex;gap:16px;align-items:center">
+        <a class="l" href="#">Connexion</a>
+        <a class="btn bp" href="#" style="min-height:40px;padding:0 16px;font-size:15px">Essayer gratuitement</a>
+      </div>
+    </div>
+  </header>
+
+  <section style="padding:72px 0 0">
+    <div class="wrap">
+      <p style="margin:0;font-size:15px;font-weight:600" class="muted">Logiciel de réservation pour le detailing automobile</p>
+      <h1 style="margin:14px 0 0;font-size:clamp(38px,6vw,76px);font-weight:800;line-height:1;letter-spacing:-.035em;max-width:15ch">Votre agenda se remplit tout seul. Vos acomptes aussi.</h1>
+      <div style="display:flex;flex-wrap:wrap;gap:32px 64px;align-items:flex-end;justify-content:space-between;margin-top:28px">
+        <p style="margin:0;font-size:19px;line-height:1.55;color:#4d4a44;max-width:48ch">Vos clients réservent et paient leur acompte en ligne, jour et nuit. Rappels, devis et factures suivent, dans une seule application.</p>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <a class="btn bp" href="#">Créer mon espace gratuitement</a>
+            <a class="btn bs" href="Fonctionnalites.dc.html">Voir le logiciel</a>
+          </div>
+          <p style="margin:0;font-size:14px" class="muted">Gratuit pour commencer, sans carte bancaire. <a href="#" style="color:#16181d;font-weight:600;text-decoration-color:#00b67a;text-underline-offset:3px">4,2/5 sur Trustpilot</a></p>
+        </div>
+      </div>
+      <figure style="margin:48px 0 0">
+        <img class="shot" src="../../public/marketing/v5/ecran-reservations.webp" alt="Liste des réservations dans DetailFlow : date, référence, statut et montant de chaque rendez-vous" width="1500" height="636">
+        <figcaption style="margin-top:10px;font-size:13px" class="muted">Écran réel de DetailFlow, noms des clients masqués.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section style="padding:56px 0 24px">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;gap:20px 48px;align-items:center">
+      <p style="margin:0;font-size:15px;font-weight:600" class="muted">Ils l'utilisent tous les jours</p>
+      <span style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600"><img src="../../public/marketing/v5/logos/rhine-shine.webp" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">Rhine Shine Detailling</span>
+      <span style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600"><img src="../../public/marketing/v5/logos/ky-detailing.webp" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">KY Detailing</span>
+      <span style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600"><img src="../../public/marketing/v5/logos/autocare.webp" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">AutoCare</span>
+      <span style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600"><img src="../../public/marketing/v5/logos/justclean.webp" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover">JustClean</span>
+    </div>
+  </section>
+
+  <section id="comment" style="padding:56px 0">
+    <div class="wrap">
+      <h2 class="h2">Prêt en une soirée</h2>
+      <ol style="margin:32px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:32px">
+        <li style="border-top:1px solid #16181d;padding-top:16px"><span style="font-size:15px;font-weight:700;color:#1d5fd0">01</span><p style="margin:8px 0 0;font-size:19px;font-weight:700">Entrez vos prestations</p><p style="margin:6px 0 0;font-size:16px;line-height:1.55" class="muted">Prix par type de véhicule, durées, horaires, zone de déplacement.</p></li>
+        <li style="border-top:1px solid #16181d;padding-top:16px"><span style="font-size:15px;font-weight:700;color:#1d5fd0">02</span><p style="margin:8px 0 0;font-size:19px;font-weight:700">Partagez votre lien</p><p style="margin:6px 0 0;font-size:16px;line-height:1.55" class="muted">Dans votre bio Instagram, sur Google ou sur votre site.</p></li>
+        <li style="border-top:1px solid #16181d;padding-top:16px"><span style="font-size:15px;font-weight:700;color:#1d5fd0">03</span><p style="margin:8px 0 0;font-size:19px;font-weight:700">Recevez des rendez-vous payés</p><p style="margin:6px 0 0;font-size:16px;line-height:1.55" class="muted">L'acompte est encaissé, le créneau bloqué, le client prévenu.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="fonctions" style="padding:24px 0 40px">
+    <div class="wrap">
+      <div class="feat">
+        <div>
+          <h3>Un prix juste pour chaque véhicule</h3>
+          <p>Une citadine ne se traite pas comme un SUV. Fixez le prix et la durée de chaque prestation par type de véhicule : le client voit directement son tarif.</p>
+          <ul><li>Grille tarifaire citadine, berline, SUV, utilitaire</li><li>Options et suppléments</li><li>Codes promo et offres</li></ul>
+        </div>
+        <img class="shot" src="../../public/marketing/v5/ecran-grille-tarifs.webp" alt="Grille tarifaire DetailFlow : prix et durée de chaque prestation selon le type de véhicule" loading="lazy">
+      </div>
+      <div class="feat">
+        <img class="shot rev" src="../../public/marketing/v5/ecran-formule.webp" alt="Création d'une formule d'entretien mensuelle dans DetailFlow" loading="lazy">
+        <div>
+          <h3>Des clients abonnés, un revenu chaque mois</h3>
+          <p>Proposez une formule d'entretien : le client paie chaque mois, vous savez combien vous encaissez, il revient sans que vous ayez à le relancer.</p>
+          <ul><li>Prélèvement automatique par carte</li><li>Sans engagement pour votre client</li><li>Espace client pour suivre ses lavages</li></ul>
+        </div>
+      </div>
+      <div class="feat">
+        <div>
+          <h3>Vos chiffres, sans tableur</h3>
+          <p>Chiffre d'affaires, panier moyen, prestations qui rapportent le plus et rentabilité estimée, calculés à partir de vos vraies réservations.</p>
+          <ul><li>Suivi des dépenses et des produits</li><li>Conversion de votre page de réservation</li><li>Sur ordinateur et sur téléphone</li></ul>
+          <p style="margin-top:20px;font-size:16px"><a href="Fonctionnalites.dc.html" style="font-weight:600">Toutes les fonctionnalités →</a></p>
+        </div>
+        <img class="shot" src="../../public/marketing/v5/ecran-analyse.webp" alt="Tableau d'analyse DetailFlow : chiffre d'affaires, rendez-vous, panier moyen et évolution" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:72px 0;background:#16181d;color:#f7f5f0">
+    <div class="wrap">
+      <figure style="margin:0;max-width:900px">
+        <blockquote style="margin:0;font-size:clamp(24px,3vw,34px);line-height:1.3;font-weight:500;letter-spacing:-.01em">« Tout est fluide et intuitif, la prise en main est rapide […] Le design est également très réussi : moderne, propre et professionnel, ce qui donne une vraie bonne image auprès des clients. »</blockquote>
+        <figcaption style="margin-top:20px;font-size:15px;color:#b7b2a7"><strong style="color:#f7f5f0">JustClean</strong>, detailing en Vendée · avis Trustpilot, août 2026</figcaption>
+      </figure>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px 56px;margin-top:56px">
+        <figure style="margin:0;border-top:1px solid #3a3d44;padding-top:20px"><blockquote style="margin:0;font-size:17px;line-height:1.6">« Le site est complet, très facile à utiliser et surtout bien pensé, aussi bien pour le professionnel que pour l’utilisateur. Tout est clair, intuitif et pratique, ce qui permet de gagner du temps et de vraiment simplifier la gestion. »</blockquote><figcaption style="margin-top:12px;font-size:14px;color:#b7b2a7"><strong style="color:#f7f5f0">AutoCare</strong>, detailing à Hyères · avis Trustpilot, août 2026</figcaption></figure>
+        <figure style="margin:0;border-top:1px solid #3a3d44;padding-top:20px"><blockquote style="margin:0;font-size:17px;line-height:1.6">« Un outil vraiment pratique au quotidien. […] Tout est bien pensé, ce qui me fait gagner beaucoup de temps au quotidien pour mon entreprise de nettoyage automobile. »</blockquote><figcaption style="margin-top:12px;font-size:14px;color:#b7b2a7"><strong style="color:#f7f5f0">Dh_auto_clean</strong>, nettoyage automobile, Belgique · avis Trustpilot, août 2026</figcaption></figure>
+      </div>
+      <p style="margin:40px 0 0;font-size:15px"><a href="#" style="color:#f7f5f0;font-weight:600;text-underline-offset:3px">Lire tous les avis sur Trustpilot</a></p>
+    </div>
+  </section>
+
+  <section id="tarifs" style="padding:80px 0">
+    <div class="wrap">
+      <h2 class="h2">Gratuit pour commencer. 0 % de commission dès 19,90 €.</h2>
+      <p class="lead">Sans engagement, résiliable à tout moment. Prix hors taxes.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:40px;margin-top:40px">
+        <div class="plan" style="border-top-color:#c9c5bb">
+          <p style="font-size:18px;font-weight:700">Essentiel</p>
+          <p style="font-size:40px;font-weight:800;letter-spacing:-.02em">0 €<span style="font-size:15px;font-weight:500" class="muted"> / mois</span></p>
+          <p style="font-size:16px;line-height:1.55" class="muted">Page de réservation, agenda, clients illimités, 10 devis et 10 factures par mois. Commission de 2 % sur les paiements en ligne, plafonnée à 19,90 € par mois.</p>
+          <a class="btn bs" href="#" style="margin-top:8px;align-self:flex-start">Créer mon espace</a>
+        </div>
+        <div class="plan" style="border-top-color:#1d5fd0">
+          <p style="font-size:18px;font-weight:700">Indépendant <span style="font-size:13px;font-weight:600;color:#1d5fd0;margin-left:6px">le plus choisi</span></p>
+          <p style="font-size:40px;font-weight:800;letter-spacing:-.02em">19,90 €<span style="font-size:15px;font-weight:500" class="muted"> / mois</span></p>
+          <p style="font-size:16px;line-height:1.55" class="muted">Tout illimité, rappels et demandes d'avis automatiques, 20 SMS par mois, statistiques et rentabilité. <strong style="color:#16181d">0 % de commission sur vos paiements et abonnements.</strong></p>
+          <a class="btn bp" href="#" style="margin-top:8px;align-self:flex-start">Essayer 30 jours gratuitement</a>
+        </div>
+        <div class="plan">
+          <p style="font-size:18px;font-weight:700">Performance</p>
+          <p style="font-size:40px;font-weight:800;letter-spacing:-.02em">34,90 €<span style="font-size:15px;font-weight:500" class="muted"> / mois</span></p>
+          <p style="font-size:16px;line-height:1.55" class="muted">Tout Indépendant, abonnements clients illimités, prospects (CRM), statistiques avancées. 0 % de commission.</p>
+          <span style="margin-top:8px;font-size:15px;font-weight:600" class="muted">Bientôt disponible</span>
+        </div>
+      </div>
+      <p style="margin:40px 0 0;font-size:15px" class="muted">Plusieurs collaborateurs ? L'offre Équipe arrive bientôt. <a href="#">Comparer les offres en détail</a></p>
+    </div>
+  </section>
+
+  <section id="faq" style="padding:24px 0 80px">
+    <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px 64px;align-items:start">
+      <h2 class="h2">Questions fréquentes</h2>
+      <div style="border-bottom:1px solid #e2ddd2">
+        <details><summary>Faut-il une carte bancaire pour commencer ?</summary><p style="margin:10px 0 0;font-size:16px;line-height:1.6" class="muted">Non. L'offre Essentiel est gratuite, sans carte et sans engagement.</p></details>
+        <details><summary>Mes clients peuvent-ils payer un acompte en ligne ?</summary><p style="margin:10px 0 0;font-size:16px;line-height:1.6" class="muted">Oui, par carte bancaire au moment de la réservation. L'argent est versé sur votre compte.</p></details>
+        <details><summary>Ça marche si je me déplace chez mes clients ?</summary><p style="margin:10px 0 0;font-size:16px;line-height:1.6" class="muted">Oui : en atelier, à domicile, ou les deux.</p></details>
+        <details><summary>Combien prend DetailFlow sur mes paiements ?</summary><p style="margin:10px 0 0;font-size:16px;line-height:1.6" class="muted">Rien sur les offres payantes. Sur l'offre gratuite Essentiel : 2 % des paiements en ligne, plafonnés à 19,90 € par mois. Les frais de Stripe s'appliquent à part.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:72px 0;border-top:1px solid #e2ddd2">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;justify-content:space-between">
+      <h2 class="h2" style="max-width:18ch">Votre lien de réservation peut être en ligne ce soir.</h2>
+      <a class="btn bp" href="#">Créer mon espace gratuitement</a>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid #e2ddd2;padding:28px 0">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-size:14px" class="muted">
+      <span class="muted">© DetailFlow · Besoin d'un site vitrine ? <a href="#">Nous le créons pour vous</a></span>
+      <span style="display:flex;gap:18px;flex-wrap:wrap"><a href="#">Mentions légales</a><a href="#">CGV</a><a href="#">Confidentialité</a><a href="#">Contact</a></span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4200}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
