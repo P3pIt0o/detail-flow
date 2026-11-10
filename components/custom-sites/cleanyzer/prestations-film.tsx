@@ -347,7 +347,7 @@ export function PrestationsFilm() {
                     tabIndex={i === active ? 0 : -1}
                     onClick={() => goVisit(s.zone ?? "final", { kind: "film", step: s.id })}
                   >
-                    {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} en 3D` : "Choisir sa formule en 3D"}
+                    {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} en vidéo` : "Choisir sa formule"}
                   </button>
                   {back && (
                     <button type="button" className="clz-film-3d" tabIndex={i === active ? 0 : -1} onClick={back.go}>

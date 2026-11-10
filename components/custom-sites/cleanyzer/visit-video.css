@@ -1,0 +1,66 @@
+/* Visite en vidéo CLEANYZER (L38) — thème néon (variables --clz-neon-* de cleanyzer.css). */
+.cleanyzer .clz-vv { overflow-x: clip; }
+.cleanyzer .clz-vv-sub { color: var(--clz-neon-muted); margin: 12px 0 0; max-width: 52ch; }
+
+.cleanyzer .clz-vv-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 18px; }
+.cleanyzer .clz-vv-tabs button { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--clz-neon-line); color: var(--clz-neon-muted); font-size: 13px; font-weight: 600; background: rgba(255,255,255,.03); cursor: pointer; }
+.cleanyzer .clz-vv-tabs button[aria-selected="true"] { color: #fff; border-color: var(--clz-neon-red); background: rgba(255,43,69,.14); box-shadow: 0 0 16px -2px rgba(255,43,69,.7); }
+.cleanyzer .clz-vv-tabs button:focus-visible,
+.cleanyzer .clz-vv-veh button:focus-visible,
+.cleanyzer .clz-vv-play:focus-visible,
+.cleanyzer .clz-vv-back:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+/* Ordinateur : seul le chapitre actif est affiché. */
+.cleanyzer .clz-vv-card { display: none; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.cleanyzer .clz-vv-card.is-on { display: grid; }
+.cleanyzer .clz-vv-card.is-final { grid-template-columns: minmax(0, 1fr); }
+
+.cleanyzer .clz-vv-media { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: #000; border: 1px solid rgba(31,123,255,.35); box-shadow: 0 0 30px -8px rgba(31,123,255,.5); }
+.cleanyzer .clz-vv-media video,
+.cleanyzer .clz-vv-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Bande de 8 images 720×1280 : en 16:9, recadrage centré sur la 1re image. */
+.cleanyzer .clz-vv-strip img { object-position: 50% 4.45%; }
+.cleanyzer .clz-vv-play { position: absolute; inset: 0; margin: auto; width: 60px; height: 60px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #fff; background: var(--clz-neon-blue); box-shadow: 0 0 30px rgba(31,123,255,.7); cursor: pointer; }
+
+.cleanyzer .clz-vv-panel { background: var(--clz-neon-ink-2); border: 1px solid var(--clz-neon-line); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; min-width: 0; }
+.cleanyzer .clz-vv-panel > div { width: 100%; }
+.cleanyzer .clz-vv-panel h3 { margin: 0; font-family: var(--font-clz-display), Georgia, serif; font-size: 26px; font-weight: 600; color: var(--clz-neon-fg); }
+.cleanyzer .clz-vv-panel h4 { margin: 6px 0 4px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--clz-neon-blue); }
+.cleanyzer .clz-vv-panel ul { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+.cleanyzer .clz-vv-panel li { display: flex; gap: 10px; padding: 5px 0; border-top: 1px solid var(--clz-neon-line); }
+.cleanyzer .clz-vv-panel li b { flex: none; min-width: 78px; }
+.cleanyzer .clz-vv-panel li span, .cleanyzer .clz-vv-desc { color: var(--clz-neon-muted); }
+.cleanyzer .clz-vv-desc { margin: 0; font-size: 14px; }
+.cleanyzer .clz-vv-back { background: none; border: 0; padding: 0; color: var(--clz-neon-blue); font-weight: 600; font-size: 13px; cursor: pointer; }
+
+/* Choisir ma formule */
+.cleanyzer .clz-vv-veh { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; border: 1px solid var(--clz-neon-line); }
+.cleanyzer .clz-vv-veh button { padding: 6px 12px; border-radius: 999px; border: 0; font-size: 12.5px; color: var(--clz-neon-fg); background: none; cursor: pointer; }
+.cleanyzer .clz-vv-veh button[aria-pressed="true"] { background: var(--clz-neon-blue); color: #fff; }
+.cleanyzer .clz-vv-group { margin: 14px 0 0; }
+.cleanyzer .clz-vv-forms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+.cleanyzer .clz-vv-form { border: 1px solid var(--clz-neon-line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: var(--clz-neon-ink); }
+.cleanyzer .clz-vv-form small { color: var(--clz-neon-muted); }
+.cleanyzer .clz-vv-price { font-family: var(--font-clz-display), Georgia, serif; font-size: 26px; color: #fff; }
+.cleanyzer .clz-vv-form .clz-neon-btn { margin-top: auto; }
+
+.cleanyzer .clz-vv-dots { display: none; }
+
+/* Téléphone : cartes en défilement horizontal accroché ; seule la piste défile. */
+@media (max-width: 768px) {
+  .cleanyzer .clz-vv-tabs { display: none; }
+  .cleanyzer .clz-vv-track { display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 22px -16px 0; padding: 0 16px 8px; scroll-padding-inline: 16px; }
+  .cleanyzer .clz-vv-track::-webkit-scrollbar { display: none; }
+  .cleanyzer .clz-vv-card,
+  .cleanyzer .clz-vv-card.is-on { display: flex; flex-direction: column; gap: 0; flex: 0 0 84%; scroll-snap-align: start; background: var(--clz-neon-ink-2); border: 1px solid var(--clz-neon-line); border-radius: 18px; overflow: hidden; }
+  .cleanyzer .clz-vv-media { aspect-ratio: 9 / 16; max-height: 420px; border: 0; border-radius: 0; box-shadow: none; }
+  /* En 9:16, la 1re image de la bande remplit exactement le cadre. */
+  .cleanyzer .clz-vv-strip img { object-position: top; }
+  .cleanyzer .clz-vv-panel { border: 0; border-radius: 0; padding: 14px; }
+  .cleanyzer .clz-vv-panel h3 { font-size: 22px; }
+  .cleanyzer .clz-vv-forms { grid-template-columns: minmax(0, 1fr); }
+  .cleanyzer .clz-vv-dots { display: flex; gap: 6px; justify-content: center; margin-top: 14px; }
+  .cleanyzer .clz-vv-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); transition: width .2s; }
+  .cleanyzer .clz-vv-dots i.on { width: 18px; border-radius: 4px; background: var(--clz-neon-red); box-shadow: 0 0 8px var(--clz-neon-red); }
+}
+@media (prefers-reduced-motion: reduce) { .cleanyzer .clz-vv-dots i { transition: none; } }
