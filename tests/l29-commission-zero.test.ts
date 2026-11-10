@@ -17,7 +17,7 @@ import { buildCheckoutSessionParams, type ContractForCheckout } from "@/lib/cust
 import { COMMERCIAL_PLANS } from "@/lib/pricing/plans"
 import { COMPARE_CATEGORIES } from "@/components/marketing/v4/pricing-data"
 import { LANDING_FAQ } from "@/components/marketing/v4/faq-data"
-import { FeatureCompare, PlanCard } from "@/components/marketing/v4/pricing"
+import { FeatureCompare, PlanCard, Pricing } from "@/components/marketing/v4/pricing"
 
 const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8")
 const PAID = ["PRO", "BUSINESS", "ENTERPRISE"] as const
@@ -181,7 +181,8 @@ describe("L29 — A13 : textes", () => {
     expect(LANDING_FAQ.find((f) => f.q === "Comment fonctionne la commission DetailFlow ?")?.a).toBe(
       "Vous ne payez une commission DetailFlow que sur l'offre Essentiel, lorsque vous encaissez en ligne : 2 %, plafonnée à 19,90 €/mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts.",
     )
-    expect(read("components/marketing/v4/pricing.tsx").replace(/\s+/g, " ")).toContain(
+    // L41 : la phrase est dérivée de COMMISSION_RULES, on vérifie le rendu serveur (apostrophe échappée en HTML).
+    expect(renderToStaticMarkup(createElement(Pricing)).replace(/&#x27;/g, "'")).toContain(
       "Avec Essentiel, une commission DetailFlow s'applique uniquement lorsque vous encaissez en ligne, plafonnée chaque mois. Indépendant, Performance et Équipe : 0 % de commission. Les frais Stripe restent distincts.",
     )
     expect(read("components/admin/settings/payments-settings.tsx")).toContain(
