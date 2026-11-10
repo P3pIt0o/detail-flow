@@ -25,7 +25,12 @@ l'accueil. Le drapeau maintenance (`lib/marketing/maintenance.ts`, `MARKETING_MA
   dans `components/marketing/v4/trustpilot.tsx` ; pied : liens légaux existants.
 - [x] Tarifs : montants, commissions et plafonds lus depuis `lib/pricing/plans.ts` / `COMMISSION_RULES` (jamais en dur) ;
   Performance affiché « Bientôt disponible » si `coming_soon`. Badge « le plus choisi » sur Indépendant, comme la maquette
-  (décision Clément). Note Trustpilot 4,2/5 : confirmée réelle par Clément.
+  (décision Clément du 09/11/2026, conservé). Note Trustpilot 4,2/5 : confirmée réelle par Clément.
+- [x] Carte Essentiel (décision Clément, suite à revue-metier) : ajout d'un paragraphe reprenant les deux textes existants
+  de `lib/pricing/plans.ts` « Jusqu'à 2 abonnements clients actifs » et « Abonnements clients : 7 % de commission
+  DetailFlow », valeurs lues dans leurs sources (`PLAN_MATRIX.FREE.limits.maxActiveCustomerSubscriptions`,
+  `CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE`), aucun montant en dur. Exception assumée à « uniquement les textes de
+  la maquette ».
 - [x] Pied de page : « Besoin d'un site vitrine ? Nous le créons pour vous » SANS prix dans ce lot (le prix 790 € viendra de
   `CUSTOM_SITE_OFFER`, créé par L41 ; il sera ajouté par L43, une fois L41 fusionné).
 - [x] SEO conservé : title, description, canonical, Open Graph, JSON-LD existants de `app/marketing/page.tsx`/layout ;
@@ -36,7 +41,8 @@ l'accueil. Le drapeau maintenance (`lib/marketing/maintenance.ts`, `MARKETING_MA
 - [x] Aucun texte de vente inventé : uniquement les textes de la maquette.
 
 ## Critères d'acceptation
-- [ ] C1 Rendu conforme à la maquette en 1440 px et 390 px (captures dans le rapport).
+- [ ] C1 Rendu conforme à la maquette en 1440 px et 390 px — vérifié par Clément en Preview (remplace les captures
+  dans le rapport, décision Clément).
 - [ ] C2 Tous les liens listés ci-dessus mènent au bon endroit (test).
 - [ ] C3 Aucun montant en dur dans `components/marketing/v5/**` (test) ; 3 citations identiques à la maquette (test).
 - [ ] C4 Un seul H1 ; JSON-LD valide (test) ; Lighthouse mobile ≥ 90 visé (mesure Preview).
