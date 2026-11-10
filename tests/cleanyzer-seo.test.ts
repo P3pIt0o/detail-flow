@@ -85,7 +85,7 @@ describe("Cleanyzer — sitemap et catalogue", () => {
     }
   })
 
-  it("le catalogue reste prêt : accueil, 3 prestations et page zone", () => {
+  it("le catalogue reste prêt : accueil, 4 prestations et page zone", () => {
     const paths = listSitemapPaths(getPublicSiteCatalog("cleanyzer")!).map((e) => e.path)
     expect(paths).toContain("/")
     for (const p of CLZ_SERVICE_PAGES) expect(paths).toContain(`/prestations/${p.slug}`)
