@@ -10,6 +10,8 @@ import {
 } from "@/components/custom-sites/cleanyzer/seo-content"
 import { EXTERIEUR_OPTIONS } from "@/components/custom-sites/cleanyzer/content"
 import { OPTIONS } from "../scripts/cleanyzer-catalog-import.mjs"
+import { CLZ_VISIT_CHAPTERS } from "@/components/custom-sites/cleanyzer/visit-video"
+import { CLZ_OPTIQUES_PAGE, zoneAction } from "@/components/custom-sites/cleanyzer/journey"
 
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
@@ -80,11 +82,12 @@ describe("Cleanyzer — avant / après", () => {
   })
 })
 
-describe("Cleanyzer — huitième zone Porsche", () => {
-  it("8 zones interactives : les 7 d'origine + optiques", () => {
-    const src = read(`${CLZ}/visit-3d.tsx`)
-    const order = src.match(/const KEY_ORDER[^=]*=\s*\[([^\]]+)\]/)![1]
-    const zones = [...order.matchAll(/"(\w+)"/g)].map((m) => m[1])
-    expect(zones).toEqual(["body", "optics", "rims", "engine", "mats", "seats", "vents", "leather"])
+describe("Cleanyzer — huitième zone (visite en vidéo, L38)", () => {
+  it("les 8 zones sont couvertes par les chapitres ; optiques garde son lien rénovation", () => {
+    const zones = CLZ_VISIT_CHAPTERS.flatMap((c) => c.zones)
+    expect([...zones].sort()).toEqual(["body", "engine", "leather", "mats", "optics", "rims", "seats", "vents"])
+    const optiques = CLZ_VISIT_CHAPTERS.find((c) => c.zones.includes("optics"))!
+    expect(optiques.label).toBe("Optiques")
+    expect(zoneAction("optics").href).toBe(CLZ_OPTIQUES_PAGE)
   })
 })
