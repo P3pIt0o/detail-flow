@@ -9,6 +9,7 @@ import { formatBpsPercent } from "@/lib/pricing/plans"
 import { formatPrice } from "@/lib/format"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
+import { CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS } from "@/lib/customer-subscriptions/plan-policy"
 import { TRUSTPILOT } from "@/components/marketing/v4/trustpilot"
 import { CLIENT_LOGOS, FAQ_V5, REVIEWS } from "@/components/marketing/v5/data"
 import { SiteHeader } from "@/components/marketing/v5/site-header"
@@ -126,6 +127,20 @@ describe("L42 — C3 montants et citations", () => {
     expect(src).not.toMatch(/\d+\s?%/)
     // lib/payments/* est server-only (base de données) : interdit dans la vitrine.
     expect(src).not.toMatch(/@\/lib\/payments\//)
+  })
+
+  it("carte Essentiel : limite et commission des abonnements clients (textes de plans.ts, valeurs des sources)", () => {
+    const highlights = plan("starter").highlights
+    const max = PLAN_MATRIX.FREE.limits.maxActiveCustomerSubscriptions
+    const fee = formatBpsPercent(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE)
+    const limitText = `Jusqu'à ${max} abonnements clients actifs`
+    const feeText = `Abonnements clients : ${fee} de commission DetailFlow`
+    // Anti-dérive : les textes affichés restent ceux de plans.ts.
+    expect(highlights).toContain(limitText)
+    expect(highlights).toContain(feeText)
+    const t = text(pricing)
+    expect(t).toContain(`${limitText}. ${feeText}.`)
+    expect(t).toContain("Jusqu'à 2 abonnements clients actifs. Abonnements clients : 7 % de commission DetailFlow.")
   })
 
   it("aucun « % » en double (formatBpsPercent de plans.ts inclut déjà « % »)", () => {

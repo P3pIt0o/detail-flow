@@ -41,6 +41,11 @@ export function Pricing() {
               par mois. Commission de {OFFER.freeFeePercent} sur les paiements en ligne, plafonnée à {OFFER.freeFeeCap}{" "}
               par mois.
             </p>
+            {/* Textes de `COMMERCIAL_PLANS` (Essentiel), valeurs lues dans PLAN_MATRIX et plan-policy. */}
+            <p className={planText}>
+              Jusqu&apos;à {OFFER.freeCustomerSubsMax} abonnements clients actifs. Abonnements clients :{" "}
+              {OFFER.freeCustomerSubsFeePercent} de commission DetailFlow.
+            </p>
             {free.cta.href ? (
               <Link className={`${UI.btn} ${UI.secondary} mt-2 self-start`} href={free.cta.href}>
                 Créer mon espace

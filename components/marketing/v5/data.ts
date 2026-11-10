@@ -10,6 +10,7 @@ import { COMMISSION_RULES } from "@/lib/billing/commercial-rules"
 import { formatPrice } from "@/lib/format"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import { SMS_MONTHLY_INCLUDED_BY_PLAN } from "@/lib/sms/config"
+import { CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS } from "@/lib/customer-subscriptions/plan-policy"
 
 export { INDEPENDANT_ZERO_COMMISSION_HIGHLIGHT }
 
@@ -28,6 +29,8 @@ export const OFFER = {
   freeQuotes: PLAN_MATRIX.FREE.limits.maxQuotesPerMonth,
   freeInvoices: PLAN_MATRIX.FREE.limits.maxInvoicesPerMonth,
   proSms: SMS_MONTHLY_INCLUDED_BY_PLAN.PRO,
+  freeCustomerSubsMax: PLAN_MATRIX.FREE.limits.maxActiveCustomerSubscriptions,
+  freeCustomerSubsFeePercent: formatBpsPercent(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE),
 }
 
 /** Logos clients (accord confirmé), ordre de la maquette. */
