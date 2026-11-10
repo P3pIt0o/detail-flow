@@ -79,7 +79,7 @@ export const FAQ_V5: readonly { q: string; a: string }[] = [
   },
   {
     q: "Combien prend DetailFlow sur mes paiements ?",
-    a: `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${OFFER.freeFeePercent} des paiements en ligne, plafonnés à ${OFFER.freeFeeCap} par mois. Les frais de Stripe s'appliquent à part.`,
+    a: `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${OFFER.freeFeePercent} des paiements en ligne, plafonnés à ${OFFER.freeFeeCap} par mois. Abonnements clients : ${OFFER.freeCustomerSubsFeePercent} de commission DetailFlow. Les frais de Stripe s'appliquent à part.`,
   },
 ]
 

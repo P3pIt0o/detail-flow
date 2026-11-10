@@ -191,9 +191,15 @@ describe("L42 — C3 montants et citations", () => {
     // « Rien sur les offres payantes » est écrit en dur : il n'est vrai que si Pro et Business sont à 0.
     expect(COMMISSION_RULES.PRO.feeBps).toBe(0)
     expect(COMMISSION_RULES.BUSINESS.feeBps).toBe(0)
+    // … et seulement si les abonnements clients sont aussi à 0 sur ces offres.
+    expect(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.PRO).toBe(0)
+    expect(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.BUSINESS).toBe(0)
+    const subsText = `Abonnements clients : ${formatBpsPercent(CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE)} de commission DetailFlow`
+    expect(plan("starter").highlights).toContain(subsText) // texte de plans.ts (décision Clément)
     expect(FAQ_V5[3].a).toBe(
-      `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} des paiements en ligne, plafonnés à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois. Les frais de Stripe s'appliquent à part.`,
+      `Rien sur les offres payantes. Sur l'offre gratuite Essentiel : ${formatBpsPercent(COMMISSION_RULES.FREE.feeBps)} des paiements en ligne, plafonnés à ${formatPrice(COMMISSION_RULES.FREE.monthlyFeeCapCents)} par mois. ${subsText}. Les frais de Stripe s'appliquent à part.`,
     )
+    expect(FAQ_V5[3].a).toContain("Abonnements clients : 7 % de commission DetailFlow.")
     expect(faq.match(/<details/g)).toHaveLength(4)
     for (const item of FAQ_V5) expect(text(faq)).toContain(item.q)
   })

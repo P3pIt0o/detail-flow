@@ -31,6 +31,11 @@ l'accueil. Le drapeau maintenance (`lib/marketing/maintenance.ts`, `MARKETING_MA
   DetailFlow », valeurs lues dans leurs sources (`PLAN_MATRIX.FREE.limits.maxActiveCustomerSubscriptions`,
   `CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE`), aucun montant en dur. Exception assumée à « uniquement les textes de
   la maquette ».
+- [x] FAQ « Combien prend DetailFlow sur mes paiements ? » (décision Clément, suite à revue-metier) : la réponse mentionne
+  aussi les abonnements clients en reprenant le texte de `lib/pricing/plans.ts` « Abonnements clients : 7 % de commission
+  DetailFlow », valeur lue dans `CUSTOMER_SUBSCRIPTION_PLATFORM_FEE_BPS.FREE` (FAQ et JSON-LD FAQPage).
+- [x] Avis Trustpilot (décision Clément) : avis publics, cités mot pour mot avec nom, date et lien vers Trustpilot ; on les
+  garde tels quels.
 - [x] Pied de page : « Besoin d'un site vitrine ? Nous le créons pour vous » SANS prix dans ce lot (le prix 790 € viendra de
   `CUSTOM_SITE_OFFER`, créé par L41 ; il sera ajouté par L43, une fois L41 fusionné).
 - [x] SEO conservé : title, description, canonical, Open Graph, JSON-LD existants de `app/marketing/page.tsx`/layout ;
