@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getPublicCustomRequestsConfig } from "@/lib/site-content"
-import { activeTypes, resolveCustomRequestTexts } from "@/lib/custom-requests"
+import { activeTypes, findRequestType, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { CustomRequestForm } from "@/components/custom-request-form"
 
 export const metadata: Metadata = {
@@ -11,8 +11,16 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic"
 
-export default async function DemandePage() {
+export default async function DemandePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string | string[] }>
+}) {
   const config = await getPublicCustomRequestsConfig()
+  const requestedType = (await searchParams).type
+  // Présélection acceptée seulement si le type est ACTIF pour ce tenant, sinon premier type.
+  const initialType =
+    typeof requestedType === "string" ? findRequestType(config, requestedType)?.key : undefined
 
   // Fonctionnalité désactivée par l'entreprise → la page n'existe pas.
   if (!config.enabled) notFound()
@@ -30,7 +38,7 @@ export default async function DemandePage() {
           <p className="mx-auto mt-3 max-w-xl text-pretty text-muted-foreground">{texts.description}</p>
         </div>
         <div className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <CustomRequestForm types={types} />
+          <CustomRequestForm types={types} initialType={initialType} />
         </div>
       </div>
     </section>

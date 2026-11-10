@@ -45,6 +45,8 @@ export const BUILTIN_TYPES: CustomRequestType[] = [
   { key: "sur-mesure", label: "Prestation sur mesure", enabled: true, builtin: true },
   { key: "flotte", label: "Flotte / véhicules d'entreprise", enabled: true, builtin: true },
   { key: "autre", label: "Autre demande", enabled: true, builtin: true },
+  // Désactivé par défaut : les configs existantes l'obtiennent éteint à la lecture.
+  { key: "textile", label: "Nettoyage textile (canapé, matelas, tapis, moquette)", enabled: false, builtin: true },
 ]
 
 /** Clés des types intégrés, pour déterminer le comportement du formulaire. */
