@@ -36,7 +36,8 @@ export function resolveHeroImageSrc(value: string | null | undefined, slug: stri
 export function parseHeroImageValue(value: string | null | undefined, companyId: number): string | null {
   const v = value?.trim()
   if (!v) return null
-  if (v.startsWith("/")) return v
+  // `//hôte` et `/\hôte` sont des URL externes relatives au protocole, pas des chemins internes.
+  if (v.startsWith("/") && !/^\/[/\\]/.test(v)) return v
   if (v.startsWith(heroImagePrefix(companyId)) && !v.includes("..")) return v
   try {
     if (new URL(v).protocol === "https:") return v

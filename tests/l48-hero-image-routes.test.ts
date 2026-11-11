@@ -110,6 +110,7 @@ describe("GET photo publique", () => {
     const res = await getImg(qs("a", A_PATH))
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("image/jpeg")
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff")
     expect(blobGet).toHaveBeenCalledWith(A_PATH, expect.objectContaining({ access: "private" }))
   })
 

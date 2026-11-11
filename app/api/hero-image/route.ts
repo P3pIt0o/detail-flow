@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
     return new NextResponse(null, { status: 304, headers: { ETag: result.blob.etag, "Cache-Control": CACHE } })
   }
   return new NextResponse(result.stream, {
-    headers: { "Content-Type": result.blob.contentType, ETag: result.blob.etag, "Cache-Control": CACHE },
+    headers: {
+      "Content-Type": result.blob.contentType,
+      ETag: result.blob.etag,
+      "Cache-Control": CACHE,
+      "X-Content-Type-Options": "nosniff",
+    },
   })
 }

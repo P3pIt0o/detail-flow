@@ -18,6 +18,8 @@ describe("parseHeroImageValue", () => {
   it.each([
     ["http://exemple.fr/hero.jpg"],
     ["javascript:alert(1)"],
+    ["//evil.tld/x.jpg"], // URL relative au protocole
+    ["/\\evil.tld/x.jpg"],
     ["data:image/png;base64,AAA"],
     ["texte libre"],
     ["hero-image/company-77-hero.jpg"], // autre tenant (company-7 contre company-77)
