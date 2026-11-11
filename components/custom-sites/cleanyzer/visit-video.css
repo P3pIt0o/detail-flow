@@ -1,10 +1,11 @@
-/* Visite 3D CLEANYZER — reprise de la maquette visit3d.css (classes v3-* propres à ce tenant). */
-.v3{position:relative;height:968vh;background:#070b14;color:var(--clz-on-dark)}
+/* Visite CLEANYZER en images (L55) — reprise de la maquette visit3d.css (classes v3-* propres à ce tenant). */
+.v3{position:relative;height:700vh;background:#070b14;color:var(--clz-on-dark)}
 .v3-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
 #v3-gl{position:absolute;inset:0;width:100%;height:100%;display:block}
 .v3-vig{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(7,11,20,.72) 0%,rgba(7,11,20,0) 46%),linear-gradient(0deg,rgba(7,11,20,.72) 0%,rgba(7,11,20,0) 34%),linear-gradient(180deg,rgba(7,11,20,.6) 0%,rgba(7,11,20,0) 18%)}
-.v3-load{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:#6fb6ff}
-.v3-intro{position:absolute;left:max(1rem,calc((100% - 72rem)/2 + 1.5rem));top:22%;max-width:34rem;padding-right:1rem}
+.v3-load{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:#6fb6ff;text-align:center}
+.v3-intro{position:absolute;left:max(1rem,calc((100% - 72rem)/2 + 1.5rem));top:22%;max-width:34rem;padding-right:1rem;transition:opacity .4s,transform .4s}
+.v3-intro.off{opacity:0;transform:translateY(-40px);pointer-events:none}
 .v3-intro h2{color:#fff;margin:.75rem 0 1rem}
 .v3-intro p{color:var(--clz-on-dark-muted);max-width:34ch;margin:0 0 1.5rem;line-height:1.6}
 .v3-intro .row{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center}
@@ -19,11 +20,6 @@
 .v3-rail li.on{color:#fff}
 .v3-rail li.on::after{width:28px;background:var(--clz-blue)}
 @media (max-width:900px){.v3-rail{display:none}}
-.v3-hot{position:absolute;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .3s}
-.v3-hot i{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--clz-blue);box-shadow:0 0 0 4px rgba(10,132,255,.35)}
-.v3-hot i::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #4d9bff;animation:v3ping 1.6s ease-out infinite}
-@keyframes v3ping{from{transform:scale(.6);opacity:1}to{transform:scale(2.4);opacity:0}}
-.v3-hot span{position:absolute;left:18px;top:-14px;white-space:nowrap;background:rgba(7,11,20,.82);border:1px solid rgba(111,182,255,.35);border-radius:999px;padding:4px 11px;font-size:.8rem;font-weight:500;color:#fff}
 .v3-card{position:absolute;left:max(1rem,calc((100% - 72rem)/2 + 1.5rem));bottom:calc(2.5rem + env(safe-area-inset-bottom,0px));width:min(26rem,calc(100% - 2rem));color:var(--clz-fg);padding:1.35rem 1.5rem 1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.4);transition:opacity .4s,transform .4s}
 .v3-card .clz-rule{margin-bottom:.85rem}
 .v3-card.off{opacity:0;transform:translateY(16px);pointer-events:none}
@@ -37,8 +33,8 @@
 .v3-list li.dia b{background:var(--clz-ink)}
 .v3-more{font-size:.85rem;font-weight:600;color:var(--clz-blue)}
 .v3-more:hover{text-decoration:underline}
-.v3-final{position:absolute;left:0;right:0;bottom:calc(2rem + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 1rem;opacity:0;pointer-events:none}
-.v3-final.on{pointer-events:auto}
+.v3-final{position:absolute;left:0;right:0;bottom:calc(2rem + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 1rem;opacity:0;pointer-events:none;transition:opacity .4s}
+.v3-final.on{opacity:1;pointer-events:auto}
 .v3-final h2{color:#fff;margin:0 0 .75rem}
 .v3-fgroup{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.5rem;margin-top:.5rem}
 .v3-fgroup>span{font-size:.68rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#6fb6ff;width:6rem;text-align:right}
@@ -56,12 +52,10 @@
 .v3-fbox .clz-btn{padding:.7rem 1rem;font-size:.875rem}
 .v3-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.07)}
 .v3-bar i{display:block;height:100%;width:0;background:var(--clz-blue)}
-.v3-credit{position:absolute;right:1rem;bottom:.6rem;font-size:.65rem;color:rgba(244,247,251,.45)}
-.v3-credit a{text-decoration:underline}
 @media (max-width:760px){
   .v3-intro{top:18%}
   .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.85rem 1rem .9rem}
-  /* Carte compacte : elle laisse plus de place à la zone éclairée au-dessus. */
+  /* Carte compacte : elle laisse plus de place à l'image au-dessus. */
   .v3-card .clz-rule{display:none}
   .v3-card h3{font-size:1.3rem;margin:.2rem 0 0}
   .v3-num{font-size:.62rem}
@@ -73,20 +67,8 @@
   .v3-actions .clz-btn{padding:.5rem .8rem;font-size:.8rem}
   .v3-ring{top:5rem;width:60px;height:60px}
   .v3-ring b{font-size:1.05rem}
-  .v3-credit{display:none}
 }
-/* Alternative légère (économie de données / appareil peu puissant) : sans 3D. */
-.v3.v3-is-lite{height:auto}
-.v3-is-lite .v3-stage{position:relative;height:auto;min-height:100svh}
-.v3-is-lite .v3-stage>:not(.v3-lite){display:none}
-.v3-lite{position:relative;max-width:40rem;margin:0 auto;padding:5rem 1.25rem 4rem}
-.v3-lite h2{color:#fff;margin:.75rem 0 1.5rem}
-.v3-lite ul{list-style:none;margin:0 0 2rem;padding:0;display:flex;flex-direction:column;gap:.5rem}
-.v3-lite li{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1rem;padding:.75rem 0;border-bottom:1px solid rgba(111,182,255,.18);font-size:.9rem}
-.v3-lite li b{flex:1 1 100%;color:#fff;font-weight:600}
-.v3-lite .row{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center}
-.v3-lite .row a.skip{font-size:.875rem;color:rgba(255,255,255,.75);text-decoration:underline;text-underline-offset:4px}
-@media (prefers-reduced-motion:reduce){.v3-hot i::after{animation:none}.v3-card.in{animation:none}}
+@media (prefers-reduced-motion:reduce){.v3-card.in{animation:none}.v3-intro,.v3-final{transition:none}}
 .v3-actions{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;margin-top:.85rem}
 .v3-actions .clz-btn{padding:.6rem .95rem;font-size:.85rem}
 .v3-link{border:0;background:none;padding:0;font:inherit;font-size:.85rem;font-weight:600;color:var(--clz-blue);cursor:pointer;text-align:left}
@@ -99,7 +81,7 @@
 .v3-zones button:hover{border-color:var(--clz-blue);color:var(--clz-blue)}
 /* Description de zone (zone Optiques). */
 .v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:var(--clz-on-dark-muted)}
-/* L28 — mobile : visite au glissement horizontal, sur un seul écran (plus de défilement long). */
+/* Téléphone et repli sans animation : visite par arrêts, sur un seul écran (plus de défilement long). */
 .v3.v3-swipe{height:100vh;height:100svh}
 .v3-swipe .v3-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .v3-swipe .v3-ring{display:none}
@@ -110,7 +92,4 @@
 .v3-steps ol button{display:grid;place-items:center;width:20px;height:44px;border:0;background:transparent;padding:0;cursor:pointer}
 .v3-steps ol button::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(200,215,235,.4);transition:width .3s,background .3s}
 .v3-steps ol button[aria-current="step"]::before{width:16px;background:var(--clz-blue)}
-.v3-steps button:focus-visible,.v3-load button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}
-.v3-load{display:flex;flex-direction:column;align-items:center;gap:1rem;text-align:center}
-.v3-fallback-img{display:block;width:100%;height:auto;aspect-ratio:3/4;max-height:60svh;object-fit:cover;border-radius:16px;margin-bottom:1.5rem}
-.v3-fallback-msg{color:var(--clz-on-dark-muted);margin:0 0 1.5rem}
+.v3-steps button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}

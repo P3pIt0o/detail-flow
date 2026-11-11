@@ -401,7 +401,8 @@
 .cleanyzer .clz-neon-gproof:hover, .cleanyzer .clz-neon-gproof:focus-visible { color: var(--clz-neon-fg); border-color: rgba(255,201,64,.6); outline: none; }
 @media (max-width: 760px) {
   .cleanyzer .clz-neon-hero { height: clamp(600px, 88svh, 760px); }
-  .cleanyzer .clz-neon-scene { top: auto; bottom: -4cqh; width: auto; height: 80cqh; left: 50%; transform: translateX(-30%); -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24%); mask-image: linear-gradient(to bottom, transparent 0, #000 24%); }
+  /* L55 : vidéo et poster 720 au format portrait (720×1280) → plein cadre. */
+  .cleanyzer .clz-neon-scene { inset: 0; width: 100%; height: 100%; aspect-ratio: auto; transform: none; }
   .cleanyzer .clz-neon-copy { top: 104px; transform: none; }
   .cleanyzer .clz-neon-copy::before { inset: -30% -10%; background: radial-gradient(70% 60% at 50% 45%, rgba(3,4,10,.6), transparent 75%); }
   .cleanyzer .clz-neon-copy .clz-neon-wrap { justify-content: center; }
@@ -466,16 +467,31 @@
 .cleanyzer a.clz-neon-sup:focus-visible { outline: 2px solid #fff; outline-offset: 6px; border-radius: 6px; }
 @keyframes clz-neon-marq { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 36px)); } }
 
-/* ---------- Visite 3D au clic ---------- */
-.cleanyzer .clz-neon-visit { color: var(--clz-neon-fg); background: var(--clz-neon-ink); }
-.cleanyzer .clz-neon-visit .clz-neon-wrap { padding-block: clamp(56px, 8vw, 96px); }
-.cleanyzer .clz-neon-vcard { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); border-radius: 22px; overflow: hidden; background: var(--clz-neon-ink-2); border: 1px solid var(--clz-neon-line); }
-.cleanyzer .clz-neon-vcard img { width: 100%; height: 100%; object-fit: cover; min-height: 240px; max-width: 100%; }
-.cleanyzer .clz-neon-vcopy { padding: clamp(24px, 4vw, 44px); display: flex; flex-direction: column; gap: 14px; align-items: flex-start; justify-content: center; }
-.cleanyzer .clz-neon-vcopy .clz-neon-h2 { margin: 0; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.06; }
-.cleanyzer .clz-neon-vcopy p { margin: 0; color: var(--clz-neon-muted); }
-.cleanyzer .clz-neon-vnote { font-size: 13px; }
-@media (max-width: 760px) { .cleanyzer .clz-neon-vcard { grid-template-columns: minmax(0, 1fr); } }
+/* ---------- Réservation (BookingV2) aux couleurs néon — L55, Cleanyzer seulement ---------- */
+/* Redéfinit les variables du thème (Tailwind `@theme inline`) pour ce seul conteneur. Texte sombre
+   sur le bleu : le blanc sur #1f7bff (3,9:1) n'atteint pas le contraste AA ; #04050a donne 5,2:1. */
+.cleanyzer .clz-booking-neon {
+  --background: var(--clz-neon-ink);
+  --foreground: var(--clz-neon-fg);
+  --card: var(--clz-neon-ink-2);
+  --card-foreground: var(--clz-neon-fg);
+  --popover: var(--clz-neon-ink-2);
+  --popover-foreground: var(--clz-neon-fg);
+  --primary: var(--clz-neon-blue);
+  --primary-foreground: var(--clz-neon-ink);
+  --secondary: #121626;
+  --secondary-foreground: var(--clz-neon-fg);
+  --muted: #121626;
+  --muted-foreground: var(--clz-neon-muted);
+  --accent: #121626;
+  --accent-foreground: var(--clz-neon-fg);
+  --destructive: var(--clz-neon-red);
+  --border: var(--clz-neon-line);
+  --input: var(--clz-neon-line);
+  --ring: var(--clz-neon-blue);
+  background: var(--clz-neon-ink);
+  color: var(--clz-neon-fg);
+}
 
 /* ---------- Pilule de contact ---------- */
 .cleanyzer .clz-neon-dock { position: fixed; z-index: 40; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(4,5,10,.62); border: 1px solid var(--clz-neon-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px -12px #000; transition: transform .35s ease, opacity .35s ease; opacity: 0; pointer-events: none; max-width: calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))); }

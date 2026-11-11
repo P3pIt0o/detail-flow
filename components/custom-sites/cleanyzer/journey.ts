@@ -1,8 +1,9 @@
 /**
  * PARCOURS CLEANYZER — source de données unique reliant :
- * zone 3D (Porsche) ↔ formules ↔ options ↔ séquence du film ↔ page de prestation ↔ action.
+ * zone de la visite (Porsche) ↔ formules ↔ options ↔ séquence du film ↔ page de prestation ↔ action.
  *
  * Origine : maquette `visit3d.js` (Z2S, F2S, CLZ_VISIT_DATA.Z) et `film.js` (STEPS).
+ * L55 : tout bouton lié à UNE formule présélectionne la formule (`clzBookingHref`).
  * Tarifs : TOUJOURS `content.ts` (aucun prix ici). Scopé au tenant CLEANYZER.
  *
  * Film : chaque « séquence » est un clip découpé en bandes d'images, lu au
@@ -12,9 +13,9 @@
 import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, type Formula } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzBookingHref, clzPath } from "./tokens"
 
-export type ZoneKey = "body" | "optics" | "rims" | "engine" | "mats" | "seats" | "vents" | "leather"
+export type ZoneKey = "body" | "optics" | "rims" | "engine" | "entry" | "seats" | "mats" | "vents" | "leather"
 export type FormulaRef = "eco_int" | "premium" | "excellence" | "eco_ext" | "exc_ext" | "diamond"
-export type FilmStepId = "exterieur" | "tapis" | "habitacle" | "sieges" | "moteur" | "diamond"
+export type FilmStepId = "exterieur" | "jantes" | "optiques" | "habitacle" | "sieges" | "tapis" | "moteur" | "diamond"
 export type Side = "int" | "ext" | "both"
 export type ClzAction = { label: string; href: string }
 
@@ -24,6 +25,8 @@ export const CLZ_SERVICE_SLUG = { interieur: "nettoyage-interieur-voiture-annecy
 
 const BOOK: ClzAction = { label: "Réserver", href: CLZ_BOOKING_HREF }
 const ASK: ClzAction = { label: "Faire une demande", href: CLZ_DEMANDE_HREF }
+/** Réservation avec la formule présélectionnée (BookingV2 `?service=`). */
+const bookFormula = (kind: "interieur" | "exterieur", key: string): ClzAction => ({ label: "Réserver", href: clzBookingHref(kind, key) })
 
 const pick = (list: Formula[], key: string) => {
   const f = list.find((x) => x.key === key)
@@ -44,11 +47,11 @@ export type JourneyFormula = {
 }
 
 export const JOURNEY_FORMULAS: Record<FormulaRef, JourneyFormula> = {
-  eco_int: { side: "int", name: "Éco", full: "Nettoyage intérieur Éco", formula: pick(INTERIEUR_FORMULAS, "eco"), href: INT_PAGE, action: BOOK, note: "Seulement après une première intervention CLEANYZER.", film: "habitacle" },
-  premium: { side: "int", name: "Premium", full: "Nettoyage intérieur Premium", formula: pick(INTERIEUR_FORMULAS, "premium"), href: INT_PAGE, action: BOOK, film: "habitacle" },
-  excellence: { side: "int", name: "Excellence", full: "Nettoyage intérieur Excellence", formula: pick(INTERIEUR_FORMULAS, "excellence"), href: INT_PAGE, action: BOOK, film: "sieges" },
-  eco_ext: { side: "ext", name: "Éco", full: "Lavage extérieur Éco", formula: pick(EXTERIEUR_FORMULAS, "eco"), href: EXT_PAGE, action: BOOK, film: "exterieur" },
-  exc_ext: { side: "ext", name: "Excellence", full: "Lavage extérieur Excellence", formula: pick(EXTERIEUR_FORMULAS, "excellence"), href: EXT_PAGE, action: BOOK, film: "exterieur" },
+  eco_int: { side: "int", name: "Éco", full: "Nettoyage intérieur Éco", formula: pick(INTERIEUR_FORMULAS, "eco"), href: INT_PAGE, action: bookFormula("interieur", "eco"), note: "Seulement après une première intervention CLEANYZER.", film: "habitacle" },
+  premium: { side: "int", name: "Premium", full: "Nettoyage intérieur Premium", formula: pick(INTERIEUR_FORMULAS, "premium"), href: INT_PAGE, action: bookFormula("interieur", "premium"), film: "habitacle" },
+  excellence: { side: "int", name: "Excellence", full: "Nettoyage intérieur Excellence", formula: pick(INTERIEUR_FORMULAS, "excellence"), href: INT_PAGE, action: bookFormula("interieur", "excellence"), film: "sieges" },
+  eco_ext: { side: "ext", name: "Éco", full: "Lavage extérieur Éco", formula: pick(EXTERIEUR_FORMULAS, "eco"), href: EXT_PAGE, action: bookFormula("exterieur", "eco"), film: "exterieur" },
+  exc_ext: { side: "ext", name: "Excellence", full: "Lavage extérieur Excellence", formula: pick(EXTERIEUR_FORMULAS, "excellence"), href: EXT_PAGE, action: bookFormula("exterieur", "excellence"), film: "exterieur" },
   // Pas de page Diamond dans le dépôt : la formule sur mesure passe par la demande.
   diamond: { side: "both", name: "Diamond", full: "Formule Diamond sur mesure", formula: pick(INTERIEUR_FORMULAS, "diamond"), href: CLZ_DEMANDE_HREF, action: ASK, note: "Sur devis : le prix est établi après votre demande.", film: "diamond" },
 }
@@ -74,35 +77,39 @@ const optPrice = (key: string) => {
 
 export const CLZ_OPTIQUES_PAGE = clzPath("/prestations/renovation-optiques-phares-annecy")
 
+/** Ordre des clés = ordre de la visite (L55). */
 export const JOURNEY_ZONES: Record<ZoneKey, JourneyZone> = {
   body: { name: "Carrosserie", title: "Carrosserie", side: "ext", film: "exterieur", options: [], formulas: { eco_ext: "Lavage complet de la carrosserie, séchage à la main", exc_ext: "+ détails au pinceau et double séchage", diamond: "Sur devis" } },
   optics: {
     name: "Optiques",
     title: "Rénovation des optiques",
     side: "ext",
-    film: null,
+    film: "optiques",
     description: "Des phares jaunis ou ternis ? Redonnez de la transparence à vos optiques et améliorez l'apparence de votre véhicule.",
     options: [{ label: "Rénovation optiques de phares", price: optPrice("renovation-optiques") }],
     formulas: {},
     link: { label: "Découvrir la rénovation des phares", href: CLZ_OPTIQUES_PAGE },
   },
-  rims: { name: "Jantes", title: "Jantes", side: "ext", film: "exterieur", options: [], formulas: { exc_ext: "Jantes approfondies", diamond: "Sur devis" } },
+  rims: { name: "Jantes", title: "Jantes", side: "ext", film: "jantes", options: [], formulas: { exc_ext: "Jantes approfondies", diamond: "Sur devis" } },
   engine: { name: "Moteur", title: "Compartiment moteur", side: "ext", film: "moteur", options: [{ label: "Nettoyage moteur", price: "Sur demande" }], formulas: {} },
-  mats: { name: "Tapis", title: "Tapis & moquettes", side: "int", film: "tapis", options: [{ label: "Shampoing moquettes", price: optPrice("shampoing-moquettes") }, { label: "Imperméabilisation tapis", price: optPrice("imper-tapis") }], formulas: { premium: "Tapis", excellence: "Shampoing et traitement des tapis", diamond: "Sur devis" } },
+  // Textes repris de l'ancienne zone « Volant, commandes & portières » (L55, D2).
+  entry: { name: "Portières & seuils", title: "Portières & seuils", side: "int", film: "habitacle", options: [], formulas: { premium: "Portières et seuils", excellence: "+ finition détaillée", diamond: "Sur devis" } },
   seats: { name: "Sièges", title: "Sièges", side: "int", film: "sieges", options: [{ label: "Imperméabilisation sièges", price: optPrice("imper-sieges") }], formulas: { premium: "Aspiration complète", excellence: "Shampoing et traitement des sièges", diamond: "Sur devis" } },
+  mats: { name: "Tapis", title: "Tapis & moquettes", side: "int", film: "tapis", options: [{ label: "Shampoing moquettes", price: optPrice("shampoing-moquettes") }, { label: "Imperméabilisation tapis", price: optPrice("imper-tapis") }], formulas: { premium: "Tapis", excellence: "Shampoing et traitement des tapis", diamond: "Sur devis" } },
   vents: { name: "Aérations", title: "Aérations & plastiques", side: "int", film: "habitacle", options: [], formulas: { eco_int: "Dépoussiérage et nettoyage des plastiques", premium: "Plastiques et tableau de bord", excellence: "+ traitement anti-UV des plastiques", diamond: "Sur devis" } },
-  leather: { name: "Volant & commandes", title: "Volant, commandes & portières", side: "int", film: "sieges", options: [], formulas: { premium: "Volant, commandes, portières et seuils", excellence: "+ finition détaillée", diamond: "Sur devis" } },
+  leather: { name: "Volant & commandes", title: "Volant & commandes", side: "int", film: "sieges", options: [], formulas: { premium: "Volant et commandes", excellence: "+ finition détaillée", diamond: "Sur devis" } },
 }
 
 /** Ordre des séquences du film (= ordre des étapes dans `prestations-film.tsx`). */
 export const FILM_SEQUENCES: { id: FilmStepId; clip: string; strips: number; zone: ZoneKey | null; action: ClzAction }[] = [
-  { id: "exterieur", clip: "mousse", strips: 8, zone: "body", action: BOOK },
-  { id: "tapis", clip: "tapis", strips: 6, zone: "mats", action: BOOK },
-  { id: "habitacle", clip: "audi", strips: 6, zone: "vents", action: BOOK },
-  // Seule séquence à formule unique (Intérieur Excellence) : présélection BookingV2.
-  { id: "sieges", clip: "volant", strips: 4, zone: "seats", action: { label: "Réserver", href: clzBookingHref("interieur", "excellence") } },
-  { id: "moteur", clip: "moteur", strips: 5, zone: "engine", action: ASK },
-  { id: "diamond", clip: "macan", strips: 6, zone: null, action: ASK },
+  { id: "exterieur", clip: "lavage", strips: 8, zone: "body", action: BOOK },
+  { id: "jantes", clip: "jantes", strips: 8, zone: "rims", action: bookFormula("exterieur", "excellence") },
+  { id: "optiques", clip: "optiques", strips: 8, zone: "optics", action: { label: "Découvrir la rénovation des phares", href: CLZ_OPTIQUES_PAGE } },
+  { id: "habitacle", clip: "habitacle", strips: 6, zone: "vents", action: BOOK },
+  { id: "sieges", clip: "sieges911", strips: 6, zone: "seats", action: bookFormula("interieur", "excellence") },
+  { id: "tapis", clip: "tapis911", strips: 4, zone: "mats", action: BOOK },
+  { id: "moteur", clip: "moteur911", strips: 6, zone: "engine", action: ASK },
+  { id: "diamond", clip: "porsche911", strips: 6, zone: null, action: ASK },
 ]
 
 export const filmIndex = (id: FilmStepId) => FILM_SEQUENCES.findIndex((s) => s.id === id)
@@ -110,10 +117,13 @@ export const filmIndex = (id: FilmStepId) => FILM_SEQUENCES.findIndex((s) => s.i
 /** Formules qui traitent une zone, sans Diamond, la plus complète en dernier. */
 export const zoneFormulas = (z: ZoneKey) => Object.keys(JOURNEY_ZONES[z].formulas) as FormulaRef[]
 
+/** Lien de la zone : page dédiée, sinon formule présélectionnée si une seule la traite, sinon réservation (ou demande). */
 export function zoneAction(z: ZoneKey): ClzAction {
   const link = JOURNEY_ZONES[z].link
   if (link) return link
-  return zoneFormulas(z).some((k) => k !== "diamond") ? BOOK : ASK
+  const bookable = zoneFormulas(z).filter((k) => k !== "diamond")
+  if (bookable.length === 1) return JOURNEY_FORMULAS[bookable[0]].action
+  return bookable.length ? BOOK : ASK
 }
 
 export const ZONE_KEYS = Object.keys(JOURNEY_ZONES) as ZoneKey[]

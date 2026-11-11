@@ -10,6 +10,7 @@ import {
 } from "@/components/custom-sites/cleanyzer/seo-content"
 import { EXTERIEUR_OPTIONS } from "@/components/custom-sites/cleanyzer/content"
 import { OPTIONS } from "../scripts/cleanyzer-catalog-import.mjs"
+import { KEY_ORDER } from "@/components/custom-sites/cleanyzer/visit-video"
 
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
@@ -79,11 +80,8 @@ describe("Cleanyzer — avant / après", () => {
   })
 })
 
-describe("Cleanyzer — huitième zone Porsche", () => {
-  it("8 zones interactives : les 7 d'origine + optiques", () => {
-    const src = read(`${CLZ}/visit-3d.tsx`)
-    const order = src.match(/const KEY_ORDER[^=]*=\s*\[([^\]]+)\]/)![1]
-    const zones = [...order.matchAll(/"(\w+)"/g)].map((m) => m[1])
-    expect(zones).toEqual(["body", "optics", "rims", "engine", "mats", "seats", "vents", "leather"])
+describe("Cleanyzer — zones de la Porsche", () => {
+  it("9 zones interactives (L55 : + portières/entrée), optiques en deuxième", () => {
+    expect(KEY_ORDER.filter(Boolean)).toEqual(["body", "optics", "rims", "engine", "entry", "seats", "mats", "vents", "leather"])
   })
 })

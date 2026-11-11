@@ -1,5 +1,5 @@
 /**
- * Visite 3D CLEANYZER — étapes du pilotage au glissement (mobile).
+ * Visite CLEANYZER — étapes du pilotage au glissement (mobile), utilisées par `visit-video.tsx`.
  * Fonctions pures : une « étape » est un indice dans `swipeStops()`, la
  * position peut être fractionnaire pendant le geste.
  */

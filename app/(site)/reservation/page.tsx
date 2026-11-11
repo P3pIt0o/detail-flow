@@ -24,6 +24,11 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
 import { getLocationConfig } from "@/lib/booking/location"
 import { DEFAULT_LOCATION_CONFIG, resolveLocationLabels, toPublicLocation } from "@/lib/booking/location-shared"
+import { resolveCustomSite } from "@/lib/custom-sites/server"
+import { getPublicContact } from "@/lib/public-contact"
+import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
+import { CLZ_SITE_NAV_ITEMS } from "@/components/custom-sites/cleanyzer/nav"
+import { clzBookingNeon } from "@/components/custom-sites/cleanyzer/tokens"
 
 /** Mêmes conditions que `createBookingAction` pour décider d'un paiement en ligne. */
 async function resolveTenantPaymentPlan(settings: { depositType: string; depositValue: number }): Promise<PaymentPlan> {
@@ -107,7 +112,7 @@ export default async function ReservationPage({
       ...toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG),
       labels: resolveLocationLabels((tenant?.siteContent as { locationLabels?: unknown } | null)?.locationLabels),
     }
-    return (
+    const booking = (
       <>
         {isEmbed && (
           <>
@@ -161,6 +166,21 @@ export default async function ReservationPage({
         </section>
       </>
     )
+    // L55 : site Cleanyzer publié (clé résolue côté serveur), hors widget → en-tête, pied et thème
+    // néon du site. BookingV2 lui-même est inchangé.
+    if (clzBookingNeon((await resolveCustomSite())?.key, isEmbed)) {
+      const contact = await getPublicContact()
+      return (
+        <CleanyzerShell
+          navItems={CLZ_SITE_NAV_ITEMS}
+          immersive
+          contact={{ phone: contact.phone, phoneRaw: contact.phoneRaw, email: contact.email }}
+        >
+          <div className="clz-booking-neon">{booking}</div>
+        </CleanyzerShell>
+      )
+    }
+    return booking
   }
 
   return (

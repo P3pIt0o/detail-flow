@@ -20,14 +20,15 @@ import { BRAND } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_HOME_HREF } from "./tokens"
 
 const NEON = "/custom-sites/cleanyzer/neon"
-const POSTER_ARRIVEE = `${NEON}/hero-arrivee-poster.webp`
-const POSTER_BOUCLE = `${NEON}/hero-boucle-poster.webp`
 /** Largeur maximale (px) servie en 720p ; au-delà, 1080p. */
 export const HERO_MOBILE_MAX = 760
 
 export function heroVideoQuality(width: number): "720" | "1080" {
   return width <= HERO_MOBILE_MAX ? "720" : "1080"
 }
+
+/** Poster (L55) : 720 = portrait 720×1280 (téléphone), 1080 = paysage 1920×1080. */
+export const heroPoster = (q: "720" | "1080") => `${NEON}/hero-poster-${q}.webp`
 
 /** Sources des deux vidéos ; `null` (poster seul) si le mouvement est réduit ou en économie de données. */
 export function heroVideoSources(
@@ -111,6 +112,8 @@ export function CleanyzerHero() {
     const loop = loopRef.current
     if (!intro || !loop) return
     const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData)
+    // Posters des vidéos au format de l'écran (le rendu serveur pose la version 1080).
+    intro.poster = loop.poster = heroPoster(heroVideoQuality(window.innerWidth))
     const sources = heroVideoSources(
       window.innerWidth,
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -130,10 +133,13 @@ export function CleanyzerHero() {
     <section id="clz-hero" className="clz-neon-hero" data-phase={phase}>
       <div className="clz-neon-scene" aria-hidden="true">
         {/* Image LCP : poster de l'arrivée, servi tout de suite (la vidéo vient après). */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="clz-neon-poster" src={POSTER_ARRIVEE} alt="" fetchPriority="high" decoding="async" width={1920} height={1080} />
-        <video ref={loopRef} className="clz-neon-loop" poster={POSTER_BOUCLE} muted loop playsInline preload="auto" width={1920} height={1080} />
-        <video ref={introRef} className="clz-neon-intro" poster={POSTER_ARRIVEE} muted playsInline preload="auto" width={1920} height={1080} />
+        <picture>
+          <source media={`(max-width: ${HERO_MOBILE_MAX}px)`} srcSet={heroPoster("720")} width={720} height={1280} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="clz-neon-poster" src={heroPoster("1080")} alt="" fetchPriority="high" decoding="async" width={1920} height={1080} />
+        </picture>
+        <video ref={loopRef} className="clz-neon-loop" poster={heroPoster("1080")} muted loop playsInline preload="auto" width={1920} height={1080} />
+        <video ref={introRef} className="clz-neon-intro" poster={heroPoster("1080")} muted playsInline preload="auto" width={1920} height={1080} />
       </div>
 
       <div className="clz-neon-copy">

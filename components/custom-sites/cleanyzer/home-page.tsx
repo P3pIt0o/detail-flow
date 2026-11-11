@@ -1,7 +1,7 @@
 /**
  * Page d'accueil CLEANYZER.
  * Ordre (L35, maquette néon validée par Tom) : hero néon → présentation (vidéo de Tom au clic) →
- * avant/après → prestations & tarifs → produits & fournisseurs → visite 3D (au clic) → univers →
+ * avant/après → prestations & tarifs → produits & fournisseurs → visite en images (L55) → univers →
  * prestations au défilement → réalisations → service à domicile → zone → avis → témoignages →
  * FAQ → CTA final. « Derrière CLEANYZER » est remplacée par la présentation sur l'accueil.
  */
@@ -22,7 +22,7 @@ import {
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { ClzReveal } from "./motion"
 import { PrestationsFilm } from "./prestations-film"
-import { Visit3DLazy } from "./visit-3d-lazy"
+import { VisitVideo } from "./visit-video"
 import { ClzPresentation } from "./presentation"
 import { ClzFournisseurs } from "./fournisseurs"
 import { AvantApresSection, RealisationsTom } from "./realisations-tom"
@@ -57,7 +57,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
       <AvantApresSection />
       <PrestationsPreview />
       <ClzFournisseurs />
-      <Visit3DLazy />
+      <VisitVideo />
       <UniversSection />
       <PrestationsFilm />
       <RealisationsTom />

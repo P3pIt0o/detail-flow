@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Navigation partagée Visite 3D ↔ Film ↔ pages de prestation (CLEANYZER).
+ * Navigation partagée Visite ↔ Film ↔ pages de prestation (CLEANYZER).
  * État du parcours conservé en sessionStorage : le visiteur retrouve sa
  * dernière sélection et dispose d'un retour contextuel.
  */
@@ -68,7 +68,7 @@ export function goFilm(step: FilmStepId, origin: JourneyOrigin) {
   filmHandler?.(step)
 }
 
-/** Amène la visite 3D sur une zone (ou sur le choix de formule final). */
+/** Amène la visite sur une zone (ou sur le choix de formule final). */
 export function goVisit(zone: ZoneKey | "final", origin: JourneyOrigin) {
   write({ zone: zone === "final" ? read().zone : zone, origin })
   visitHandler?.(zone)

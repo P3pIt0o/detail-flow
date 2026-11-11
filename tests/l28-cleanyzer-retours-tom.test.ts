@@ -19,7 +19,7 @@ import { ZONE_COMMUNES } from "@/components/custom-sites/cleanyzer/zones"
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
 
-// Ordre réel des images clés de la visite (visit-3d.tsx) : intro, 4 zones ext., transition, 4 zones int., final.
+// Cas générique des fonctions de glissement : intro, 4 zones ext., transition, 4 zones int., final.
 const KEY_ORDER = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
 
 describe("L28 — 3D au glissement : étapes", () => {
@@ -68,22 +68,14 @@ describe("L28 — 3D au glissement : étapes", () => {
   })
 })
 
-describe("L28 — 3D : repli et poids", () => {
-  const src = read(`${CLZ}/visit-3d.tsx`)
-
-  it("le modèle de secours de 13,4 Mo est supprimé et plus référencé", () => {
-    expect(src).not.toContain("raw-glb")
-    expect(existsSync(path.join(process.cwd(), "public/custom-sites/cleanyzer/3d/porsche-911-raw-glb.wasm"))).toBe(false)
-    expect(existsSync(path.join(process.cwd(), "public/custom-sites/cleanyzer/3d/porsche-911-glb.wasm"))).toBe(true)
-  })
-
-  it("bouton « Réessayer » et image de repli présents", () => {
-    expect(src).toContain("Réessayer")
-    expect(src).toContain("realisations/gt3rs.webp")
+// L55 : la 3D est remplacée par la visite en images (tests dans l55-visite.test.ts).
+describe("L28 — visite : poids", () => {
+  it("plus aucun modèle 3D dans le dépôt", () => {
+    expect(existsSync(path.join(process.cwd(), "public/custom-sites/cleanyzer/3d"))).toBe(false)
   })
 
   it("le glissement mobile ne capture pas le défilement vertical", () => {
-    expect(read(`${CLZ}/visit-3d.css`)).toMatch(/touch-action:\s*pan-y/)
+    expect(read(`${CLZ}/visit-video.css`)).toMatch(/touch-action:\s*pan-y/)
   })
 })
 
