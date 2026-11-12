@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { existsSync, statSync } from "node:fs"
 import path from "node:path"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -21,6 +21,11 @@ describe("L55 — médias du header", () => {
     expect(h).not.toMatch(/hero-(arrivee|boucle)-poster/)
     expect(pub("/custom-sites/cleanyzer/neon/hero-arrivee-poster.webp")).toBe(false)
     expect(pub("/custom-sites/cleanyzer/neon/hero-boucle-poster.webp")).toBe(false)
+  })
+
+  it("posters non vides (une image unie noire pèse moins de 5 Ko)", () => {
+    for (const q of ["720", "1080"] as const)
+      expect(statSync(path.join(process.cwd(), "public", heroPoster(q))).size).toBeGreaterThan(50_000)
   })
 
   it("vidéos arrivée/boucle 720 et 1080 présentes", () => {
