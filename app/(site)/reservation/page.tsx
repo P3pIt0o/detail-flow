@@ -24,7 +24,6 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { resolvePaymentPlan, type PaymentPlan } from "@/lib/booking/v2"
 import { getLocationConfig } from "@/lib/booking/location"
 import { DEFAULT_LOCATION_CONFIG, resolveLocationLabels, toPublicLocation } from "@/lib/booking/location-shared"
-import { resolveCustomSite } from "@/lib/custom-sites/server"
 import { getPublicContact } from "@/lib/public-contact"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
 import { CLZ_SITE_NAV_ITEMS } from "@/components/custom-sites/cleanyzer/nav"
@@ -166,9 +165,9 @@ export default async function ReservationPage({
         </section>
       </>
     )
-    // L55 : site Cleanyzer publié (clé résolue côté serveur), hors widget → en-tête, pied et thème
+    // L55 : tenant Cleanyzer (customSiteKey résolu côté serveur), hors widget → en-tête, pied et thème
     // néon du site. BookingV2 lui-même est inchangé.
-    if (clzBookingNeon((await resolveCustomSite())?.key, isEmbed)) {
+    if (clzBookingNeon(requestTenant?.customSiteKey, isEmbed)) {
       const contact = await getPublicContact()
       return (
         <CleanyzerShell

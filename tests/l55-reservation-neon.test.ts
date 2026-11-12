@@ -19,9 +19,9 @@ describe("L55 — thème néon de la réservation", () => {
     expect(clzBookingNeon("", false)).toBe(false)
   })
 
-  it("la page décide à partir du site personnalisé résolu côté serveur (publié), pas d'un paramètre client", () => {
+  it("la page décide à partir du customSiteKey du tenant résolu côté serveur, pas d'un paramètre client", () => {
     const page = read("app/(site)/reservation/page.tsx")
-    expect(page).toMatch(/clzBookingNeon\(\(await resolveCustomSite\(\)\)\?\.key, isEmbed\)/)
+    expect(page).toContain("clzBookingNeon(requestTenant?.customSiteKey, isEmbed)")
     expect(page).toContain('<div className="clz-booking-neon">{booking}</div>')
     // Les autres tenants reçoivent exactement le même rendu qu'avant.
     expect(page).toMatch(/return booking\n/)
