@@ -74,6 +74,10 @@ describe("L55 — arrêts de la visite", () => {
     expect(visitIsStill(false, true)).toBe(true)
     expect(visitIsStill(false, false)).toBe(false)
   })
+
+  it("repli : seules les 11 images d'arrêt sont chargées (pas les 331)", () => {
+    expect(visitLoadOrder(true)).toEqual(VISIT_STOPS.map((s) => s.frame))
+  })
 })
 
 describe("L55 — zones et liens profonds", () => {

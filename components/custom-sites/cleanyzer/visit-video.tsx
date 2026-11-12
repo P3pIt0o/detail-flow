@@ -67,9 +67,10 @@ export function frameAtStop(pos: number): number {
   return a + (b - a) * (p - i)
 }
 
-/** Ordre de chargement : première image, autres arrêts, puis toutes les images dans l'ordre. */
-export function visitLoadOrder(): number[] {
+/** Ordre de chargement : première image, autres arrêts, puis toutes les images dans l'ordre (repli : arrêts seuls). */
+export function visitLoadOrder(still = false): number[] {
   const stops = VISIT_STOPS.map((s) => s.frame)
+  if (still) return stops
   return [...stops, ...Array.from({ length: VISIT_FRAME_COUNT }, (_, i) => i + 1).filter((n) => !stops.includes(n))]
 }
 
@@ -185,7 +186,7 @@ export function VisitVideo() {
     }
 
     // Chargement progressif (4 requêtes en parallèle), arrêts d'abord.
-    const queue = visitLoadOrder()
+    const queue = visitLoadOrder(still)
     const loadNext = () => {
       const n = queue.shift()
       if (n == null || disposed) return
