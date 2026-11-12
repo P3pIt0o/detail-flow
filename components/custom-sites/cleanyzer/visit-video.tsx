@@ -1,164 +1,276 @@
 "use client"
 
 /**
- * VISITE EN VIDÉO CLEANYZER (L38) : remplace la visite 3D, même ancre (`CLZ_VISIT_ANCHOR`).
- * 6 chapitres ; données et prix lus dans `journey.ts` (prix = `content.ts`), aucun prix ici.
- * - Ordinateur : onglets en haut, vidéo 16:9 à gauche, panneau à droite (clic + clavier).
- * - Téléphone (≤ 768 px) : cartes en défilement horizontal accroché, vidéo verticale, points.
- * - Lecture : seule la vidéo du chapitre actif joue, et seulement quand la section est à l'écran.
- *   Aucune source au rendu serveur. Mouvement réduit ou économie de données : affiche + bouton lecture.
+ * VISITE CLEANYZER EN IMAGES (L55, remplace la 3D) — même interface : une zone à la fois,
+ * panneau de la zone, rail des zones, choix de formule final, liens profonds `#zone=`.
+ *
+ * Images : `visite-video/{pc,tel}/f_0001…f_0331.webp` (12 i/s) dessinées sur un canvas, comme le
+ * film des prestations. Ordinateur : le défilement choisit l'arrêt ; téléphone : glissement.
+ * Entre deux arrêts, le trajet est joué en accéléré (~0,6 s) puis l'image s'arrête sur la zone.
+ * Mouvement réduit / économie de données : image fixe de l'arrêt + boutons précédent/suivant.
+ * Aucune image au rendu serveur : chargement quand la section approche (arrêts d'abord).
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowRight, Play } from "lucide-react"
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 import { VEHICLES, type VehicleKey } from "./content"
-import { heroVideoQuality } from "./hero"
-import { CLZ_VISIT_ANCHOR, JOURNEY_FORMULAS, JOURNEY_ZONES, zoneAction, type FormulaRef, type ZoneKey } from "./journey"
-import { goFilm, registerVisit, useJourney } from "./journey-nav"
+import {
+  CLZ_VISIT_ANCHOR,
+  JOURNEY_FORMULAS,
+  JOURNEY_ZONES,
+  ZONE_KEYS,
+  zoneAction,
+  zoneFormulas,
+  type FormulaRef,
+  type ZoneKey,
+} from "./journey"
+import { goFilm, goVisit, noteZone, registerVisit, useJourney } from "./journey-nav"
+import { dragPosition, releaseStop, stepTo, swipeStops } from "./visit-3d-swipe"
 import "./visit-video.css"
 
-const BASE = "/custom-sites/cleanyzer"
-type Q = "pc" | "tel"
-type Media =
-  | { kind: "video"; src: Record<Q, string>; poster: Record<Q, string> }
-  | { kind: "image"; src: string; alt: string }
-  | null
-export type VisitChapter = { id: string; label: string; zones: ZoneKey[]; media: Media }
+const BASE = "/custom-sites/cleanyzer/visite-video"
+export const VISIT_FRAME_COUNT = 331
+/** Durée du trajet entre deux arrêts (ms). */
+export const VISIT_TRAVEL_MS = 600
 
-const visite = (n: string): Media => ({
-  kind: "video",
-  src: { pc: `${BASE}/visite/${n}-pc.mp4`, tel: `${BASE}/visite/${n}-tel.mp4` },
-  poster: { pc: `${BASE}/visite/${n}-pc-poster.webp`, tel: `${BASE}/visite/${n}-tel-poster.webp` },
-})
-const ARRIVEE_POSTER = `${BASE}/neon/hero-arrivee-poster.webp`
-
-export const CLZ_VISIT_CHAPTERS: VisitChapter[] = [
-  { id: "habitacle", label: "Habitacle", zones: ["vents", "seats", "leather", "mats"], media: visite("interieur") },
-  {
-    id: "carrosserie",
-    label: "Carrosserie",
-    zones: ["body"],
-    media: {
-      kind: "video",
-      src: { pc: `${BASE}/neon/hero-arrivee-1080.mp4`, tel: `${BASE}/neon/hero-arrivee-720.mp4` },
-      poster: { pc: ARRIVEE_POSTER, tel: ARRIVEE_POSTER },
-    },
-  },
-  { id: "jantes", label: "Jantes", zones: ["rims"], media: visite("jantes") },
-  { id: "optiques", label: "Optiques", zones: ["optics"], media: visite("optiques") },
-  // Bande de 8 images verticales : recadrée en CSS sur la première.
-  { id: "moteur", label: "Moteur", zones: ["engine"], media: { kind: "image", src: `${BASE}/film/moteur_3.webp`, alt: "Compartiment moteur nettoyé par CLEANYZER" } },
-  { id: "formule", label: "Choisir ma formule", zones: [], media: null },
+/** Arrêts (numéro d'image, base 1) : ouverture, 9 zones, choix de formule final. */
+export const VISIT_STOPS: readonly { zone: ZoneKey | null; frame: number }[] = [
+  { zone: null, frame: 7 },
+  { zone: "body", frame: 31 },
+  { zone: "optics", frame: 61 },
+  { zone: "rims", frame: 91 },
+  { zone: "engine", frame: 133 },
+  { zone: "entry", frame: 168 },
+  { zone: "seats", frame: 217 },
+  { zone: "mats", frame: 257 },
+  { zone: "vents", frame: 279 },
+  { zone: "leather", frame: 313 },
+  { zone: null, frame: VISIT_FRAME_COUNT },
 ]
-const FINAL = CLZ_VISIT_CHAPTERS.length - 1
+export const KEY_ORDER = VISIT_STOPS.map((s) => s.zone)
+const STEPS = KEY_ORDER.filter((z): z is ZoneKey => z !== null)
+const STOPS = swipeStops(KEY_ORDER)
+const LAST = STOPS.length - 1
 
-export function chapterForZone(zone: ZoneKey | "final") {
-  if (zone === "final") return FINAL
-  return Math.max(0, CLZ_VISIT_CHAPTERS.findIndex((c) => c.zones.includes(zone)))
+export type VisitSet = "pc" | "tel"
+export const visitFrameSrc = (set: VisitSet, n: number) => `${BASE}/${set}/f_${String(n).padStart(4, "0")}.webp`
+
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
+
+/** Image (fractionnaire) pour une position d'arrêt fractionnaire (pendant le glissement). */
+export function frameAtStop(pos: number): number {
+  const p = clamp(pos, 0, LAST)
+  const i = Math.min(LAST - 1, Math.floor(p))
+  const a = VISIT_STOPS[STOPS[i]].frame
+  const b = VISIT_STOPS[STOPS[i + 1]].frame
+  return a + (b - a) * (p - i)
 }
 
-/** Index de la seule vidéo qui doit jouer, ou `null`. */
-export function playingChapter(active: number, inView: boolean, allowed: boolean): number | null {
-  return inView && allowed && CLZ_VISIT_CHAPTERS[active]?.media?.kind === "video" ? active : null
+/** Ordre de chargement : première image, autres arrêts, puis toutes les images dans l'ordre (repli : arrêts seuls). */
+export function visitLoadOrder(still = false): number[] {
+  const stops = VISIT_STOPS.map((s) => s.frame)
+  if (still) return stops
+  return [...stops, ...Array.from({ length: VISIT_FRAME_COUNT }, (_, i) => i + 1).filter((n) => !stops.includes(n))]
 }
 
-export function visitVideoSrc(chapter: VisitChapter, width: number, reducedMotion = false, saveData = false): string | null {
-  if (reducedMotion || saveData || chapter.media?.kind !== "video") return null
-  return chapter.media.src[heroVideoQuality(width) === "720" ? "tel" : "pc"]
+/** Pas d'animation (image fixe + précédent/suivant) si mouvement réduit ou économie de données. */
+export const visitIsStill = (reducedMotion: boolean, saveData: boolean) => reducedMotion || saveData
+
+const stopLabel = (i: number) => {
+  const z = KEY_ORDER[STOPS[i]]
+  return z ? JOURNEY_ZONES[z].name : i === 0 ? "Introduction" : "Choix de la formule"
 }
+const stopOf = (zone: ZoneKey | "final") => (zone === "final" ? LAST : Math.max(0, STOPS.indexOf(KEY_ORDER.indexOf(zone))))
+const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 const FORM_GROUPS: { label: string; side: "int" | "ext" | "both" }[] = [
   { label: "Intérieur", side: "int" },
   { label: "Extérieur", side: "ext" },
   { label: "Sur mesure", side: "both" },
 ]
-const MOBILE_MQ = "(max-width: 768px)"
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-export function ClzVisitVideo() {
+export function VisitVideo() {
   const sectionRef = useRef<HTMLElement>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
-  const tabsRef = useRef<(HTMLButtonElement | null)[]>([])
-  const videosRef = useRef<(HTMLVideoElement | null)[]>([])
-  const [active, setActive] = useState(0)
-  const [inView, setInView] = useState(false)
-  // Lecture automatique permise (pas de mouvement réduit ni d'économie de données) ; sinon lancée au clic.
-  const [allowed, setAllowed] = useState(false)
-  const [manual, setManual] = useState<number | null>(null)
-  const [q, setQ] = useState<Q>("tel")
-  const [veh, setVeh] = useState<VehicleKey>(VEHICLES[0].key)
-  const journey = useJourney()
-  const fromFilm = journey.origin?.kind === "film" ? journey.origin.step : null
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const ringArcRef = useRef<SVGCircleElement>(null)
+  const ringValRef = useRef<HTMLElement>(null)
+  const barRef = useRef<HTMLElement>(null)
 
-  const scrollTrack = (i: number) => {
-    const track = trackRef.current
-    const card = track?.children[i] as HTMLElement | undefined
-    if (!track || !card || !window.matchMedia(MOBILE_MQ).matches) return
-    track.scrollTo({ left: card.offsetLeft - (track.children[0] as HTMLElement).offsetLeft, behavior: reducedMotion() ? "auto" : "smooth" })
-  }
-  const select = (i: number) => {
-    setActive(i)
-    scrollTrack(i)
+  const [loading, setLoading] = useState(true)
+  const [stop, setStop] = useState(0)
+  const [form, setForm] = useState<FormulaRef>("excellence")
+  const [veh, setVeh] = useState<VehicleKey>("citadine")
+  // Téléphone (pointeur tactile) ou repli sans animation : navigation par arrêts.
+  const [steps, setSteps] = useState(false)
+  const journey = useJourney()
+  // `pos` : arrêt (fractionnaire pendant le geste), lu par la boucle de rendu sans rendu React.
+  const navRef = useRef({ steps: false, pos: 0, stop: 0, dragging: false })
+  const dragRef = useRef<{ id: number; x: number; y: number; active: boolean; lastX: number; lastT: number; vx: number } | null>(null)
+
+  const goStop = (i: number) => {
+    const n = navRef.current
+    n.pos = i
+    n.stop = i
+    setStop(i)
   }
 
   useEffect(() => {
-    const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData)
-    setAllowed(!reducedMotion() && !saveData)
-    setQ(heroVideoQuality(window.innerWidth) === "720" ? "tel" : "pc")
     try {
       const saved = window.localStorage.getItem("clz-veh")
       if (saved === "citadine" || saved === "berline" || saved === "suv") setVeh(saved)
     } catch {
       /* valeur par défaut */
     }
+  }, [])
+
+  useEffect(() => {
     const section = sectionRef.current
     if (!section) return
-    const io = new IntersectionObserver((e) => setInView(e[0].isIntersecting), { threshold: 0.25 })
-    io.observe(section)
-    return () => io.disconnect()
-  }, [])
-
-  useEffect(() => {
     return registerVisit((zone) => {
-      select(chapterForZone(zone))
-      sectionRef.current?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth" })
+      const i = stopOf(zone)
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      if (navRef.current.steps) {
+        goStop(i)
+        section.scrollIntoView({ behavior: still ? "auto" : "smooth" })
+        return
+      }
+      window.scrollTo({
+        top: section.getBoundingClientRect().top + window.scrollY + (section.offsetHeight - window.innerHeight) * (i / LAST),
+        behavior: still ? "auto" : "smooth",
+      })
     })
   }, [])
 
-  // Une seule vidéo joue ; la source n'est posée qu'au premier besoin.
-  const playing = playingChapter(active, inView, allowed || manual === active)
   useEffect(() => {
-    videosRef.current.forEach((v, i) => {
-      if (!v) return
-      if (i !== playing) return v.pause()
-      if (!v.getAttribute("src")) {
-        const src = visitVideoSrc(CLZ_VISIT_CHAPTERS[i], window.innerWidth)
-        if (!src) return
-        v.src = src
+    const section = sectionRef.current
+    const cv = canvasRef.current
+    const ctx = cv?.getContext("2d")
+    if (!section || !cv || !ctx) return
+    const nav = navRef.current
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+    const still = visitIsStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches, Boolean(conn?.saveData))
+    // shortcut: pointeur et orientation lus au montage seulement ; suffit tant qu'un appareil n'en change pas.
+    nav.steps = still || window.matchMedia("(pointer: coarse)").matches
+    setSteps(nav.steps)
+    const set: VisitSet = window.matchMedia("(orientation: portrait)").matches ? "tel" : "pc"
+
+    const imgs: (HTMLImageElement | undefined)[] = new Array(VISIT_FRAME_COUNT + 1)
+    let disposed = false
+    let started = false
+    let raf = 0
+    let visible = false
+    let drawn = -1
+    let cur = VISIT_STOPS[0].frame
+    let tween = { from: cur, to: cur, t0: 0 }
+
+    const nearest = (n: number) => {
+      for (let d = 0; d < VISIT_FRAME_COUNT; d++) {
+        const img = imgs[n - d] ?? imgs[n + d]
+        if (img) return img
       }
-      v.play().catch(() => setManual(null))
-    })
-  }, [playing])
+      return null
+    }
+    const draw = (force = false) => {
+      const n = clamp(Math.round(cur), 1, VISIT_FRAME_COUNT)
+      if (n === drawn && !force) return
+      const img = nearest(n)
+      if (!img) return
+      drawn = n
+      const W = cv.width
+      const H = cv.height
+      const sc = Math.max(W / img.naturalWidth, H / img.naturalHeight)
+      const dw = img.naturalWidth * sc
+      const dh = img.naturalHeight * sc
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh)
+    }
 
-  // Téléphone : le chapitre actif suit la carte visible dans la piste.
-  const onTrackScroll = () => {
-    const track = trackRef.current
-    if (!track || track.children.length < 2) return
-    const step = (track.children[1] as HTMLElement).offsetLeft - (track.children[0] as HTMLElement).offsetLeft
-    if (step <= 0) return
-    const i = Math.min(FINAL, Math.max(0, Math.round(track.scrollLeft / step)))
-    setActive((a) => (a === i ? a : i))
-  }
+    // Chargement progressif (4 requêtes en parallèle), arrêts d'abord.
+    const queue = visitLoadOrder(still)
+    const loadNext = () => {
+      const n = queue.shift()
+      if (n == null || disposed) return
+      const img = new Image()
+      img.decoding = "async"
+      img.onload = () => {
+        if (disposed) return
+        imgs[n] = img
+        setLoading(false)
+        draw(true)
+        loadNext()
+      }
+      img.onerror = () => loadNext()
+      img.src = visitFrameSrc(set, n)
+    }
+    const start = () => {
+      if (started) return
+      started = true
+      for (let k = 0; k < 4; k++) loadNext()
+    }
 
-  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const n = CLZ_VISIT_CHAPTERS.length
-    const next = { ArrowRight: (active + 1) % n, ArrowLeft: (active - 1 + n) % n, Home: 0, End: n - 1 }[e.key]
-    if (next === undefined) return
-    e.preventDefault()
-    select(next)
-    tabsRef.current[next]?.focus()
-  }
+    const fit = () => {
+      const r = cv.getBoundingClientRect()
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
+      cv.width = Math.max(1, Math.round(r.width * dpr))
+      cv.height = Math.max(1, Math.round(r.height * dpr))
+      draw(true)
+    }
+    const measure = () => {
+      if (nav.steps) return
+      const r = section.getBoundingClientRect()
+      const i = Math.round(clamp(-r.top / Math.max(1, r.height - window.innerHeight), 0, 1) * LAST)
+      if (i !== nav.stop) {
+        nav.stop = i
+        nav.pos = i
+        setStop(i)
+      }
+    }
+
+    const loop = (ts: number) => {
+      raf = requestAnimationFrame(loop)
+      if (!visible) return
+      if (nav.dragging) {
+        cur = frameAtStop(nav.pos)
+        tween = { from: cur, to: cur, t0: ts }
+      } else {
+        const to = VISIT_STOPS[STOPS[nav.stop]].frame
+        if (to !== tween.to) tween = { from: cur, to, t0: ts }
+        const t = still ? 1 : clamp((ts - tween.t0) / VISIT_TRAVEL_MS, 0, 1)
+        cur = tween.from + (tween.to - tween.from) * ease(t)
+      }
+      draw()
+      const p = (cur - 1) / (VISIT_FRAME_COUNT - 1)
+      if (ringValRef.current) ringValRef.current.textContent = String(Math.round(p * 100))
+      if (ringArcRef.current) ringArcRef.current.style.strokeDashoffset = String(194.8 * (1 - p))
+      if (barRef.current) barRef.current.style.width = `${p * 100}%`
+    }
+
+    const io = new IntersectionObserver(
+      (e) => {
+        visible = e[0].isIntersecting
+        if (visible) start()
+      },
+      { rootMargin: "100% 0px" },
+    )
+    io.observe(section)
+    window.addEventListener("scroll", measure, { passive: true })
+    window.addEventListener("resize", fit)
+    fit()
+    measure()
+    raf = requestAnimationFrame(loop)
+    return () => {
+      disposed = true
+      io.disconnect()
+      cancelAnimationFrame(raf)
+      window.removeEventListener("scroll", measure)
+      window.removeEventListener("resize", fit)
+    }
+  }, [])
+
+  const zone = KEY_ORDER[STOPS[stop]] ?? null
+  useEffect(() => {
+    if (zone) noteZone(zone)
+  }, [zone])
 
   const chooseVeh = (v: VehicleKey) => {
     setVeh(v)
@@ -169,160 +281,232 @@ export function ClzVisitVideo() {
     }
   }
 
+  // Glissement horizontal (téléphone) : pris seulement une fois clairement horizontal ; un geste
+  // vertical reste au navigateur (`touch-action: pan-y`). Les clics restent aux boutons.
+  const swipeHandlers = steps
+    ? {
+        onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+          dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false, lastX: e.clientX, lastT: e.timeStamp, vx: 0 }
+        },
+        onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+          const d = dragRef.current
+          if (!d || d.id !== e.pointerId) return
+          const dx = e.clientX - d.x
+          if (!d.active) {
+            if (Math.abs(dx) < 8) return
+            if (Math.abs(e.clientY - d.y) > Math.abs(dx)) {
+              dragRef.current = null
+              return
+            }
+            d.active = true
+            navRef.current.dragging = true
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId)
+            } catch {
+              /* pointeur déjà relâché */
+            }
+          }
+          const dt = e.timeStamp - d.lastT
+          if (dt > 0) d.vx = (e.clientX - d.lastX) / dt
+          d.lastX = e.clientX
+          d.lastT = e.timeStamp
+          navRef.current.pos = dragPosition(navRef.current.stop, dx, e.currentTarget.clientWidth, STOPS.length)
+        },
+        onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+          const d = dragRef.current
+          dragRef.current = null
+          navRef.current.dragging = false
+          if (!d?.active) return
+          goStop(releaseStop(navRef.current.stop, e.clientX - d.x, e.currentTarget.clientWidth, d.vx, STOPS.length))
+        },
+        onPointerCancel: () => {
+          dragRef.current = null
+          navRef.current.dragging = false
+          goStop(navRef.current.stop)
+        },
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+          if (e.key === "ArrowRight") goStop(stepTo(navRef.current.stop, 1, STOPS.length))
+          else if (e.key === "ArrowLeft") goStop(stepTo(navRef.current.stop, -1, STOPS.length))
+        },
+      }
+    : {}
+
+  const step = zone ? STEPS.indexOf(zone) : -1
+  const z = zone ? JOURNEY_ZONES[zone] : null
+  const zf = zone ? zoneFormulas(zone) : []
+  const best = zf.filter((k) => k !== "diamond").slice(-1)[0] ?? null
+  const fromFilm = journey.origin?.kind === "film" ? journey.origin.step : null
+  const finalOn = stop === LAST
+  const F = JOURNEY_FORMULAS[form]
+  const price = F.formula.prices[veh]
+  const formZones = ZONE_KEYS.filter((k) => zoneFormulas(k).includes(form))
+
   return (
-    <section ref={sectionRef} className="clz-neon-visit clz-vv" id={CLZ_VISIT_ANCHOR} aria-labelledby="clz-visit-title">
-      <div className="clz-neon-wrap">
-        <span className="clz-neon-eyebrow">Visite en vidéo</span>
-        <h2 id="clz-visit-title" className="clz-neon-h2">
-          Choisissez votre formule, <em>zone par zone.</em>
-        </h2>
-        <p className="clz-vv-sub">Regardez le travail sur chaque zone et découvrez ce que comprend chaque prestation.</p>
-
-        <div className="clz-vv-tabs" role="tablist" aria-label="Chapitres de la visite" onKeyDown={onTabKey}>
-          {CLZ_VISIT_CHAPTERS.map((c, i) => (
-            <button
-              key={c.id}
-              ref={(el) => {
-                tabsRef.current[i] = el
-              }}
-              type="button"
-              role="tab"
-              id={`clz-vv-tab-${c.id}`}
-              aria-controls={`clz-vv-panel-${c.id}`}
-              aria-selected={i === active}
-              tabIndex={i === active ? 0 : -1}
-              onClick={() => select(i)}
-            >
-              {c.label}
+    <section
+      ref={sectionRef}
+      id={CLZ_VISIT_ANCHOR}
+      className={steps ? "v3 v3-swipe" : "v3"}
+      aria-label="Visite : ce que chaque formule traite, zone par zone"
+    >
+      <div className="v3-stage" {...swipeHandlers}>
+        <canvas ref={canvasRef} id="v3-gl" aria-hidden="true" />
+        <div className="v3-vig" />
+        {loading && <div className="v3-load">Chargement de la voiture…</div>}
+        <div className={stop === 0 ? "v3-intro" : "v3-intro off"} aria-hidden={stop !== 0}>
+          <span className="clz-eyebrow">Visite</span>
+          <h2 className="clz-display clz-h2">
+            Ce qu&apos;on traite, <span className="clz-accent">zone par zone.</span>
+          </h2>
+          <p>
+            {steps ? "Glissez vers la gauche" : "Faites défiler"} : on fait le tour de la voiture, on entre dans l&apos;habitacle, et chaque
+            zone renvoie à la prestation en vidéo.
+          </p>
+          <div className="row">
+            <button className="clz-btn clz-btn-primary" type="button" tabIndex={stop === 0 ? 0 : -1} onClick={() => goVisit("body", null)}>
+              Commencer la visite {steps ? "→" : "↓"}
             </button>
-          ))}
+            <a className="skip" href="#prestations" tabIndex={stop === 0 ? 0 : -1}>
+              Passer la visite
+            </a>
+          </div>
         </div>
+        <div className="v3-ring" aria-hidden="true">
+          <svg viewBox="0 0 72 72">
+            <circle cx="36" cy="36" r="31" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="2.5" />
+            <circle ref={ringArcRef} cx="36" cy="36" r="31" fill="none" stroke="#0a84ff" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="194.8" strokeDashoffset="194.8" />
+          </svg>
+          <b ref={ringValRef}>0</b>
+          <small>% de la visite</small>
+        </div>
+        {steps && (
+          <nav className="v3-steps" aria-label="Étapes de la visite">
+            <button type="button" aria-label="Étape précédente" disabled={stop === 0} onClick={() => goStop(stepTo(stop, -1, STOPS.length))}>
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <ol>
+              {STOPS.map((k, i) => (
+                <li key={k}>
+                  <button type="button" aria-label={stopLabel(i)} aria-current={i === stop ? "step" : undefined} onClick={() => goStop(i)} />
+                </li>
+              ))}
+            </ol>
+            <button type="button" aria-label="Étape suivante" disabled={stop === LAST} onClick={() => goStop(stepTo(stop, 1, STOPS.length))}>
+              <ChevronRight className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </nav>
+        )}
+        <ol className="v3-rail" aria-label="Zones de la visite">
+          {STEPS.map((k, i) => (
+            <li key={k} className={i === step ? "on" : undefined}>
+              <button type="button" className="v3-link" style={{ color: "inherit" }} onClick={() => goVisit(k, journey.origin)}>
+                {JOURNEY_ZONES[k].name}
+              </button>
+            </li>
+          ))}
+        </ol>
 
-        <div className="clz-vv-track" ref={trackRef} onScroll={onTrackScroll}>
-          {CLZ_VISIT_CHAPTERS.map((c, i) => {
-            const m = c.media
-            const single = c.zones.length === 1 ? JOURNEY_ZONES[c.zones[0]] : null
-            const action = c.zones.length ? zoneAction(c.zones[0]) : null
-            return (
-              <article
-                key={c.id}
-                id={`clz-vv-panel-${c.id}`}
-                role="tabpanel"
-                aria-labelledby={`clz-vv-tab-${c.id}`}
-                className={`clz-vv-card${i === active ? " is-on" : ""}${m ? "" : " is-final"}`}
-              >
-                {m?.kind === "video" && (
-                  <div className="clz-vv-media">
-                    <video
-                      ref={(el) => {
-                        videosRef.current[i] = el
-                      }}
-                      poster={m.poster[q]}
-                      muted
-                      playsInline
-                      loop
-                      preload="none"
-                      aria-label={`Vidéo : ${c.label.toLowerCase()}`}
-                    />
-                    {playing !== i && !allowed && (
-                      <button type="button" className="clz-vv-play" aria-label={`Lire la vidéo : ${c.label.toLowerCase()}`} onClick={() => (select(i), setManual(i))}>
-                        <Play className="h-6 w-6" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
+        <article key={zone ?? "none"} className={`v3-card clz-card ${z ? "in" : "off"}`} aria-live="polite">
+          {z && zone && (
+            <>
+              {fromFilm && (
+                <button type="button" className="v3-link v3-back" onClick={() => goFilm(fromFilm, null)}>
+                  ← Retour à la vidéo
+                </button>
+              )}
+              <span className="clz-rule" />
+              <div className="v3-num">
+                Zone {String(step + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
+              </div>
+              <h3 className="clz-display clz-h3">{z.title}</h3>
+              {z.description && <p className="v3-desc">{z.description}</p>}
+              <ul className="v3-list">
+                {zf.map((k) => (
+                  <li key={k} className={k === "diamond" ? "dia" : undefined}>
+                    <b>{JOURNEY_FORMULAS[k].name}</b>
+                    <span>{z.formulas[k]}</span>
+                  </li>
+                ))}
+                {z.options.map((o) => (
+                  <li key={o.label}>
+                    <b>Option</b>
+                    <span>
+                      {o.label} · {o.price}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {best && (
+                <Link className="v3-more" href={JOURNEY_FORMULAS[best].href}>
+                  Voir la formule {JOURNEY_FORMULAS[best].full} →
+                </Link>
+              )}
+              <div className="v3-actions">
+                {z.film && (
+                  <button type="button" className="clz-btn" onClick={() => goFilm(z.film!, { kind: "visit", zone })}>
+                    ▶ Voir la prestation en vidéo
+                  </button>
                 )}
-                {m?.kind === "image" && (
-                  <div className="clz-vv-media clz-vv-strip">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={m.src} alt={m.alt} loading="lazy" decoding="async" />
-                  </div>
-                )}
+                <Link className="clz-btn clz-btn-primary" href={zoneAction(zone).href}>
+                  {zoneAction(zone).label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </>
+          )}
+        </article>
 
-                <div className="clz-vv-panel">
-                  {fromFilm && i === active && (
-                    <button type="button" className="clz-vv-back" onClick={() => goFilm(fromFilm, null)}>
-                      ← Retour à la vidéo
+        <div className={finalOn ? "v3-final on" : "v3-final"} aria-hidden={!finalOn}>
+          <h2 className="clz-display clz-h2">
+            Choisissez <span className="clz-accent">votre formule.</span>
+          </h2>
+          {FORM_GROUPS.map((g) => (
+            <div className="v3-fgroup" key={g.side}>
+              <span>{g.label}</span>
+              <div className="forms" role="group" aria-label={`Formules ${g.label.toLowerCase()}`}>
+                {(Object.keys(JOURNEY_FORMULAS) as FormulaRef[])
+                  .filter((k) => JOURNEY_FORMULAS[k].side === g.side)
+                  .map((k) => (
+                    <button key={k} type="button" aria-pressed={form === k} tabIndex={finalOn ? 0 : -1} onClick={() => setForm(k)}>
+                      {JOURNEY_FORMULAS[k].name}
                     </button>
-                  )}
-                  {m ? (
-                    <>
-                      <h3>{single ? single.title : c.label}</h3>
-                      {single?.description && <p className="clz-vv-desc">{single.description}</p>}
-                      {c.zones.map((k) => {
-                        const z = JOURNEY_ZONES[k]
-                        return (
-                          <div key={k}>
-                            {!single && <h4>{z.title}</h4>}
-                            <ul>
-                              {(Object.keys(z.formulas) as FormulaRef[]).map((f) => (
-                                <li key={f}>
-                                  <b>{JOURNEY_FORMULAS[f].name}</b>
-                                  <span>{z.formulas[f]}</span>
-                                </li>
-                              ))}
-                              {z.options.map((o) => (
-                                <li key={o.label}>
-                                  <b>Option</b>
-                                  <span>
-                                    {o.label} · {o.price}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )
-                      })}
-                      {action && (
-                        <Link className="clz-neon-btn clz-neon-btn-primary" href={action.href}>
-                          {action.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                        </Link>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <h3>{c.label}</h3>
-                      <div className="clz-vv-veh" role="group" aria-label="Type de véhicule">
-                        {VEHICLES.map((v) => (
-                          <button key={v.key} type="button" aria-pressed={veh === v.key} onClick={() => chooseVeh(v.key)}>
-                            {v.label}
-                          </button>
-                        ))}
-                      </div>
-                      {FORM_GROUPS.map((g) => (
-                        <div key={g.side}>
-                          <p className="clz-neon-eyebrow clz-vv-group">{g.label}</p>
-                          <div className="clz-vv-forms">
-                            {(Object.keys(JOURNEY_FORMULAS) as FormulaRef[])
-                              .filter((k) => JOURNEY_FORMULAS[k].side === g.side)
-                              .map((k) => {
-                                const F = JOURNEY_FORMULAS[k]
-                                const price = F.formula.prices[veh]
-                                return (
-                                  <div key={k} className="clz-vv-form">
-                                    <b>{F.name}</b>
-                                    <span className="clz-vv-price">{price == null ? "Sur devis" : `${price} €`}</span>
-                                    {F.note && <small>{F.note}</small>}
-                                    <Link className="clz-neon-btn clz-neon-btn-primary" href={F.action.href}>
-                                      {F.action.label}
-                                    </Link>
-                                  </div>
-                                )
-                              })}
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </article>
-            )
-          })}
-        </div>
-
-        <div className="clz-vv-dots" aria-hidden="true">
-          {CLZ_VISIT_CHAPTERS.map((c, i) => (
-            <i key={c.id} className={i === active ? "on" : undefined} />
+                  ))}
+              </div>
+            </div>
           ))}
+          <div className="v3-veh" role="group" aria-label="Type de véhicule">
+            {VEHICLES.map((v) => (
+              <button key={v.key} type="button" aria-pressed={veh === v.key} tabIndex={finalOn ? 0 : -1} onClick={() => chooseVeh(v.key)}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <div className="v3-fbox">
+            <div className="pr">{price == null ? "Sur devis" : `${price} €`}</div>
+            <div className="tx">
+              <b>{F.full}</b>
+              <div className="v3-zones" aria-label="Zones traitées">
+                {formZones.map((k) => (
+                  <button key={k} type="button" tabIndex={finalOn ? 0 : -1} onClick={() => goVisit(k, { kind: "visit", zone: "final" })}>
+                    {JOURNEY_ZONES[k].name}
+                  </button>
+                ))}
+              </div>
+              {F.note && <span className="v3-opt">{F.note}</span>}
+            </div>
+            <button type="button" className="clz-btn" tabIndex={finalOn ? 0 : -1} onClick={() => goFilm(F.film, { kind: "visit", zone: "final" })}>
+              ▶ En vidéo
+            </button>
+            {F.href !== F.action.href && (
+              <Link className="clz-btn" href={F.href} tabIndex={finalOn ? 0 : -1}>
+                Voir la formule
+              </Link>
+            )}
+            <Link className="clz-btn clz-btn-primary" href={F.action.href} tabIndex={finalOn ? 0 : -1}>
+              {F.action.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+        <div className="v3-bar">
+          <i ref={barRef} />
         </div>
       </div>
     </section>

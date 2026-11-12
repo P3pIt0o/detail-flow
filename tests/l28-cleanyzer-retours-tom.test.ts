@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
+import {
+  dragPosition,
+  releaseStop,
+  stepTo,
+  stopProgress,
+  swipeStops,
+} from "@/components/custom-sites/cleanyzer/visit-3d-swipe"
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
 import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
@@ -12,8 +19,65 @@ import { ZONE_COMMUNES } from "@/components/custom-sites/cleanyzer/zones"
 const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
 
-// L38 : la visite 3D (glissement, repli, modèle) est remplacée par la visite vidéo,
-// testée dans l38-cleanyzer-visite-video.test.ts.
+// Cas générique des fonctions de glissement : intro, 4 zones ext., transition, 4 zones int., final.
+const KEY_ORDER = [null, "body", "optics", "rims", "engine", null, "mats", "seats", "vents", "leather", null]
+
+describe("L28 — 3D au glissement : étapes", () => {
+  const stops = swipeStops(KEY_ORDER)
+
+  it("une étape par zone + intro + choix final, sans la transition intérieure", () => {
+    expect(stops).toEqual([0, 1, 2, 3, 4, 6, 7, 8, 9, 10])
+  })
+
+  it("navigation par flèches/points bornée", () => {
+    expect(stepTo(0, -1, stops.length)).toBe(0)
+    expect(stepTo(0, 1, stops.length)).toBe(1)
+    expect(stepTo(stops.length - 1, 1, stops.length)).toBe(stops.length - 1)
+  })
+
+  it("glisser vers la gauche avance, vers la droite recule, bornes respectées", () => {
+    const n = stops.length
+    expect(releaseStop(3, -200, 360, 0, n)).toBe(4)
+    expect(releaseStop(3, 200, 360, 0, n)).toBe(2)
+    expect(releaseStop(0, 300, 360, 0, n)).toBe(0)
+    expect(releaseStop(n - 1, -300, 360, 0, n)).toBe(n - 1)
+  })
+
+  it("petit geste lent = retour à l'étape courante ; geste vif court = étape suivante (inertie)", () => {
+    expect(releaseStop(3, -20, 360, 0, 10)).toBe(3)
+    expect(releaseStop(3, -20, 360, -0.8, 10)).toBe(4)
+    expect(releaseStop(3, 20, 360, 0.8, 10)).toBe(2)
+  })
+
+  it("un geste ne saute jamais plus d'une étape", () => {
+    expect(releaseStop(3, -2000, 360, -5, 10)).toBe(4)
+  })
+
+  it("pendant le glissement la position suit le doigt et reste bornée", () => {
+    expect(dragPosition(3, -180, 360, 10)).toBeCloseTo(3.5)
+    expect(dragPosition(0, 500, 360, 10)).toBe(0)
+    expect(dragPosition(9, -500, 360, 10)).toBe(9)
+  })
+
+  it("progression de la caméra : étape → image clé, transition interpolée", () => {
+    const nk = KEY_ORDER.length
+    expect(stopProgress(stops, 0, nk)).toBe(0)
+    expect(stopProgress(stops, stops.length - 1, nk)).toBe(1)
+    // Entre « moteur » (4) et « tapis » (6) : passe par la transition (5).
+    expect(stopProgress(stops, 4.5, nk)).toBeCloseTo(5 / (nk - 1))
+  })
+})
+
+// L55 : la 3D est remplacée par la visite en images (tests dans l55-visite.test.ts).
+describe("L28 — visite : poids", () => {
+  it("plus aucun modèle 3D dans le dépôt", () => {
+    expect(existsSync(path.join(process.cwd(), "public/custom-sites/cleanyzer/3d"))).toBe(false)
+  })
+
+  it("le glissement mobile ne capture pas le défilement vertical", () => {
+    expect(read(`${CLZ}/visit-video.css`)).toMatch(/touch-action:\s*pan-y/)
+  })
+})
 
 describe("L28 — comparateur avant/après", () => {
   it("valeurs bornées 0–100", () => {

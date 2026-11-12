@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 
 /**
  * L35 — Cleanyzer : haut de page néon, Présentation (vidéo de Tom au clic), Produits & fournisseurs,
- * visite en vidéo (L38), pilule de contact, SEO. Rendu serveur réel ; seules les polices next/font et la
+ * visite 3D au clic, pilule de contact, SEO. Rendu serveur réel ; seules les polices next/font et la
  * navigation sont simulées.
  */
 
@@ -25,7 +25,7 @@ import {
 } from "@/components/custom-sites/cleanyzer/hero"
 import { ClzPresentation } from "@/components/custom-sites/cleanyzer/presentation"
 import { ClzFournisseurs } from "@/components/custom-sites/cleanyzer/fournisseurs"
-import { ClzVisitVideo } from "@/components/custom-sites/cleanyzer/visit-video"
+import { VisitVideo } from "@/components/custom-sites/cleanyzer/visit-video"
 import { ClzContactPill, clzWhatsappNumber } from "@/components/custom-sites/cleanyzer/contact-pill"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
 import { BRAND, TRAVEL } from "@/components/custom-sites/cleanyzer/content"
@@ -57,7 +57,8 @@ describe("haut de page", () => {
       expect(v).toMatch(/playsinline|playsInline/i)
       expect(v).not.toMatch(/src="/)
     }
-    expect(h).toMatch(/<img[^>]*fetchpriority="high"[^>]*src="\/custom-sites\/cleanyzer\/neon\/hero-arrivee-poster\.webp"|<img[^>]*src="\/custom-sites\/cleanyzer\/neon\/hero-arrivee-poster\.webp"[^>]*fetchpriority="high"/i)
+    // L55 : nouveau poster (hero-poster-1080, version 720 portrait servie sous 760 px).
+    expect(h).toMatch(/<img[^>]*fetchpriority="high"[^>]*src="\/custom-sites\/cleanyzer\/neon\/hero-poster-1080\.webp"|<img[^>]*src="\/custom-sites\/cleanyzer\/neon\/hero-poster-1080\.webp"[^>]*fetchpriority="high"/i)
   })
 
   it("720p jusqu'à 760 px, 1080p au-delà ; mouvement réduit → aucune vidéo", () => {
@@ -219,19 +220,13 @@ describe("Produits & fournisseurs", () => {
   })
 })
 
-describe("Visite en vidéo (L38, remplace la 3D au clic)", () => {
-  it("rendu initial : aucune source vidéo ni canvas, aucun texte 3D", () => {
-    const h = html(createElement(ClzVisitVideo))
-    expect(h).toContain("Visite en vidéo")
-    expect(h).not.toMatch(/<canvas/)
-    expect(h).not.toMatch(/<video[^>]*\bsrc="/)
-    expect(h).not.toContain("3D")
-  })
-
-  it("l'accueil n'importe plus aucun module 3D", () => {
-    const home = read("components/custom-sites/cleanyzer/home-page.tsx")
-    expect(home).not.toMatch(/visit-3d/)
-    expect(home).toMatch(/from\s+["']\.\/visit-video["']/)
+// L55 : la visite 3D au clic est remplacée par la visite en images, rendue directement
+// (images chargées à l'approche de la section) — voir l55-visite.test.ts.
+describe("Visite (L55)", () => {
+  it("rendu initial : la visite, sans aucune image chargée", () => {
+    const h = html(createElement(VisitVideo))
+    expect(h).toContain('id="visite-3d"')
+    expect(h).not.toContain("visite-video/")
   })
 })
 
@@ -277,7 +272,7 @@ describe("accueil", () => {
       "AvantApresSection",
       "PrestationsPreview",
       "ClzFournisseurs",
-      "ClzVisitVideo",
+      "VisitVideo",
       "UniversSection",
       "PrestationsFilm",
       "RealisationsTom",

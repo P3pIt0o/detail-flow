@@ -3,7 +3,7 @@
 /**
  * PRESTATIONS AU DÉFILEMENT — CLEANYZER (scopé `.cleanyzer`, aucun autre tenant).
  *
- * Six étapes ; chacune fait défiler au scroll une vraie vidéo de Tom (découpée
+ * Huit étapes (L55) ; chacune fait défiler au scroll une vraie vidéo (découpée
  * en bandes de 8 images 720×1280 dans /public/custom-sites/cleanyzer/film) et
  * affiche la formule réelle qui la comprend.
  *
@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
-import { EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
+import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
 import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
 import { goFilm, goVisit, noteStep, registerFilm, useJourney } from "./journey-nav"
 import { clzPath } from "./tokens"
@@ -52,16 +52,21 @@ const STEPS: Step[] = [
       { label: "Excellence extérieur", detail: "+ jantes approfondies, détails au pinceau, double séchage", formula: EXT("excellence") },
     ],
   },
+  // L55 : textes repris de la zone « Jantes » et de la ligne Excellence extérieur ci-dessus.
   {
-    ...seq("tapis"),
-    tag: "Intérieur",
-    title: <>Tapis &amp; <span className="clz-accent">moquettes</span></>,
-    text: "Chaque tapis est brossé à la main, puis traité selon la formule choisie.",
-    rows: [
-      { label: "Premium", detail: "Tapis compris", formula: INT("premium") },
-      { label: "Excellence", detail: "Shampoing et traitement des tapis", formula: INT("excellence") },
-      { label: "Shampoing des moquettes", detail: "Option", fixed: `${INTERIEUR_OPTIONS.find((o) => o.key === "shampoing-moquettes")?.price} €` },
-    ],
+    ...seq("jantes"),
+    tag: "Extérieur",
+    title: <span className="clz-accent">{JOURNEY_ZONES.rims.title}</span>,
+    text: `${JOURNEY_ZONES.rims.formulas.exc_ext}.`,
+    rows: [{ label: "Excellence extérieur", detail: "+ jantes approfondies, détails au pinceau, double séchage", formula: EXT("excellence") }],
+  },
+  // L55 : textes repris de la zone « Optiques » (option extérieure, page dédiée).
+  {
+    ...seq("optiques"),
+    tag: "Option",
+    title: <>Rénovation des <span className="clz-accent">optiques</span></>,
+    text: JOURNEY_ZONES.optics.description ?? "",
+    rows: [{ label: "Rénovation optiques de phares", detail: "Option extérieure", fixed: `${EXTERIEUR_OPTIONS.find((o) => o.key === "renovation-optiques")?.price} €` }],
   },
   {
     ...seq("habitacle"),
@@ -79,6 +84,17 @@ const STEPS: Step[] = [
     title: <>Sièges, désinfection, <span className="clz-accent">anti-UV</span></>,
     text: "Tout le Premium, plus shampoing des sièges et des tapis, désinfection complète, traitement anti-UV des plastiques et des odeurs tenaces.",
     rows: [{ label: "Excellence", detail: "Le nettoyage intérieur le plus complet", formula: INT("excellence") }],
+  },
+  {
+    ...seq("tapis"),
+    tag: "Intérieur",
+    title: <>Tapis &amp; <span className="clz-accent">moquettes</span></>,
+    text: "Chaque tapis est brossé à la main, puis traité selon la formule choisie.",
+    rows: [
+      { label: "Premium", detail: "Tapis compris", formula: INT("premium") },
+      { label: "Excellence", detail: "Shampoing et traitement des tapis", formula: INT("excellence") },
+      { label: "Shampoing des moquettes", detail: "Option", fixed: `${INTERIEUR_OPTIONS.find((o) => o.key === "shampoing-moquettes")?.price} €` },
+    ],
   },
   {
     ...seq("moteur"),
@@ -343,14 +359,14 @@ export function PrestationsFilm() {
                   </Link>
                   <button
                     type="button"
-                    className="clz-film-3d"
+                    className="clz-film-visit"
                     tabIndex={i === active ? 0 : -1}
                     onClick={() => goVisit(s.zone ?? "final", { kind: "film", step: s.id })}
                   >
-                    {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} en vidéo` : "Choisir sa formule"}
+                    {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} dans la visite` : "Choisir sa formule dans la visite"}
                   </button>
                   {back && (
-                    <button type="button" className="clz-film-3d" tabIndex={i === active ? 0 : -1} onClick={back.go}>
+                    <button type="button" className="clz-film-visit" tabIndex={i === active ? 0 : -1} onClick={back.go}>
                       ← {back.label}
                     </button>
                   )}

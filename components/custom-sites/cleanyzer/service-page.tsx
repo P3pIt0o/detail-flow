@@ -177,21 +177,20 @@ function ZoneJourney({ kind, slug }: { kind: "interieur" | "exterieur"; slug: st
   const zones = zonesForSide(kind === "interieur" ? "int" : "ext")
   return (
     <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
-      <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Zone par zone, en vidéo</h2>
+      <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Zone par zone, en vidéo et dans la visite</h2>
       <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {zones.map((k) => (
           <li key={k} className="clz-card flex flex-col gap-3 p-5">
             <h3 className="font-semibold text-[var(--clz-fg)]">{JOURNEY_ZONES[k].title}</h3>
-            {JOURNEY_ZONES[k].film ? (
+            {JOURNEY_ZONES[k].film && (
               <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={filmDeepLink(JOURNEY_ZONES[k].film, slug)}>
                 ▶ Voir en vidéo
               </Link>
-            ) : (
-              JOURNEY_ZONES[k].link && (
-                <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={JOURNEY_ZONES[k].link.href}>
-                  {JOURNEY_ZONES[k].link.label}
-                </Link>
-              )
+            )}
+            {JOURNEY_ZONES[k].link && (
+              <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={JOURNEY_ZONES[k].link.href}>
+                {JOURNEY_ZONES[k].link.label}
+              </Link>
             )}
             <Link className="text-sm font-semibold text-[var(--clz-blue)] hover:underline" href={visitDeepLink(k, slug)}>
               Voir la zone dans la visite

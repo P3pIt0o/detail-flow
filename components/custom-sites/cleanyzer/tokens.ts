@@ -65,6 +65,14 @@ export function clzBookingHref(kind: "interieur" | "exterieur", formulaKey: stri
   return id ? `${CLZ_BOOKING_HREF}?service=${id}` : CLZ_BOOKING_HREF
 }
 
+/**
+ * L55 — `/reservation` aux couleurs néon avec l'en-tête et le pied du site CLEANYZER : seulement si
+ * le site personnalisé PUBLIÉ du tenant est « cleanyzer » (clé résolue côté serveur) et hors widget.
+ */
+export function clzBookingNeon(publishedCustomSiteKey: string | null | undefined, isEmbed: boolean): boolean {
+  return !isEmbed && publishedCustomSiteKey?.trim() === "cleanyzer"
+}
+
 /** Accueil public officiel du site personnalisé CLEANYZER (production). */
 export const CLZ_HOME_HREF = clzPath("/")
 
