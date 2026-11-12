@@ -128,6 +128,7 @@ export default async function PagePubliquePage({
 
       <ConfigEditor
         slug={tenant.slug}
+        companyId={tenant.id}
         previewPath={previewPath}
         openUrl={humanSiteUrl(tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)}
         initial={{
