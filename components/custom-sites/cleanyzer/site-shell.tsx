@@ -117,7 +117,7 @@ export function CleanyzerShell({
     return () => observer.disconnect()
   }, [pathname])
 
-  // Sticky mobile MASQUÉE pendant la visite 3D et le film (maquette validée :
+  // Sticky mobile MASQUÉE pendant la visite et le film (maquette validée :
   // les boutons y masquaient la voiture et les cartes, qui ont leurs propres
   // CTA). Section « active » = elle couvre le milieu de l'écran.
   const [inImmersive, setInImmersive] = useState(false)

@@ -143,7 +143,7 @@ export default async function ReservationPage({
           className={
             isEmbed
               ? "bg-background py-6"
-              : requestTenant?.customSiteKey?.trim() === "cleanyzer"
+              : clzBookingNeon(requestTenant?.customSiteKey, isEmbed)
                 ? "bg-background pb-16 pt-24 md:pb-20 md:pt-28"
                 : "bg-background pb-6 pt-8 md:pt-12"
           }

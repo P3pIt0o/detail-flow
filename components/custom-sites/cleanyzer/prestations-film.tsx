@@ -359,14 +359,14 @@ export function PrestationsFilm() {
                   </Link>
                   <button
                     type="button"
-                    className="clz-film-3d"
+                    className="clz-film-visit"
                     tabIndex={i === active ? 0 : -1}
                     onClick={() => goVisit(s.zone ?? "final", { kind: "film", step: s.id })}
                   >
                     {s.zone ? `Voir la zone ${JOURNEY_ZONES[s.zone].name.toLowerCase()} dans la visite` : "Choisir sa formule dans la visite"}
                   </button>
                   {back && (
-                    <button type="button" className="clz-film-3d" tabIndex={i === active ? 0 : -1} onClick={back.go}>
+                    <button type="button" className="clz-film-visit" tabIndex={i === active ? 0 : -1} onClick={back.go}>
                       ← {back.label}
                     </button>
                   )}

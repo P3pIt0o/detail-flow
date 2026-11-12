@@ -48,3 +48,14 @@ describe("L55 — séquences du film", () => {
     expect(FILM_SEQUENCES[filmIndex("optiques")].action.href).toBe("/p/cleanyzer/prestations/renovation-optiques-phares-annecy")
   })
 })
+
+describe("L55 — plus de vestige « 3D » dans le film", () => {
+  it("la classe des liens vers la visite ne s'appelle plus clz-film-3d", () => {
+    const dir = path.join(process.cwd(), "components/custom-sites/cleanyzer")
+    for (const f of ["prestations-film.tsx", "prestations-film.css"]) {
+      const src = readFileSync(path.join(dir, f), "utf8")
+      expect(src).not.toContain("clz-film-3d")
+      expect(src).toContain("clz-film-visit")
+    }
+  })
+})

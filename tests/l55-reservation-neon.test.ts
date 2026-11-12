@@ -22,6 +22,8 @@ describe("L55 — thème néon de la réservation", () => {
   it("la page décide à partir du customSiteKey du tenant résolu côté serveur, pas d'un paramètre client", () => {
     const page = read("app/(site)/reservation/page.tsx")
     expect(page).toContain("clzBookingNeon(requestTenant?.customSiteKey, isEmbed)")
+    // Une seule règle « Cleanyzer » : pas de comparaison en dur doublant le helper.
+    expect(page).not.toMatch(/customSiteKey\?\.trim\(\) === "cleanyzer"/)
     expect(page).toContain('<div className="clz-booking-neon">{booking}</div>')
     // Les autres tenants reçoivent exactement le même rendu qu'avant.
     expect(page).toMatch(/return booking\n/)
