@@ -48,5 +48,24 @@ describe("L55 — thème néon de la réservation", () => {
     expect(ratio("#04050a", "#1f7bff")).toBeGreaterThanOrEqual(4.5)
     expect(ratio("#f2f4fa", "#04050a")).toBeGreaterThanOrEqual(4.5)
     expect(ratio("#1f7bff", "#04050a")).toBeGreaterThanOrEqual(4.5)
+    // Étape active rouge : chiffre sombre sur #ff2b45.
+    expect(ratio("#04050a", "#ff2b45")).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it("néon accentué (ajout 3) : halos, progression bleue/rouge, lueurs de fond, liseré — limité à .clz-booking-neon, coupé si mouvement réduit", () => {
+    const css = read("components/custom-sites/cleanyzer/cleanyzer.css")
+    const start = css.indexOf("/* ---------- Réservation : néon accentué")
+    const end = css.indexOf("/* ---------- Pilule de contact")
+    expect(start).toBeGreaterThan(-1)
+    const accent = css.slice(start, end)
+    // Toute règle du bloc reste dans le conteneur Cleanyzer.
+    for (const rule of accent.match(/^[^/@\s}][^{]*\{/gm) ?? []) expect(rule).toContain(".clz-booking-neon")
+    expect(accent).toMatch(/\[aria-pressed="true"\]/) // carte sélectionnée
+    expect(accent).toMatch(/\[aria-checked="true"\]/)
+    expect(accent).toMatch(/--success: var\(--clz-neon-blue\)/) // progression bleue
+    expect(accent).toMatch(/span\.bg-primary[^{]*\{[^}]*var\(--clz-neon-red\)/) // étape active rouge
+    expect(accent).toMatch(/::before[^{]*\{[^}]*filter: blur/) // lueurs floues
+    expect(accent).toMatch(/::after/)
+    expect(accent).toMatch(/@media \(prefers-reduced-motion: reduce\)[^@]*clz-booking-neon[^}]*animation: none/)
   })
 })

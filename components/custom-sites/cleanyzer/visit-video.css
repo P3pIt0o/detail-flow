@@ -54,7 +54,7 @@
 .v3-bar i{display:block;height:100%;width:0;background:var(--clz-blue)}
 @media (max-width:760px){
   .v3-intro{top:18%}
-  .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.85rem 1rem .9rem}
+  .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.85rem 1rem .9rem;max-height:42svh;overflow-y:auto;overscroll-behavior:contain}
   /* Carte compacte : elle laisse plus de place à l'image au-dessus. */
   .v3-card .clz-rule{display:none}
   .v3-card h3{font-size:1.3rem;margin:.2rem 0 0}

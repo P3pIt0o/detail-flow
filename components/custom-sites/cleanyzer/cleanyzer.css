@@ -493,6 +493,26 @@
   color: var(--clz-neon-fg);
 }
 
+/* ---------- Réservation : néon accentué (L55, ajout 3) ---------- */
+/* CSS seul sur le DOM de BookingV2 (aria-pressed/checked, classes Tailwind) : BookingV2 inchangé.
+   Étapes faites en bleu (--success), étape active en rouge (chiffre sombre : 5,4:1). */
+.cleanyzer .clz-booking-neon { --success: var(--clz-neon-blue); --success-foreground: var(--clz-neon-ink); position: relative; isolation: isolate; overflow: hidden; }
+.cleanyzer .clz-booking-neon::before,
+.cleanyzer .clz-booking-neon::after { content: ""; position: absolute; z-index: -1; width: 42vmax; height: 42vmax; border-radius: 50%; filter: blur(90px); opacity: .32; pointer-events: none; animation: clz-booking-glow 9s ease-in-out infinite alternate; }
+.cleanyzer .clz-booking-neon::before { top: -12vmax; left: -14vmax; background: var(--clz-neon-blue); }
+.cleanyzer .clz-booking-neon::after { bottom: -14vmax; right: -14vmax; background: var(--clz-neon-red); opacity: .22; animation-delay: -4.5s; }
+.cleanyzer .clz-booking-neon > section { background: transparent; }
+.cleanyzer .clz-booking-neon .bg-card.border,
+.cleanyzer .clz-booking-neon .bg-card.border-border { border-color: rgba(31,123,255,.32); }
+.cleanyzer .clz-booking-neon :is([aria-pressed="true"], [aria-checked="true"]) { box-shadow: 0 0 0 1px var(--clz-neon-blue), 0 0 22px -4px rgba(31,123,255,.75); }
+.cleanyzer .clz-booking-neon :is(button, a).bg-primary { box-shadow: 0 0 24px -4px rgba(31,123,255,.8); }
+.cleanyzer .clz-booking-neon [aria-hidden="true"] > div > span.bg-primary { background: var(--clz-neon-red); color: var(--clz-neon-ink); box-shadow: 0 0 14px rgba(255,43,69,.8); }
+.cleanyzer .clz-booking-neon [aria-hidden="true"] > div > span.bg-success { box-shadow: 0 0 10px rgba(31,123,255,.6); }
+@keyframes clz-booking-glow { from { transform: translate(0, 0) scale(1); } to { transform: translate(3vmax, 2vmax) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) {
+  .cleanyzer .clz-booking-neon::before, .cleanyzer .clz-booking-neon::after { animation: none; }
+}
+
 /* ---------- Pilule de contact ---------- */
 .cleanyzer .clz-neon-dock { position: fixed; z-index: 40; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(4,5,10,.62); border: 1px solid var(--clz-neon-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px -12px #000; transition: transform .35s ease, opacity .35s ease; opacity: 0; pointer-events: none; max-width: calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))); }
 .cleanyzer .clz-neon-dock.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }

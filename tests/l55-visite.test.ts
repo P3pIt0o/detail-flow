@@ -87,6 +87,26 @@ describe("L55 — zones et liens profonds", () => {
     expect(visitDeepLink("entry", "x")).toBe("/p/cleanyzer#zone=entry&from=x")
     expect(CLZ_VISIT_ANCHOR).toBe("visite-3d")
   })
+
+  it("numérotation n / 9 dans l'ordre de la vidéo (ajout 1)", () => {
+    expect(ZONE_KEYS.map((k, i) => `${i + 1} ${JOURNEY_ZONES[k].name}`)).toEqual([
+      "1 Carrosserie",
+      "2 Optiques",
+      "3 Jantes",
+      "4 Moteur",
+      "5 Portières & seuils",
+      "6 Sièges",
+      "7 Tapis",
+      "8 Aérations",
+      "9 Volant & commandes",
+    ])
+  })
+
+  it("panneau de zone compact sur téléphone : hauteur limitée, défilable, placé en bas (ajout 2)", () => {
+    const css = read(`${CLZ}/visit-video.css`)
+    const mobile = css.slice(css.indexOf("@media (max-width:760px){"))
+    expect(mobile).toMatch(/\.v3-card\{bottom:[^}]*max-height:[^}]*overflow-y:auto/)
+  })
 })
 
 describe("L55 — rendu serveur", () => {
