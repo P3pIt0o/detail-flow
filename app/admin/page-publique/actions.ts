@@ -1,8 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { del } from "@vercel/blob"
 import { requireCompanyMember } from "@/lib/admin"
+import { heroImagePrefix, isPrivateHeroImage, parseHeroImageValue } from "@/lib/public-page/hero-image"
 import {
+  getPublicPageConfigRow,
   upsertPublicPageConfig,
   publishPublicPageConfig,
   type PublicPageConfigInput,
@@ -30,22 +33,6 @@ function hexOrNull(value: string | null, label: string): string | null {
   if (value === null) return null
   if (!HEX_RE.test(value)) throw new Error(`${label} : format hexadécimal attendu (ex. #2563eb).`)
   return value
-}
-
-/**
- * URL d'image du hero : accepte une URL absolue https OU un chemin relatif
- * commençant par `/`. Rejette tout le reste (prévention d'injection d'URL).
- */
-function imageUrlOrNull(value: string | null): string | null {
-  if (value === null) return null
-  if (value.startsWith("/")) return value
-  try {
-    const u = new URL(value)
-    if (u.protocol === "https:") return value
-  } catch {
-    /* invalide */
-  }
-  throw new Error("Image du hero : URL https ou chemin interne (commençant par /) attendu.")
 }
 
 /**
@@ -78,7 +65,7 @@ export async function savePublicPageConfig(fd: FormData): Promise<ActionResult> 
 
     const input: PublicPageConfigInput = {
       layoutVariant: str(fd, "layoutVariant"),
-      heroImageUrl: imageUrlOrNull(str(fd, "heroImageUrl")),
+      // heroImageUrl absent = inchangé : il est enregistré à part par saveHeroImage.
       heroImagePosition: str(fd, "heroImagePosition"),
       heroOverlay,
       accentPrimary: hexOrNull(str(fd, "accentPrimary"), "Couleur principale"),
@@ -96,6 +83,36 @@ export async function savePublicPageConfig(fd: FormData): Promise<ActionResult> 
     await upsertPublicPageConfig(ctx.tenant.id, input)
 
     // Rafraîchit le rendu public (chemin joli + racine tenant) et l'éditeur.
+    revalidatePath(`/p/${ctx.tenant.slug}`)
+    revalidatePath("/")
+    revalidatePath("/admin/page-publique")
+    return { ok: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur lors de l'enregistrement."
+    return { ok: false, error: message }
+  }
+}
+
+/**
+ * Enregistre IMMÉDIATEMENT la photo de bannière (seule colonne heroImageUrl),
+ * après téléversement ou « Retirer », pour que l'aperçu la montre aussitôt.
+ * L'ancien Blob est supprimé s'il est privé ET sous le préfixe du tenant courant.
+ */
+export async function saveHeroImage(value: string | null): Promise<ActionResult> {
+  try {
+    const ctx = await requireCompanyMember()
+    if (ctx.tenant.customSiteKey) {
+      return { ok: false, error: "Ce site utilise un rendu personnalisé : configurateur indisponible." }
+    }
+    const heroImageUrl = parseHeroImageValue(value, ctx.tenant.id)
+    const old = (await getPublicPageConfigRow(ctx.tenant.id))?.heroImageUrl ?? null
+
+    await upsertPublicPageConfig(ctx.tenant.id, { heroImageUrl })
+
+    if (old && old !== heroImageUrl && isPrivateHeroImage(old) && old.startsWith(heroImagePrefix(ctx.tenant.id))) {
+      await del(old).catch(() => {})
+    }
+
     revalidatePath(`/p/${ctx.tenant.slug}`)
     revalidatePath("/")
     revalidatePath("/admin/page-publique")

@@ -6,6 +6,7 @@ import { Loader2, Save, Rocket, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { savePublicPageConfig, publishPublicPage } from "@/app/admin/page-publique/actions"
 import { LivePreview } from "./live-preview"
+import { HeroImageField } from "./hero-image-field"
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
@@ -33,11 +34,13 @@ export type ConfigEditorInitial = {
 
 export function ConfigEditor({
   slug,
+  companyId,
   previewPath,
   openUrl,
   initial,
 }: {
   slug: string
+  companyId: number
   previewPath: string
   openUrl: string
   initial: ConfigEditorInitial
@@ -53,7 +56,6 @@ export function ConfigEditor({
   // État local du formulaire (contrôlé) — repli sur des valeurs par défaut sûres.
   const [accentPrimary, setAccentPrimary] = useState(initial.accentPrimary ?? "")
   const [accentSecondary, setAccentSecondary] = useState(initial.accentSecondary ?? "")
-  const [heroImageUrl, setHeroImageUrl] = useState(initial.heroImageUrl ?? "")
   const [showAbout, setShowAbout] = useState(initial.showAbout)
   const [showGallery, setShowGallery] = useState(initial.showGallery)
   const [showReviews, setShowReviews] = useState(initial.showReviews)
@@ -78,7 +80,6 @@ export function ConfigEditor({
       const fd = new FormData()
       fd.set("accentPrimary", accentPrimary)
       fd.set("accentSecondary", accentSecondary)
-      fd.set("heroImageUrl", heroImageUrl)
       if (showAbout) fd.set("showAbout", "on")
       if (showGallery) fd.set("showGallery", "on")
       if (showReviews) fd.set("showReviews", "on")
@@ -136,22 +137,17 @@ export function ConfigEditor({
         {/* Hero */}
         <section className={cardClass}>
           <h2 className="mb-4 text-base font-semibold text-foreground">Bannière (hero)</h2>
-          <div>
-            <label htmlFor="heroImageUrl" className={labelClass}>
-              Image de fond (URL https ou chemin interne)
-            </label>
-            <input
-              id="heroImageUrl"
-              type="text"
-              value={heroImageUrl}
-              onChange={(e) => setHeroImageUrl(e.target.value)}
-              placeholder="/hero.png ou https://…"
-              className={inputClass}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Laissez vide pour conserver l&apos;image par défaut de votre site.
-            </p>
-          </div>
+          <HeroImageField
+            initialValue={initial.heroImageUrl}
+            companyId={companyId}
+            slug={slug}
+            onSaved={(message) => {
+              setError(null)
+              setNotice(message)
+              setReloadKey((k) => k + 1)
+              router.refresh()
+            }}
+          />
         </section>
 
         {/* Sections */}

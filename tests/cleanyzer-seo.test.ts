@@ -36,7 +36,7 @@ import { SERVICES, OPTIONS, TEXTILE_REQUEST_TYPE } from "../scripts/cleanyzer-ca
 const root = process.cwd()
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
 const CLZ = "components/custom-sites/cleanyzer"
-const BASE = "https://www.detailflow.fr/p/cleanyzer"
+const BASE = "https://www.cleanyzer.fr"
 
 const identity = tenantSeoIdentity({
   slug: "cleanyzer",
@@ -44,16 +44,17 @@ const identity = tenantSeoIdentity({
   publicPathPrefix: tenantCanonicalPathPrefix("cleanyzer"),
 })
 
-describe("Cleanyzer — URL canoniques sous /p/cleanyzer", () => {
-  it("préfixe canonique réservé aux tenants de la table fermée", () => {
-    expect(TENANT_PATH_CANONICAL.has("cleanyzer")).toBe(true)
-    expect(tenantCanonicalPathPrefix("cleanyzer")).toBe("/p/cleanyzer")
+describe("Cleanyzer — URL canoniques sur www.cleanyzer.fr (L50)", () => {
+  it("domaine connecté : plus de préfixe /p/cleanyzer", () => {
+    expect(TENANT_PATH_CANONICAL.has("cleanyzer")).toBe(false)
+    expect(tenantCanonicalHost("cleanyzer")).toBe("www.cleanyzer.fr")
+    expect(tenantCanonicalPathPrefix("cleanyzer")).toBeNull()
     expect(tenantCanonicalPathPrefix("rozancleaningservice")).toBeNull()
     expect(tenantCanonicalPathPrefix("spirit-acs")).toBeNull()
   })
 
   it("accueil et sous-pages : une seule URL, sans ?tenant=", () => {
-    expect(tenantCanonicalUrl("/", identity)).toBe(BASE)
+    expect(tenantCanonicalUrl("/", identity)).toBe(`${BASE}/`)
     expect(tenantCanonicalUrl("/prestations/nettoyage-interieur-voiture-annecy", identity)).toBe(
       `${BASE}/prestations/nettoyage-interieur-voiture-annecy`,
     )
@@ -76,14 +77,15 @@ describe("Cleanyzer — URL canoniques sous /p/cleanyzer", () => {
 describe("Cleanyzer — sitemap et catalogue", () => {
   const urls = sitemap().map((e) => e.url)
 
-  it("prépublication V1 : aucune URL Cleanyzer dans le sitemap", () => {
+  it("mise en ligne : URL Cleanyzer sur www.cleanyzer.fr, jamais /p/ ni ?tenant=", () => {
+    expect(urls).toContain(`${BASE}/`)
     for (const u of urls) {
-      expect(u.startsWith(BASE)).toBe(false)
+      expect(u).not.toContain("/p/cleanyzer")
       expect(u).not.toContain("tenant=cleanyzer")
     }
   })
 
-  it("le catalogue reste prêt : accueil, 3 prestations et page zone", () => {
+  it("le catalogue reste prêt : accueil, 4 prestations et page zone", () => {
     const paths = listSitemapPaths(getPublicSiteCatalog("cleanyzer")!).map((e) => e.path)
     expect(paths).toContain("/")
     for (const p of CLZ_SERVICE_PAGES) expect(paths).toContain(`/prestations/${p.slug}`)
@@ -91,8 +93,8 @@ describe("Cleanyzer — sitemap et catalogue", () => {
     for (const p of paths) expect(p).not.toMatch(/\/reservation|\/demande|cleanyzer-preview/)
   })
 
-  it("Spirit ACS et Rozan restent dans le sitemap", () => {
-    for (const key of ["spirit-acs", "rozan"] as const) {
+  it("Spirit ACS, Rozan et Cleanyzer sont dans le sitemap", () => {
+    for (const key of ["spirit-acs", "rozan", "cleanyzer"] as const) {
       const catalog = getPublicSiteCatalog(key)!
       const id = tenantSeoIdentity({
         slug: catalog.tenantSlug,
@@ -103,9 +105,9 @@ describe("Cleanyzer — sitemap et catalogue", () => {
     }
   })
 
-  it("noindex, follow appliqué à Cleanyzer seul dans les deux points d'entrée", () => {
+  it("indexation ouverte : prépublication vide, mécanisme conservé dans les deux points d'entrée", () => {
     const src = read("lib/seo/tenant-seo.server.ts")
-    expect(src).toContain('const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set(["cleanyzer"])')
+    expect(src).toContain("const PREPUBLICATION_NOINDEX_SITE_KEYS = new Set<string>()")
     expect(src).toContain("{ index: false, follow: true }")
     expect(src).toContain("if (isPrepublicationSite(tenant.customSiteKey)) return PREPUBLICATION_ROBOTS")
     expect(src).toContain("robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots")
@@ -313,9 +315,8 @@ describe("Cleanyzer — URL de réservation et de demande (detailflow.fr/p/clean
     expect(resolveHost("www.detailflow.fr", "detailflow.fr").kind).toBe("root")
   })
 
-  it("domaine futur : la canonique bascule, les liens /p/cleanyzer restent valides", () => {
-    const withDomain = tenantSeoIdentity({ slug: "cleanyzer", publicDomain: "www.exemple-cleanyzer.fr", publicPathPrefix: null })
-    expect(tenantCanonicalUrl("/prestations/x", withDomain)).toBe("https://www.exemple-cleanyzer.fr/prestations/x")
+  it("domaine connecté : la canonique bascule, les liens /p/cleanyzer restent analysables (redirigés en 308)", () => {
+    expect(tenantCanonicalUrl("/prestations/x", identity)).toBe("https://www.cleanyzer.fr/prestations/x")
     expect(parsePublicPagePath("/p/cleanyzer/demande")?.rest).toBe("/demande")
   })
 

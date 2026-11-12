@@ -38,9 +38,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // tenant expose-t-il ? ». La même abstraction servira, à terme, les tenants
   // standards (pages activées). On itère sur les CLÉS DE SITE (registre) ; le
   // slug de tenant réel utilisé pour l'URL provient du catalogue lui-même.
-  // Cleanyzer temporairement exclu (prépublication V1, pages en `noindex`) :
-  // le réintégrer ici lors de la mise en ligne officielle.
-  const customSiteKeys = ["spirit-acs", "rozan"] as const
+  const customSiteKeys = ["spirit-acs", "rozan", "cleanyzer"] as const
   for (const key of customSiteKeys) {
     const catalog = getPublicSiteCatalog(key)
     if (!catalog) continue

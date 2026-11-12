@@ -31,6 +31,7 @@ import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/s
 import { getCurrentTenant } from "@/lib/tenant"
 import { getTenantHeroImage, getTenantHeroOverlay } from "@/lib/tenant-hero"
 import { getEffectivePublicPageForCurrentTenant } from "@/lib/public-page/config"
+import { resolveHeroImageSrc } from "@/lib/public-page/hero-image"
 import { PracticalInfo } from "@/components/public-page/practical-info"
 import { PublicPlans } from "@/components/subscriptions/public-plans"
 import { loadPublicOffer } from "@/lib/customer-subscriptions/public-offer"
@@ -67,7 +68,8 @@ export default async function HomePage() {
   // Image de fond du Hero : l'image téléversée dans le configurateur (LOT 2)
   // est PRIORITAIRE si renseignée ; sinon repli sur la surcharge historique par
   // slug, puis sur l'image par défaut. Aucun tenant sans config n'est affecté.
-  const heroImage = publicPage?.heroImageUrl ?? getTenantHeroImage(tenant?.slug)
+  // Un pathname Blob privé est servi via /api/hero-image (isolé par tenant).
+  const heroImage = resolveHeroImageSrc(publicPage?.heroImageUrl, tenant?.slug ?? "") ?? getTenantHeroImage(tenant?.slug)
 
   // Bascules de sections du configurateur : STRICTEMENT ADDITIVES. Une section
   // n'est masquée QUE si une config dédiée existe ET que le propriétaire l'a
