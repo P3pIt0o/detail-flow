@@ -53,8 +53,9 @@ describe("Cleanyzer — page rénovation des optiques", () => {
     expect(read(`${CLZ}/service-page.tsx`)).toMatch(/page\.kind === "optiques"\) return \[\]/)
   })
 
-  it("absente du sitemap pendant la prépublication", () => {
-    for (const e of sitemap()) expect(e.url).not.toContain(CLZ_OPTIQUES_SLUG)
+  it("présente dans le sitemap sur https://www.cleanyzer.fr, sans /p/cleanyzer", () => {
+    const hits = sitemap().map((e) => e.url).filter((u) => u.includes(CLZ_OPTIQUES_SLUG))
+    expect(hits).toEqual([`https://www.cleanyzer.fr/prestations/${CLZ_OPTIQUES_SLUG}`])
   })
 
   it("liens internes vers le lavage extérieur, la zone et les réalisations", () => {
