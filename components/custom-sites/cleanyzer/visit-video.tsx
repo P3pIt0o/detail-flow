@@ -4,7 +4,7 @@
  * VISITE CLEANYZER EN IMAGES (L55, remplace la 3D) — même interface : une zone à la fois,
  * panneau de la zone, rail des zones, choix de formule final, liens profonds `#zone=`.
  *
- * Images : `visite-video/{pc,tel}/f_0001…f_0331.webp` (12 i/s) dessinées sur un canvas, comme le
+ * Images : `visite-video/{pc,tel}/f_0001…f_0310.webp` (12 i/s) dessinées sur un canvas, comme le
  * film des prestations. Ordinateur : le défilement choisit l'arrêt ; téléphone : glissement.
  * Entre deux arrêts, le trajet est joué en accéléré (~0,6 s) puis l'image s'arrête sur la zone.
  * Mouvement réduit / économie de données : image fixe de l'arrêt + boutons précédent/suivant.
@@ -30,7 +30,7 @@ import { dragPosition, releaseStop, stepTo, swipeStops } from "./visit-3d-swipe"
 import "./visit-video.css"
 
 const BASE = "/custom-sites/cleanyzer/visite-video"
-export const VISIT_FRAME_COUNT = 331
+export const VISIT_FRAME_COUNT = 310
 /** Durée du trajet entre deux arrêts (ms). */
 export const VISIT_TRAVEL_MS = 600
 
@@ -45,7 +45,8 @@ export const VISIT_STOPS: readonly { zone: ZoneKey | null; frame: number }[] = [
   { zone: "seats", frame: 217 },
   { zone: "mats", frame: 257 },
   { zone: "vents", frame: 279 },
-  { zone: "leather", frame: 313 },
+  // L59 : volant et choix final sur la même dernière image, seul le panneau change.
+  { zone: "leather", frame: VISIT_FRAME_COUNT },
   { zone: null, frame: VISIT_FRAME_COUNT },
 ]
 export const KEY_ORDER = VISIT_STOPS.map((s) => s.zone)
@@ -69,7 +70,8 @@ export function frameAtStop(pos: number): number {
 
 /** Ordre de chargement : première image, autres arrêts, puis toutes les images dans l'ordre (repli : arrêts seuls). */
 export function visitLoadOrder(still = false): number[] {
-  const stops = VISIT_STOPS.map((s) => s.frame)
+  // Set : le volant et le choix final partagent la dernière image (L59), chargée une seule fois.
+  const stops = [...new Set(VISIT_STOPS.map((s) => s.frame))]
   if (still) return stops
   return [...stops, ...Array.from({ length: VISIT_FRAME_COUNT }, (_, i) => i + 1).filter((n) => !stops.includes(n))]
 }
@@ -373,7 +375,7 @@ export function VisitVideo() {
         <div className="v3-ring" aria-hidden="true">
           <svg viewBox="0 0 72 72">
             <circle cx="36" cy="36" r="31" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="2.5" />
-            <circle ref={ringArcRef} cx="36" cy="36" r="31" fill="none" stroke="#0a84ff" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="194.8" strokeDashoffset="194.8" />
+            <circle ref={ringArcRef} cx="36" cy="36" r="31" fill="none" stroke="#1f7bff" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="194.8" strokeDashoffset="194.8" />
           </svg>
           <b ref={ringValRef}>0</b>
           <small>% de la visite</small>
@@ -405,7 +407,7 @@ export function VisitVideo() {
           ))}
         </ol>
 
-        <article key={zone ?? "none"} className={`v3-card clz-card ${z ? "in" : "off"}`} aria-live="polite">
+        <article key={zone ?? "none"} className={`v3-card clz-card${z ? "" : " off"}`} aria-live="polite">
           {z && zone && (
             <>
               {fromFilm && (
@@ -435,20 +437,21 @@ export function VisitVideo() {
                   </li>
                 ))}
               </ul>
-              {best && (
-                <Link className="v3-more" href={JOURNEY_FORMULAS[best].href}>
-                  Voir la formule {JOURNEY_FORMULAS[best].full} →
-                </Link>
-              )}
-              <div className="v3-actions">
+              {/* Un seul bouton ; le reste en liens discrets (L59). */}
+              <Link className="clz-btn clz-btn-primary" href={zoneAction(zone).href}>
+                {zoneAction(zone).label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <div className="v3-links">
                 {z.film && (
-                  <button type="button" className="clz-btn" onClick={() => goFilm(z.film!, { kind: "visit", zone })}>
+                  <button type="button" onClick={() => goFilm(z.film!, { kind: "visit", zone })} className="v3-link">
                     ▶ Voir la prestation en vidéo
                   </button>
                 )}
-                <Link className="clz-btn clz-btn-primary" href={zoneAction(zone).href}>
-                  {zoneAction(zone).label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+                {best && (
+                  <Link className="v3-link" href={JOURNEY_FORMULAS[best].href}>
+                    Voir la formule {JOURNEY_FORMULAS[best].full} →
+                  </Link>
+                )}
               </div>
             </>
           )}

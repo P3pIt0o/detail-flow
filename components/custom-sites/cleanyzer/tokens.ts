@@ -3,7 +3,7 @@
  * Purement structurel — aucune donnée métier, aucun couplage tenant.
  */
 
-import { publicPagePath, publicReservationPath } from "@/lib/tenant-shared"
+import { publicPagePath } from "@/lib/tenant-shared"
 
 export const CLZ_SECTIONS = {
   prestations: "prestations",
@@ -22,30 +22,31 @@ export const CLZ_PREVIEW_BASE = "/cleanyzer-preview"
 export const CLEANYZER_TENANT_SLUG = "cleanyzer"
 
 /**
- * Base des liens internes du site PUBLIC : TOUJOURS « /p/cleanyzer ».
+ * Base des liens internes du site PUBLIC (L59).
  *
- * Le middleware résout `/p/<slug>/…` AVANT toute logique d'hôte : ces liens
- * fonctionnent donc à l'identique sur www.detailflow.fr, sur le sous-domaine
- * et sur un futur domaine personnalisé. Des liens racine (« /prestations/… »)
- * casseraient sur www.detailflow.fr/p/cleanyzer (réécrits vers la vitrine
- * marketing). La canonique, elle, suit `TENANT_CANONICAL_HOST` (tenant-url.ts).
+ * Production : « » (racine) — `/p/cleanyzer/*` y redirige toujours (308) vers www.cleanyzer.fr, autant
+ * lier directement les adresses finales. Preview et local : « /p/cleanyzer » (résolu par le middleware
+ * sur tout hôte). Variable absente → « /p/cleanyzer », valide partout grâce à la redirection.
+ * shortcut: l'adresse technique *.vercel.app du déploiement de production aurait des liens racine
+ * cassés, passer à une base par hôte si cette adresse doit servir.
  */
-export const CLZ_SITE_BASE = publicPagePath(CLEANYZER_TENANT_SLUG)
+export const clzSiteBase = (vercelEnv: string | undefined) =>
+  vercelEnv === "production" ? "" : publicPagePath(CLEANYZER_TENANT_SLUG)
+export const CLZ_SITE_BASE = clzSiteBase(process.env.NEXT_PUBLIC_VERCEL_ENV)
 
 /** Chemin public d'une page du site (« / », « /prestations/… »). */
-export function clzPath(path: string): string {
+export function clzPath(path: string, base: string = CLZ_SITE_BASE): string {
   const p = path.startsWith("/") ? path : `/${path}`
-  if (p === "/") return CLZ_SITE_BASE
-  return `${CLZ_SITE_BASE}${p}`
+  if (p === "/") return base || "/"
+  return `${base}${p}`
 }
 
 /**
  * Module de réservation standard (BookingV2) du tenant CLEANYZER — AUTOMOBILE
  * uniquement. Le textile (canapé, matelas, tapis, moquette) passe TOUJOURS par
- * `CLZ_DEMANDE_HREF`. `/p/<slug>/reservation` fonctionne aussi sur un domaine
- * personnalisé (préfixe résolu par le middleware sur tout hôte).
+ * `CLZ_DEMANDE_HREF`.
  */
-export const CLZ_BOOKING_HREF = publicReservationPath(CLEANYZER_TENANT_SLUG)
+export const CLZ_BOOKING_HREF = clzPath("/reservation")
 
 /**
  * Identifiants réels (table `services`, tenant CLEANYZER) vérifiés dans Neon.

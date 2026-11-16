@@ -8,6 +8,7 @@ import { getPublicContact } from "@/lib/public-contact"
 import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/server"
 import { buildTenantMetadata } from "@/lib/seo/tenant-seo.server"
 import { SpiritMentionsLegales } from "@/components/custom-sites/spirit-acs/legal-page"
+import { clzNeonPage } from "@/components/custom-sites/cleanyzer/neon-page"
 
 export async function generateMetadata(): Promise<Metadata> {
   // Spirit ACS : métadonnées tenant-aware (canonique www.spiritacs.com adaptée à
@@ -56,7 +57,8 @@ export default async function MentionsLegalesPage() {
   const address = contact.address
   const website = contact.website
 
-  return (
+  // L59 : coquille et thème néon si le site publié du tenant est Cleanyzer ; sinon rendu inchangé.
+  return clzNeonPage(
     <>
       <PageHeader title="Mentions légales" description={`Dernière mise à jour : ${legalConfig.lastUpdated}`} />
       <LegalContent>
@@ -123,6 +125,6 @@ export default async function MentionsLegalesPage() {
           saurait être tenu responsable des erreurs ou omissions éventuelles.
         </p>
       </LegalContent>
-    </>
+    </>,
   )
 }

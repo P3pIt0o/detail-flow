@@ -35,10 +35,11 @@ describe("L55 — arrêts de la visite", () => {
       ["seats", 217],
       ["mats", 257],
       ["vents", 279],
-      ["leather", 313],
-      [null, 331],
+      // L59 : volant et choix final sur la même dernière image.
+      ["leather", 310],
+      [null, 310],
     ])
-    expect(VISIT_FRAME_COUNT).toBe(331)
+    expect(VISIT_FRAME_COUNT).toBe(310)
   })
 
   it("chaque arrêt est une étape de glissement (aucune transition sautée)", () => {
@@ -48,15 +49,15 @@ describe("L55 — arrêts de la visite", () => {
   it("trajet accéléré d'environ 0,6 s ; pendant le geste l'image suit la position", () => {
     expect(VISIT_TRAVEL_MS).toBe(600)
     expect(frameAtStop(0)).toBe(7)
-    expect(frameAtStop(10)).toBe(331)
+    expect(frameAtStop(10)).toBe(310)
     expect(frameAtStop(1.5)).toBe(46)
     expect(frameAtStop(-3)).toBe(7)
-    expect(frameAtStop(42)).toBe(331)
+    expect(frameAtStop(42)).toBe(310)
   })
 
-  it("chemins pc/tel f_0001…f_0331, tous présents", () => {
+  it("chemins pc/tel f_0001…f_0310, tous présents", () => {
     expect(visitFrameSrc("pc", 1)).toBe("/custom-sites/cleanyzer/visite-video/pc/f_0001.webp")
-    expect(visitFrameSrc("tel", 331)).toBe("/custom-sites/cleanyzer/visite-video/tel/f_0331.webp")
+    expect(visitFrameSrc("tel", 310)).toBe("/custom-sites/cleanyzer/visite-video/tel/f_0310.webp")
     for (const set of ["pc", "tel"] as const)
       for (let n = 1; n <= VISIT_FRAME_COUNT; n++) expect(existsSync(path.join(ROOT, "public", visitFrameSrc(set, n)))).toBe(true)
   })
@@ -64,7 +65,8 @@ describe("L55 — arrêts de la visite", () => {
   it("chargement : première image, autres arrêts, puis toutes les images une seule fois", () => {
     const order = visitLoadOrder()
     expect(order[0]).toBe(7)
-    expect(order.slice(0, VISIT_STOPS.length)).toEqual(VISIT_STOPS.map((s) => s.frame))
+    // L59 : deux arrêts partagent l'image 310, chargée une seule fois.
+    expect(order.slice(0, 10)).toEqual([...new Set(VISIT_STOPS.map((s) => s.frame))])
     expect(new Set(order).size).toBe(VISIT_FRAME_COUNT)
     expect(order).toHaveLength(VISIT_FRAME_COUNT)
   })
@@ -75,8 +77,8 @@ describe("L55 — arrêts de la visite", () => {
     expect(visitIsStill(false, false)).toBe(false)
   })
 
-  it("repli : seules les 11 images d'arrêt sont chargées (pas les 331)", () => {
-    expect(visitLoadOrder(true)).toEqual(VISIT_STOPS.map((s) => s.frame))
+  it("repli : seules les 10 images d'arrêt sont chargées (pas les 310)", () => {
+    expect(visitLoadOrder(true)).toEqual([...new Set(VISIT_STOPS.map((s) => s.frame))])
   })
 })
 

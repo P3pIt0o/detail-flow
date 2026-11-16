@@ -319,7 +319,7 @@ export function AvisSection() {
 }
 
 /* Témoignages d'entreprises clientes : citations validées par écrit, logos autorisés, sans note.
-   Fond clair obligatoire (traits fins vert foncé du logo Trofeo). Mobile : défilement horizontal
+   Cartes sombres ; logo dans une pastille claire (traits fins vert foncé du logo Trofeo). Mobile : défilement horizontal
    accroché, la carte suivante dépasse pour signaler la suite ; ordinateur : 3 colonnes. */
 export function TemoignagesSection() {
   const items = verifiedTestimonials(CLZ_TESTIMONIALS)
@@ -337,8 +337,8 @@ export function TemoignagesSection() {
             <li key={t.company} className="w-[82%] shrink-0 snap-start md:w-auto">
               <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7 md:p-8">
                 {t.logo && (
-                  <div className="flex h-14 items-center">
-                    <Image src={t.logo} alt={t.company} width={240} height={56} sizes="240px" className="h-full w-auto max-w-[70%] object-contain object-left" />
+                  <div className="clz-logo-chip self-start">
+                    <Image src={t.logo} alt={t.company} width={240} height={56} sizes="240px" className="h-full w-auto max-w-[200px] object-contain" />
                   </div>
                 )}
                 <span className="clz-rule mt-6" aria-hidden="true" />

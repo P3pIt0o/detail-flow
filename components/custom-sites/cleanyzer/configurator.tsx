@@ -273,7 +273,7 @@ export function CleanyzerConfigurator() {
                                 onClick={() => toggleOption(o.key)}
                                 aria-pressed={active}
                                 className={`flex h-6 w-6 flex-none items-center justify-center rounded-md border ${
-                                  active ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-white" : "border-[var(--clz-line)]"
+                                  active ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]" : "border-[var(--clz-line)]"
                                 }`}
                               >
                                 {active && <Check className="h-4 w-4" />}
@@ -316,7 +316,7 @@ export function CleanyzerConfigurator() {
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         placeholder="Numéro, rue, commune…"
-                        className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-white px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
+                        className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
                       />
                       <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--clz-blue-soft)] p-3 text-xs text-[var(--clz-blue-strong)]">
                         <Info className="mt-0.5 h-3.5 w-3.5 flex-none" />
@@ -332,7 +332,7 @@ export function CleanyzerConfigurator() {
                             onClick={() => setDistanceOneWay(d)}
                             className={`rounded-full border px-4 py-2 text-sm transition-colors ${
                               distanceOneWay === d
-                                ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-white"
+                                ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]"
                                 : "border-[var(--clz-line)] text-[var(--clz-fg)] hover:border-[var(--clz-blue)]"
                             }`}
                           >
@@ -377,7 +377,7 @@ export function CleanyzerConfigurator() {
                           value={contact.notes}
                           onChange={(e) => setContact((c) => ({ ...c, notes: e.target.value }))}
                           rows={3}
-                          className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-white px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
+                          className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
                           placeholder="État du véhicule, accès, demandes particulières…"
                         />
                       </div>
@@ -464,7 +464,7 @@ export function CleanyzerConfigurator() {
 
         {/* Barre total sticky (mobile) */}
         {!confirmed && !isDiamond && (
-          <div className="sticky bottom-16 z-30 border-t border-[var(--clz-line)] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="sticky bottom-16 z-30 border-t border-[var(--clz-line)] bg-[var(--clz-neon-ink)]/95 px-4 py-3 backdrop-blur lg:hidden">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-[var(--clz-muted)]">Total estimé</p>
@@ -497,13 +497,13 @@ function Stepper({ step, onGo }: { step: number; onGo: (i: number) => void }) {
               disabled={i >= step}
               className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 active
-                  ? "bg-[var(--clz-blue)] text-white"
+                  ? "bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]"
                   : done
                     ? "bg-[var(--clz-blue-soft)] text-[var(--clz-blue-strong)]"
                     : "text-[var(--clz-muted)]"
               } ${i < step ? "cursor-pointer" : "cursor-default"}`}
             >
-              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${done ? "bg-[var(--clz-blue)] text-white" : active ? "bg-white/25" : "bg-[var(--clz-line)]"}`}>
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${done ? "bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]" : active ? "bg-white/25" : "bg-[var(--clz-line)]"}`}>
                 {done ? <Check className="h-3 w-3" /> : i + 1}
               </span>
               <span className="hidden sm:inline">{label}</span>
@@ -558,7 +558,7 @@ function ChoiceCard({
         active ? "ring-2 ring-[var(--clz-blue)]" : "hover:-translate-y-0.5 hover:border-[var(--clz-blue)]"
       }`}
     >
-      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${active ? "bg-[var(--clz-blue)] text-white" : "bg-[var(--clz-blue-soft)] text-[var(--clz-blue)]"}`}>
+      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${active ? "bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]" : "bg-[var(--clz-blue-soft)] text-[var(--clz-blue)]"}`}>
         <Icon className="h-6 w-6" />
       </span>
       <span className="clz-display text-lg font-semibold text-[var(--clz-fg)]">{title}</span>
@@ -587,7 +587,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-white px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
+        className="mt-2 w-full rounded-xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-4 py-3 text-[var(--clz-fg)] outline-none focus:border-[var(--clz-blue)] focus:ring-2 focus:ring-[var(--clz-blue-soft)]"
       />
     </div>
   )
@@ -632,7 +632,7 @@ function DateSlotStep({
             type="button"
             onClick={() => setDate(d.iso)}
             className={`flex-none whitespace-nowrap rounded-xl border px-4 py-3 text-sm capitalize transition-colors ${
-              date === d.iso ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-white" : "border-[var(--clz-line)] text-[var(--clz-fg)] hover:border-[var(--clz-blue)]"
+              date === d.iso ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]" : "border-[var(--clz-line)] text-[var(--clz-fg)] hover:border-[var(--clz-blue)]"
             }`}
           >
             {d.label}
@@ -647,7 +647,7 @@ function DateSlotStep({
             type="button"
             onClick={() => setSlot(s)}
             className={`rounded-xl border px-3 py-2.5 text-sm transition-colors ${
-              slot === s ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-white" : "border-[var(--clz-line)] text-[var(--clz-fg)] hover:border-[var(--clz-blue)]"
+              slot === s ? "border-[var(--clz-blue)] bg-[var(--clz-blue)] text-[var(--clz-neon-ink)]" : "border-[var(--clz-line)] text-[var(--clz-fg)] hover:border-[var(--clz-blue)]"
             }`}
           >
             {s}

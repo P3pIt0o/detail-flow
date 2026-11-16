@@ -28,6 +28,7 @@ import { getPublicContact } from "@/lib/public-contact"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
 import { CLZ_SITE_NAV_ITEMS } from "@/components/custom-sites/cleanyzer/nav"
 import { clzBookingNeon } from "@/components/custom-sites/cleanyzer/tokens"
+import { ClzBookingBackLink } from "@/components/custom-sites/cleanyzer/booking-back-link"
 
 /** Mêmes conditions que `createBookingAction` pour décider d'un paiement en ligne. */
 async function resolveTenantPaymentPlan(settings: { depositType: string; depositValue: number }): Promise<PaymentPlan> {
@@ -111,8 +112,11 @@ export default async function ReservationPage({
       ...toPublicLocation(tenant ? await getLocationConfig(tenant.id) : DEFAULT_LOCATION_CONFIG),
       labels: resolveLocationLabels((tenant?.siteContent as { locationLabels?: unknown } | null)?.locationLabels),
     }
+    // L55/L59 : tenant Cleanyzer (customSiteKey résolu côté serveur), hors widget.
+    const neon = clzBookingNeon(requestTenant?.customSiteKey, isEmbed)
     const booking = (
       <>
+        {neon && <ClzBookingBackLink />}
         {isEmbed && (
           <>
             <script
@@ -123,7 +127,7 @@ export default async function ReservationPage({
           </>
         )}
         {view === "both" && (
-          <nav aria-label="Choix du service" className={`flex flex-wrap gap-2 px-4 ${isEmbed ? "pt-6" : "pt-24"}`}>
+          <nav aria-label="Choix du service" className={`flex flex-wrap gap-2 px-4 ${isEmbed || neon ? "pt-6" : "pt-24"}`}>
             <span aria-current="page" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
               Réserver une prestation
             </span>
@@ -138,13 +142,13 @@ export default async function ReservationPage({
             </a>
           </nav>
         )}
-        {/* Cleanyzer only: the standard Navbar is `fixed` (h-16), so BookingV2 must start below it. */}
+        {/* Cleanyzer : l'en-tête fixe est dégagé par le lien « Retour au site » placé au-dessus. */}
         <section
           className={
             isEmbed
               ? "bg-background py-6"
-              : clzBookingNeon(requestTenant?.customSiteKey, isEmbed)
-                ? "bg-background pb-16 pt-24 md:pb-20 md:pt-28"
+              : neon
+                ? "bg-background pb-16 pt-4 md:pb-20"
                 : "bg-background pb-6 pt-8 md:pt-12"
           }
         >
@@ -165,9 +169,8 @@ export default async function ReservationPage({
         </section>
       </>
     )
-    // L55 : tenant Cleanyzer (customSiteKey résolu côté serveur), hors widget → en-tête, pied et thème
-    // néon du site. BookingV2 lui-même est inchangé.
-    if (clzBookingNeon(requestTenant?.customSiteKey, isEmbed)) {
+    // En-tête, pied et thème néon du site. BookingV2 lui-même est inchangé.
+    if (neon) {
       const contact = await getPublicContact()
       return (
         <CleanyzerShell

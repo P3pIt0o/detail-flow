@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { PageHeader } from "@/components/layout/page-header"
 import { LegalContent } from "@/components/layout/legal-content"
 import { getCurrentTenant } from "@/lib/tenant"
+import { clzNeonPage } from "@/components/custom-sites/cleanyzer/neon-page"
 
 export const metadata: Metadata = {
   title: "Conditions Générales de Vente",
@@ -21,7 +22,8 @@ export default async function CgvPage() {
       )
     : null
 
-  return (
+  // L59 : coquille et thème néon si le site publié du tenant est Cleanyzer ; sinon rendu inchangé.
+  return clzNeonPage(
     <>
       <PageHeader
         title="Conditions Générales de Vente"
@@ -37,6 +39,6 @@ export default async function CgvPage() {
           </p>
         )}
       </LegalContent>
-    </>
+    </>,
   )
 }

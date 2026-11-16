@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { getPublicCustomRequestsConfig } from "@/lib/site-content"
 import { activeTypes, findRequestType, resolveCustomRequestTexts } from "@/lib/custom-requests"
 import { CustomRequestForm } from "@/components/custom-request-form"
+import { clzNeonPage } from "@/components/custom-sites/cleanyzer/neon-page"
 
 export const metadata: Metadata = {
   title: "Demande personnalisée",
@@ -30,7 +31,8 @@ export default async function DemandePage({
 
   const texts = resolveCustomRequestTexts(config)
 
-  return (
+  // L59 : coquille et thème néon si le site publié du tenant est Cleanyzer ; sinon rendu inchangé.
+  return clzNeonPage(
     <section className="min-h-[70vh] bg-background py-16">
       <div className="mx-auto max-w-2xl px-4">
         <div className="text-center">
@@ -41,6 +43,6 @@ export default async function DemandePage({
           <CustomRequestForm types={types} initialType={initialType} />
         </div>
       </div>
-    </section>
+    </section>,
   )
 }

@@ -8,6 +8,7 @@ import { resolveCustomSite, getCustomSitePublicData } from "@/lib/custom-sites/s
 import { buildTenantMetadata } from "@/lib/seo/tenant-seo.server"
 import { SpiritConfidentialite } from "@/components/custom-sites/spirit-acs/legal-page"
 import { ConfidentialiteContent } from "@/components/legal/confidentialite-content"
+import { clzNeonPage } from "@/components/custom-sites/cleanyzer/neon-page"
 
 export async function generateMetadata(): Promise<Metadata> {
   // Spirit ACS : canonique www.spiritacs.com adaptée à la ROUTE existante
@@ -49,7 +50,8 @@ export default async function ConfidentialitePage() {
   const companyName = contact.name ?? tenant.name
   const email = contact.email
 
-  return (
+  // L59 : coquille et thème néon si le site publié du tenant est Cleanyzer ; sinon rendu inchangé.
+  return clzNeonPage(
     <>
       <PageHeader
         title="Politique de confidentialité"
@@ -105,6 +107,6 @@ export default async function ConfidentialitePage() {
           publicitaire tiers n&apos;est déposé sans votre consentement.
         </p>
       </LegalContent>
-    </>
+    </>,
   )
 }

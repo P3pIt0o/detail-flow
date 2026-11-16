@@ -9,12 +9,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { BRAND } from "./content"
 import { CLZ_BOOKING_HREF } from "./tokens"
 import { CLZ_TARIFS_HREF, HERO_MOBILE_MAX } from "./hero"
 
 const POSTER = "/custom-sites/cleanyzer/hero-poster.webp"
-const RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
 
 export function ClzPresentation() {
   // Source choisie au clic (taille d'écran lue à ce moment) ; null = fenêtre fermée.
@@ -71,16 +69,6 @@ export function ClzPresentation() {
               Réserver
             </Link>
           </div>
-          {BRAND.googleReviewCount != null && (
-            <div className="clz-neon-rating">
-              <span className="clz-neon-stars" aria-hidden="true">
-                ★★★★★
-              </span>
-              <span>
-                <b>{RATING}/5</b> — {BRAND.googleReviewCount} avis Google
-              </span>
-            </div>
-          )}
         </div>
         <figure className="clz-neon-tomvid" style={{ backgroundImage: `url(${POSTER})` }}>
           <button
