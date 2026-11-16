@@ -113,8 +113,8 @@ describe("Câblage Cleanyzer", () => {
     expect(faqRoute).toContain("getWidgetTenantContactEmail(")
   })
 
-  it("la réservation automobile pointe toujours vers /p/<slug>/reservation", () => {
-    expect(read("components/custom-sites/cleanyzer/tokens.ts")).toMatch(/CLZ_BOOKING_HREF = publicReservationPath\(/)
+  it("la réservation automobile pointe vers la page /reservation du site (L59 : clzPath)", () => {
+    expect(read("components/custom-sites/cleanyzer/tokens.ts")).toContain('CLZ_BOOKING_HREF = clzPath("/reservation")')
   })
 
   it("les CTA textile pointent vers la demande personnalisée, jamais vers BookingV2", () => {
