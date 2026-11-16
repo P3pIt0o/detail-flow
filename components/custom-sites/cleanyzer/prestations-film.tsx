@@ -332,10 +332,13 @@ export function PrestationsFilm() {
           <div className="clz-film-cards">
             {STEPS.map((s, i) => (
               <article key={s.clip} className={`clz-film-card${i === active ? " is-on" : ""}`} aria-hidden={i !== active}>
-                <span className="clz-film-num">
-                  {String(i + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
-                </span>
-                <span className="clz-film-tag">{s.tag}</span>
+                {/* Numéro et rubrique : empilés sur ordinateur, sur une ligne sur téléphone (CSS). */}
+                <div className="clz-film-head">
+                  <span className="clz-film-num">
+                    {String(i + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
+                  </span>
+                  <span className="clz-film-tag">{s.tag}</span>
+                </div>
                 <h3 className="clz-display clz-film-title">{s.title}</h3>
                 <p className="clz-film-text">{s.text}</p>
                 <div className="clz-film-rows">
@@ -352,11 +355,11 @@ export function PrestationsFilm() {
                     )
                   })}
                 </div>
+                <Link href={s.action.href} className="clz-btn clz-btn-primary clz-film-cta" tabIndex={i === active ? 0 : -1}>
+                  {s.action.label}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
                 <div className="clz-film-actions">
-                  <Link href={s.action.href} className="clz-btn clz-btn-primary clz-film-cta" tabIndex={i === active ? 0 : -1}>
-                    {s.action.label}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
                   <button
                     type="button"
                     className="clz-film-visit"

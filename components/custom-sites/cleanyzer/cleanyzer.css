@@ -5,37 +5,35 @@
  * affecter le site standard, le thème global, ni un autre tenant (Spirit ACS,
  * Rozan, JustClean…). CSS pur, portable au build, aucune directive Tailwind.
  *
- * DIRECTION ARTISTIQUE (cahier Tom §1) :
- * - Bleu principal EXACT #0A84FF, noir #000000.
- * - Sections sombres = dégradé #000000 → #0A84FF (élégant, jamais SaaS générique).
- * - Alternance clair / sombre, grands titres éditoriaux en serif, UI/body sans-serif.
- * - Accents dorés discrets, logo en filigrane transparent très subtil.
+ * DIRECTION ARTISTIQUE (L59) : un seul univers sombre « néon » sur tout le site. Les jetons
+ * historiques (--clz-bg, --clz-fg, --clz-line…) pointent sur les jetons néon définis plus bas :
+ * toutes les pages suivent sans être réécrites. Titres en serif, UI/body sans-serif.
  */
 
 .cleanyzer {
-  /* Bleu de marque — SOURCE DE VÉRITÉ (Tom) */
-  --clz-blue: #0a84ff;
-  --clz-blue-strong: #0060d0;
-  --clz-blue-soft: rgba(10, 132, 255, 0.12);
+  /* Bleu de marque = bleu néon ; « strong » = variante lisible en texte sur fond sombre. */
+  --clz-blue: var(--clz-neon-blue);
+  --clz-blue-strong: #6fb6ff;
+  --clz-blue-soft: rgba(31, 123, 255, 0.14);
 
   /* Noirs / encres */
   --clz-black: #000000;
   --clz-ink: #0a0b0d; /* fond sombre de base */
   --clz-ink-2: #111318;
 
-  /* Base claire (sections claires) */
-  --clz-bg: #ffffff;
-  --clz-surface: #ffffff;
-  --clz-surface-2: #f5f6f8;
+  /* Fonds : encre néon partout (surface = champs et listes, opaque). */
+  --clz-bg: var(--clz-neon-ink);
+  --clz-surface: var(--clz-neon-ink-2);
+  --clz-surface-2: #070911;
 
   /* Texte */
-  --clz-fg: #0a0b0d; /* sur clair */
-  --clz-muted: #5c636e; /* secondaire sur clair */
+  --clz-fg: var(--clz-neon-fg);
+  --clz-muted: var(--clz-neon-muted);
   --clz-on-dark: #f4f7fb; /* sur sombre */
   --clz-on-dark-muted: rgba(244, 247, 251, 0.66);
 
   /* Filets */
-  --clz-line: rgba(10, 11, 13, 0.1);
+  --clz-line: var(--clz-neon-line);
   --clz-line-dark: rgba(255, 255, 255, 0.14);
 
   /* Accent doré discret (cahier : conserver seulement les dorés existants) */
@@ -45,25 +43,23 @@
 
   background-color: var(--clz-bg);
   color: var(--clz-fg);
-  color-scheme: light;
+  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Dégradé sombre premium réutilisable : #000 → #0A84FF (cahier §1). */
+/* Sections « sombres » historiques : encre + lueur légère (plus de dégradé bleu plein). */
 .cleanyzer .clz-dark {
-  background:
-    radial-gradient(120% 120% at 85% 0%, rgba(10, 132, 255, 0.28) 0%, rgba(10, 132, 255, 0) 55%),
-    linear-gradient(160deg, #000000 0%, #04070f 42%, #061a3a 78%, #0a3f86 100%);
+  background: radial-gradient(70% 60% at 85% 20%, rgba(31, 123, 255, 0.14), transparent 60%), var(--clz-neon-ink);
   color: var(--clz-on-dark);
 }
-
-/* Variante "renforcée" pour la section Réalisations (cahier : renforcer le dégradé). */
 .cleanyzer .clz-dark-strong {
-  background:
-    radial-gradient(130% 100% at 100% 100%, rgba(10, 132, 255, 0.5) 0%, rgba(10, 132, 255, 0) 60%),
-    linear-gradient(150deg, #000000 0%, #051027 45%, #0a3f86 88%, #0a84ff 100%);
+  background: radial-gradient(60% 60% at 10% 80%, rgba(255, 43, 69, 0.08), transparent 60%), var(--clz-neon-ink);
   color: var(--clz-on-dark);
+}
+.cleanyzer footer.clz-dark {
+  background: radial-gradient(60% 80% at 90% 100%, rgba(31, 123, 255, 0.16), transparent 60%), var(--clz-neon-ink);
+  border-top: 1px solid var(--clz-neon-line);
 }
 
 /* Titres d'affichage : serif éditoriale élégante. */
@@ -118,6 +114,7 @@
 .cleanyzer .clz-accent {
   color: var(--clz-blue);
   font-style: italic;
+  text-shadow: 0 0 24px rgba(31, 123, 255, 0.5);
 }
 .cleanyzer .clz-dark .clz-accent,
 .cleanyzer .clz-dark-strong .clz-accent {
@@ -139,11 +136,11 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 10px;
+  border-radius: 999px;
   font-weight: 600;
   font-size: 0.95rem;
   padding: 0.85rem 1.6rem;
-  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, filter 0.2s ease, color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
   border: 1px solid transparent;
   text-align: center;
@@ -152,38 +149,42 @@
 .cleanyzer .clz-btn:active {
   transform: translateY(1px);
 }
+/* Bouton principal unique du site : dégradé bleu → rouge + halo. */
 .cleanyzer .clz-btn-primary {
-  background: var(--clz-blue);
+  background: var(--clz-neon-grad);
   color: #ffffff;
+  box-shadow: var(--clz-neon-halo);
 }
 .cleanyzer .clz-btn-primary:hover {
-  background: var(--clz-blue-strong);
+  filter: brightness(1.12);
 }
+/* Bouton secondaire : contour lumineux. */
 .cleanyzer .clz-btn-ghost {
   background: transparent;
   color: var(--clz-fg);
-  border-color: var(--clz-line);
-}
-.cleanyzer .clz-dark .clz-btn-ghost,
-.cleanyzer .clz-dark-strong .clz-btn-ghost {
-  color: var(--clz-on-dark);
-  border-color: var(--clz-line-dark);
+  border-color: rgba(31, 123, 255, 0.55);
+  box-shadow: 0 0 14px -6px rgba(31, 123, 255, 0.8), inset 0 0 12px -8px rgba(31, 123, 255, 0.9);
 }
 .cleanyzer .clz-btn-ghost:hover {
-  border-color: var(--clz-blue);
-  color: var(--clz-blue);
-}
-.cleanyzer .clz-dark .clz-btn-ghost:hover,
-.cleanyzer .clz-dark-strong .clz-btn-ghost:hover {
-  border-color: #6fb6ff;
+  border-color: var(--clz-blue-strong);
   color: #ffffff;
 }
+.cleanyzer .clz-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
 
-/* Carte générique */
+/* Carte générique : sombre translucide, liseré, lueur bleue au survol et à la sélection. */
 .cleanyzer .clz-card {
-  background: var(--clz-surface);
+  background: rgba(10, 12, 20, 0.72);
   border: 1px solid var(--clz-line);
   border-radius: var(--clz-radius);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cleanyzer :is(a, button, label).clz-card:hover,
+.cleanyzer .clz-card:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
+  border-color: rgba(31, 123, 255, 0.6);
+  box-shadow: 0 0 0 1px var(--clz-neon-blue), 0 0 22px -4px rgba(31, 123, 255, 0.75);
 }
 
 /* Puce check de marque (pas d'emoji). */
@@ -242,12 +243,16 @@
   padding: 0.3rem 0.7rem;
 }
 .cleanyzer .clz-badge-blue {
-  background: var(--clz-blue);
-  color: #fff;
+  color: #cfe1ff;
+  border: 1px solid rgba(31, 123, 255, 0.6);
+  background: rgba(31, 123, 255, 0.12);
+  box-shadow: 0 0 12px -3px rgba(31, 123, 255, 0.9);
 }
 .cleanyzer .clz-badge-gold {
-  background: var(--clz-gold);
-  color: #1a1406;
+  color: #ffd3da;
+  border: 1px solid rgba(255, 43, 69, 0.6);
+  background: rgba(255, 43, 69, 0.12);
+  box-shadow: 0 0 12px -3px rgba(255, 43, 69, 0.9);
 }
 
 /* Défilement fluide + décalage d'ancre, scopés CLEANYZER. */
@@ -258,14 +263,14 @@
   scroll-margin-top: 5.5rem;
 }
 
-/* Skin de formulaire clair premium pour sous-composants partagés réutilisés. */
+/* Skin de formulaire néon pour sous-composants partagés réutilisés (texte sombre sur le bleu : AA). */
 .cleanyzer .clz-form-skin {
   --background: var(--clz-surface);
   --foreground: var(--clz-fg);
   --card: var(--clz-surface);
   --card-foreground: var(--clz-fg);
   --primary: var(--clz-blue);
-  --primary-foreground: #ffffff;
+  --primary-foreground: var(--clz-neon-ink);
   --secondary: var(--clz-surface-2);
   --secondary-foreground: var(--clz-fg);
   --muted: var(--clz-surface-2);
@@ -359,6 +364,9 @@
   --clz-neon-muted: rgba(226, 232, 245, 0.66);
   --clz-neon-blue: #1f7bff;
   --clz-neon-red: #ff2b45;
+  /* Bouton principal unique (L59) : dégradé assombri pour du texte blanc en AA (≥ 4,5:1 aux 3 arrêts). */
+  --clz-neon-grad: linear-gradient(120deg, #1668e0, #5a2fe0 55%, #e0203a);
+  --clz-neon-halo: 0 0 22px -4px rgba(31, 123, 255, 0.75), 0 0 30px -10px rgba(255, 43, 69, 0.6);
 }
 .cleanyzer .clz-neon-wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .cleanyzer .clz-neon-eyebrow { font-size: 12px; letter-spacing: .26em; text-transform: uppercase; color: var(--clz-neon-muted); }
@@ -366,7 +374,7 @@
 .cleanyzer .clz-neon-h2 em { font-style: italic; color: var(--clz-neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
 .cleanyzer .clz-neon-stars { color: #ffc940; letter-spacing: 1px; }
 .cleanyzer .clz-neon-btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; }
-.cleanyzer .clz-neon-btn-primary { background: var(--clz-neon-blue); color: #fff; box-shadow: 0 0 26px rgba(31,123,255,.5); }
+.cleanyzer .clz-neon-btn-primary { background: var(--clz-neon-grad); color: #fff; box-shadow: var(--clz-neon-halo); }
 .cleanyzer .clz-neon-btn-ghost { color: var(--clz-neon-fg); border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.04); }
 .cleanyzer .clz-neon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .cleanyzer .clz-neon-btn[disabled] { opacity: .7; cursor: progress; }
@@ -424,9 +432,6 @@
 .cleanyzer .clz-neon-display em { font-style: italic; color: var(--clz-neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
 .cleanyzer .clz-neon-lede { margin: 20px 0 0; max-width: 40ch; color: var(--clz-neon-muted); font-size: 17px; }
 .cleanyzer .clz-neon-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; align-items: center; }
-.cleanyzer .clz-neon-rating { margin-top: 26px; display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--clz-neon-muted); }
-.cleanyzer .clz-neon-rating .clz-neon-stars { letter-spacing: 2px; font-size: 15px; }
-.cleanyzer .clz-neon-rating b { color: var(--clz-neon-fg); }
 .cleanyzer .clz-neon-tomvid { position: relative; margin: 0; aspect-ratio: 4 / 5; max-width: 100%; border-radius: 22px; overflow: hidden; background: #0a0c14 center / cover no-repeat; border: 1px solid rgba(31,123,255,.35); box-shadow: 0 0 34px -8px rgba(31,123,255,.55), 0 30px 60px -30px #000; }
 .cleanyzer .clz-neon-play { position: absolute; inset: 0; width: 100%; display: grid; place-content: center; justify-items: center; gap: 14px; background: linear-gradient(to top, rgba(4,5,10,.7), rgba(4,5,10,.15)); border: 0; color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
 .cleanyzer .clz-neon-tri { width: 72px; height: 72px; border-radius: 50%; background: var(--clz-neon-blue); box-shadow: 0 0 30px rgba(31,123,255,.7); position: relative; }
@@ -505,7 +510,7 @@
 .cleanyzer .clz-booking-neon .bg-card.border,
 .cleanyzer .clz-booking-neon .bg-card.border-border { border-color: rgba(31,123,255,.32); }
 .cleanyzer .clz-booking-neon :is([aria-pressed="true"], [aria-checked="true"]) { box-shadow: 0 0 0 1px var(--clz-neon-blue), 0 0 22px -4px rgba(31,123,255,.75); }
-.cleanyzer .clz-booking-neon :is(button, a).bg-primary { box-shadow: 0 0 24px -4px rgba(31,123,255,.8); }
+.cleanyzer .clz-booking-neon :is(button, a).bg-primary { background: var(--clz-neon-grad); color: #fff; box-shadow: var(--clz-neon-halo); }
 .cleanyzer .clz-booking-neon [aria-hidden="true"] > div > span.bg-primary { background: var(--clz-neon-red); color: var(--clz-neon-ink); box-shadow: 0 0 14px rgba(255,43,69,.8); }
 .cleanyzer .clz-booking-neon [aria-hidden="true"] > div > span.bg-success { box-shadow: 0 0 10px rgba(31,123,255,.6); }
 @keyframes clz-booking-glow { from { transform: translate(0, 0) scale(1); } to { transform: translate(3vmax, 2vmax) scale(1.08); } }
@@ -517,7 +522,7 @@
 .cleanyzer .clz-neon-dock { position: fixed; z-index: 40; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(4,5,10,.62); border: 1px solid var(--clz-neon-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px -12px #000; transition: transform .35s ease, opacity .35s ease; opacity: 0; pointer-events: none; max-width: calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))); }
 .cleanyzer .clz-neon-dock.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
 .cleanyzer .clz-neon-dock a { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 0 13px; border-radius: 999px; font-weight: 600; font-size: 12.5px; text-decoration: none; color: var(--clz-neon-fg); }
-.cleanyzer .clz-neon-dock-book { color: #fff; background: linear-gradient(120deg, var(--clz-neon-blue), #6a3cff 55%, var(--clz-neon-red)); box-shadow: 0 0 10px -4px rgba(31,123,255,.6); }
+.cleanyzer .clz-neon-dock-book { color: #fff; background: var(--clz-neon-grad); box-shadow: 0 0 10px -4px rgba(31,123,255,.6); }
 .cleanyzer .clz-neon-dock-ghost { border: 1px solid rgba(255,255,255,.14); background: transparent; color: rgba(242,244,250,.85); }
 .cleanyzer .clz-neon-dock-ghost svg { width: 14px; height: 14px; }
 .cleanyzer .clz-neon-dock a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
@@ -526,3 +531,12 @@
   .cleanyzer .clz-neon-track, .cleanyzer .clz-neon-intro { animation: none; }
   .cleanyzer .clz-neon-dock { transition: none; }
 }
+
+/* ---------- L59 : compléments de l'univers néon ---------- */
+.cleanyzer footer .clz-watermark { opacity: 0.1; }
+/* « ← Retour au site » en haut de la réservation. */
+.cleanyzer .clz-back-link { display: inline-flex; min-height: 44px; align-items: center; font-size: 14px; font-weight: 600; color: #8fbcff; text-decoration: underline; text-underline-offset: 4px; }
+.cleanyzer .clz-back-link:hover { color: #fff; }
+.cleanyzer .clz-back-link:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+/* Témoignages : seule surface claire du site, limitée au logo (logos fournis en traits sombres). */
+.cleanyzer .clz-logo-chip { display: inline-grid; place-items: center; height: 44px; padding: 6px 10px; border-radius: 10px; background: #f5f6f8; }

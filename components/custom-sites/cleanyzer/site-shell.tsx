@@ -59,8 +59,7 @@ export function CleanyzerShell({
    * En-tête SUPERPOSÉ à un hero vidéo (accueil uniquement) : transparent en
    * haut sur la vidéo, puis fond bleu nuit translucide + flou au défilement.
    * Reprend le comportement de la navbar Spirit ACS (référence technique) sans
-   * la modifier. `false` (défaut) = en-tête clair classique des sous-pages —
-   * aucune régression possible sur les autres pages ni sur Spirit ACS.
+   * la modifier. `false` (défaut) = en-tête sombre translucide des sous-pages (L59).
    */
   immersive?: boolean
 }) {
@@ -145,14 +144,14 @@ export function CleanyzerShell({
 
   // Surface opaque dès qu'on quitte le sommet OU que le menu mobile est ouvert.
   const solidSurface = scrolled || open
-  // Apparence de l'en-tête : variante immersive (sur vidéo) vs claire (sous-pages).
-  const headerSurface = immersive
-    ? solidSurface
-      ? "border-b border-[var(--clz-line-dark)] bg-[var(--clz-ink)]/85 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur-md"
-      : "border-b border-transparent bg-transparent"
-    : solidSurface
-      ? "border-b border-[var(--clz-line)] bg-white/80 shadow-sm backdrop-blur-md"
-      : "border-b border-transparent bg-white/50 backdrop-blur-sm"
+  // En-tête toujours sombre (L59) : transparent sur la vidéo (immersif, non défilé), sinon encre translucide.
+  const headerSurface = solidSurface
+    ? "border-b border-[var(--clz-line-dark)] bg-[var(--clz-neon-ink)]/85 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur-md"
+    : immersive
+      ? "border-b border-transparent bg-transparent"
+      : "border-b border-transparent bg-[var(--clz-neon-ink)]/60 backdrop-blur-sm"
+  // Réservation (L59) : pas de barre flottante, elle recouvrait le total et « Continuer ».
+  const onBooking = pathname?.replace(/\/$/, "").endsWith("/reservation") ?? false
 
   return (
     <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
@@ -239,9 +238,7 @@ export function CleanyzerShell({
         {/* Menu mobile */}
         {open && (
           <div
-            className={`relative lg:hidden ${
-              immersive ? "border-t border-white/10 bg-[var(--clz-ink)]" : "border-t border-[var(--clz-line)] bg-white"
-            }`}
+            className="relative border-t border-[var(--clz-line)] bg-[var(--clz-neon-ink)] lg:hidden"
           >
             <nav className="mx-auto flex max-w-6xl flex-col px-4 py-3" aria-label="Navigation mobile">
               {navItems.map((item) => {
@@ -282,9 +279,13 @@ export function CleanyzerShell({
 
       {/* Pilule de contact (L35) — remplace l'ancienne barre mobile « Devis textile · Réserver ».
           Le devis textile reste dans le menu (desktop et mobile) et sur la carte Univers de l'accueil. */}
-      <ClzContactPill phoneRaw={contact?.phoneRaw ?? null} visible={showSticky} />
-      {/* Espaceur pour ne pas masquer la fin du contenu derrière la pilule. */}
-      <div className="h-16" aria-hidden />
+      {!onBooking && (
+        <>
+          <ClzContactPill phoneRaw={contact?.phoneRaw ?? null} visible={showSticky} />
+          {/* Espaceur pour ne pas masquer la fin du contenu derrière la pilule. */}
+          <div className="h-16" aria-hidden />
+        </>
+      )}
     </div>
   )
 }
@@ -309,9 +310,9 @@ function CleanyzerFooter({
         src={LOGO || "/placeholder.svg"}
         alt=""
         aria-hidden
-        width={900}
+        width={200}
         height={200}
-        className="clz-watermark -right-20 bottom-0 w-[min(70%,720px)]"
+        className="clz-watermark bottom-4 right-4 h-[calc(100%-2rem)] w-auto max-w-[46%] object-contain"
       />
       <div className="relative mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
         <div className="grid gap-10 md:grid-cols-[1.3fr_1fr_1.2fr_1fr]">

@@ -26,7 +26,7 @@ export function CleanyzerPreviewNav() {
   const pathname = usePathname()
   return (
     <div className="fixed bottom-4 left-1/2 z-[70] hidden -translate-x-1/2 lg:block">
-      <div className="flex max-w-[92vw] flex-wrap items-center gap-1 rounded-full border border-black/10 bg-white/90 p-1 shadow-lg backdrop-blur">
+      <div className="flex max-w-[92vw] flex-wrap items-center gap-1 rounded-full border border-white/15 bg-[#04050a]/85 p-1 shadow-lg backdrop-blur">
         <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Maquette</span>
         {LINKS.map((l) => {
           const active = pathname === l.href
@@ -35,7 +35,7 @@ export function CleanyzerPreviewNav() {
               key={l.href}
               href={l.href}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                active ? "bg-[#0a84ff] text-white" : "text-neutral-600 hover:bg-neutral-100"
+                active ? "bg-[#1668e0] text-white" : "text-neutral-300 hover:bg-white/10"
               }`}
             >
               {l.label}

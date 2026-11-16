@@ -14,7 +14,7 @@
 .v3-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .v3-ring b{font-family:var(--font-clz-display);font-weight:500;font-size:1.3rem;font-variant-numeric:tabular-nums}
 .v3-ring small{position:absolute;bottom:-20px;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:#6fb6ff;white-space:nowrap}
-.v3-rail{position:absolute;right:max(1rem,calc((100% - 72rem)/2 + 1.5rem));top:50%;transform:translateY(-30%);list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem;font-size:.8rem;font-weight:500;color:rgba(200,215,235,.45);text-align:right}
+.v3-rail{position:absolute;right:max(1rem,calc((100% - 72rem)/2 + 1.5rem));top:50%;transform:translateY(-30%);list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem;font-size:.8rem;font-weight:500;color:rgba(226,232,245,.8);text-align:right;text-shadow:0 1px 3px #000,0 0 10px #000;background:linear-gradient(270deg,rgba(4,5,10,.55),transparent);padding:14px 14px 14px 40px;margin-right:-14px;border-radius:14px}
 .v3-rail li{transition:color .3s}
 .v3-rail li::after{content:"";display:inline-block;width:10px;height:2px;border-radius:2px;background:currentColor;margin-left:10px;vertical-align:middle;transition:width .3s}
 .v3-rail li.on{color:#fff}
@@ -23,16 +23,16 @@
 .v3-card{position:absolute;left:max(1rem,calc((100% - 72rem)/2 + 1.5rem));bottom:calc(2.5rem + env(safe-area-inset-bottom,0px));width:min(26rem,calc(100% - 2rem));color:var(--clz-fg);padding:1.35rem 1.5rem 1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.4);transition:opacity .4s,transform .4s}
 .v3-card .clz-rule{margin-bottom:.85rem}
 .v3-card.off{opacity:0;transform:translateY(16px);pointer-events:none}
-.v3-card.in{animation:v3in .5s cubic-bezier(.22,1,.36,1)}
-@keyframes v3in{from{opacity:.2;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* L59 : panneau néon translucide, lisible dès l'arrivée (aucune apparition en opacité). */
+.cleanyzer .v3 .v3-card{background:rgba(4,5,10,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:rgba(160,180,255,.22);box-shadow:0 0 26px -8px rgba(31,123,255,.7),0 20px 50px rgba(0,0,0,.4)}
+.v3-card .clz-btn{padding:.6rem .95rem;font-size:.85rem}
+.v3-links{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin-top:.6rem}
 .v3-num{font-size:.7rem;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:var(--clz-blue);font-variant-numeric:tabular-nums}
 .v3-card h3{margin:.4rem 0 .2rem}
 .v3-list{list-style:none;margin:.75rem 0;padding:0;display:flex;flex-direction:column;gap:.45rem}
 .v3-list li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.6rem;align-items:baseline;font-size:.875rem;color:var(--clz-muted);line-height:1.4}
-.v3-list li b{font-size:.72rem;font-weight:600;color:#fff;background:var(--clz-blue);border-radius:999px;padding:3px 10px;white-space:nowrap}
-.v3-list li.dia b{background:var(--clz-ink)}
-.v3-more{font-size:.85rem;font-weight:600;color:var(--clz-blue)}
-.v3-more:hover{text-decoration:underline}
+.v3-list li b{font-size:.72rem;font-weight:600;color:#cfe1ff;background:rgba(31,123,255,.16);border:1px solid rgba(31,123,255,.6);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.v3-list li.dia b{color:#ffd3da;background:rgba(255,43,69,.12);border-color:rgba(255,43,69,.6)}
 .v3-final{position:absolute;left:0;right:0;bottom:calc(2rem + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 1rem;opacity:0;pointer-events:none;transition:opacity .4s}
 .v3-final.on{opacity:1;pointer-events:auto}
 .v3-final h2{color:#fff;margin:0 0 .75rem}
@@ -45,34 +45,36 @@
 .v3-veh{display:inline-flex;gap:4px;margin-top:.75rem;border-bottom:1px solid rgba(111,182,255,.25)}
 .v3-veh button{border:0;background:transparent;color:rgba(244,247,251,.6);padding:.4rem .8rem;font-size:.85rem;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
 .v3-veh button[aria-pressed="true"]{color:#fff;border-bottom-color:var(--clz-blue)}
-.v3-fbox{margin-top:.9rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem;background:#fff;color:var(--clz-fg);border-radius:16px;padding:.9rem 1.1rem;max-width:min(40rem,100%);text-align:left}
+.v3-fbox{margin-top:.9rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem;background:rgba(4,5,10,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(160,180,255,.22);box-shadow:0 0 26px -8px rgba(31,123,255,.7);color:var(--clz-fg);border-radius:16px;padding:.9rem 1.1rem;max-width:min(40rem,100%);text-align:left}
 .v3-fbox .pr{font-family:var(--font-clz-display);font-weight:500;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .v3-fbox .tx{flex:1 1 15rem;min-width:0;font-size:.875rem;color:var(--clz-muted);line-height:1.45}
 .v3-fbox .tx b{color:var(--clz-fg)}
 .v3-fbox .clz-btn{padding:.7rem 1rem;font-size:.875rem}
+.v3-fbox .clz-btn:not(.clz-btn-primary){border-color:rgba(31,123,255,.55)}
 .v3-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.07)}
 .v3-bar i{display:block;height:100%;width:0;background:var(--clz-blue)}
 @media (max-width:760px){
   .v3-intro{top:18%}
-  .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.85rem 1rem .9rem;max-height:42svh;overflow-y:auto;overscroll-behavior:contain}
-  /* Carte compacte : elle laisse plus de place à l'image au-dessus. */
+  /* L59 : panneau ≤ 30 % de la hauteur, l'image reste visible ; le surplus défile dans le panneau. */
+  .v3-card{bottom:calc(.75rem + env(safe-area-inset-bottom,0px));padding:.7rem .95rem .75rem;max-height:30svh;overflow-y:auto;overscroll-behavior:contain}
   .v3-card .clz-rule{display:none}
-  .v3-card h3{font-size:1.3rem;margin:.2rem 0 0}
+  .v3-card h3{font-size:1.2rem;margin:.15rem 0 0}
   .v3-num{font-size:.62rem}
-  .v3-list{margin:.5rem 0;gap:.3rem}
+  .v3-card .v3-desc{margin:.15rem 0 .35rem;font-size:.8rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .v3-list{margin:.35rem 0 .5rem;gap:.25rem}
   .v3-list li{font-size:.8rem;gap:.45rem}
-  .v3-list li b{font-size:.62rem;padding:2px 8px}
-  .v3-more{font-size:.78rem}
-  .v3-actions{margin-top:.55rem;gap:.4rem .7rem}
-  .v3-actions .clz-btn{padding:.5rem .8rem;font-size:.8rem}
+  .v3-list li b{font-size:.62rem;padding:1px 8px}
+  .v3-list li span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .v3-card .clz-btn{padding:.5rem .85rem;font-size:.8rem}
+  .v3-links{margin-top:.45rem}
+  .v3-card .v3-link{font-size:.78rem}
   .v3-ring{top:5rem;width:60px;height:60px}
   .v3-ring b{font-size:1.05rem}
 }
-@media (prefers-reduced-motion:reduce){.v3-card.in{animation:none}.v3-intro,.v3-final{transition:none}}
-.v3-actions{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;margin-top:.85rem}
-.v3-actions .clz-btn{padding:.6rem .95rem;font-size:.85rem}
-.v3-link{border:0;background:none;padding:0;font:inherit;font-size:.85rem;font-weight:600;color:var(--clz-blue);cursor:pointer;text-align:left}
-.v3-link:hover{text-decoration:underline}
+@media (prefers-reduced-motion:reduce){.v3-card,.v3-intro,.v3-final{transition:none}}
+.v3-link{border:0;background:none;padding:0;font:inherit;font-size:.85rem;font-weight:600;color:#8fbcff;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.v3-rail .v3-link{text-decoration:none}
+.v3-link:hover{color:#fff}
 .v3-link:focus-visible,.v3 .forms button:focus-visible,.v3-veh button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}
 .v3-back{display:inline-flex;margin-bottom:.6rem;font-size:.8rem}
 .v3-opt{font-size:.8rem;color:var(--clz-muted)}
@@ -80,7 +82,7 @@
 .v3-zones button{border:1px solid var(--clz-line);background:transparent;border-radius:999px;padding:2px 9px;font-size:.75rem;color:var(--clz-fg);cursor:pointer}
 .v3-zones button:hover{border-color:var(--clz-blue);color:var(--clz-blue)}
 /* Description de zone (zone Optiques). */
-.v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:var(--clz-on-dark-muted)}
+.v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:rgba(226,232,245,.8)}
 /* Téléphone et repli sans animation : visite par arrêts, sur un seul écran (plus de défilement long). */
 .v3.v3-swipe{height:100vh;height:100svh}
 .v3-swipe .v3-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}

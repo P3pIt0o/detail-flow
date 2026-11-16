@@ -26,7 +26,7 @@
   cursor: pointer;
 }
 .cleanyzer .clz-film-seg button[aria-pressed="true"] {
-  background: var(--clz-blue);
+  background: var(--clz-neon-grad);
   color: #fff;
 }
 
@@ -84,6 +84,9 @@
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+.cleanyzer .clz-film-head {
+  display: contents;
 }
 .cleanyzer .clz-film-num {
   font-size: 12px;
@@ -225,27 +228,107 @@
     border-radius: 0;
     box-shadow: none;
   }
+  /* L59 : le film garde au moins les 60 % du haut ; bloc compact en bas sur dégradé sombre. */
   .cleanyzer .clz-film-frame::after {
     content: "";
     position: absolute;
-    inset: 0;
-    background: linear-gradient(0deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.72) 40%, rgba(0, 0, 0, 0) 66%);
+    inset: auto 0 0 0;
+    height: 48%;
+    background: linear-gradient(0deg, rgba(4, 5, 10, 0.96) 0%, rgba(4, 5, 10, 0.82) 62%, rgba(4, 5, 10, 0) 100%);
   }
   .cleanyzer .clz-film-cards {
     position: absolute;
     inset: auto 0 0 0;
-    height: 72%;
+    height: 40%;
     z-index: 2;
   }
+  /* Contenu calé en bas ; s'il dépasse (petit écran), il défile dans le bloc au lieu d'être coupé. */
   .cleanyzer .clz-film-card {
-    justify-content: flex-end;
-    padding: 0 16px 52px;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 0 16px 40px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .cleanyzer .clz-film-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+  }
+  .cleanyzer .clz-film-tag {
+    border: 0;
+    padding: 0;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--clz-on-dark-muted);
+  }
+  .cleanyzer .clz-film-tag::before {
+    content: "· ";
+  }
+  .cleanyzer .clz-film-num {
+    font-size: 11px;
   }
   .cleanyzer .clz-film-title {
-    font-size: 30px;
+    font-size: 24px;
+  }
+  .cleanyzer .clz-film-text {
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(226, 232, 245, 0.8);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: none;
+  }
+  /* Formules en lignes courtes « Premium · 80 € » (le détail reste sur ordinateur et dans la visite). */
+  .cleanyzer .clz-film-rows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: none;
   }
   .cleanyzer .clz-film-row {
-    padding: 9px 12px;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border-color: rgba(31, 123, 255, 0.5);
+    background: rgba(31, 123, 255, 0.1);
+    font-size: 12.5px;
+  }
+  .cleanyzer .clz-film-row small {
+    display: none;
+  }
+  .cleanyzer .clz-film-price,
+  .cleanyzer .clz-film-price.is-text {
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: inherit;
+  }
+  .cleanyzer .clz-film-price::before {
+    content: "· ";
+  }
+  .cleanyzer .clz-film-card .clz-film-cta {
+    margin-top: 2px;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    flex: none;
+  }
+  /* Deux liens discrets sur une seule ligne. */
+  .cleanyzer .clz-film-card .clz-film-actions {
+    flex-wrap: nowrap;
+    gap: 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+    flex: none;
+  }
+  .cleanyzer .clz-film-card .clz-film-visit {
+    font-size: 11.5px;
+    flex: none;
   }
   .cleanyzer .clz-film-rail {
     left: 16px;
@@ -259,9 +342,8 @@
     transition: none;
   }
 }
-.cleanyzer .clz-film-visit{align-self:flex-start;font-size:.85rem;font-weight:600;color:#6fb6ff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
-.cleanyzer .clz-film-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem 1.25rem;margin-top:4px}
-.cleanyzer .clz-film-actions .clz-film-cta{margin-top:0}
+.cleanyzer .clz-film-visit{align-self:flex-start;font-size:.85rem;font-weight:600;color:#8fbcff;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.cleanyzer .clz-film-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1.25rem}
 
 /* Comparateur avant / après (compare-slider.tsx) : un seul cadre, deux photos
    superposées, découpe pilotée par --clz-cmp (aucun recalcul de layout). */
@@ -294,9 +376,9 @@
   top: 0;
   bottom: 0;
   left: var(--clz-cmp);
-  width: 2px;
+  width: 0;
+  border-left: 2px solid #fff;
   transform: translateX(-50%);
-  background: #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
   pointer-events: none;
 }
@@ -314,7 +396,7 @@
   border-radius: 999px;
   background: var(--clz-blue);
   color: #fff;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 18px rgba(31, 123, 255, 0.8), 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 .cleanyzer .clz-cmp-range {
   position: absolute;

@@ -165,11 +165,11 @@ describe("haut de page", () => {
 describe("Présentation", () => {
   const h = html(createElement(ClzPresentation))
 
-  it("textes de la maquette, note conservée, boutons vers tarifs et réservation", () => {
+  it("textes de la maquette, note retirée (L59 : une seule fois, dans le header), boutons vers tarifs et réservation", () => {
     expect(h).toContain("Cleanyzer — Annecy & alentours")
     expect(h).toContain("la différence.")
     expect(h).toContain("Nettoyage automobile à domicile à Annecy. Intérieur, extérieur & detailing.")
-    expect(h).toMatch(/5,0\/5<\/b> — 92 avis Google/)
+    expect(h).not.toMatch(/avis Google/)
     expect(hrefs(h)).toContain(CLZ_BOOKING_HREF)
     expect(hrefs(h).some((x) => x.endsWith("#tarifs"))).toBe(true)
   })
