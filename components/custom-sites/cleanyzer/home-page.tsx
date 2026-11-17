@@ -53,7 +53,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
       <CleanyzerHero />
-      {/* L62 : accent néon alterné rouge/bleu par section ; tubes : fournisseurs + CTA final (+ hero = 3). */}
+      {/* L62 : accent néon alterné rouge/bleu par section ; tubes : témoignages + CTA final (+ hero = 3). */}
       <div className="clz-sec clz-sec-red">
         <ClzPresentation />
       </div>
@@ -63,7 +63,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
       <div className="clz-sec clz-sec-red">
         <PrestationsPreview />
       </div>
-      <div className="clz-sec clz-sec-blue clz-tube">
+      <div className="clz-sec clz-sec-blue">
         <ClzFournisseurs />
       </div>
       <div className="clz-sec clz-sec-red">
@@ -87,7 +87,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
       <div className="clz-sec clz-sec-red">
         <AvisSection />
       </div>
-      <div className="clz-sec clz-sec-blue">
+      <div className="clz-sec clz-sec-blue clz-tube">
         <TemoignagesSection />
       </div>
       <div className="clz-sec clz-sec-red">

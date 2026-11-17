@@ -598,5 +598,9 @@
   background: linear-gradient(to bottom, transparent, var(--clz-accent) 25%, var(--clz-accent) 75%, transparent);
   box-shadow: 0 0 10px rgb(var(--clz-accent-rgb) / var(--clz-tube-alpha)), 0 0 28px rgb(var(--clz-accent-rgb) / 0.5);
 }
+/* Sur-titres teintés selon l'accent de la section ; « + » de la FAQ en rouge néon. */
+.cleanyzer .clz-sec-red .clz-eyebrow { color: #ff7a8c; }
+.cleanyzer .clz-sec-blue .clz-eyebrow { color: #6fb6ff; }
+.cleanyzer .clz-sec .lucide-plus { color: var(--clz-neon-red); }
 .cleanyzer .clz-sec-red.clz-tube::after { right: 6px; }
 .cleanyzer .clz-sec-blue.clz-tube::after { left: 6px; }

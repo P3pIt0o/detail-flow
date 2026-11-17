@@ -49,6 +49,16 @@ describe("L62 C2 : alternance rouge/bleu et tubes", () => {
   it("au plus 2 tubes dans les sections (+ celui de la vidéo du hero = 3 max)", () => {
     expect(secs.filter((m) => m[2].includes("clz-tube")).length).toBeLessThanOrEqual(2)
   })
+  it("les tubes sont sur Témoignages et la boîte finale (aperçu validé)", () => {
+    expect(home).toMatch(/clz-tube">\s*<TemoignagesSection/)
+    expect(home).toMatch(/clz-tube">\s*<FinalCta/)
+    expect(home).not.toMatch(/clz-tube">\s*<ClzFournisseurs/)
+  })
+  it("sur-titres teintés par section et « + » FAQ rouge néon", () => {
+    expect(css).toMatch(/\.clz-sec-red \.clz-eyebrow\s*\{\s*color: #ff7a8c/)
+    expect(css).toMatch(/\.clz-sec-blue \.clz-eyebrow\s*\{\s*color: #6fb6ff/)
+    expect(css).toMatch(/\.lucide-plus\s*\{\s*color: var\(--clz-neon-red\)/)
+  })
   it("le tube est sur le côté, jamais sur le contenu", () => {
     expect(css).toMatch(/\.clz-sec-red\.clz-tube::after\s*\{\s*right: 6px/)
     expect(css).toMatch(/\.clz-sec-blue\.clz-tube::after\s*\{\s*left: 6px/)
