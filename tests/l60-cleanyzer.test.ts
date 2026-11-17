@@ -66,6 +66,55 @@ describe("L60 — liens natifs et base décidée par l'hôte (point A)", () => {
   })
 })
 
+/** Règles CSS (sélecteur → corps) d'un fichier, sans les @media imbriqués : suffisant pour repérer les couches. */
+const cssRules = (file: string) =>
+  [...read(`${CLZ}/${file}`).replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }))
+
+describe("L60 — pas de couche qui intercepte les clics (point A, test statique)", () => {
+  // L'elementFromPoint en 390×844 sur téléphone reste à faire par Clément : ce test ne couvre que le CSS.
+  for (const file of ["cleanyzer.css", "visit-video.css"]) {
+    it(`${file} : tout pseudo-élément ou voile couvrant (inset:0) est pointer-events:none`, () => {
+      const bad = cssRules(file).filter(
+        ({ sel, body }) =>
+          /::(before|after)|vig|veil|overlay|scrim/i.test(sel) && /inset:\s*0(?!\s*0?\s*auto)/.test(body) && !/pointer-events:\s*none/.test(body),
+      )
+      expect(bad.map((r) => r.sel)).toEqual([])
+    })
+
+    it(`${file} : toute couche fixed masquée (opacity:0) est pointer-events:none`, () => {
+      const bad = cssRules(file).filter(({ body }) => /position:\s*fixed/.test(body) && /opacity:\s*0\b/.test(body) && !/pointer-events:\s*none/.test(body))
+      expect(bad.map((r) => r.sel)).toEqual([])
+    })
+  }
+
+  it("le dock fixe est inerte tant qu'il n'est pas affiché", () => {
+    const dock = cssRules("cleanyzer.css").find((r) => /\.clz-neon-dock$/.test(r.sel))
+    expect(dock?.body).toMatch(/pointer-events:\s*none/)
+  })
+
+  it("les états .off de la visite ne captent pas les clics", () => {
+    const off = cssRules("visit-video.css").filter((r) => /\.off$/.test(r.sel))
+    expect(off.length).toBeGreaterThan(0)
+    for (const r of off) expect(r.body, r.sel).toMatch(/pointer-events:\s*none/)
+  })
+})
+
+describe("L60 — la base des liens suit l'hôte sans cache partagé (point 4)", () => {
+  it("elle est lue dans headers() à chaque requête, jamais dans un module statique", () => {
+    const src = read(`${CLZ}/site-base.ts`)
+    expect(src).toMatch(/\(await headers\(\)\)\.get\("host"\)/)
+    expect(src).not.toMatch(/unstable_cache|"use cache"|generateStaticParams|revalidate/)
+  })
+
+  it("chaque page qui rend ClzHostShell résout d'abord le tenant par en-tête (donc déjà dynamique avant L60)", () => {
+    const pages = ["app/(site)/page.tsx", "app/(site)/prestations/[service]/page.tsx", "app/(site)/[localSlug]/page.tsx", "app/(site)/reservation/page.tsx"]
+    for (const p of pages) expect(read(p), p).toMatch(/getCurrentTenant|resolveCustomSite|getCustomSitePublicData|resolvePublicRequestTenant/)
+    // getCurrentTenant lit x-tenant-slug via headers() : rendu dynamique par construction.
+    expect(read("lib/tenant.ts")).toMatch(/await headers\(\)[\s\S]*x-tenant-slug/)
+    for (const p of pages) expect(read(p), p).not.toMatch(/export const (dynamic\s*=\s*"force-static"|revalidate)/)
+  })
+})
+
 describe("L60 — partenaires et avis Google (point C)", () => {
   it("Trofeo absent ; les 5 ajoutés présents ; Morel et Brin gardés", () => {
     const names = CLZ_PARTNERS.map((p) => p.name)
