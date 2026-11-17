@@ -94,6 +94,35 @@ Magasin Perrin = même entreprise que Perrin Electric (confirmé par Clément) :
 Point A : la cause exacte n'est pas établie ; le correctif (liens `<a>` natifs) reste une hypothèse à confirmer par le test
 de Clément sur téléphone avant de dire à Tom que c'est réglé.
 
+## Relecture du 17/11/2026 (revue sécurité + revue métier sur 96b8abc)
+Revue métier : OK, 0 majeur. Revue sécurité : A_CORRIGER, 2 « majeurs » traités ainsi.
+- **Majeur 1 — FAUX POSITIF (pas de correctif de code).** La revue dit que `local-page`, `prestations`, `pages` et `configurator`
+  gardent la base `/p/cleanyzer` sur www.cleanyzer.fr. Ces quatre fichiers ne servent que les **maquettes** `/cleanyzer-preview/*`,
+  pas le site public. Preuve vérifiable :
+  ```
+  grep -rnE "cleanyzer/(local-page|prestations|pages|configurator)[\"']" app components lib
+  ```
+  → 9 résultats, tous dans `app/cleanyzer-preview/*` (faq, reservation, prestations/{interieur,exterieur,textile}, realisations,
+  zones/annecy, tarifs, a-propos), aucun ailleurs. Et `middleware.ts:144` (`!path.startsWith("/cleanyzer-preview")`) sert cette
+  route telle quelle, sans réécriture vers la vitrine ni contexte tenant. Leurs liens et leur navigation utilisent déjà
+  `CLZ_PREVIEW_BASE` (`/cleanyzer-preview`), jamais `/p/cleanyzer` comme base de site. Les pages réellement publiques
+  (`home-page`, `service-page`, `neon-page`) sont déjà sur `ClzHostShell`. Migrer les maquettes n'aurait rien corrigé et les aurait
+  rendues dynamiques : décision de Clément de ne pas y toucher. **Les bugs des maquettes relèvent du petit lot séparé D7.**
+  Tests ajoutés : liens directs à la racine / `/p/cleanyzer` ailleurs pour prestations, zone d'intervention et pages communes (neon) ;
+  autre tenant → page rendue sans coquille Cleanyzer ; garde « les quatre fichiers ne sont importés que depuis
+  `app/cleanyzer-preview` » et « le middleware sert `/cleanyzer-preview` tel quel ».
+- **Majeur 2 — à vérifier par Clément (pas fait dans le sandbox).** `headers()` dans `ClzHostShell` : dans les journaux de build
+  Vercel, comparer ○ (statique) / ƒ (dynamique) entre `main` avant L60 et la preview L60, pour l'**accueil** et les **prestations**.
+  Un test (`l60`) établit qu'elles lisent déjà le tenant par en-tête, donc dynamiques avant L60 ; le build le confirme.
+  `neon-page` n'appelle le shell que si le site publié du tenant est Cleanyzer (testé : autre tenant → page inchangée).
+- **Mineur fait** : `width` ajouté aux logos partenaires qui ont `w`/`h` (CLS). Morel Piscine et Brin de Verdure n'ont pas de
+  dimensions connues : inchangés.
+- **À confirmer par Clément — ville de chaque partenaire** (la recherche Maps ajoute « Annecy » à tous, `partnerHref`) :
+  Perrin Electric, Pinto Maçonnerie, Morel Piscine, Brin de Verdure, Peugeot Mouthon, Flèche Taxis 74, Exutoire Nettoyage,
+  Accord Immobilier, Prestige Drive. Surtout Flèche Taxis 74, Prestige Drive, Exutoire Nettoyage et Accord Immobilier (ville non
+  confirmée dans le dépôt). Si une ville diffère : champ `city` par partenaire dans `CLZ_PARTNERS`, au lot suivant.
+- **Aperçu** `L60.apercu.html` : pas à jour (avis empilés au lieu d'un défilement accroché, bande de logos défilante) ; écart déjà validé.
+
 ## Critères d'acceptation
 - [ ] C1 Test Playwright (ou test de rendu équivalent) : chaque bouton/lien de l'accueil mène à sa cible, sur téléphone et ordinateur.
 - [ ] C2 Slider : la paire RS3 est la première ; autres paires inchangées.

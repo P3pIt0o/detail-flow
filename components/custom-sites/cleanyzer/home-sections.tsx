@@ -313,7 +313,7 @@ function PartnerItem({ p, copy }: { p: ClzPartner; copy: boolean }) {
       {p.logo ? (
         <span className="clz-logo-chip">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={p.logo} alt="" loading="lazy" height={32} style={{ height: 32, width: "auto", maxWidth: "none" }} />
+          <img src={p.logo} alt="" loading="lazy" width={p.w && p.h ? Math.round((32 * p.w) / p.h) : undefined} height={32} style={{ height: 32, width: "auto", maxWidth: "none" }} />
         </span>
       ) : (
         <b>{p.name}</b>

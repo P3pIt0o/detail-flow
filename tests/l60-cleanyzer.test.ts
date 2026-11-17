@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -203,6 +203,7 @@ describe("L60 — prix Excellence intérieur SUV (point E)", () => {
 /* ───────────── L60 (17/11/2026) : accueil entier et pages non migrées ───────────── */
 
 const mode = vi.hoisted(() => ({ base: "" }))
+const tenantKey = vi.hoisted(() => ({ value: "cleanyzer" }))
 vi.mock("@/components/custom-sites/cleanyzer/site-base", async () => {
   const { createElement: h } = await import("react")
   const { CleanyzerShell } = await import("@/components/custom-sites/cleanyzer/site-shell")
@@ -304,5 +305,52 @@ describe("L60 — pages encore en /p/cleanyzer : leurs liens fonctionnent sur ww
       expect(publicPageDomainRedirect(dest.pathname, dest.searchParams, "tenant"), link).toBeNull()
       expect(dest.pathname, link).toBe(clzHref(url.pathname, "") === "/" ? "/" : clzHref(url.pathname, ""))
     }
+  })
+})
+
+vi.mock("@/lib/custom-sites/server", () => ({ resolveCustomSite: async () => ({ key: tenantKey.value }) }))
+vi.mock("@/lib/public-contact", () => ({ getPublicContact: async () => ({ phone: null, phoneRaw: null, email: null }) }))
+
+describe("L60 — autres pages servies sur www.cleanyzer.fr : liens directs à la racine, /p/cleanyzer ailleurs", () => {
+  it("prestations, zone d'intervention et pages communes (neon) : racine sans préfixe, autres hôtes inchangés", async () => {
+    const { CleanyzerServicePage, CleanyzerZonePage } = await import("@/components/custom-sites/cleanyzer/service-page")
+    const { clzNeonPage } = await import("@/components/custom-sites/cleanyzer/neon-page")
+    const { CLZ_SERVICE_PAGES } = await import("@/components/custom-sites/cleanyzer/seo-content")
+    tenantKey.value = "cleanyzer"
+    const render = async (base: string) => {
+      mode.base = base
+      const els = [...CLZ_SERVICE_PAGES.map((page) => createElement(CleanyzerServicePage, { page })), createElement(CleanyzerZonePage, {})]
+      const out = els.map((el) => html(el))
+      out.push(html((await clzNeonPage(createElement("p", null, "x"))) as never))
+      return out.flatMap(hrefs)
+    }
+    const root = await render("")
+    const other = await render("/p/cleanyzer")
+    expect(root.length).toBeGreaterThan(10)
+    expect(root.filter((h) => h.startsWith("/p/cleanyzer"))).toEqual([])
+    expect(root).toEqual(other.map((h) => clzHref(h, "")))
+    expect(other.filter(isInternal).every((h) => h.startsWith("/p/cleanyzer"))).toBe(true)
+  })
+
+  it("autre tenant : la page commune est rendue telle quelle, sans coquille Cleanyzer", async () => {
+    const { clzNeonPage } = await import("@/components/custom-sites/cleanyzer/neon-page")
+    tenantKey.value = "autre"
+    const page = createElement("p", null, "x")
+    expect(await clzNeonPage(page)).toBe(page)
+  })
+})
+
+describe("L60 — les maquettes (/cleanyzer-preview) ne sont pas servies sur www.cleanyzer.fr", () => {
+  const walk = (dir: string): string[] =>
+    readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${dir}/${e.name}`] : [],
+    )
+  it("local-page, prestations, pages et configurator ne sont importés que depuis app/cleanyzer-preview ou entre eux", () => {
+    const re = /cleanyzer\/(local-page|prestations|pages|configurator)["']/
+    const users = [...walk("app"), ...walk("components"), ...walk("lib")].filter((f) => re.test(read(f)))
+    expect(users.filter((f) => !f.startsWith("app/cleanyzer-preview/"))).toEqual([])
+  })
+  it("le middleware sert /cleanyzer-preview tel quel, sans réécriture vers la vitrine", () => {
+    expect(read("middleware.ts")).toMatch(/!path\.startsWith\("\/cleanyzer-preview"\)/)
   })
 })
