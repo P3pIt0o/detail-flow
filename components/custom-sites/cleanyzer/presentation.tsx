@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { CLZ_BOOKING_HREF } from "./tokens"
 import { CLZ_TARIFS_HREF, HERO_MOBILE_MAX } from "./hero"
 

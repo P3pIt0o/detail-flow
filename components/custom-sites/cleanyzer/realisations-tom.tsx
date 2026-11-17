@@ -6,7 +6,7 @@
  */
 
 import Image from "next/image"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_OPTIONS } from "./content"
 import { ClzCompareSlider } from "./compare-slider"

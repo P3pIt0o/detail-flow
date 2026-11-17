@@ -9,7 +9,7 @@
  * déjà émis par le layout `app/(site)`.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { ArrowRight, Check, MapPin, Clock } from "lucide-react"
 import { SEO_BASE, resolveTenantOrigin, tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"

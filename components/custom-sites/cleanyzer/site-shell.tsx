@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Fraunces, Inter } from "next/font/google"

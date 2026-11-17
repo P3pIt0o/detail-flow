@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { CLZ_HOME_HREF, CLZ_SITE_BASE } from "./tokens"
 
 /** Chemin de retour sûr : même origine ET sous la base du site, jamais la réservation elle-même. */

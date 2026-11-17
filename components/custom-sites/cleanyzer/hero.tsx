@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { BRAND } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_HOME_HREF } from "./tokens"
 

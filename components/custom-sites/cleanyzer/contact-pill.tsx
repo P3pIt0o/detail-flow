@@ -6,7 +6,7 @@
  * tenant) : Réserver seul. L'affichage (après le haut de page) est piloté par la coquille.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { CLZ_BOOKING_HREF } from "./tokens"
 
 /** Numéro WhatsApp international sans « + » (wa.me) depuis un numéro français ou international. */

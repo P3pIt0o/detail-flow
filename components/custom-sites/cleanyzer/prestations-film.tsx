@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
 import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
