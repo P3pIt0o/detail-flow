@@ -137,7 +137,7 @@ describe("L60 — partenaires et avis Google (point C)", () => {
       expect(out).toContain(`aria-label="${p.name} — ouvrir dans un nouvel onglet"`)
       expect(out).toContain(`href="${partnerHref(p.name)}"`)
     }
-    expect(partnerHref("Flèche Taxis 74")).toBe("https://www.google.com/maps/search/?api=1&query=Fl%C3%A8che%20Taxis%2074%20Annecy")
+    expect(partnerHref("Flèche Taxis 74")).toBe("https://www.google.com/maps/search/?api=1&query=Fl%C3%A8che%20Taxis%2074")
     const anchors = out.match(/<a [^>]*>/g) ?? []
     expect(anchors.length).toBe(CLZ_PARTNERS.length * 2 + CLZ_TESTIMONIALS.length) // copie du défilement + liens des avis
     for (const a of anchors) {
@@ -275,7 +275,7 @@ describe("L60 — avis : logo et lien partenaire sur chaque carte", () => {
   it("chaque avis a un lien Maps nouvel onglet (noopener noreferrer) ; logo quand il existe", () => {
     const out = html(createElement(TemoignagesSection))
     for (const t of CLZ_TESTIMONIALS) {
-      expect(out).toContain(`href="${partnerHref(t.company)}"`)
+      expect(out).toContain(`href="${partnerHref(t.mapsName ?? t.company)}"`)
       expect(out).toContain(`aria-label="${t.company} — ouvrir dans un nouvel onglet"`)
       if (t.logo) expect(out).toContain(`src="${t.logo}"`)
     }

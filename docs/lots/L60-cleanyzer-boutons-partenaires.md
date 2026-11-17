@@ -117,10 +117,9 @@ Revue métier : OK, 0 majeur. Revue sécurité : A_CORRIGER, 2 « majeurs » tra
   `neon-page` n'appelle le shell que si le site publié du tenant est Cleanyzer (testé : autre tenant → page inchangée).
 - **Mineur fait** : `width` ajouté aux logos partenaires qui ont `w`/`h` (CLS). Morel Piscine et Brin de Verdure n'ont pas de
   dimensions connues : inchangés.
-- **À confirmer par Clément — ville de chaque partenaire** (la recherche Maps ajoute « Annecy » à tous, `partnerHref`) :
-  Perrin Electric, Pinto Maçonnerie, Morel Piscine, Brin de Verdure, Peugeot Mouthon, Flèche Taxis 74, Exutoire Nettoyage,
-  Accord Immobilier, Prestige Drive. Surtout Flèche Taxis 74, Prestige Drive, Exutoire Nettoyage et Accord Immobilier (ville non
-  confirmée dans le dépôt). Si une ville diffère : champ `city` par partenaire dans `CLZ_PARTNERS`, au lot suivant.
+- **Ville des partenaires** (décision du 17/11) : aucune ville confirmée, donc recherche Maps par nom seul (`partnerHref`), sans
+  « Annecy » en dur. L'avis « Magasin Perrin » utilise la même recherche que la bande (`mapsName: "Perrin Electric"`, même entreprise).
+  **Lot suivant** : champ `city` par partenaire dans `CLZ_PARTNERS` une fois les villes confirmées par Clément.
 - **Aperçu** `L60.apercu.html` : pas à jour (avis empilés au lieu d'un défilement accroché, bande de logos défilante) ; écart déjà validé.
 
 ## Critères d'acceptation

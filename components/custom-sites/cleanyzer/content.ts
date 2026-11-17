@@ -248,14 +248,14 @@ export const BRAND = {
 // (Clément, 23/10/2026). Citations recopiées mot pour mot, sans note.
 // `url` : site de l'entreprise, à renseigner seulement quand il est fourni.
 // `logo` : utilisation autorisée par chaque entreprise (Clément, 23/10/2026). PNG transparents, à poser sur fond clair.
-export type ClzTestimonial = { company: string; quote: string; verified: boolean; url?: string; logo?: string }
+export type ClzTestimonial = { company: string; quote: string; verified: boolean; url?: string; logo?: string; mapsName?: string }
 
 const LOGOS = "/custom-sites/cleanyzer/temoignages"
 
 // L60 : trois vrais avis Google de professionnels, recopiés mot pour mot (fiche L60, C). Pas de JSON-LD Review.
 const PARTNER_LOGOS = "/custom-sites/cleanyzer/partenaires"
 export const CLZ_TESTIMONIALS: ClzTestimonial[] = [
-  { company: "Magasin Perrin", quote: "Travail de pro. Je recommande fortement", verified: true, logo: `${LOGOS}/perrin-electric.png` },
+  { company: "Magasin Perrin", mapsName: "Perrin Electric", quote: "Travail de pro. Je recommande fortement", verified: true, logo: `${LOGOS}/perrin-electric.png` },
   { company: "Brin de Verdure", quote: "Un nettoyage parfait à la hauteur de mes attentes", verified: true, logo: `${PARTNER_LOGOS}/brin-de-verdure.webp` },
   {
     company: "Prestige Drive",
@@ -266,7 +266,7 @@ export const CLZ_TESTIMONIALS: ClzTestimonial[] = [
 ]
 
 // Partenaires (bande « Ils nous font confiance »). Aucun site connu dans le dépôt : lien = recherche Google Maps
-// du nom + ville, jamais d'adresse inventée. Sans logo fourni : nom en texte.
+// du nom seul (ville non confirmée : champ `city` au lot suivant), jamais d'adresse inventée. Sans logo fourni : nom en texte.
 export type ClzPartner = { name: string; logo?: string; w?: number; h?: number }
 export const CLZ_PARTNERS: ClzPartner[] = [
   { name: "Perrin Electric", logo: `${LOGOS}/perrin-electric.png`, w: 629, h: 240 },
@@ -280,7 +280,7 @@ export const CLZ_PARTNERS: ClzPartner[] = [
   { name: "Prestige Drive" },
 ]
 export const partnerHref = (name: string) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} Annecy`)}`
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`
 
 export const verifiedTestimonials = (list: ClzTestimonial[]) =>
   list.filter((t) => t.verified === true && t.company.trim() !== "" && t.quote.trim() !== "")

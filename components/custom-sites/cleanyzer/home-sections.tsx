@@ -360,7 +360,7 @@ export function TemoignagesSection() {
                   <blockquote className="m-0 mt-4 flex-1 text-pretty leading-relaxed text-[var(--clz-fg)]">« {t.quote} »</blockquote>
                   <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-muted)]">
                     <a
-                      href={partnerHref(t.company)}
+                      href={partnerHref(t.mapsName ?? t.company)}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`${t.company} — ouvrir dans un nouvel onglet`}
