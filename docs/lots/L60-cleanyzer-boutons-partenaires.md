@@ -91,8 +91,7 @@ Reporté aussi (décision de Clément, 17/11/2026) :
   touche `fournisseurs.tsx` : hors périmètre approuvé, replan nécessaire). Déjà identiques aujourd'hui : mêmes classes CSS
   (`clz-neon-band/marquee/track/sup`), donc même vitesse, même rendu, même mouvement réduit ; logos cliquables en nouvel onglet.
 Magasin Perrin = même entreprise que Perrin Electric (confirmé par Clément) : logo et lien partenaire conservés.
-Point A : la cause exacte n'est pas établie ; le correctif (liens `<a>` natifs) reste une hypothèse à confirmer par le test
-de Clément sur téléphone avant de dire à Tom que c'est réglé.
+Point A : voir « Non confirmé — point A » plus bas (protocole de test, pas de fusion avant).
 
 ## Relecture du 17/11/2026 (revue sécurité + revue métier sur 96b8abc)
 Revue métier : OK, 0 majeur. Revue sécurité : A_CORRIGER, 2 « majeurs » traités ainsi.
@@ -120,7 +119,39 @@ Revue métier : OK, 0 majeur. Revue sécurité : A_CORRIGER, 2 « majeurs » tra
 - **Ville des partenaires** (décision du 17/11) : aucune ville confirmée, donc recherche Maps par nom seul (`partnerHref`), sans
   « Annecy » en dur. L'avis « Magasin Perrin » utilise la même recherche que la bande (`mapsName: "Perrin Electric"`, même entreprise).
   **Lot suivant** : champ `city` par partenaire dans `CLZ_PARTNERS` une fois les villes confirmées par Clément.
-- **Aperçu** `L60.apercu.html` : pas à jour (avis empilés au lieu d'un défilement accroché, bande de logos défilante) ; écart déjà validé.
+- **Aperçu** `L60.apercu.html` : voir « Écarts de l'aperçu » ci-dessous.
+
+## Non confirmé — point A (boutons inactifs sur www.cleanyzer.fr)
+La cause exacte n'est **pas établie**. Le correctif (liens `<a>` natifs vers la racine du domaine) reste une hypothèse. Il ne
+faut pas dire à Tom que c'est réglé avant ce test.
+**Protocole de test, après le push (Clément) :**
+1. Ouvrir la preview Vercel de la branche `lot/L60-cleanyzer-boutons-partenaires`.
+2. Sur un téléphone réel, puis dans DevTools en 390×844, cliquer chaque bouton : header, réserver, prestations, zone
+   d'intervention, partenaires.
+3. Dans la console DevTools, `document.elementFromPoint(x, y)` au centre de chaque bouton : l'élément retourné doit être le
+   bouton (ou son lien `<a>`), pas une couche qui le recouvre.
+4. Noter chaque bouton qui ne répond pas et l'élément qui le recouvre.
+**Règle : pas de fusion avant ce test.**
+
+## Écarts de l'aperçu — validés par Clément le 17/11/2026
+`L60.apercu.html` ne reflète pas le rendu final. Écarts connus et validés :
+- avis empilés (et non en défilement horizontal accroché) ;
+- bande de logos partenaires défilante ;
+- logo seul au chargement (reporté au lot suivant, voir plus haut) ;
+- boutons du header.
+La régénération de `L60.apercu.html` revient à Clément (non faite ici).
+
+## Écart de plan — `zone-module.tsx`
+Ce fichier n'était pas dans le plan approuvé ; il est modifié. Raison : deux de ses boutons restaient sur la base
+`/p/cleanyzer` alors que le site est servi sur www.cleanyzer.fr. Ils passaient par une redirection 308 et fonctionnaient : ce
+n'est pas le problème des boutons inactifs (point A). Correction faite pour avoir des liens directs à la racine. Ces deux boutons
+ont été détectés ce matin par les tests C1/D de `l60`, qui les couvrent (zone d'intervention : liens directs à la racine sur
+www.cleanyzer.fr, `/p/cleanyzer` ailleurs).
+
+## Écart « 9/11 tests de baseline » — à vérifier par Clément
+La justification n'a pas pu être vérifiée dans le sandbox (tests BDD/réseau ignorés). À vérifier par Clément avec
+`dfguard.mjs check L60` : comparer les tests en échec avant (`main`) et après L60, et confirmer que les 9/11 sont les mêmes
+échecs déjà présents (critère C4) avant de la considérer comme justifiée.
 
 ## Critères d'acceptation
 - [ ] C1 Test Playwright (ou test de rendu équivalent) : chaque bouton/lien de l'accueil mène à sa cible, sur téléphone et ordinateur.
