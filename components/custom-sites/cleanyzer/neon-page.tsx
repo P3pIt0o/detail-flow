@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { getPublicContact } from "@/lib/public-contact"
 import { resolveCustomSite } from "@/lib/custom-sites/server"
-import { CleanyzerShell } from "./site-shell"
+import { ClzHostShell as CleanyzerShell } from "./site-base"
 import { CLZ_SITE_NAV_ITEMS } from "./nav"
 import { clzBookingNeon } from "./tokens"
 

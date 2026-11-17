@@ -1,4 +1,6 @@
+import { createElement, type ComponentProps } from "react"
 import { headers } from "next/headers"
+import { CleanyzerShell } from "./site-shell"
 import { clzBaseForHost } from "./tokens"
 
 /**
@@ -7,4 +9,9 @@ import { clzBaseForHost } from "./tokens"
  */
 export async function clzRequestBase(): Promise<string> {
   return clzBaseForHost((await headers()).get("host"))
+}
+
+/** Coquille du site avec la base de la requête : à utiliser dans les pages rendues côté serveur. */
+export async function ClzHostShell(props: Omit<ComponentProps<typeof CleanyzerShell>, "base">) {
+  return createElement(CleanyzerShell, { ...props, base: await clzRequestBase() })
 }
