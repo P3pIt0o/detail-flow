@@ -1,64 +1,13 @@
 import type { MetadataRoute } from "next"
-import { siteConfig } from "@/config/site"
-import { tenantSeoIdentity, tenantCanonicalUrl } from "@/lib/seo/tenant-url"
-import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
-import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
+import { headers } from "next/headers"
+import { sitemapEntriesForHost } from "@/lib/seo/host-sitemap"
 
 /**
- * Sitemap du domaine marketing (www.detailflow.fr).
- *
- * Ne contient QUE des pages réellement existantes et indexables. Volontairement
- * exclus : /admin, /super-admin, routes API, authentification, pages de test,
- * previews Vercel et pages "noindex" (mentions légales, CGV, confidentialité).
- *
- * Blocs multi-tenant (Spirit ACS, Rozan, Cleanyzer…) : tant que le domaine personnalisé
- * n'est pas connecté, les pages publiques indexables de chaque site sont listées
- * avec leur URL tenant correcte (« ?tenant={slug} »), construite par le helper
- * canonique centralisé. Chaque catalogue porte SON PROPRE slug de tenant (ex.
- * « spirit-acs », « rozancleaningservice »). Le jour où un domaine vérifié sera
- * renseigné dans `tenantSeoIdentity`, ces URL basculeront AUTOMATIQUEMENT vers
- * ce domaine (sans « ?tenant= ») sans modifier ce fichier.
+ * Sitemap décidé par l'hôte de la requête (voir `lib/seo/host-sitemap.ts`) :
+ * domaine personnalisé → pages de ce seul tenant ; sinon plateforme DetailFlow
+ * + tenants sans domaine personnalisé. Exclut /admin, API, pages noindex.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
-  const base = siteConfig.seo.url
-  const now = new Date()
-
-  const entries: MetadataRoute.Sitemap = [
-    {
-      url: base,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-  ]
-
-  // --- Sites publics multi-tenant (URL tenant-aware) -------------------------
-  // Le sitemap ne connaît plus de liste de pages spécifique : pour chaque site
-  // personnalisé, il demande à la couche publique commune « quelles pages ce
-  // tenant expose-t-il ? ». La même abstraction servira, à terme, les tenants
-  // standards (pages activées). On itère sur les CLÉS DE SITE (registre) ; le
-  // slug de tenant réel utilisé pour l'URL provient du catalogue lui-même.
-  const customSiteKeys = ["spirit-acs", "rozan", "cleanyzer"] as const
-  for (const key of customSiteKeys) {
-    const catalog = getPublicSiteCatalog(key)
-    if (!catalog) continue
-    // Domaine personnalisé connecté → URL sur ce domaine (sans `?tenant=`) ;
-    // sinon forme historique `?tenant=<slug>`. Bascule automatique par tenant.
-    const identity = tenantSeoIdentity({
-      slug: catalog.tenantSlug,
-      publicDomain: tenantCanonicalHost(catalog.tenantSlug),
-      // Site servi sous `/p/<slug>` (ex. Cleanyzer) → URL sur ce chemin.
-      publicPathPrefix: tenantCanonicalPathPrefix(catalog.tenantSlug),
-    })
-    for (const { path, priority } of listSitemapPaths(catalog)) {
-      entries.push({
-        url: tenantCanonicalUrl(path, identity),
-        lastModified: now,
-        changeFrequency: "monthly",
-        priority,
-      })
-    }
-  }
-
-  return entries
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const h = await headers()
+  return sitemapEntriesForHost(h.get("x-forwarded-host") ?? h.get("host"))
 }
