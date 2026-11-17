@@ -18,13 +18,13 @@
 
   /* Noirs / encres */
   --clz-black: #000000;
-  --clz-ink: #0a0b0d; /* fond sombre de base */
+  --clz-ink: var(--clz-neon-ink); /* L62 : un seul noir sur tout le site */
   --clz-ink-2: #111318;
 
   /* Fonds : encre néon partout (surface = champs et listes, opaque). */
   --clz-bg: var(--clz-neon-ink);
   --clz-surface: var(--clz-neon-ink-2);
-  --clz-surface-2: #070911;
+  --clz-surface-2: var(--clz-neon-ink);
 
   /* Texte */
   --clz-fg: var(--clz-neon-fg);
@@ -48,17 +48,14 @@
   text-rendering: optimizeLegibility;
 }
 
-/* Sections « sombres » historiques : encre + lueur légère (plus de dégradé bleu plein). */
-.cleanyzer .clz-dark {
-  background: radial-gradient(70% 60% at 85% 20%, rgba(31, 123, 255, 0.14), transparent 60%), var(--clz-neon-ink);
-  color: var(--clz-on-dark);
-}
+/* Sections « sombres » historiques (L62) : fond transparent = le noir unique du site ; les lueurs
+   sont des pseudo-éléments radiaux (.clz-sec::before), jamais un fond de section. */
+.cleanyzer .clz-dark,
 .cleanyzer .clz-dark-strong {
-  background: radial-gradient(60% 60% at 10% 80%, rgba(255, 43, 69, 0.08), transparent 60%), var(--clz-neon-ink);
+  background: transparent;
   color: var(--clz-on-dark);
 }
 .cleanyzer footer.clz-dark {
-  background: radial-gradient(60% 80% at 90% 100%, rgba(31, 123, 255, 0.16), transparent 60%), var(--clz-neon-ink);
   border-top: 1px solid var(--clz-neon-line);
 }
 
@@ -181,6 +178,21 @@
   border-radius: var(--clz-radius);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
+/* L62 : contour dégradé bleu → rouge dès le repos (masque : seul l'anneau de 1 px est peint). */
+.cleanyzer .clz-card:where(:not(.absolute, .fixed, .sticky)) { position: relative; }
+.cleanyzer .clz-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--clz-neon-blue), var(--clz-neon-red));
+  opacity: 0.7;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
 .cleanyzer :is(a, button, label).clz-card:hover,
 .cleanyzer .clz-card:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
   border-color: rgba(31, 123, 255, 0.6);
@@ -287,7 +299,7 @@
   --primary: var(--clz-blue);
   --primary-foreground: #ffffff;
   --border: var(--clz-line-dark);
-  --background: #0a0b0d;
+  --background: var(--clz-neon-ink);
   --foreground: #f4f7fb;
 }
 
@@ -380,7 +392,7 @@
 .cleanyzer .clz-neon-btn[disabled] { opacity: .7; cursor: progress; }
 
 /* ---------- Haut de page ---------- */
-.cleanyzer .clz-neon-hero { position: relative; isolation: isolate; overflow: hidden; height: clamp(560px, 92svh, 860px); background: radial-gradient(120% 80% at 30% 60%, #0b1430 0%, var(--clz-neon-ink) 60%); container-type: size; color: var(--clz-neon-fg); }
+.cleanyzer .clz-neon-hero { position: relative; isolation: isolate; overflow: hidden; height: clamp(560px, 92svh, 860px); background: var(--clz-neon-ink); container-type: size; color: var(--clz-neon-fg); }
 .cleanyzer .clz-neon-hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 26%; z-index: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(3,4,10,.75), transparent); }
 .cleanyzer .clz-neon-hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 22%; z-index: 0; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--clz-neon-ink)); }
 .cleanyzer .clz-neon-scene { position: absolute; z-index: -1; aspect-ratio: 1672 / 941; width: max(100cqw, 177.7cqh); top: 50%; left: 50%; transform: translate(-50%, -50%); }
@@ -426,7 +438,7 @@
 }
 
 /* ---------- Présentation ---------- */
-.cleanyzer .clz-neon-present { position: relative; color: var(--clz-neon-fg); background: radial-gradient(70% 60% at 85% 40%, rgba(31,123,255,.14), transparent 60%), var(--clz-neon-ink); }
+.cleanyzer .clz-neon-present { position: relative; color: var(--clz-neon-fg); }
 .cleanyzer .clz-neon-present-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); align-items: center; padding-block: clamp(72px, 10vw, 120px); }
 .cleanyzer .clz-neon-display { margin: 14px 0 0; font-family: var(--font-clz-display), Georgia, serif; font-weight: 600; font-size: clamp(44px, 7vw, 88px); line-height: .98; letter-spacing: -.02em; max-width: 13ch; }
 .cleanyzer .clz-neon-display em { font-style: italic; color: var(--clz-neon-blue); text-shadow: 0 0 24px rgba(31,123,255,.5); }
@@ -444,7 +456,7 @@
 @media (max-width: 860px) { .cleanyzer .clz-neon-present-grid { grid-template-columns: minmax(0, 1fr); } .cleanyzer .clz-neon-tomvid { aspect-ratio: 16 / 11; } }
 
 /* ---------- Produits & fournisseurs ---------- */
-.cleanyzer .clz-neon-products { color: var(--clz-neon-fg); background: radial-gradient(60% 70% at 100% 40%, rgba(31,123,255,.12), transparent 60%), var(--clz-neon-ink); }
+.cleanyzer .clz-neon-products { color: var(--clz-neon-fg); }
 .cleanyzer .clz-neon-pgrid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 5vw, 72px); align-items: center; padding-block: clamp(64px, 9vw, 110px); }
 .cleanyzer .clz-neon-products .clz-neon-h2 { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.04; }
 .cleanyzer .clz-neon-plede { color: var(--clz-neon-muted); margin: 16px 0 0; max-width: 46ch; }
@@ -462,7 +474,7 @@
 .cleanyzer .clz-neon-ph figcaption { position: relative; margin: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(4,5,10,.75); border: 1px solid var(--clz-neon-line); font-size: 12.5px; font-weight: 500; }
 @media (max-width: 860px) { .cleanyzer .clz-neon-pgrid { grid-template-columns: minmax(0, 1fr); } .cleanyzer .clz-neon-shelf { aspect-ratio: auto; grid-template-rows: 200px 200px; } }
 @media (max-width: 420px) { .cleanyzer .clz-neon-shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px 160px 160px; } .cleanyzer .clz-neon-ph.big { grid-row: auto; } }
-.cleanyzer .clz-neon-band { border-top: 1px solid var(--clz-neon-line); border-bottom: 1px solid var(--clz-neon-line); background: rgba(10,12,20,.6); padding-block: 22px; overflow: hidden; }
+.cleanyzer .clz-neon-band { border-top: 1px solid var(--clz-neon-line); border-bottom: 1px solid var(--clz-neon-line); background: transparent; padding-block: 22px; overflow: hidden; }
 .cleanyzer .clz-neon-marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .cleanyzer .clz-neon-track { display: flex; align-items: center; gap: 80px; width: max-content; animation: clz-neon-marq 26s linear infinite; }
 .cleanyzer .clz-neon-sup { display: flex; align-items: center; justify-content: center; white-space: nowrap; height: 40px; text-decoration: none; }
@@ -540,3 +552,51 @@
 .cleanyzer .clz-back-link:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
 /* Témoignages : seule surface claire du site, limitée au logo (logos fournis en traits sombres). */
 .cleanyzer .clz-logo-chip { display: inline-grid; place-items: center; height: 44px; padding: 6px 10px; border-radius: 10px; background: #f5f6f8; }
+
+/* ---------- L62 : accent néon par section (accueil), alternance rouge / bleu ---------- */
+/* Fond = noir unique. La lueur est un ::before radial borné à ~40 % de la largeur, centré en hauteur et
+   limité à 70 % : elle atteint 0 % d'opacité avant le bord haut/bas (aucune bande, pas d'overflow:hidden). */
+.cleanyzer {
+  --clz-glow-alpha: 0.16;
+  --clz-tube-alpha: 0.9;
+  --clz-sec-red-rgb: 255 43 69;
+  --clz-sec-blue-rgb: 31 123 255;
+}
+.cleanyzer .clz-sec { position: relative; isolation: isolate; }
+.cleanyzer .clz-sec-red { --clz-accent: var(--clz-neon-red); --clz-accent-rgb: var(--clz-sec-red-rgb); }
+.cleanyzer .clz-sec-blue { --clz-accent: var(--clz-neon-blue); --clz-accent-rgb: var(--clz-sec-blue-rgb); }
+.cleanyzer .clz-sec::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  width: 40%;
+  height: min(70%, 900px);
+  transform: translateY(-50%);
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgb(var(--clz-accent-rgb) / var(--clz-glow-alpha)), transparent);
+}
+.cleanyzer .clz-sec-red::before { left: 0; }
+.cleanyzer .clz-sec-blue::before { right: 0; }
+@media (max-width: 760px) { .cleanyzer .clz-sec::before { width: 70%; } }
+.cleanyzer .clz-sec .clz-rule { background: var(--clz-accent); box-shadow: 0 0 12px var(--clz-accent); }
+.cleanyzer .clz-sec .clz-neon-eyebrow::before { content: ""; display: block; width: 44px; height: 2px; margin-bottom: 14px; border-radius: 999px; background: var(--clz-accent); box-shadow: 0 0 12px var(--clz-accent); }
+.cleanyzer .clz-sec .clz-accent,
+.cleanyzer .clz-sec .clz-neon-h2 em,
+.cleanyzer .clz-sec .clz-neon-display em { color: var(--clz-accent); text-shadow: 0 0 24px rgb(var(--clz-accent-rgb) / 0.5); }
+/* Tube néon : trait vertical collé au bord de la section, hors du contenu (jamais derrière un texte). */
+.cleanyzer .clz-sec.clz-tube::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  height: min(40%, 360px);
+  width: 3px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--clz-accent) 25%, var(--clz-accent) 75%, transparent);
+  box-shadow: 0 0 10px rgb(var(--clz-accent-rgb) / var(--clz-tube-alpha)), 0 0 28px rgb(var(--clz-accent-rgb) / 0.5);
+}
+.cleanyzer .clz-sec-red.clz-tube::after { right: 6px; }
+.cleanyzer .clz-sec-blue.clz-tube::after { left: 6px; }

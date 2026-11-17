@@ -1,8 +1,8 @@
 /* Visite CLEANYZER en images (L55) — reprise de la maquette visit3d.css (classes v3-* propres à ce tenant). */
-.v3{position:relative;height:700vh;background:#070b14;color:var(--clz-on-dark)}
+.v3{position:relative;height:700vh;background:transparent;color:var(--clz-on-dark)}
 .v3-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
 #v3-gl{position:absolute;inset:0;width:100%;height:100%;display:block}
-.v3-vig{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(7,11,20,.72) 0%,rgba(7,11,20,0) 46%),linear-gradient(0deg,rgba(7,11,20,.72) 0%,rgba(7,11,20,0) 34%),linear-gradient(180deg,rgba(7,11,20,.6) 0%,rgba(7,11,20,0) 18%)}
+.v3-vig{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(4,5,10,.72) 0%,rgba(4,5,10,0) 46%),linear-gradient(0deg,rgba(4,5,10,.72) 0%,rgba(4,5,10,0) 34%),linear-gradient(180deg,rgba(4,5,10,.6) 0%,rgba(4,5,10,0) 18%)}
 .v3-load{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:#6fb6ff;text-align:center}
 .v3-intro{position:absolute;left:max(1rem,calc((100% - 72rem)/2 + 1.5rem));top:22%;max-width:34rem;padding-right:1rem;transition:opacity .4s,transform .4s}
 .v3-intro.off{opacity:0;transform:translateY(-40px);pointer-events:none}

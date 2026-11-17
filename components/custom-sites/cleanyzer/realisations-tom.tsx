@@ -134,7 +134,7 @@ const GALLERY = [
 /** Première section sous le héros (L28) : avant / après, grille 2 × 2 sur ordinateur, empilée sur mobile. */
 export function AvantApresSection() {
   return (
-    <section id="avant-apres" className="scroll-mt-20 bg-[var(--clz-bg)]">
+    <section id="avant-apres" className="scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <span className="clz-eyebrow">Avant / après</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-[var(--clz-fg)]">
@@ -157,7 +157,7 @@ export function AvantApresSection() {
 /** Galerie des réalisations (reste à sa place ; cible du lien « Réalisations » du menu). */
 export function RealisationsTom() {
   return (
-    <section id="realisations" className="scroll-mt-20 bg-[var(--clz-bg)]">
+    <section id="realisations" className="scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <span className="clz-eyebrow block">Réalisations</span>
         <h2 className="clz-display clz-h2 mt-3 max-w-2xl text-balance text-[var(--clz-fg)]">

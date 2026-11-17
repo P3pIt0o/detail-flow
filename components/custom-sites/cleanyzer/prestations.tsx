@@ -94,7 +94,7 @@ export function AutoPrestationView({ kind }: { kind: CleaningKind }) {
       </section>
 
       {/* Options pertinentes uniquement */}
-      <section className="bg-[var(--clz-surface-2)]">
+      <section>
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
           <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Options {label}</h2>
           <p className="mt-3 max-w-2xl text-[var(--clz-muted)]">

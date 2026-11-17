@@ -140,7 +140,7 @@ export function PrestationsPreview() {
   ]
   return (
     // Ancre visée par « Voir les tarifs » (L35).
-    <section id="tarifs" className="bg-[var(--clz-surface-2)]">
+    <section id="tarifs">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Prestations & tarifs" title="Des formules claires, dès le premier euro" />
         <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -277,7 +277,7 @@ export function AProposSection() {
 /* L60 : la note Google (5,0 · 92 avis) n'est affichée qu'une fois, en haut de page ; ici titre et bouton seulement. */
 export function AvisSection() {
   return (
-    <section className="bg-[var(--clz-surface-2)]">
+    <section>
       <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
         <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
         {BRAND.googleReviewsUrl && (
@@ -325,7 +325,7 @@ function PartnerItem({ p, copy }: { p: ClzPartner; copy: boolean }) {
 export function TemoignagesSection() {
   const items = verifiedTestimonials(CLZ_TESTIMONIALS)
   return (
-    <section className="bg-[var(--clz-bg)]">
+    <section>
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Témoignages" title="Ils nous font confiance" center />
       </div>
@@ -399,7 +399,7 @@ function GoogleGlyph({ className }: { className?: string }) {
 
 export function FaqSection() {
   return (
-    <section id="faq" className="bg-[var(--clz-surface-2)]">
+    <section id="faq">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Questions fréquentes" title="Tout savoir avant de réserver" center />
         <div className="mt-12">

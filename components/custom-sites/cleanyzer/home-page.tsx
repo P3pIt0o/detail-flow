@@ -53,20 +53,21 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
       <CleanyzerHero />
-      <ClzPresentation />
-      <AvantApresSection />
-      <PrestationsPreview />
-      <ClzFournisseurs />
-      <VisitVideo />
-      <UniversSection />
-      <PrestationsFilm />
-      <RealisationsTom />
-      <ServiceADomicile />
-      <ZoneSection />
-      <AvisSection />
-      <TemoignagesSection />
-      <FaqSection />
-      <FinalCta />
+      {/* L62 : accent néon alterné rouge/bleu par section ; tubes : fournisseurs + CTA final (+ hero = 3). */}
+      <div className="clz-sec clz-sec-red"><ClzPresentation /></div>
+      <div className="clz-sec clz-sec-blue"><AvantApresSection /></div>
+      <div className="clz-sec clz-sec-red"><PrestationsPreview /></div>
+      <div className="clz-sec clz-sec-blue clz-tube"><ClzFournisseurs /></div>
+      <div className="clz-sec clz-sec-red"><VisitVideo /></div>
+      <div className="clz-sec clz-sec-blue"><UniversSection /></div>
+      <div className="clz-sec clz-sec-red"><PrestationsFilm /></div>
+      <div className="clz-sec clz-sec-blue"><RealisationsTom /></div>
+      <div className="clz-sec clz-sec-red"><ServiceADomicile /></div>
+      <div className="clz-sec clz-sec-blue"><ZoneSection /></div>
+      <div className="clz-sec clz-sec-red"><AvisSection /></div>
+      <div className="clz-sec clz-sec-blue"><TemoignagesSection /></div>
+      <div className="clz-sec clz-sec-red"><FaqSection /></div>
+      <div className="clz-sec clz-sec-blue clz-tube"><FinalCta /></div>
       <ClzReveal />
     </CleanyzerShell>
   )

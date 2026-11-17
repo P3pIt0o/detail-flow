@@ -67,7 +67,7 @@ export function LocalPageAnnecy() {
         </div>
       </section>
 
-      <section className="bg-[var(--clz-surface-2)]">
+      <section>
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-16">
           <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Nos prestations à Annecy</h2>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
