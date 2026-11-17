@@ -15,7 +15,7 @@
  */
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import {
   Check,
   ChevronLeft,

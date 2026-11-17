@@ -6,8 +6,7 @@
  */
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
-import { CLZ_HOME_HREF, CLZ_SITE_BASE } from "./tokens"
+import { useClzBase } from "./clz-link"
 
 /** Chemin de retour sûr : même origine ET sous la base du site, jamais la réservation elle-même. */
 export function clzBackHref(referrer: string, origin: string, base: string): string {
@@ -24,13 +23,15 @@ export function clzBackHref(referrer: string, origin: string, base: string): str
 }
 
 export function ClzBookingBackLink() {
-  const [href, setHref] = useState(CLZ_HOME_HREF)
-  useEffect(() => setHref(clzBackHref(document.referrer, window.location.origin, CLZ_SITE_BASE)), [])
+  // Base de la requête (L60) : l'adresse calculée est déjà finale, d'où le `<a>` direct.
+  const base = useClzBase()
+  const [href, setHref] = useState(base || "/")
+  useEffect(() => setHref(clzBackHref(document.referrer, window.location.origin, base)), [base])
   return (
     <div className="mx-auto max-w-6xl px-4 pt-24 md:pt-28">
-      <Link href={href} className="clz-back-link">
+      <a href={href} className="clz-back-link">
         ← Retour au site
-      </Link>
+      </a>
     </div>
   )
 }

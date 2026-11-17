@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
+import { ClzBaseProvider, ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Fraunces, Inter } from "next/font/google"
@@ -17,7 +17,7 @@ import { ClzContactPill } from "./contact-pill"
 import { BRAND, TRAVEL } from "./content"
 import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "./seo-content"
 import { CLZ_FILM_ANCHOR, CLZ_VISIT_ANCHOR } from "./journey"
-import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, clzPath, type ClzNavItem } from "./tokens"
+import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, CLZ_PREVIEW_BASE, CLZ_SITE_BASE, clzPath, type ClzNavItem } from "./tokens"
 import "./cleanyzer.css"
 
 const LOGO = "/custom-sites/cleanyzer/logo.png"
@@ -48,8 +48,11 @@ export function CleanyzerShell({
   active,
   immersive = false,
   contact = null,
+  base = CLZ_SITE_BASE,
 }: {
   children: ReactNode
+  /** Base des liens internes de la requête (L60, `site-base.ts`) : « » sur le domaine Cleanyzer. */
+  base?: string
   navItems: ClzNavItem[]
   /** Coordonnées réelles (téléphone / e-mail) pour le pied de page (NAP). */
   contact?: ClzContact | null
@@ -154,6 +157,7 @@ export function CleanyzerShell({
   const onBooking = pathname?.replace(/\/$/, "").endsWith("/reservation") ?? false
 
   return (
+    <ClzBaseProvider value={base}>
     <div className={`cleanyzer ${clzDisplay.variable} ${clzSans.variable} min-h-dvh`}>
       {/* En-tête premium compact — masquage/réapparition fluide au scroll. */}
       <header
@@ -287,6 +291,7 @@ export function CleanyzerShell({
         </>
       )}
     </div>
+    </ClzBaseProvider>
   )
 }
 

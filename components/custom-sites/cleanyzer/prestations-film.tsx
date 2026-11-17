@@ -17,12 +17,12 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import Link from "next/link"
+import { ClzLink as Link, useClzBase } from "./clz-link"
 import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
 import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
 import { goFilm, goVisit, noteStep, registerFilm, useJourney } from "./journey-nav"
-import { clzPath } from "./tokens"
+import { clzHref, clzPath } from "./tokens"
 import "./prestations-film.css"
 
 const FILM_BASE = "/custom-sites/cleanyzer/film"
@@ -278,6 +278,7 @@ export function PrestationsFilm() {
   }, [])
 
   const journey = useJourney()
+  const base = useClzBase()
   const o = journey.origin
   const back =
     o?.kind === "visit"
@@ -286,7 +287,7 @@ export function PrestationsFilm() {
           go: () => goVisit(o.zone, { kind: "film", step: STEPS[active].id }),
         }
       : o?.kind === "page"
-        ? { label: "Retour à la prestation", go: () => window.location.assign(clzPath(`/prestations/${o.slug}`)) }
+        ? { label: "Retour à la prestation", go: () => window.location.assign(clzHref(clzPath(`/prestations/${o.slug}`), base)) }
         : null
 
   const chooseVeh = (v: VehicleKey) => {

@@ -4,7 +4,7 @@
  * À propos : « Tom » uniquement (cahier §1) — pas de nom de famille.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { ArrowRight, Check, Quote } from "lucide-react"
 import { BeforeAfterSlider } from "@/components/before-after-slider"

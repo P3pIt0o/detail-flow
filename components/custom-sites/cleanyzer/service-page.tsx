@@ -9,7 +9,7 @@
  * déjà émis par le layout `app/(site)`.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { ArrowRight, Check, MapPin, Clock } from "lucide-react"
 import { SEO_BASE, resolveTenantOrigin, tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
@@ -20,7 +20,8 @@ import {
   LOCAL_BUSINESS_ID_FRAGMENT,
 } from "@/lib/seo/structured-data"
 import { tenantCanonicalHost, tenantCanonicalPathPrefix } from "@/lib/tenant-shared"
-import { CleanyzerShell, type ClzContact } from "./site-shell"
+import { type ClzContact } from "./site-shell"
+import { ClzHostShell as CleanyzerShell } from "./site-base"
 import { PageHero, DirectAnswer } from "./page-primitives"
 import { CleanyzerFaq } from "./faq"
 import { CLZ_SITE_NAV_ITEMS } from "./nav"

@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 import { VEHICLES, type VehicleKey } from "./content"
 import {

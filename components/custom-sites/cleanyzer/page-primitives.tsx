@@ -3,7 +3,7 @@
  * bandeau de titre sombre (dégradé #000 → #0A84FF) + fil d'Ariane.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { ChevronRight } from "lucide-react"
 import { CLZ_PREVIEW_BASE } from "./tokens"

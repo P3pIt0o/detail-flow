@@ -8,7 +8,7 @@
 import "./zone.css"
 import { CleanyzerZoneModule } from "./zone-module"
 import { ZONE_COMMUNES, joinNames } from "./zones"
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, clzPath } from "./tokens"
 import { CLZ_ZONE_PAGE } from "./seo-content"
 

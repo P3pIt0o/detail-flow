@@ -8,6 +8,7 @@
 
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import dynamic from "next/dynamic"
+import { ClzLink } from "./clz-link"
 import { ArrowRight, ChevronDown, MapPin, Search } from "lucide-react"
 import {
   ZONE,
@@ -239,12 +240,12 @@ export function CleanyzerZoneModule({ bookingHref, requestHref }: Props) {
               </p>
             </>
           )}
-          <a className="clz-zp-btn is-primary" href={bookingHref}>
+          <ClzLink className="clz-zp-btn is-primary" href={bookingHref}>
             Réserver un nettoyage auto <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </a>
-          <a className="clz-zp-btn is-ghost" href={requestHref}>
+          </ClzLink>
+          <ClzLink className="clz-zp-btn is-ghost" href={requestHref}>
             Demander un devis textile <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </a>
+          </ClzLink>
           <p className="clz-zp-note">Votre adresse complète vous sera demandée lors de la réservation.</p>
         </div>
 

@@ -3,11 +3,11 @@
  * Contenu fondé sur le cahier. Aucun autre tenant impacté (tout est sous `.cleanyzer`).
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { ArrowRight, ArrowUpRight, Car, Sofa, Clock, Home, Sparkles, ShieldCheck, Star, BadgeCheck } from "lucide-react"
 import { CleanyzerFaq } from "./faq"
-import { BRAND, CLZ_TESTIMONIALS, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS, TRAVEL, verifiedTestimonials } from "./content"
+import { BRAND, CLZ_PARTNERS, CLZ_TESTIMONIALS, INTERIEUR_FORMULAS, EXTERIEUR_FORMULAS, TEXTILE_ITEMS, TRAVEL, partnerHref, verifiedTestimonials, type ClzPartner } from "./content"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, clzPath } from "./tokens"
 import { CLZ_SERVICE_PAGES } from "./seo-content"
 
@@ -274,92 +274,113 @@ export function AProposSection() {
   )
 }
 
+/* L60 : la note Google (5,0 · 92 avis) n'est affichée qu'une fois, en haut de page ; ici titre et bouton seulement. */
 export function AvisSection() {
-  const rating = BRAND.googleRating
-  const count = BRAND.googleReviewCount
   return (
     <section className="bg-[var(--clz-surface-2)]">
       <div className="mx-auto max-w-4xl px-4 py-20 text-center md:px-6 md:py-28">
         <SectionHead eyebrow="Avis clients" title="Ils ont adoré le résultat" center />
-        {/* Preuve sociale Google : note et nombre d'avis lus dans BRAND (content.ts, fiche Google Maps officielle). */}
-        <div className="mx-auto mt-10 inline-flex flex-col items-center gap-4 rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] px-8 py-7 shadow-sm">
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
-            <GoogleGlyph className="h-5 w-5" />
-            Avis Google
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="clz-display text-4xl font-semibold text-[var(--clz-fg)]">
-              {rating?.toLocaleString("fr-FR", { minimumFractionDigits: 1 })}
-            </span>
-            <span className="text-lg text-[var(--clz-muted)]">/ 5</span>
-          </div>
-          <div className="flex" aria-hidden>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className="h-5 w-5 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />
-            ))}
-          </div>
-          <p className="text-sm text-[var(--clz-muted)]">
-            Basé sur <strong className="text-[var(--clz-fg)]">{count} avis</strong> Google
-          </p>
-          {BRAND.googleReviewsUrl && (
-            <a
-              href={BRAND.googleReviewsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="clz-btn clz-btn-primary !px-5 !py-2.5 !text-sm"
-            >
-              Voir les avis Google
-              <span className="sr-only">(nouvel onglet)</span>
-            </a>
-          )}
-        </div>
+        {BRAND.googleReviewsUrl && (
+          <a
+            href={BRAND.googleReviewsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="clz-btn clz-btn-primary mt-10 !px-5 !py-2.5 !text-sm"
+          >
+            Voir les avis Google
+            <span className="sr-only">(nouvel onglet)</span>
+          </a>
+        )}
       </div>
     </section>
   )
 }
 
-/* Témoignages d'entreprises clientes : citations validées par écrit, logos autorisés, sans note.
-   Cartes sombres ; logo dans une pastille claire (traits fins vert foncé du logo Trofeo). Mobile : défilement horizontal
-   accroché, la carte suivante dépasse pour signaler la suite ; ordinateur : 3 colonnes. */
+/* « Ils nous font confiance » (L60) : bande défilante des partenaires (même mécanique que la bande des
+   marques : pause au survol, arrêt si mouvement réduit, copie masquée aux lecteurs d'écran), chaque logo/nom
+   cliquable en nouvel onglet ; dessous, 3 avis Google de professionnels (texte exact, sans JSON-LD). */
+function PartnerItem({ p, copy }: { p: ClzPartner; copy: boolean }) {
+  return (
+    <a
+      className="clz-neon-sup"
+      href={partnerHref(p.name)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${p.name} — ouvrir dans un nouvel onglet`}
+      tabIndex={copy ? -1 : undefined}
+      aria-hidden={copy ? true : undefined}
+    >
+      {p.logo ? (
+        <span className="clz-logo-chip">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={p.logo} alt="" loading="lazy" width={p.w && p.h ? Math.round((32 * p.w) / p.h) : undefined} height={32} style={{ height: 32, width: "auto", maxWidth: "none" }} />
+        </span>
+      ) : (
+        <b>{p.name}</b>
+      )}
+    </a>
+  )
+}
+
 export function TemoignagesSection() {
   const items = verifiedTestimonials(CLZ_TESTIMONIALS)
-  if (items.length === 0) return null
   return (
     <section className="bg-[var(--clz-bg)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <SectionHead eyebrow="Témoignages" title="Ils nous font confiance" center />
-        <ul
-          aria-label="Témoignages d'entreprises clientes"
-          tabIndex={0}
-          className="clz-tem-list -mx-4 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0 md:pb-0"
-        >
-          {items.map((t) => (
-            <li key={t.company} className="w-[82%] shrink-0 snap-start md:w-auto">
-              <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7 md:p-8">
-                {t.logo && (
-                  <div className="clz-logo-chip self-start">
-                    <Image src={t.logo} alt={t.company} width={240} height={56} sizes="240px" className="h-full w-auto max-w-[200px] object-contain" />
-                  </div>
-                )}
-                <span className="clz-rule mt-6" aria-hidden="true" />
-                <blockquote className="clz-display m-0 mt-5 flex-1 text-pretty text-[1.45rem] leading-snug text-[var(--clz-fg)] md:text-[1.6rem]">
-                  « {t.quote} »
-                </blockquote>
-                <figcaption className="mt-6 text-sm font-semibold text-[var(--clz-muted)]">
-                  {t.url ? (
-                    <a href={t.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                      {t.company}
-                      <span className="sr-only"> (nouvel onglet)</span>
-                    </a>
-                  ) : (
-                    t.company
-                  )}
-                </figcaption>
-              </figure>
-            </li>
-          ))}
-        </ul>
       </div>
+      <div className="clz-neon-band" aria-label="Entreprises qui nous font confiance">
+        <div className="clz-neon-marquee">
+          <div className="clz-neon-track">
+            {CLZ_PARTNERS.map((p) => (
+              <PartnerItem key={p.name} p={p} copy={false} />
+            ))}
+            {CLZ_PARTNERS.map((p) => (
+              <PartnerItem key={`${p.name}-copie`} p={p} copy />
+            ))}
+          </div>
+        </div>
+      </div>
+      {items.length > 0 && (
+        <div className="mx-auto max-w-6xl px-4 pb-20 pt-12 md:px-6 md:pb-28">
+          <ul aria-label="Avis Google de professionnels" className="grid gap-6 md:grid-cols-3">
+            {items.map((t) => (
+              <li key={t.company}>
+                <figure className="m-0 flex h-full flex-col rounded-2xl border border-[var(--clz-line)] bg-[var(--clz-surface)] p-7">
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--clz-muted)]">
+                    <GoogleGlyph className="h-5 w-5" />
+                    Avis Google
+                    <span className="sr-only"> : 5 étoiles sur 5</span>
+                  </div>
+                  <div className="mt-2 flex" aria-hidden>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-[var(--clz-gold)] text-[var(--clz-gold)]" />
+                    ))}
+                  </div>
+                  <blockquote className="m-0 mt-4 flex-1 text-pretty leading-relaxed text-[var(--clz-fg)]">« {t.quote} »</blockquote>
+                  <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-muted)]">
+                    <a
+                      href={partnerHref(t.mapsName ?? t.company)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${t.company} — ouvrir dans un nouvel onglet`}
+                      className="inline-flex flex-wrap items-center gap-3"
+                    >
+                      {t.logo && (
+                        <span className="clz-logo-chip">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={t.logo} alt="" loading="lazy" height={28} style={{ height: 28, width: "auto", maxWidth: "none" }} />
+                        </span>
+                      )}
+                      <span>{t.company}</span>
+                    </a>
+                  </figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }

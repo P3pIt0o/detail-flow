@@ -4,7 +4,7 @@
  * Diamond & "Sur devis" → jamais de prix fabriqué : CTA vers la demande adaptée.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import Image from "next/image"
 import { Check, ArrowRight } from "lucide-react"
 import { CleanyzerShell } from "./site-shell"

@@ -7,7 +7,7 @@
  */
 
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
-import { CleanyzerShell } from "./site-shell"
+import { ClzHostShell as CleanyzerShell } from "./site-base"
 import { CleanyzerHero } from "./hero"
 import {
   UniversSection,

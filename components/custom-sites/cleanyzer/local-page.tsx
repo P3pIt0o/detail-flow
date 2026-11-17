@@ -7,7 +7,7 @@
  * jamais des dizaines de pages pauvres. Contenu 100 % fondé sur le cahier.
  */
 
-import Link from "next/link"
+import { ClzLink as Link } from "./clz-link"
 import { ArrowRight, MapPin, Clock, Check } from "lucide-react"
 import { CleanyzerShell } from "./site-shell"
 import { PageHero, DirectAnswer } from "./page-primitives"
