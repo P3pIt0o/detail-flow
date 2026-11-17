@@ -22,7 +22,7 @@ import { ArrowRight } from "lucide-react"
 import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
 import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
 import { goFilm, goVisit, noteStep, registerFilm, useJourney } from "./journey-nav"
-import { clzPath } from "./tokens"
+import { clzHref, clzPath } from "./tokens"
 import "./prestations-film.css"
 
 const FILM_BASE = "/custom-sites/cleanyzer/film"

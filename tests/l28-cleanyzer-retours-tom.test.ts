@@ -9,7 +9,7 @@ import {
   swipeStops,
 } from "@/components/custom-sites/cleanyzer/visit-3d-swipe"
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
-import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
+import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, RS3_PAIR, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
 import { OVERVIEW_ZOOM, TILE_TIMEOUT_MS, labelsToShow, markerHtml, overviewZoom, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
@@ -109,7 +109,7 @@ describe("L28 — comparateur avant/après", () => {
   })
 
   it("avant/après : ISUZU intérieur puis les 3 paires de Tom, grille 2 × 2 sur ordinateur, empilée sur mobile", () => {
-    expect(AVANT_APRES_PAIRS.map((p) => p.before)).toEqual([ISUZU_PAIR.before, "phare-avant-1", "phare-avant-2", "siege-avant"])
+    expect(AVANT_APRES_PAIRS.map((p) => p.before)).toEqual([RS3_PAIR.before, ISUZU_PAIR.before, "phare-avant-1", "phare-avant-2", "siege-avant"])
     expect(ISUZU_PAIR).toMatchObject({ title: "Nettoyage intérieur", detail: "Sièges, tapis, plastiques et recoins", kind: "interieur" })
     expect(pairSrc(ISUZU_PAIR.before)).toBe("/custom-sites/cleanyzer/isuzu-avant.webp")
     const src = read(`${CLZ}/realisations-tom.tsx`)
@@ -130,12 +130,8 @@ describe("L28 — comparateur avant/après", () => {
 })
 
 describe("L28 — témoignages", () => {
-  it("exactement les trois citations validées, mot pour mot", () => {
-    expect(CLZ_TESTIMONIALS.map((t) => [t.company, t.quote])).toEqual([
-      ["Perrin Electric", "Une prestation soignée et un travail de qualité."],
-      ["Trofeo Automobiles", "Un professionnel à la hauteur de nos besoins et de nos attentes."],
-      ["Pinto Maçonnerie", "Un professionnel sérieux, à la hauteur de nos attentes."],
-    ])
+  it("exactement les trois avis Google de la fiche L60 (détail dans l60-partenaires)", () => {
+    expect(CLZ_TESTIMONIALS.map((t) => t.company)).toEqual(["Magasin Perrin", "Brin de Verdure", "Prestige Drive"])
     expect(CLZ_TESTIMONIALS.every((t) => t.verified === true)).toBe(true)
   })
 
@@ -198,23 +194,8 @@ describe("L28 — carte de zone", () => {
 })
 
 describe("L28 avenant — logos, comparateur pleine largeur, carte", () => {
-  it("chaque témoignage a un logo autorisé présent dans public/", () => {
-    expect(CLZ_TESTIMONIALS.map((t) => t.logo)).toEqual([
-      "/custom-sites/cleanyzer/temoignages/perrin-electric.png",
-      "/custom-sites/cleanyzer/temoignages/trofeo-automobiles.png",
-      "/custom-sites/cleanyzer/temoignages/pinto-maconnerie.png",
-    ])
-    for (const t of CLZ_TESTIMONIALS) expect(existsSync(path.join(process.cwd(), "public", t.logo!))).toBe(true)
-  })
-
-  it("témoignages : logo, 3 colonnes sur ordinateur, défilement horizontal accroché sur mobile, sans étoile", () => {
-    const sec = read(`${CLZ}/home-sections.tsx`)
-    const start = sec.indexOf("export function TemoignagesSection")
-    const body = sec.slice(start, sec.indexOf("\n}\n", start))
-    expect(body).toContain("t.logo")
-    expect(body).toContain("snap-x")
-    expect(body).toContain("md:grid-cols-3")
-    expect(body).not.toContain("Star")
+  it("chaque logo de témoignage présent est un fichier de public/", () => {
+    for (const t of CLZ_TESTIMONIALS.filter((x) => x.logo)) expect(existsSync(path.join(process.cwd(), "public", t.logo!))).toBe(true)
   })
 
   it("plus aucun style de comparateur de héros", () => {

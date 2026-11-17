@@ -56,7 +56,7 @@ export const INTERIEUR_FORMULAS: Formula[] = [
     kind: "interieur",
     content:
       "Premium + shampoing et traitement sièges/tapis, désinfection complète, traitement anti-UV plastiques et odeurs tenaces.",
-    prices: { citadine: 115, berline: 135, suv: 160 },
+    prices: { citadine: 115, berline: 135, suv: 165 },
     highlight: "best-seller",
   },
   {
@@ -252,16 +252,35 @@ export type ClzTestimonial = { company: string; quote: string; verified: boolean
 
 const LOGOS = "/custom-sites/cleanyzer/temoignages"
 
+// L60 : trois vrais avis Google de professionnels, recopiés mot pour mot (fiche L60, C). Pas de JSON-LD Review.
+const PARTNER_LOGOS = "/custom-sites/cleanyzer/partenaires"
 export const CLZ_TESTIMONIALS: ClzTestimonial[] = [
-  { company: "Perrin Electric", quote: "Une prestation soignée et un travail de qualité.", verified: true, logo: `${LOGOS}/perrin-electric.png` },
+  { company: "Magasin Perrin", quote: "Travail de pro. Je recommande fortement", verified: true, logo: `${LOGOS}/perrin-electric.png` },
+  { company: "Brin de Verdure", quote: "Un nettoyage parfait à la hauteur de mes attentes", verified: true, logo: `${PARTNER_LOGOS}/brin-de-verdure.webp` },
   {
-    company: "Trofeo Automobiles",
-    quote: "Un professionnel à la hauteur de nos besoins et de nos attentes.",
+    company: "Prestige Drive",
+    quote:
+      "Excellent professionnel, travail sérieux et toujours soigné. Nous avons la chance de collaborer avec Cleanyzer dans le cadre de notre activité chez Prestige Drive, et nous sommes pleinement satisfaits de ce partenariat. Les véhicules sont toujours préparés avec soin, le résultat est impeccable et le service est vraiment à la hauteur. C'est un partenaire de confiance, professionnel, réactif et appliqué. Nous recommandons sans hésitation",
     verified: true,
-    logo: `${LOGOS}/trofeo-automobiles.png`,
   },
-  { company: "Pinto Maçonnerie", quote: "Un professionnel sérieux, à la hauteur de nos attentes.", verified: true, logo: `${LOGOS}/pinto-maconnerie.png` },
 ]
+
+// Partenaires (bande « Ils nous font confiance »). Aucun site connu dans le dépôt : lien = recherche Google Maps
+// du nom + ville, jamais d'adresse inventée. Sans logo fourni : nom en texte.
+export type ClzPartner = { name: string; logo?: string; w?: number; h?: number }
+export const CLZ_PARTNERS: ClzPartner[] = [
+  { name: "Perrin Electric", logo: `${LOGOS}/perrin-electric.png`, w: 629, h: 240 },
+  { name: "Pinto Maçonnerie", logo: `${LOGOS}/pinto-maconnerie.png`, w: 610, h: 168 },
+  { name: "Morel Piscine", logo: `${PARTNER_LOGOS}/morel-piscine.webp` },
+  { name: "Brin de Verdure", logo: `${PARTNER_LOGOS}/brin-de-verdure.webp` },
+  { name: "Peugeot Mouthon", logo: `${PARTNER_LOGOS}/garage-mouthon-peugeot.webp`, w: 200, h: 75 },
+  { name: "Flèche Taxis 74", logo: `${PARTNER_LOGOS}/fleche-taxis-74.webp`, w: 800, h: 331 },
+  { name: "Exutoire Nettoyage" },
+  { name: "Accord Immobilier" },
+  { name: "Prestige Drive" },
+]
+export const partnerHref = (name: string) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} Annecy`)}`
 
 export const verifiedTestimonials = (list: ClzTestimonial[]) =>
   list.filter((t) => t.verified === true && t.company.trim() !== "" && t.quote.trim() !== "")

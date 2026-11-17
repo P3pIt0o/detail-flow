@@ -80,7 +80,18 @@ export const ISUZU_PAIR: ClzPair = {
   kind: "interieur",
 }
 
-export const AVANT_APRES_PAIRS: ClzPair[] = [ISUZU_PAIR, ...PAIRS]
+/** Paire Audi RS3 (L60) : première du slider de l'accueil ; photos 1179×1577 → cadre 3 / 4. */
+export const RS3_PAIR: ClzPair = {
+  before: "/custom-sites/cleanyzer/avant-apres/rs3-avant.webp",
+  after: "/custom-sites/cleanyzer/avant-apres/rs3-apres.webp",
+  altBefore: "Audi RS3 pendant le lavage",
+  altAfter: "Audi RS3 après le lavage",
+  title: "Lavage extérieur",
+  detail: "Audi RS3",
+  kind: "exterieur",
+}
+
+export const AVANT_APRES_PAIRS: ClzPair[] = [RS3_PAIR, ISUZU_PAIR, ...PAIRS]
 
 /** Nom de fichier de `realisations/`, ou chemin absolu (paire ISUZU). */
 export const pairSrc = (name: string) => (name.startsWith("/") ? name : `${BASE}/${name}.webp`)

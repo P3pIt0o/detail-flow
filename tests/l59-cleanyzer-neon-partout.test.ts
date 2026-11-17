@@ -29,7 +29,8 @@ import {
   CLZ_HOME_HREF,
   clzBookingNeon,
   clzPath,
-  clzSiteBase,
+  clzBaseForHost,
+  clzHref,
 } from "@/components/custom-sites/cleanyzer/tokens"
 
 const ROOT = process.cwd()
@@ -215,11 +216,14 @@ describe("C4 — réservation : retour au site, barre flottante absente", () => 
 })
 
 describe("C5 — liens internes sans /p/cleanyzer en production", () => {
-  it("base racine en production seulement ; Preview et local inchangés", () => {
-    expect(clzSiteBase("production")).toBe("")
-    expect(clzSiteBase("preview")).toBe("/p/cleanyzer")
-    expect(clzSiteBase("development")).toBe("/p/cleanyzer")
-    expect(clzSiteBase(undefined)).toBe("/p/cleanyzer")
+  it("base décidée par l'hôte : racine sur le domaine Cleanyzer, /p/cleanyzer ailleurs", () => {
+    for (const h of ["www.cleanyzer.fr", "cleanyzer.fr", "WWW.Cleanyzer.fr:443"]) expect(clzBaseForHost(h), h).toBe("")
+    for (const h of ["x.vercel.app", "localhost:3000", "autre-tenant.fr", "", null, undefined]) {
+      expect(clzBaseForHost(h), String(h)).toBe("/p/cleanyzer")
+    }
+    expect(clzHref("/p/cleanyzer/reservation", "")).toBe("/reservation")
+    expect(clzHref("/p/cleanyzer", "")).toBe("/")
+    expect(clzHref("/p/cleanyzer-autre/x", "")).toBe("/p/cleanyzer-autre/x")
   })
 
   it("chemins : accueil « / », pages à la racine, ancres « /#id »", () => {

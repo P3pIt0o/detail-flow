@@ -265,7 +265,14 @@ describe("Cleanyzer — cohérence des tarifs (barème du site ↔ catalogue d'i
           expect(svc(`${prefix}-diamond`)).toBeUndefined()
           continue
         }
-        expect(svc(`${prefix}-${f.key}`).prices).toEqual(byVehicle(f.prices))
+        // L60 : Excellence intérieur SUV = 165 € sur le site ; le catalogue d'import (donnée) reste à 160 € tant que
+        // Clément n'a pas changé le prix dans l'admin (fiche L60, « Après fusion »). Seul écart toléré.
+        const expected = byVehicle(f.prices)
+        if (prefix === "interieur" && f.key === "excellence") {
+          expect(f.prices.suv).toBe(165)
+          expected[2] = svc("interieur-excellence").prices[2]
+        }
+        expect(svc(`${prefix}-${f.key}`).prices).toEqual(expected)
       }
     }
   })
