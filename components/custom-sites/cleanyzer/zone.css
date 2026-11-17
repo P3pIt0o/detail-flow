@@ -4,7 +4,7 @@
    (ou à coller à la fin de cleanyzer.css)
    ========================================================================== */
 
-.cleanyzer .clz-zone { background: var(--clz-surface-2); color: var(--clz-fg); }
+.cleanyzer .clz-zone { background: transparent; color: var(--clz-fg); }
 .cleanyzer .clz-zone-rule { width: 36px; height: 1px; background: var(--clz-gold); margin-bottom: 14px; }
 .cleanyzer .clz-zone-title {
   font-family: var(--font-clz-display), Georgia, serif;

@@ -131,7 +131,7 @@ function Related({ current }: { current?: string }) {
         ]),
   ]
   return (
-    <section className="bg-[var(--clz-surface-2)]">
+    <section>
       <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-16">
         <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Nos autres prestations à domicile</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -325,7 +325,7 @@ function AutoBody({ kind }: { kind: "interieur" | "exterieur" }) {
   const label = kind === "interieur" ? "intérieur" : "extérieur"
   return (
     <>
-      <section className="bg-[var(--clz-surface-2)]">
+      <section>
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
           <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Formules de nettoyage {label} et tarifs</h2>
           <p className="mt-3 max-w-2xl text-[var(--clz-muted)]">
@@ -381,7 +381,7 @@ function OptiquesBody() {
   const pairs = PAIRS.filter((p) => p.service === "optiques")
   return (
     <>
-      <section className="bg-[var(--clz-surface-2)]">
+      <section>
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
           <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Pourquoi rénover ses phares ?</h2>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -412,7 +412,7 @@ function OptiquesBody() {
       </section>
 
       {pairs.length > 0 && (
-        <section className="bg-[var(--clz-surface-2)]">
+        <section>
           <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
             <span className="clz-eyebrow">Avant / après</span>
             <h2 className="clz-display clz-h2 mt-3 text-[var(--clz-fg)]">
@@ -466,7 +466,7 @@ function OptiquesBody() {
 
 function TextileBody() {
   return (
-    <section className="bg-[var(--clz-surface-2)]">
+    <section>
       <div className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
         <h2 className="clz-display clz-h2 text-[var(--clz-fg)]">Tarifs du nettoyage textile</h2>
         <div className="clz-card mt-8 overflow-hidden bg-[var(--clz-surface)]">

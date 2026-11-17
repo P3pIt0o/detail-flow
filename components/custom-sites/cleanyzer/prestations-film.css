@@ -6,7 +6,7 @@
 /* Fond uni : le dégradé de .clz-dark-strong s'étirerait sur toute la hauteur du film. */
 .cleanyzer .clz-film-root.clz-dark-strong {
   position: relative;
-  background: var(--clz-ink);
+  background: transparent; /* L62 : un seul noir (celui du site), la lueur vient du wrapper de section */
 }
 
 .cleanyzer .clz-film-seg {
@@ -54,7 +54,7 @@
   max-width: 100%;
   border-radius: 28px;
   overflow: hidden;
-  background: #05070d;
+  background: var(--clz-neon-ink);
   box-shadow: 0 0 0 1px var(--clz-line-dark), 0 40px 80px rgba(0, 0, 0, 0.55);
 }
 .cleanyzer .clz-film-frame canvas {
