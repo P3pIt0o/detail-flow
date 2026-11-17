@@ -7,16 +7,18 @@ dans `public/custom-sites/cleanyzer/partenaires/` (voir C). Aperçu obligatoire 
 
 ## A. URGENT — sur www.cleanyzer.fr, aucun bouton ne répond (seule la visite vidéo marche)
 Signalé par Tom le 16/11/2026, surtout sur téléphone. Le site est en ligne : c'est la priorité du lot.
-- [x] Reproduire avec Playwright (téléphone 390×844 ET ordinateur 1280×800) sur un build de `main` : cliquer chaque bouton et
+> **Hypothèse non confirmée, test téléphone à faire (Clément).** Cases A décochées le 17/11/2026 : cause non établie,
+> reproduction non faite. Ne pas dire à Tom (ni ailleurs) que c'est réglé avant ce test.
+- [ ] Reproduire avec Playwright (téléphone 390×844 ET ordinateur 1280×800) sur un build de `main` : cliquer chaque bouton et
   lien de l'accueil (menu, « Voir les prestations et tarifs », « Réserver », cartes prestations, « Réalisations », formules,
   barre flottante Réserver/Appeler/WhatsApp, pied de page) et vérifier la navigation.
-- [x] Trouver l'élément qui intercepte les clics (`document.elementFromPoint` au point cliqué) : piste la plus probable = une
+- [ ] Trouver l'élément qui intercepte les clics (`document.elementFromPoint` au point cliqué) : piste la plus probable = une
   couche plein écran de la visite ou des films (canvas/scène collante, voile, conteneur fixe) qui reste au-dessus du contenu
   ou garde `pointer-events` actifs, ou un gestionnaire de défilement/swipe qui annule les clics (`preventDefault` sur
   touch/click). Corriger la cause, sans désactiver la visite ni les films.
-- [x] Test de non-régression : sur l'accueil rendu, aucun élément plein écran transparent n'est au-dessus des liens hors de la
+- [ ] Test de non-régression : sur l'accueil rendu, aucun élément plein écran transparent n'est au-dessus des liens hors de la
   section visite/films ; les gestionnaires de swipe n'appellent `preventDefault` que dans leur section.
-- [x] Mentionner dans le rapport la cause exacte trouvée.
+- [ ] Mentionner dans le rapport la cause exacte trouvée (non établie : « hypothèse non confirmée, test téléphone à faire »).
 
 ## B. Avant / après
 - [x] Ajouter la paire Audi RS3 (mousse → propre, sous la tente rouge) au slider avant/après, en premier :
@@ -83,6 +85,12 @@ Périmètre réduit après la revue : sortent de L60 et restent à faire dans le
 - les ajouts de landing du 16/11 21h55 (logo seul au chargement, boutons sous le header, barre en fondu, dock tardif).
 Ajoutés à L60 le 17/11/2026 : logo et lien partenaire sur les cartes d'avis, retrait de `L60-medias.zip`, tests C1/D sur
 l'accueil entier, test des liens `/p/cleanyzer` des pages non migrées sur www.cleanyzer.fr (308 sans boucle).
+Reporté aussi (décision de Clément, 17/11/2026) :
+- avis en défilement horizontal accroché (`snap-x`) sur téléphone : les avis restent empilés dans L60, écart validé ;
+- bande des partenaires sur le **même composant** que la bande des fournisseurs (extraction d'un composant partagé, ce qui
+  touche `fournisseurs.tsx` : hors périmètre approuvé, replan nécessaire). Déjà identiques aujourd'hui : mêmes classes CSS
+  (`clz-neon-band/marquee/track/sup`), donc même vitesse, même rendu, même mouvement réduit ; logos cliquables en nouvel onglet.
+Magasin Perrin = même entreprise que Perrin Electric (confirmé par Clément) : logo et lien partenaire conservés.
 Point A : la cause exacte n'est pas établie ; le correctif (liens `<a>` natifs) reste une hypothèse à confirmer par le test
 de Clément sur téléphone avant de dire à Tom que c'est réglé.
 

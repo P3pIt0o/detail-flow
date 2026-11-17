@@ -251,6 +251,25 @@ describe("L60 — accueil entier, D : note Google une seule fois", () => {
   })
 })
 
+describe("L60 — bande partenaires = même mécanique que la bande fournisseurs", () => {
+  it("mêmes classes de bande, une seule animation CSS, mouvement réduit couvert, liens nouvel onglet", () => {
+    for (const f of ["home-sections.tsx", "fournisseurs.tsx"]) {
+      const src = read(`${CLZ}/${f}`)
+      expect(src).toContain('className="clz-neon-band"')
+      expect(src).toContain('className="clz-neon-marquee"')
+      expect(src).toContain('className="clz-neon-track"')
+      expect(src).toContain('"clz-neon-sup"')
+    }
+    const css = read(`${CLZ}/cleanyzer.css`)
+    // aucune animation propre aux partenaires : la piste est partagée
+    expect((css.match(/animation:\s*clz-neon-marq/g) ?? []).length).toBe(1)
+    expect(css).not.toMatch(/partner[^{]*\{[^}]*animation/)
+    const out = html(createElement(TemoignagesSection))
+    expect(out).toContain('class="clz-neon-track"')
+    expect(out.match(/class="clz-neon-sup"[^>]*target="_blank"/g)?.length).toBe(CLZ_PARTNERS.length * 2) // liste + copie masquée
+  })
+})
+
 describe("L60 — avis : logo et lien partenaire sur chaque carte", () => {
   it("chaque avis a un lien Maps nouvel onglet (noopener noreferrer) ; logo quand il existe", () => {
     const out = html(createElement(TemoignagesSection))
