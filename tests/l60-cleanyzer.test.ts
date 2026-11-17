@@ -139,7 +139,7 @@ describe("L60 — partenaires et avis Google (point C)", () => {
     }
     expect(partnerHref("Flèche Taxis 74")).toBe("https://www.google.com/maps/search/?api=1&query=Fl%C3%A8che%20Taxis%2074%20Annecy")
     const anchors = out.match(/<a [^>]*>/g) ?? []
-    expect(anchors.length).toBe(CLZ_PARTNERS.length * 2) // copie du défilement incluse
+    expect(anchors.length).toBe(CLZ_PARTNERS.length * 2 + CLZ_TESTIMONIALS.length) // copie du défilement + liens des avis
     for (const a of anchors) {
       expect(a).toContain('target="_blank"')
       expect(a).toContain('rel="noopener noreferrer"')
@@ -197,5 +197,93 @@ describe("L60 — prix Excellence intérieur SUV (point E)", () => {
     const all = [...INTERIEUR_FORMULAS, ...EXTERIEUR_FORMULAS].flatMap((f) => Object.values(f.prices)).filter((v): v is number => typeof v === "number")
     expect(Math.max(...all)).toBeLessThanOrEqual(165)
     expect(read(`${CLZ}/content.ts`)).not.toMatch(/suv: 160/)
+  })
+})
+
+/* ───────────── L60 (17/11/2026) : accueil entier et pages non migrées ───────────── */
+
+const mode = vi.hoisted(() => ({ base: "" }))
+vi.mock("@/components/custom-sites/cleanyzer/site-base", async () => {
+  const { createElement: h } = await import("react")
+  const { CleanyzerShell } = await import("@/components/custom-sites/cleanyzer/site-shell")
+  return { ClzHostShell: (p: Record<string, unknown>) => h(CleanyzerShell as never, { ...p, base: mode.base }) }
+})
+
+import { CleanyzerHome } from "@/components/custom-sites/cleanyzer/home-page"
+import { publicPageDomainRedirect, parsePublicPagePath } from "@/lib/tenant-shared"
+
+const renderHome = async (base: string) => {
+  mode.base = base
+  return html(await CleanyzerHome({}))
+}
+const hrefs = (out: string) => [...out.matchAll(/<a [^>]*?href="([^"]*)"/g)].map((m) => m[1])
+const isInternal = (h: string) => h.startsWith("/") && !h.startsWith("//")
+
+describe("L60 — accueil entier, C1 : chaque lien mène à sa cible dans les deux modes", () => {
+  it("racine (www.cleanyzer.fr) : aucun lien interne en /p/cleanyzer ; sinon mêmes cibles, préfixées", async () => {
+    const root = hrefs(await renderHome(""))
+    const other = hrefs(await renderHome("/p/cleanyzer"))
+    expect(root.length).toBeGreaterThan(10)
+    expect(root.filter((h) => h.startsWith("/p/cleanyzer"))).toEqual([])
+    expect(root).toEqual(other.map((h) => clzHref(h, "")))
+    expect(other.filter(isInternal).every((h) => h.startsWith("/p/cleanyzer"))).toBe(true)
+    // Liens externes (Maps, WhatsApp, tel:) identiques dans les deux modes.
+    expect(root.filter((h) => !isInternal(h))).toEqual(other.filter((h) => !isInternal(h)))
+  })
+
+  it("aucun href vide ou « # » seul : pas de bouton mort", async () => {
+    for (const b of ["", "/p/cleanyzer"]) expect((await renderHome(b)).match(/href=""|href="#"/g) ?? []).toEqual([])
+  })
+})
+
+describe("L60 — accueil entier, D : note Google une seule fois", () => {
+  it("« 5,0 » et « 92 avis » apparaissent une seule fois sur toute la page", async () => {
+    const text = (await renderHome("")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
+    expect((text.match(/5,0/g) ?? []).length).toBe(1)
+    expect((text.match(/92 avis/g) ?? []).length).toBe(1)
+  })
+
+  it("logo Mouthon jamais affiché au-delà de sa taille réelle (75 px de haut)", async () => {
+    const out = await renderHome("")
+    const tag = out.match(/<img[^>]*garage-mouthon-peugeot\.webp[^>]*>/)?.[0] ?? ""
+    expect(tag).not.toBe("")
+    expect(Number(tag.match(/height:\s*(\d+)px/)?.[1] ?? tag.match(/height="(\d+)"/)?.[1])).toBeLessThanOrEqual(75)
+  })
+})
+
+describe("L60 — avis : logo et lien partenaire sur chaque carte", () => {
+  it("chaque avis a un lien Maps nouvel onglet (noopener noreferrer) ; logo quand il existe", () => {
+    const out = html(createElement(TemoignagesSection))
+    for (const t of CLZ_TESTIMONIALS) {
+      expect(out).toContain(`href="${partnerHref(t.company)}"`)
+      expect(out).toContain(`aria-label="${t.company} — ouvrir dans un nouvel onglet"`)
+      if (t.logo) expect(out).toContain(`src="${t.logo}"`)
+    }
+  })
+})
+
+describe("L60 — pages encore en /p/cleanyzer : leurs liens fonctionnent sur www.cleanyzer.fr", () => {
+  it("chaque lien /p/cleanyzer… est redirigé en une fois vers www.cleanyzer.fr, sans boucle, vers un chemin sans préfixe", async () => {
+    const { RealisationsPage, AProposPage, TarifsPage, FaqPage } = await import("@/components/custom-sites/cleanyzer/pages")
+    const { AutoPrestationView, TextilePrestationView } = await import("@/components/custom-sites/cleanyzer/prestations")
+    const { LocalPageAnnecy } = await import("@/components/custom-sites/cleanyzer/local-page")
+    const { CleanyzerConfigurator } = await import("@/components/custom-sites/cleanyzer/configurator")
+    mode.base = "/p/cleanyzer"
+    const pages = [RealisationsPage, AProposPage, TarifsPage, FaqPage, TextilePrestationView, LocalPageAnnecy, CleanyzerConfigurator]
+    const els = [...pages.map((P) => createElement(P as never)), createElement(AutoPrestationView, { kind: "interieur" } as never), createElement(AutoPrestationView, { kind: "exterieur" } as never)]
+    const links = new Set<string>()
+    for (const el of els) for (const h of hrefs(html(el))) if (h.startsWith("/p/cleanyzer")) links.add(h)
+    expect(links.size).toBeGreaterThan(0)
+    for (const link of links) {
+      const url = new URL(link, "https://www.cleanyzer.fr")
+      const target = publicPageDomainRedirect(url.pathname, url.searchParams, "tenant")
+      expect(target, link).not.toBeNull()
+      const dest = new URL(target!)
+      expect(dest.origin, link).toBe("https://www.cleanyzer.fr")
+      expect(parsePublicPagePath(dest.pathname), `${link} → boucle`).toBeNull()
+      // Page finale : pas de second saut.
+      expect(publicPageDomainRedirect(dest.pathname, dest.searchParams, "tenant"), link).toBeNull()
+      expect(dest.pathname, link).toBe(clzHref(url.pathname, "") === "/" ? "/" : clzHref(url.pathname, ""))
+    }
   })
 })

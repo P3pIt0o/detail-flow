@@ -50,7 +50,7 @@ Signalé par Tom le 16/11/2026, surtout sur téléphone. Le site est en ligne : 
 - [x] **Note Google une seule fois sur tout l'accueil** : la garder dans le haut de page ; dans « Avis clients », retirer le
   « 5,0 / 5 », les étoiles et « Basé sur 92 avis Google », garder le titre et le bouton « Voir les avis Google ». Test sur
   l'accueil entier.
-- [x] **Logos partenaires** : garder leurs couleurs de marque (pas de silhouette blanche) sur une petite pastille claire limitée
+- [ ] *(reporté au lot suivant, décision du 17/11/2026)* **Logos partenaires** : garder leurs couleurs de marque (pas de silhouette blanche) sur une petite pastille claire limitée
   au logo, comme décidé dans L59 ; adapter le test « aucun fond clair » pour autoriser uniquement cette pastille.
 - [x] **Liens sans `/p/cleanyzer` décidés par l'hôte de la requête**, plus par `NEXT_PUBLIC_VERCEL_ENV` : préfixe retiré au rendu
   seulement quand le serveur reconnaît l'hôte comme Cleanyzer (www.cleanyzer.fr et cleanyzer.fr) ; partout ailleurs
@@ -58,14 +58,14 @@ Signalé par Tom le 16/11/2026, surtout sur téléphone. Le site est en ligne : 
   un cas par hôte + rendu des pages dans les deux modes. Aucune variable d'environnement ajoutée.
 
 ## D2. DA plus marquée (Clément, 16/11/2026 soir, après mise en ligne de L59)
-- [x] « Pas assez de néon, il manque de rouge », surtout dans les sliders avant/après et les cartes. Renforcer avec les jetons
+- [ ] *(reporté au lot suivant, décision du 17/11/2026)* « Pas assez de néon, il manque de rouge », surtout dans les sliders avant/après et les cartes. Renforcer avec les jetons
   existants : liseré lumineux bleu → rouge autour des sliders et des cartes, poignée du slider en dégradé bleu → rouge avec
   halo, étiquettes « Avant » (rouge) / « Après » (bleu), lueurs rouges et bleues floues derrière les sections, sur-titres et
   mots d'accent alternant bleu et rouge. Même intensité sur toutes les pages (accueil, prestations, zone, réalisations).
   Contraste AA, mouvement réduit respecté, aucun texte modifié.
 
 ## E. Demandes de Tom (16/11/2026, soir)
-- [x] **Visite : la vidéo de la prestation joue directement dans chaque zone.** En arrivant sur une zone, le film de la
+- [ ] *(reporté au lot suivant, décision du 17/11/2026)* **Visite : la vidéo de la prestation joue directement dans chaque zone.** En arrivant sur une zone, le film de la
   prestation correspondante (bandes de `film/` déjà en place) se lance tout seul dans la zone, sans clic ; le lien
   « Voir la prestation en vidéo » disparaît et devient « Voir la prestation en photo » (les photos avant/après de la zone quand
   elles existent ; sinon pas de lien). Repli inchangé : mouvement réduit / économie de données → image fixe, pas d'autoplay.
@@ -74,6 +74,17 @@ Signalé par Tom le 16/11/2026, surtout sur téléphone. Le site est en ligne : 
   (`content.ts` et partout où ce prix est affiché, JSON-LD compris) ; ne rien inventer pour les autres tailles. Le prix réel de
   la réservation vient de l'admin DetailFlow de Tom : Clément le met à 165 € lui-même (voir « Après fusion »), le lot ne touche
   pas aux données. Test : le site affiche 165 € pour Excellence SUV.
+
+## Reporté au lot suivant — décision de Clément, 17/11/2026
+Périmètre réduit après la revue : sortent de L60 et restent à faire dans le lot suivant :
+- E (film automatique par zone) — le prix SUV 165 € reste dans L60 et est livré ;
+- D2 (DA rouge/néon : tubes, liseré bleu → rouge, mot rouge par titre, icônes FAQ rouges) ;
+- la pastille des logos partenaires (fond transparent + halo) ;
+- les ajouts de landing du 16/11 21h55 (logo seul au chargement, boutons sous le header, barre en fondu, dock tardif).
+Ajoutés à L60 le 17/11/2026 : logo et lien partenaire sur les cartes d'avis, retrait de `L60-medias.zip`, tests C1/D sur
+l'accueil entier, test des liens `/p/cleanyzer` des pages non migrées sur www.cleanyzer.fr (308 sans boucle).
+Point A : la cause exacte n'est pas établie ; le correctif (liens `<a>` natifs) reste une hypothèse à confirmer par le test
+de Clément sur téléphone avant de dire à Tom que c'est réglé.
 
 ## Critères d'acceptation
 - [ ] C1 Test Playwright (ou test de rendu équivalent) : chaque bouton/lien de l'accueil mène à sa cible, sur téléphone et ordinateur.

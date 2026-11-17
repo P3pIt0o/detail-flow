@@ -358,7 +358,23 @@ export function TemoignagesSection() {
                     ))}
                   </div>
                   <blockquote className="m-0 mt-4 flex-1 text-pretty leading-relaxed text-[var(--clz-fg)]">« {t.quote} »</blockquote>
-                  <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-muted)]">{t.company}</figcaption>
+                  <figcaption className="mt-5 text-sm font-semibold text-[var(--clz-muted)]">
+                    <a
+                      href={partnerHref(t.company)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${t.company} — ouvrir dans un nouvel onglet`}
+                      className="inline-flex flex-wrap items-center gap-3"
+                    >
+                      {t.logo && (
+                        <span className="clz-logo-chip">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={t.logo} alt="" loading="lazy" height={28} style={{ height: 28, width: "auto", maxWidth: "none" }} />
+                        </span>
+                      )}
+                      <span>{t.company}</span>
+                    </a>
+                  </figcaption>
                 </figure>
               </li>
             ))}
