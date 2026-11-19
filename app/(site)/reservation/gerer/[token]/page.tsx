@@ -33,7 +33,7 @@ export default async function ManageBookingPage({
   // Jeton invalide ou booking d'un autre tenant : réponse générique, sans fuite.
   if (!data) {
     return (
-      <section className="min-h-[70vh] bg-background py-16">
+      <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
         <div className="mx-auto max-w-lg px-4 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <XCircle className="h-8 w-8 text-muted-foreground" />
@@ -62,7 +62,7 @@ export default async function ManageBookingPage({
   const newBookingHref = withTenant("/reservation", tenant.slug)
 
   return (
-    <section className="min-h-[70vh] bg-background py-16">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-2xl px-4">
         <div className="flex flex-col items-center text-center">
           <div

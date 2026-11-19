@@ -43,7 +43,9 @@ export function Footer({
   // Site tenant → liens du tenant uniquement ; racine DetailFlow → liens statiques.
   const socialSource = socialLinks ?? (tenantSlug ? {} : siteConfig.social)
   const socials = Object.entries(socialSource).filter(([, url]) => Boolean(url))
-  const displayName = brandName || siteConfig.brand.name
+  // Le slogan DetailFlow n'apparaît que hors contexte tenant.
+  const tagline = footerTagline || (brandName || tenantSlug ? "" : siteConfig.brand.tagline)
+  const displayName =brandName || siteConfig.brand.name
 
   return (
     <footer className="border-t border-border/60 bg-card/40">
@@ -52,9 +54,9 @@ export function Footer({
           {/* Marque */}
           <div className="lg:col-span-1">
             <Logo brandName={brandName} logoSrc={logoSrc} href={withTenant("/", tenantSlug)} />
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {footerTagline || siteConfig.brand.tagline}
-            </p>
+            {tagline && (
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{tagline}</p>
+            )}
             {footerText && (
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{footerText}</p>
             )}

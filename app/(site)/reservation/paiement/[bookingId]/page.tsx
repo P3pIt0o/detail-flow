@@ -67,7 +67,7 @@ export default async function PaiementPage({
   const fullAvailable = booking.totalCents >= STRIPE_MIN_CENTS
 
   return (
-    <section className="min-h-[70vh] bg-background py-12">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-2xl px-4">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">

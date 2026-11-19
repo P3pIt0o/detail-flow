@@ -46,7 +46,7 @@ export default async function CustomRequestTokenPage({
   const hasProposal = Boolean(row.proposalTitle) && row.proposalPriceCents != null
 
   return (
-    <section className="min-h-[70vh] bg-background py-16">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-2xl px-4">
         <p className="text-sm text-muted-foreground">{businessName}</p>
         <h1 className="mt-1 text-balance font-serif text-3xl font-bold text-foreground">
