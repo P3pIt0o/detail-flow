@@ -1,7 +1,18 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import sitemap from "@/app/sitemap"
+
+const hostRef = vi.hoisted(() => ({ host: "" }))
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: hostRef.host }) }))
+async function sitemapUrls(...hosts: string[]) {
+  const out: string[] = []
+  for (const h of hosts) {
+    hostRef.host = h
+    out.push(...(await sitemap()).map((e) => e.url))
+  }
+  return out
+}
 import {
   CLZ_OPTIQUES_PRICE,
   CLZ_OPTIQUES_SLUG,
@@ -53,8 +64,8 @@ describe("Cleanyzer — page rénovation des optiques", () => {
     expect(read(`${CLZ}/service-page.tsx`)).toMatch(/page\.kind === "optiques"\) return \[\]/)
   })
 
-  it("présente dans le sitemap sur https://www.cleanyzer.fr, sans /p/cleanyzer", () => {
-    const hits = sitemap().map((e) => e.url).filter((u) => u.includes(CLZ_OPTIQUES_SLUG))
+  it("présente dans le sitemap sur https://www.cleanyzer.fr, sans /p/cleanyzer", async () => {
+    const hits = (await sitemapUrls("www.cleanyzer.fr")).filter((u) => u.includes(CLZ_OPTIQUES_SLUG))
     expect(hits).toEqual([`https://www.cleanyzer.fr/prestations/${CLZ_OPTIQUES_SLUG}`])
   })
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import {
@@ -13,6 +13,17 @@ import {
 import { tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
 import { humanSiteUrl } from "@/lib/admin/public-link"
 import sitemap from "@/app/sitemap"
+
+const hostRef = vi.hoisted(() => ({ host: "" }))
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: hostRef.host }) }))
+async function sitemapUrls(...hosts: string[]) {
+  const out: string[] = []
+  for (const h of hosts) {
+    hostRef.host = h
+    out.push(...(await sitemap()).map((e) => e.url))
+  }
+  return out
+}
 import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
 import { CLZ_SERVICE_PAGES, CLZ_ZONE_PAGE } from "@/components/custom-sites/cleanyzer/seo-content"
 
@@ -85,8 +96,8 @@ describe("L50 C3 — liens, canonique et sitemap sur www.cleanyzer.fr", () => {
     expect(humanSiteUrl("cleanyzer", ROOT)).toBe(CLZ)
   })
 
-  it("sitemap : accueil + prestations + zone sur www.cleanyzer.fr, plus de /p/cleanyzer", () => {
-    const urls = sitemap().map((e) => e.url)
+  it("sitemap : accueil + prestations + zone sur www.cleanyzer.fr, plus de /p/cleanyzer", async () => {
+    const urls = await sitemapUrls("www.cleanyzer.fr")
     const clz = urls.filter((u) => u.startsWith(CLZ))
     expect(clz).toContain(`${CLZ}/`)
     for (const p of CLZ_SERVICE_PAGES) expect(clz).toContain(`${CLZ}/prestations/${p.slug}`)

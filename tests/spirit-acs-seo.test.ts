@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { readFileSync, existsSync } from "node:fs"
 import path from "node:path"
 
@@ -29,6 +29,17 @@ import {
 import { withTenant } from "@/lib/tenant-link"
 import { SPIRIT_SERVICES, SPIRIT_FAQ, getSpiritService } from "@/components/custom-sites/spirit-acs/seo-content"
 import sitemap from "@/app/sitemap"
+
+const hostRef = vi.hoisted(() => ({ host: "" }))
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: hostRef.host }) }))
+async function sitemapUrls(...hosts: string[]) {
+  const out: string[] = []
+  for (const h of hosts) {
+    hostRef.host = h
+    out.push(...(await sitemap()).map((e) => e.url))
+  }
+  return out
+}
 
 const root = process.cwd()
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8")
@@ -391,8 +402,8 @@ describe("SEO — pages légales conservent noindex, follow", () => {
   }
 })
 
-describe("SEO — sitemap tenant-aware", () => {
-  const urls = sitemap().map((e) => e.url)
+describe("SEO — sitemap tenant-aware", async () => {
+  const urls = await sitemapUrls("www.spiritacs.com", "www.cleanyzer.fr", "www.detailflow.fr")
 
   it("Spirit ACS (domaine personnalisé connecté) : URL sur www.spiritacs.com SANS ?tenant=", () => {
     expect(urls).toContain("https://www.spiritacs.com/")

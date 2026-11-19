@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
@@ -14,6 +14,17 @@ import {
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF, clzPath } from "@/components/custom-sites/cleanyzer/tokens"
 import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
 import sitemap from "@/app/sitemap"
+
+const hostRef = vi.hoisted(() => ({ host: "" }))
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: hostRef.host }) }))
+async function sitemapUrls(...hosts: string[]) {
+  const out: string[] = []
+  for (const h of hosts) {
+    hostRef.host = h
+    out.push(...(await sitemap()).map((e) => e.url))
+  }
+  return out
+}
 import {
   CLZ_HOME_META,
   CLZ_PRICES,
@@ -74,8 +85,8 @@ describe("Cleanyzer — URL canoniques sur www.cleanyzer.fr (L50)", () => {
   })
 })
 
-describe("Cleanyzer — sitemap et catalogue", () => {
-  const urls = sitemap().map((e) => e.url)
+describe("Cleanyzer — sitemap et catalogue", async () => {
+  const urls = await sitemapUrls("www.cleanyzer.fr", "www.spiritacs.com", "www.detailflow.fr")
 
   it("mise en ligne : URL Cleanyzer sur www.cleanyzer.fr, jamais /p/ ni ?tenant=", () => {
     expect(urls).toContain(`${BASE}/`)
