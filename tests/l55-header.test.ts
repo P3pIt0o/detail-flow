@@ -39,6 +39,6 @@ describe("L55 — médias du header", () => {
   it("le titre et les boutons restent en HTML", () => {
     expect(h).toMatch(/<h1[^>]*>Nettoyage auto/)
     expect(h).toContain(">CLEANYZER<")
-    expect(h).toContain("Réserver mon nettoyage")
+    expect(h).toMatch(/Réserver<span class="clz-neon-cta-long"> mon nettoyage<\/span>/)
   })
 })

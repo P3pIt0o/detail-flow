@@ -149,10 +149,10 @@ export function CleanyzerHero() {
             <p className="clz-neon-sub">La propreté à l&apos;état pur</p>
             <span className="clz-neon-rule" aria-hidden="true" />
             <h1 className="clz-neon-promise">Nettoyage auto &amp; detailing à domicile, à Annecy et alentours</h1>
-            {/* Masqués jusqu'à 760 px (maquette). */}
+            {/* Sous 760 px (L64) : ancrés en bas du haut de page, au-dessus des métiers, sans recouvrir la voiture ; « Réserver » seul. */}
             <div className="clz-neon-ctas">
               <Link href={CLZ_BOOKING_HREF} className="clz-neon-btn clz-neon-btn-primary">
-                Réserver mon nettoyage
+                Réserver<span className="clz-neon-cta-long"> mon nettoyage</span>
               </Link>
               <Link href={CLZ_TARIFS_HREF} className="clz-neon-btn clz-neon-btn-ghost">
                 Voir les tarifs

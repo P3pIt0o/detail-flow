@@ -148,7 +148,7 @@ describe("haut de page", () => {
   })
 
   it("boutons : Réserver → BookingV2, Voir les tarifs → section des prix", () => {
-    expect(h).toMatch(new RegExp(`href="${CLZ_BOOKING_HREF}"[^>]*>[^<]*Réserver mon nettoyage`))
+    expect(h).toMatch(new RegExp(`href="${CLZ_BOOKING_HREF}"[^>]*>Réserver(<span[^>]*> mon nettoyage</span>)?`))
     expect(h).toMatch(/href="[^"]*#tarifs"[^>]*>[^<]*Voir les tarifs/)
   })
 
