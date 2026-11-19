@@ -46,19 +46,19 @@ describe("L52 — slogan du pied de page", () => {
   it("tenant sans slogan : pas de slogan DetailFlow", async () => {
     const { Footer } = await import("@/components/layout/footer")
     const { siteConfig } = await import("@/config/site")
-    const html = renderToStaticMarkup(createElement(Footer, { brandName: "Mon Studio", tenantSlug: "studio" }))
+    const html = renderToStaticMarkup(Footer({ brandName: "Mon Studio", tenantSlug: "studio" }))
     expect(html).not.toContain(siteConfig.brand.tagline)
   })
   it("tenant avec slogan : le sien", async () => {
     const { Footer } = await import("@/components/layout/footer")
     const html = renderToStaticMarkup(
-      createElement(Footer, { brandName: "Mon Studio", tenantSlug: "studio", footerTagline: "Mon slogan" }),
+      Footer({ brandName: "Mon Studio", tenantSlug: "studio", footerTagline: "Mon slogan" }),
     )
     expect(html).toContain("Mon slogan")
   })
   it("sans tenant : slogan DetailFlow", async () => {
     const { Footer } = await import("@/components/layout/footer")
     const { siteConfig } = await import("@/config/site")
-    expect(renderToStaticMarkup(createElement(Footer))).toContain(siteConfig.brand.tagline)
+    expect(renderToStaticMarkup(Footer())).toContain(siteConfig.brand.tagline)
   })
 })
