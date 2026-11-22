@@ -59,6 +59,15 @@ describe("L66 — visite « zone par zone » en slider partout", () => {
     expect(css).toMatch(/touch-action:\s*pan-y/)
   })
 
+  it("ordinateur : flèches et points en bas (aperçu validé), carte et écran final remontés pour ne pas les chevaucher", () => {
+    const idx = css.indexOf("@media (min-width:761px){")
+    expect(idx).toBeGreaterThan(-1)
+    const desk = css.slice(idx, css.indexOf("}\n}", idx) + 3)
+    expect(desk).toMatch(/\.v3-steps\{[^}]*top:auto[^}]*bottom:/)
+    expect(desk).toMatch(/\.v3-card\{[^}]*bottom:calc\(5\.5rem/)
+    expect(desk).toMatch(/\.v3-final\{[^}]*bottom:calc\(5\.5rem/)
+  })
+
   it("lien vers une zone : on ne fait défiler la page que si la section n'est pas déjà visible", () => {
     // Section entièrement visible : aucun défilement.
     expect(clzNeedsReveal(0, 800, 800)).toBe(false)
@@ -121,7 +130,9 @@ describe("L66 — « Chaque étape, filmée » en slider", () => {
 describe("L66 — haut de page et en-tête", () => {
   it("mobile : les deux boutons du hero ne sont plus masqués, mêmes liens", () => {
     const css = read(`${CLZ}/cleanyzer.css`)
-    const mobile = css.slice(css.indexOf("@media (max-width: 760px) {\n  .cleanyzer .clz-neon-hero"))
+    const start = css.indexOf("@media (max-width: 760px) {\n  .cleanyzer .clz-neon-hero")
+    expect(start).toBeGreaterThan(-1)
+    const mobile = css.slice(start)
     expect(mobile).not.toMatch(/\.clz-neon-ctas \{ display: none; \}/)
     const h = html(createElement(CleanyzerHero))
     expect(h).toContain(`href="${CLZ_BOOKING_HREF}"`)

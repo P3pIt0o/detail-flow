@@ -96,3 +96,9 @@
 .v3-steps ol button::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(200,215,235,.4);transition:width .3s,background .3s}
 .v3-steps ol button[aria-current="step"]::before{width:16px;background:var(--clz-blue)}
 .v3-steps button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}
+/* Ordinateur : flèches et points en bas (aperçu validé L66), la carte et l'écran final remontent au-dessus. */
+@media (min-width:761px){
+  .v3-steps{top:auto;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px))}
+  .v3-card{bottom:calc(5.5rem + env(safe-area-inset-bottom,0px))}
+  .v3-final{bottom:calc(5.5rem + env(safe-area-inset-bottom,0px))}
+}
