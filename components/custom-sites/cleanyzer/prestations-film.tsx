@@ -396,7 +396,7 @@ export function PrestationsFilm() {
         >
           <div className="clz-film-cards">
             {STEPS.map((s, i) => (
-              <article key={s.clip} className={`clz-film-card${i === active ? " is-on" : ""}`} aria-hidden={i !== active}>
+              <article key={s.clip} className={`clz-film-card${i === active ? " is-on" : ""}`} aria-hidden={i !== active} inert={i !== active}>
                 {/* Numéro et rubrique : empilés sur ordinateur, sur une ligne sur téléphone (CSS). */}
                 <div className="clz-film-head">
                   <span className="clz-film-num">

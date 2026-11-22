@@ -20,7 +20,7 @@ import { CLZ_TARIFS_HREF, CleanyzerHero } from "@/components/custom-sites/cleany
 import { PrestationsFilm, FILM_FPS, filmFrameAt } from "@/components/custom-sites/cleanyzer/prestations-film"
 import { CleanyzerShell } from "@/components/custom-sites/cleanyzer/site-shell"
 import { CLZ_SITE_NAV_ITEMS } from "@/components/custom-sites/cleanyzer/nav"
-import { FILM_SEQUENCES } from "@/components/custom-sites/cleanyzer/journey"
+import { FILM_SEQUENCES, filmIndex } from "@/components/custom-sites/cleanyzer/journey"
 import { EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS } from "@/components/custom-sites/cleanyzer/content"
 import { VisitVideo, clzNeedsReveal } from "@/components/custom-sites/cleanyzer/visit-video"
 import { CLZ_BOOKING_HREF, CLZ_DEMANDE_HREF, CLZ_HOME_HREF } from "@/components/custom-sites/cleanyzer/tokens"
@@ -66,6 +66,13 @@ describe("L66 — visite « zone par zone » en slider partout", () => {
     expect(desk).toMatch(/\.v3-steps\{[^}]*top:auto[^}]*bottom:/)
     expect(desk).toMatch(/\.v3-card\{[^}]*bottom:calc\(5\.5rem/)
     expect(desk).toMatch(/\.v3-final\{[^}]*bottom:calc\(5\.5rem/)
+  })
+
+  it("anneau « % de la visite » : rendu, visible sur ordinateur, masqué seulement sur téléphone", () => {
+    expect(html(createElement(VisitVideo))).toContain("% de la visite")
+    const outsideMedia = css.replace(/@media[^{]*\{(?:[^{}]*\{[^}]*\})*\s*\}/g, "")
+    expect(outsideMedia).not.toMatch(/\.v3-ring\{display:none\}/)
+    expect(css).toMatch(/@media \(max-width:760px\)\{\.v3-swipe \.v3-ring\{display:none\}\}/)
   })
 
   it("lien vers une zone : on ne fait défiler la page que si la section n'est pas déjà visible", () => {
@@ -115,6 +122,14 @@ describe("L66 — « Chaque étape, filmée » en slider", () => {
     ]
     for (const p of prices) if (p != null) expect(h).toContain(`${p} €`)
     expect(h).toContain("Sur demande")
+  })
+
+  it("cartes inactives hors du parcours clavier", () => {
+    expect(h.match(/inert=""/g)).toHaveLength(FILM_SEQUENCES.length - 1)
+  })
+
+  it("lien profond vers une étape : chaque identifiant mène à sa propre étape", () => {
+    FILM_SEQUENCES.forEach((s, i) => expect(filmIndex(s.id)).toBe(i))
   })
 
   it("lecture en boucle de la séquence affichée ; image fixe si mouvement réduit", () => {

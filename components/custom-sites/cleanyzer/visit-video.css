@@ -87,7 +87,8 @@
 .v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:rgba(226,232,245,.8)}
 /* Visite par arrêts (L66 : partout), sur un seul écran (plus de défilement long). */
 .v3-swipe .v3-stage{touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.v3-swipe .v3-ring{display:none}
+/* Anneau « % de la visite » gardé sur ordinateur ; masqué sur téléphone, où flèches et points occupent le haut. */
+@media (max-width:760px){.v3-swipe .v3-ring{display:none}}
 .v3-steps{position:absolute;left:50%;top:calc(4.25rem + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:.35rem;background:rgba(7,11,20,.6);border:1px solid rgba(111,182,255,.25);border-radius:999px;padding:.2rem}
 .v3-steps>button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
 .v3-steps>button:disabled{opacity:.3;cursor:default}
