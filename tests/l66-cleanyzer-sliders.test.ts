@@ -156,6 +156,29 @@ describe("L66 — haut de page et en-tête", () => {
     expect(h).toContain("Voir les tarifs")
   })
 
+  it("mobile : les boutons du hero ne chevauchent pas les métiers ni l'avis Google (pire cas 320 px)", () => {
+    const css = read(`${CLZ}/cleanyzer.css`)
+    const start = css.indexOf("@media (max-width: 760px) {\n  .cleanyzer .clz-neon-hero")
+    expect(start).toBeGreaterThan(-1)
+    const mobile = css.slice(start, css.indexOf("\n}", start))
+    const num = (re: RegExp) => {
+      const m = mobile.match(re)
+      expect(m, String(re)).not.toBeNull()
+      return Number(m![1])
+    }
+    // Hauteur minimale garantie du hero mobile, quelle que soit la hauteur d'écran (iPhone SE compris).
+    const heroMin = num(/\.clz-neon-hero \{ height: clamp\((\d+)px/)
+    const copyTop = num(/\.clz-neon-copy \{ top: (\d+)px/)
+    const tradesBottom = num(/\.clz-neon-trades \{[^}]*bottom: calc\((\d+)px/)
+    // Pire cas à 320 px, estimations hautes : titre 96px·0,86, sous-titre 10+24, trait 14+2,
+    // promesse 14 + 3 lignes de 13,5px·1,45, boutons 16 + 2 lignes de 46px + 10 d'écart.
+    const stack = 96 * 0.86 + (10 + 24) + (14 + 2) + (14 + 3 * 13.5 * 1.45) + (16 + 46 + 10 + 46)
+    const ctasBottom = copyTop + stack
+    // Métiers sur 2 lignes au pire (≈ 2 × 18px + 6px d'écart).
+    const tradesTop = heroMin - tradesBottom - 42
+    expect(ctasBottom + 16).toBeLessThanOrEqual(tradesTop)
+  })
+
   it("ordinateur : plus d'onglets ; logo et les deux boutons restent ; pied de page intact", () => {
     nav.pathname = "/p/cleanyzer"
     const h = html(createElement(CleanyzerShell, { navItems: CLZ_SITE_NAV_ITEMS, immersive: true, contact: null, children: "x" }))
