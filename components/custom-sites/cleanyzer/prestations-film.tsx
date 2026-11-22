@@ -1,11 +1,12 @@
 "use client"
 
 /**
- * PRESTATIONS AU DÉFILEMENT — CLEANYZER (scopé `.cleanyzer`, aucun autre tenant).
+ * PRESTATIONS EN IMAGES — CLEANYZER (scopé `.cleanyzer`, aucun autre tenant).
  *
- * Huit étapes (L55) ; chacune fait défiler au scroll une vraie vidéo (découpée
- * en bandes de 8 images 720×1280 dans /public/custom-sites/cleanyzer/film) et
- * affiche la formule réelle qui la comprend.
+ * Huit étapes (L55) ; chacune montre une vraie vidéo (découpée en bandes de 8
+ * images 720×1280 dans /public/custom-sites/cleanyzer/film) et la formule réelle
+ * qui la comprend. L66 : slider (flèches, points, glissement, clavier) ; la vidéo
+ * de l'étape affichée se joue en boucle, la page n'est plus retenue au défilement.
  *
  * DONNÉES : tous les tarifs viennent de `content.ts` (cahier Tom), par clé de
  * formule. Aucun prix n'est écrit dans ce fichier. Prix `null` => « Sur devis ».
@@ -13,24 +14,32 @@
  *
  * PERF : les images ne se chargent que lorsque la section approche de l'écran
  * (aucun impact sur le chargement initial de l'accueil). Sans JS, la première
- * étape reste lisible ; avec prefers-reduced-motion, plus aucune transition.
+ * étape reste lisible ; mouvement réduit / économie de données : image fixe.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ClzLink as Link, useClzBase } from "./clz-link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 import { EXTERIEUR_FORMULAS, EXTERIEUR_OPTIONS, INTERIEUR_FORMULAS, INTERIEUR_OPTIONS, VEHICLES, type Formula, type VehicleKey } from "./content"
 import { CLZ_FILM_ANCHOR, FILM_SEQUENCES, JOURNEY_ZONES, filmIndex, type FilmStepId, type ZoneKey } from "./journey"
 import { goFilm, goVisit, noteStep, registerFilm, useJourney } from "./journey-nav"
 import { clzHref, clzPath } from "./tokens"
+import { clzNeedsReveal, visitIsStill } from "./visit-video"
+import { releaseStop, stepTo } from "./visit-3d-swipe"
 import "./prestations-film.css"
 
 const FILM_BASE = "/custom-sites/cleanyzer/film"
 const FRAME_W = 720
 const FRAME_H = 1280
 const PER_STRIP = 8
-/** Hauteur de défilement par étape (en vh). */
-const STEP_VH = 160
+/** Cadence de lecture en boucle de la vidéo de l'étape affichée (images / s). */
+export const FILM_FPS = 12
+
+/** Image à afficher après `elapsedMs` de lecture en boucle (0 = image fixe si mouvement réduit). */
+export function filmFrameAt(elapsedMs: number, frames: number, still: boolean): number {
+  if (still || frames <= 0 || elapsedMs <= 0) return 0
+  return Math.floor((elapsedMs * FILM_FPS) / 1000) % frames
+}
 
 type Row = { label: string; detail: string; formula?: Formula; fixed?: string }
 type Seq = (typeof FILM_SEQUENCES)[number]
@@ -123,7 +132,16 @@ export function PrestationsFilm() {
   const [active, setActive] = useState(0)
   const sectionRef = useRef<HTMLElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const barsRef = useRef<(HTMLSpanElement | null)[]>([])
+  // Étape affichée, lue par la boucle de lecture sans rendu React.
+  const curRef = useRef(0)
+  const dragRef = useRef<{ id: number; x: number; y: number; active: boolean; lastX: number; lastT: number; vx: number } | null>(null)
+
+  const goStep = (i: number) => {
+    const n = stepTo(i, 0, STEPS.length)
+    curRef.current = n
+    setActive(n)
+    noteStep(STEPS[n].id)
+  }
 
   useEffect(() => {
     try {
@@ -142,11 +160,15 @@ export function PrestationsFilm() {
 
     const strips: Record<string, (HTMLImageElement | undefined)[]> = {}
     for (const s of STEPS) strips[s.clip] = new Array(s.strips)
-    let cur = 0
-    let prog = 0
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+    const still = visitIsStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches, Boolean(conn?.saveData))
     let raf = 0
     let started = false
     let disposed = false
+    let visible = false
+    let shown = -1
+    let lastFrame = -1
+    let t0 = 0
 
     const frameAt = (clip: string, i: number) => {
       const list = strips[clip]
@@ -166,27 +188,27 @@ export function PrestationsFilm() {
       ctx.drawImage(f.img, 0, f.y, FRAME_W, FRAME_H, (W - dw) / 2, (H - dh) / 2, dw, dh)
       ctx.globalAlpha = 1
     }
-    const draw = () => {
-      const s = STEPS[cur]
-      const n = s.strips * PER_STRIP
+    const draw = (frame: number) => {
       ctx.fillStyle = "#05070d"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
-      paint(frameAt(s.clip, Math.min(n - 1, Math.round(prog * (n - 1)))), 1)
-      // Fondu vers l'étape suivante sur les derniers 12 %.
-      if (prog > 0.88 && cur < STEPS.length - 1) paint(frameAt(STEPS[cur + 1].clip, 0), (prog - 0.88) / 0.12)
+      paint(frameAt(STEPS[curRef.current].clip, frame), 1)
     }
 
-    // Chargement progressif, dans l'ordre de lecture, 3 requêtes en parallèle.
-    const queue: [string, number][] = STEPS.flatMap((s) => Array.from({ length: s.strips }, (_, k) => [s.clip, k] as [string, number]))
+    // Chargement progressif, 3 requêtes en parallèle : l'étape affichée d'abord, puis l'ordre des étapes.
+    // Image fixe : seule la première bande de chaque étape.
+    const queue: [string, number][] = STEPS.flatMap((s) =>
+      Array.from({ length: still ? 1 : s.strips }, (_, k) => [s.clip, k] as [string, number]),
+    )
     const loadNext = () => {
-      const q = queue.shift()
-      if (!q || disposed) return
+      if (disposed || !queue.length) return
+      const k = queue.findIndex((x) => x[0] === STEPS[curRef.current].clip)
+      const q = queue.splice(Math.max(0, k), 1)[0]
       const img = new Image()
       img.decoding = "async"
       img.onload = () => {
         if (disposed) return
         strips[q[0]][q[1]] = img
-        if (q[0] === STEPS[cur].clip) draw()
+        lastFrame = -1 // redessine avec la nouvelle bande
         loadNext()
       }
       img.onerror = () => loadNext()
@@ -205,54 +227,52 @@ export function PrestationsFilm() {
       const dpr = Math.min(2, window.devicePixelRatio || 1)
       canvas.width = Math.max(1, Math.round(r.width * dpr))
       canvas.height = Math.max(1, Math.round(r.height * dpr))
-      draw()
+      lastFrame = -1
     }
-    const update = () => {
-      raf = 0
-      const r = section.getBoundingClientRect()
-      const span = section.offsetHeight - window.innerHeight
-      const p = (Math.min(1, Math.max(0, -r.top / Math.max(1, span)))) * STEPS.length
-      const c = Math.min(STEPS.length - 1, Math.floor(p))
-      prog = Math.min(1, p - c)
-      if (c !== cur) {
-        cur = c
-        setActive(c)
-        if (r.top <= 0 && r.bottom >= window.innerHeight) noteStep(STEPS[c].id)
+
+    // Lecture en boucle de l'étape affichée, seulement quand la section est proche de l'écran.
+    const loop = (ts: number) => {
+      raf = requestAnimationFrame(loop)
+      if (!visible) return
+      const c = curRef.current
+      if (c !== shown) {
+        shown = c
+        t0 = ts
+        lastFrame = -1
       }
-      barsRef.current.forEach((b, j) => {
-        if (b) b.style.transform = `scaleX(${j < cur ? 1 : j === cur ? prog : 0})`
-      })
-      draw()
-    }
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update)
-    }
-    const onResize = () => {
-      fit()
-      onScroll()
+      const f = filmFrameAt(ts - t0, STEPS[c].strips * PER_STRIP, still)
+      if (f === lastFrame) return
+      lastFrame = f
+      draw(f)
     }
 
     const io =
       "IntersectionObserver" in window
-        ? new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && start(), { rootMargin: "800px 0px" })
+        ? new IntersectionObserver(
+            (entries) => {
+              visible = entries.some((e) => e.isIntersecting)
+              if (visible) start()
+            },
+            { rootMargin: "800px 0px" },
+          )
         : null
     if (io) io.observe(section)
-    else start()
+    else {
+      visible = true
+      start()
+    }
 
-    window.addEventListener("scroll", onScroll, { passive: true })
-    window.addEventListener("resize", onResize)
+    window.addEventListener("resize", fit)
     fit()
-    update()
+    raf = requestAnimationFrame(loop)
 
-    // Ouvre la séquence exacte (maquette film.js : clzFilmGo, +30 % dans l'étape).
+    // Ouvre la séquence exacte ; la page ne défile que si la section n'est pas déjà à l'écran.
     const unregister = registerFilm((id) => {
       start()
-      const i = Math.max(0, filmIndex(id))
-      const span = section.offsetHeight - window.innerHeight
-      window.scrollTo({
-        top: section.getBoundingClientRect().top + window.scrollY + span * ((i + 0.3) / STEPS.length),
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      })
+      goStep(Math.max(0, filmIndex(id)))
+      const r = section.getBoundingClientRect()
+      if (!clzNeedsReveal(r.top, r.bottom, window.innerHeight)) return
+      section.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
     })
 
     // Lien profond depuis une page de prestation : #video=<étape>&from=<slug> ou #zone=<zone>&from=<slug>.
@@ -271,11 +291,54 @@ export function PrestationsFilm() {
       unregister()
       window.clearTimeout(deepLink)
       io?.disconnect()
-      if (raf) cancelAnimationFrame(raf)
-      window.removeEventListener("scroll", onScroll)
-      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(raf)
+      window.removeEventListener("resize", fit)
     }
   }, [])
+
+  // Glissement horizontal (doigt ou souris) : pris seulement une fois clairement horizontal ; un geste
+  // vertical reste au navigateur (`touch-action: pan-y`). Clavier : flèches gauche / droite.
+  const stageHandlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false, lastX: e.clientX, lastT: e.timeStamp, vx: 0 }
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = dragRef.current
+      if (!d || d.id !== e.pointerId) return
+      const dx = e.clientX - d.x
+      if (!d.active) {
+        if (Math.abs(dx) < 8) return
+        if (Math.abs(e.clientY - d.y) > Math.abs(dx)) {
+          dragRef.current = null
+          return
+        }
+        d.active = true
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* pointeur déjà relâché */
+        }
+      }
+      const dt = e.timeStamp - d.lastT
+      if (dt > 0) d.vx = (e.clientX - d.lastX) / dt
+      d.lastX = e.clientX
+      d.lastT = e.timeStamp
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = dragRef.current
+      dragRef.current = null
+      if (!d?.active) return
+      const next = releaseStop(curRef.current, e.clientX - d.x, e.currentTarget.clientWidth, d.vx, STEPS.length)
+      if (next !== curRef.current) goStep(next)
+    },
+    onPointerCancel: () => {
+      dragRef.current = null
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "ArrowRight") goStep(curRef.current + 1)
+      else if (e.key === "ArrowLeft") goStep(curRef.current - 1)
+    },
+  }
 
   const journey = useJourney()
   const base = useClzBase()
@@ -307,7 +370,7 @@ export function PrestationsFilm() {
           Chaque étape, <span className="clz-accent">filmée chez nos clients</span>
         </h2>
         <p className="mt-4 max-w-2xl text-pretty leading-relaxed text-[var(--clz-on-dark-muted)]">
-          Faites défiler : chaque étape montre une vraie intervention CLEANYZER et la formule qui la comprend.
+          Glissez ou utilisez les flèches : chaque étape montre une vraie intervention CLEANYZER et la formule qui la comprend.
         </p>
         <div className="mt-7 flex flex-wrap items-center gap-3">
           <span id="clz-film-veh" className="text-sm text-[var(--clz-on-dark-muted)]">
@@ -323,13 +386,14 @@ export function PrestationsFilm() {
         </div>
       </div>
 
-      <section
-        ref={sectionRef}
-        className="clz-film"
-        style={{ height: `${STEPS.length * STEP_VH + 100}vh` }}
-        aria-label="Les prestations CLEANYZER en images"
-      >
-        <div className="clz-film-stage">
+      <section ref={sectionRef} className="clz-film" aria-label="Les prestations CLEANYZER en images">
+        <div
+          className="clz-film-stage"
+          tabIndex={0}
+          aria-roledescription="carrousel"
+          aria-label="Étapes filmées : flèches gauche et droite pour changer d'étape"
+          {...stageHandlers}
+        >
           <div className="clz-film-cards">
             {STEPS.map((s, i) => (
               <article key={s.clip} className={`clz-film-card${i === active ? " is-on" : ""}`} aria-hidden={i !== active}>
@@ -381,13 +445,33 @@ export function PrestationsFilm() {
           <div className="clz-film-frame">
             <canvas ref={canvasRef} aria-hidden="true" />
           </div>
-          <div className="clz-film-rail" aria-hidden="true">
-            {STEPS.map((s, i) => (
-              <b key={s.clip}>
-                <span ref={(el) => { barsRef.current[i] = el }} />
-              </b>
-            ))}
-          </div>
+          <nav className="clz-film-nav" aria-label="Étapes du film">
+            <button type="button" className="clz-film-arrow" aria-label="Étape précédente" disabled={active === 0} onClick={() => goStep(active - 1)}>
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <ol>
+              {STEPS.map((s, i) => (
+                <li key={s.clip}>
+                  <button
+                    type="button"
+                    className="clz-film-dot"
+                    aria-label={`Étape ${i + 1} sur ${STEPS.length} : ${s.tag}`}
+                    aria-current={i === active ? "step" : undefined}
+                    onClick={() => goStep(i)}
+                  />
+                </li>
+              ))}
+            </ol>
+            <button
+              type="button"
+              className="clz-film-arrow"
+              aria-label="Étape suivante"
+              disabled={active === STEPS.length - 1}
+              onClick={() => goStep(active + 1)}
+            >
+              <ChevronRight className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </nav>
         </div>
       </section>
     </div>

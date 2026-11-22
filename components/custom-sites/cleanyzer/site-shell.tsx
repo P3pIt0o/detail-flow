@@ -45,7 +45,6 @@ export type ClzContact = { phone: string | null; phoneRaw: string | null; email:
 export function CleanyzerShell({
   children,
   navItems,
-  active,
   immersive = false,
   contact = null,
   base = CLZ_SITE_BASE,
@@ -56,7 +55,7 @@ export function CleanyzerShell({
   navItems: ClzNavItem[]
   /** Coordonnées réelles (téléphone / e-mail) pour le pied de page (NAP). */
   contact?: ClzContact | null
-  /** libellé de la page courante (pour surbrillance éventuelle) */
+  /** libellé de la page courante (plus utilisé depuis L66 : plus d'onglets sur ordinateur) */
   active?: string
   /**
    * En-tête SUPERPOSÉ à un hero vidéo (accueil uniquement) : transparent en
@@ -186,30 +185,7 @@ export function CleanyzerShell({
             <span className="sr-only">{BRAND.name}</span>
           </Link>
 
-          <nav className="hidden items-center gap-7 lg:flex" aria-label="Navigation principale">
-            {navItems.map((item) => {
-              const href = item.href ?? `${CLZ_HOME_HREF}#${item.id}`
-              const isActive = active === item.label
-              return (
-                <Link
-                  key={item.id}
-                  href={href}
-                  className={`text-sm font-medium transition-colors ${
-                    immersive
-                      ? isActive
-                        ? "text-white"
-                        : "text-white/80 hover:text-white"
-                      : isActive
-                        ? "text-[var(--clz-blue)]"
-                        : "text-[var(--clz-fg)] hover:text-[var(--clz-blue)]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
-
+          {/* L66 : plus d'onglets sur ordinateur (demande de Tom) ; ils restent dans le menu mobile et le pied de page. */}
           <div className="hidden items-center gap-2 lg:flex">
             <Link
               href={devisHref}
