@@ -27,3 +27,11 @@ Aperçu visuel avant / après (mobile et ordinateur) : haut de page et section d
 - Captures mobile (390 px) et ordinateur (1440 px) : boutons visibles sur mobile, plus d'onglets sur ordinateur,
   la page défile librement jusqu'en bas, le slider change de zone aux flèches et au doigt.
 - Aucune mention d'IA ni de Claude dans ce qui est visible par le client.
+
+## Décisions de Clément (22/11/2026) — ne pas redemander
+- Les DEUX sections passent en slider, plus aucune section pilotée au défilement :
+  1. la visite « Ce qu'on traite, zone par zone » (visit-video.tsx) passe en slider AUSSI sur ordinateur, comme elle l'est déjà sur mobile ;
+  2. « Chaque étape, filmée » (prestations-film.tsx) passe en slider (flèches, points, glissement, clavier).
+- Hero mobile : afficher les deux boutons du hero tels quels (« Réserver mon nettoyage » et « Voir les tarifs »).
+- Ordinateur : retirer seulement la navigation de l'en-tête ; garder le logo et les deux boutons de l'en-tête.
+- Pour tout le reste : les recommandations du planificateur sont acceptées.
