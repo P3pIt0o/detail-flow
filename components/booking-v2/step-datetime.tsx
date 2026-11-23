@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import useSWR from "swr"
 import { AlertCircle, Car, CheckCircle2, ChevronLeft, ChevronRight, Loader2, MapPin, Store } from "lucide-react"
 import { DEFAULT_LOCATION_LABELS, type LocationType, type PublicLocation } from "@/lib/booking/location-shared"
 import { cn } from "@/lib/utils"
 import { formatKm } from "@/lib/format"
-import { dateWindow, formatPriceCompact, formatSlotLabel, groupSlots } from "@/lib/booking/v2"
-import { computeTravelAction, getAvailabilityRangeAction } from "@/app/(site)/reservation/actions"
+import { dateWindow, formatNextAvailability, formatPriceCompact, formatSlotLabel, groupSlots, nextOffset, prevOffset, windowOffsetFor } from "@/lib/booking/v2"
+import { computeTravelAction, findFirstAvailableDateAction, getAvailabilityRangeAction } from "@/app/(site)/reservation/actions"
 import { TRAVEL_ERRORS } from "@/components/booking/step-contact"
 import type { TravelResult } from "@/lib/booking/types"
 import { SectionLabel, bv2InputClass, bv2LabelClass } from "./step-header"
@@ -103,6 +103,8 @@ export function StepDateTime({
   const [offset, setOffset] = useState(0)
   const [pickedDate, setPickedDate] = useState<string | null>(date)
   const [calculating, setCalculating] = useState(false)
+  const [searchDone, setSearchDone] = useState(false)
+  const [nextDate, setNextDate] = useState<string | null>(null)
 
   const dates = dateWindow(new Date(), offset, WINDOW_DAYS)
   const { data, error, isLoading } = useSWR(
@@ -113,6 +115,25 @@ export function StepDateTime({
 
   const byDate = new Map((data ?? []).map((d) => [d.date, d]))
   const firstAvailable = data?.find((d) => d.available && d.slots.length > 0)?.date ?? null
+
+  // L73 : fenêtre initiale vide → une seule recherche serveur (plafond 180 j) par ouverture.
+  const needsSearch = !searchDone && offset === 0 && durationMin > 0 && !isLoading && !error && data !== undefined && !firstAvailable
+  const { data: found, error: searchError } = useSWR(
+    needsSearch ? ["bv2-first-available", durationMin, vehicleCount] : null,
+    () => findFirstAvailableDateAction(durationMin, vehicleCount),
+    { revalidateOnFocus: false },
+  )
+  useEffect(() => {
+    if (!needsSearch || (found === undefined && !searchError)) return
+    setSearchDone(true)
+    if (found) {
+      setOffset(windowOffsetFor(new Date(), found))
+      setPickedDate(found)
+      setNextDate(found)
+    }
+  }, [needsSearch, found, searchError])
+  const searching = needsSearch && found === undefined && !searchError
+  const nothingFound = searchDone && !nextDate && !firstAvailable && !isLoading && !error
   // Date affichée : choix explicite si visible dans la fenêtre, sinon 1re date disponible (clic évité).
   const activeDate = pickedDate && byDate.has(pickedDate) ? pickedDate : firstAvailable
   const activeDay = activeDate ? byDate.get(activeDate) : undefined
@@ -291,7 +312,7 @@ export function StepDateTime({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => setOffset((o) => Math.max(0, o - WINDOW_DAYS))}
+            onClick={() => setOffset(prevOffset)}
             disabled={offset === 0}
             aria-label="Dates précédentes"
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
@@ -300,7 +321,7 @@ export function StepDateTime({
           </button>
           <button
             type="button"
-            onClick={() => setOffset((o) => o + WINDOW_DAYS)}
+            onClick={() => setOffset(nextOffset)}
             disabled={offset >= 180}
             aria-label="Dates suivantes"
             className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
@@ -348,7 +369,7 @@ export function StepDateTime({
       </div>
 
       <div aria-live="polite">
-        {isLoading ? (
+        {isLoading || searching ? (
           <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             Recherche des disponibilités…
@@ -357,10 +378,13 @@ export function StepDateTime({
           <p className="mt-5 text-sm text-destructive">Impossible de charger les disponibilités. Réessayez.</p>
         ) : !activeDate ? (
           <p className="mt-5 rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-            Aucun créneau disponible sur ces dates. Consultez les dates suivantes.
+            {nothingFound ? "Aucune disponibilité pour le moment." : "Aucun créneau disponible sur ces dates. Consultez les dates suivantes."}
           </p>
         ) : (
           <>
+            {nextDate && (
+              <p className="mt-5 text-sm font-medium text-foreground">{formatNextAvailability(nextDate)}</p>
+            )}
             {renderSlots("MATIN", morning)}
             {renderSlots("APRÈS-MIDI", afternoon)}
           </>

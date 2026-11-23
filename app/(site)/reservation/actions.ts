@@ -27,6 +27,7 @@ import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, normalizePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
 import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
+import { findFirstAvailableDate } from "@/lib/booking/first-available"
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
 import { getLocationConfig, setBookingLocationType, getBookingLocationType } from "@/lib/booking/location"
 import { toPublicLocation, resolveLocationType, type LocationType } from "@/lib/booking/location-shared"
@@ -238,6 +239,14 @@ export async function getAvailabilityAction(dateStr: string, durationMin: number
 export async function getAvailabilityRangeAction(dates: string[], durationMin: number, vehicleCount: number) {
   const safe = (Array.isArray(dates) ? dates : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(0, 14)
   return Promise.all(safe.map((d) => getAvailability(d, durationMin, vehicleCount)))
+}
+
+/**
+ * L73 : première date disponible (plafond 180 jours fixé côté serveur, jamais
+ * fourni par le client). Même moteur `getAvailability`, tenant de la requête.
+ */
+export async function findFirstAvailableDateAction(durationMin: number, vehicleCount: number): Promise<string | null> {
+  return findFirstAvailableDate({ from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
 }
 
 /* -------------------------------------------------------------------------- */
