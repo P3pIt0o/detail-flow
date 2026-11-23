@@ -1,6 +1,8 @@
 /* Visite CLEANYZER en images (L55) — reprise de la maquette visit3d.css (classes v3-* propres à ce tenant). */
-.v3{position:relative;height:700vh;background:transparent;color:var(--clz-on-dark)}
-.v3-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
+/* L66 : slider sur un seul écran partout ; la page n'est plus retenue par la section. */
+.v3{position:relative;height:100vh;height:100svh;background:transparent;color:var(--clz-on-dark)}
+.v3-stage{position:relative;height:100%;overflow:hidden}
+.v3-stage:focus-visible{outline:2px solid var(--clz-blue);outline-offset:-2px}
 #v3-gl{position:absolute;inset:0;width:100%;height:100%;display:block}
 .v3-vig{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(4,5,10,.72) 0%,rgba(4,5,10,0) 46%),linear-gradient(0deg,rgba(4,5,10,.72) 0%,rgba(4,5,10,0) 34%),linear-gradient(180deg,rgba(4,5,10,.6) 0%,rgba(4,5,10,0) 18%)}
 .v3-load{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:#6fb6ff;text-align:center}
@@ -83,10 +85,10 @@
 .v3-zones button:hover{border-color:var(--clz-blue);color:var(--clz-blue)}
 /* Description de zone (zone Optiques). */
 .v3-desc{margin:.25rem 0 .75rem;font-size:.9rem;line-height:1.5;color:rgba(226,232,245,.8)}
-/* Téléphone et repli sans animation : visite par arrêts, sur un seul écran (plus de défilement long). */
-.v3.v3-swipe{height:100vh;height:100svh}
-.v3-swipe .v3-stage{position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.v3-swipe .v3-ring{display:none}
+/* Visite par arrêts (L66 : partout), sur un seul écran (plus de défilement long). */
+.v3-swipe .v3-stage{touch-action:pan-y;-webkit-user-select:none;user-select:none}
+/* Anneau « % de la visite » gardé sur ordinateur ; masqué sur téléphone, où flèches et points occupent le haut. */
+@media (max-width:760px){.v3-swipe .v3-ring{display:none}}
 .v3-steps{position:absolute;left:50%;top:calc(4.25rem + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:.35rem;background:rgba(7,11,20,.6);border:1px solid rgba(111,182,255,.25);border-radius:999px;padding:.2rem}
 .v3-steps>button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
 .v3-steps>button:disabled{opacity:.3;cursor:default}
@@ -95,3 +97,9 @@
 .v3-steps ol button::before{content:"";width:7px;height:7px;border-radius:999px;background:rgba(200,215,235,.4);transition:width .3s,background .3s}
 .v3-steps ol button[aria-current="step"]::before{width:16px;background:var(--clz-blue)}
 .v3-steps button:focus-visible{outline:2px solid var(--clz-blue);outline-offset:2px}
+/* Ordinateur : flèches et points en bas (aperçu validé L66), la carte et l'écran final remontent au-dessus. */
+@media (min-width:761px){
+  .v3-steps{top:auto;bottom:calc(1.25rem + env(safe-area-inset-bottom,0px))}
+  .v3-card{bottom:calc(5.5rem + env(safe-area-inset-bottom,0px))}
+  .v3-final{bottom:calc(5.5rem + env(safe-area-inset-bottom,0px))}
+}

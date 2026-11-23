@@ -431,7 +431,8 @@
   .cleanyzer .clz-neon-sub { font-size: clamp(17px, 5.4vw, 24px); transform-origin: center; }
   .cleanyzer .clz-neon-rule { margin: 14px auto 0; }
   .cleanyzer .clz-neon-promise { margin: 14px auto 0; font-size: 13.5px; max-width: 32ch; color: rgba(242,244,250,.82); }
-  .cleanyzer .clz-neon-ctas { display: none; }
+  /* L66 : les deux boutons restent visibles sous le titre (première vue). */
+  .cleanyzer .clz-neon-ctas { justify-content: center; margin-top: 16px; }
   .cleanyzer .clz-neon-trades { font-size: 10.5px; letter-spacing: .18em; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
   .cleanyzer .clz-neon-trades li + li::before { margin: 0 10px; }
   .cleanyzer .clz-neon-gproof { bottom: calc(42px + env(safe-area-inset-bottom, 0px)); font-size: 11.5px; }

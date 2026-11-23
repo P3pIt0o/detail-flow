@@ -5,8 +5,8 @@
  * panneau de la zone, rail des zones, choix de formule final, liens profonds `#zone=`.
  *
  * Images : `visite-video/{pc,tel}/f_0001…f_0310.webp` (12 i/s) dessinées sur un canvas, comme le
- * film des prestations. Ordinateur : le défilement choisit l'arrêt ; téléphone : glissement.
- * Entre deux arrêts, le trajet est joué en accéléré (~0,6 s) puis l'image s'arrête sur la zone.
+ * film des prestations. L66 : slider partout (flèches, points, glissement, clavier), la page
+ * n'est plus jamais retenue par la section. Entre deux arrêts, le trajet est joué en accéléré (~0,6 s) puis l'image s'arrête sur la zone.
  * Mouvement réduit / économie de données : image fixe de l'arrêt + boutons précédent/suivant.
  * Aucune image au rendu serveur : chargement quand la section approche (arrêts d'abord).
  */
@@ -86,6 +86,15 @@ const stopLabel = (i: number) => {
 const stopOf = (zone: ZoneKey | "final") => (zone === "final" ? LAST : Math.max(0, STOPS.indexOf(KEY_ORDER.indexOf(zone))))
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
+/**
+ * L66 : faut-il amener la section à l'écran (lien vers une zone ou une étape) ? Non si elle est
+ * déjà presque entièrement visible : la page ne bouge pas pour rien.
+ */
+export function clzNeedsReveal(top: number, bottom: number, viewport: number): boolean {
+  const visible = Math.min(bottom, viewport) - Math.max(top, 0)
+  return visible < Math.min(bottom - top, viewport) * 0.85
+}
+
 const FORM_GROUPS: { label: string; side: "int" | "ext" | "both" }[] = [
   { label: "Intérieur", side: "int" },
   { label: "Extérieur", side: "ext" },
@@ -103,11 +112,9 @@ export function VisitVideo() {
   const [stop, setStop] = useState(0)
   const [form, setForm] = useState<FormulaRef>("excellence")
   const [veh, setVeh] = useState<VehicleKey>("citadine")
-  // Téléphone (pointeur tactile) ou repli sans animation : navigation par arrêts.
-  const [steps, setSteps] = useState(false)
   const journey = useJourney()
   // `pos` : arrêt (fractionnaire pendant le geste), lu par la boucle de rendu sans rendu React.
-  const navRef = useRef({ steps: false, pos: 0, stop: 0, dragging: false })
+  const navRef = useRef({ pos: 0, stop: 0, dragging: false })
   const dragRef = useRef<{ id: number; x: number; y: number; active: boolean; lastX: number; lastT: number; vx: number } | null>(null)
 
   const goStop = (i: number) => {
@@ -130,17 +137,11 @@ export function VisitVideo() {
     const section = sectionRef.current
     if (!section) return
     return registerVisit((zone) => {
-      const i = stopOf(zone)
+      goStop(stopOf(zone))
+      const r = section.getBoundingClientRect()
+      if (!clzNeedsReveal(r.top, r.bottom, window.innerHeight)) return
       const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      if (navRef.current.steps) {
-        goStop(i)
-        section.scrollIntoView({ behavior: still ? "auto" : "smooth" })
-        return
-      }
-      window.scrollTo({
-        top: section.getBoundingClientRect().top + window.scrollY + (section.offsetHeight - window.innerHeight) * (i / LAST),
-        behavior: still ? "auto" : "smooth",
-      })
+      section.scrollIntoView({ behavior: still ? "auto" : "smooth" })
     })
   }, [])
 
@@ -152,9 +153,7 @@ export function VisitVideo() {
     const nav = navRef.current
     const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
     const still = visitIsStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches, Boolean(conn?.saveData))
-    // shortcut: pointeur et orientation lus au montage seulement ; suffit tant qu'un appareil n'en change pas.
-    nav.steps = still || window.matchMedia("(pointer: coarse)").matches
-    setSteps(nav.steps)
+    // shortcut: orientation lue au montage seulement ; suffit tant qu'un appareil n'en change pas.
     const set: VisitSet = window.matchMedia("(orientation: portrait)").matches ? "tel" : "pc"
 
     const imgs: (HTMLImageElement | undefined)[] = new Array(VISIT_FRAME_COUNT + 1)
@@ -217,17 +216,6 @@ export function VisitVideo() {
       cv.height = Math.max(1, Math.round(r.height * dpr))
       draw(true)
     }
-    const measure = () => {
-      if (nav.steps) return
-      const r = section.getBoundingClientRect()
-      const i = Math.round(clamp(-r.top / Math.max(1, r.height - window.innerHeight), 0, 1) * LAST)
-      if (i !== nav.stop) {
-        nav.stop = i
-        nav.pos = i
-        setStop(i)
-      }
-    }
-
     const loop = (ts: number) => {
       raf = requestAnimationFrame(loop)
       if (!visible) return
@@ -255,16 +243,13 @@ export function VisitVideo() {
       { rootMargin: "100% 0px" },
     )
     io.observe(section)
-    window.addEventListener("scroll", measure, { passive: true })
     window.addEventListener("resize", fit)
     fit()
-    measure()
     raf = requestAnimationFrame(loop)
     return () => {
       disposed = true
       io.disconnect()
       cancelAnimationFrame(raf)
-      window.removeEventListener("scroll", measure)
       window.removeEventListener("resize", fit)
     }
   }, [])
@@ -283,10 +268,9 @@ export function VisitVideo() {
     }
   }
 
-  // Glissement horizontal (téléphone) : pris seulement une fois clairement horizontal ; un geste
+  // Glissement horizontal (doigt ou souris) : pris seulement une fois clairement horizontal ; un geste
   // vertical reste au navigateur (`touch-action: pan-y`). Les clics restent aux boutons.
-  const swipeHandlers = steps
-    ? {
+  const swipeHandlers = {
         onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
           dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false, lastX: e.clientX, lastT: e.timeStamp, vx: 0 }
         },
@@ -331,7 +315,6 @@ export function VisitVideo() {
           else if (e.key === "ArrowLeft") goStop(stepTo(navRef.current.stop, -1, STOPS.length))
         },
       }
-    : {}
 
   const step = zone ? STEPS.indexOf(zone) : -1
   const z = zone ? JOURNEY_ZONES[zone] : null
@@ -347,10 +330,10 @@ export function VisitVideo() {
     <section
       ref={sectionRef}
       id={CLZ_VISIT_ANCHOR}
-      className={steps ? "v3 v3-swipe" : "v3"}
+      className="v3 v3-swipe"
       aria-label="Visite : ce que chaque formule traite, zone par zone"
     >
-      <div className="v3-stage" {...swipeHandlers}>
+      <div className="v3-stage" tabIndex={0} aria-roledescription="carrousel" aria-label="Zones de la voiture : flèches gauche et droite pour changer de zone" {...swipeHandlers}>
         <canvas ref={canvasRef} id="v3-gl" aria-hidden="true" />
         <div className="v3-vig" />
         {loading && <div className="v3-load">Chargement de la voiture…</div>}
@@ -360,12 +343,12 @@ export function VisitVideo() {
             Ce qu&apos;on traite, <span className="clz-accent">zone par zone.</span>
           </h2>
           <p>
-            {steps ? "Glissez vers la gauche" : "Faites défiler"} : on fait le tour de la voiture, on entre dans l&apos;habitacle, et chaque
+            Glissez ou utilisez les flèches : on fait le tour de la voiture, on entre dans l&apos;habitacle, et chaque
             zone renvoie à la prestation en vidéo.
           </p>
           <div className="row">
             <button className="clz-btn clz-btn-primary" type="button" tabIndex={stop === 0 ? 0 : -1} onClick={() => goVisit("body", null)}>
-              Commencer la visite {steps ? "→" : "↓"}
+              Commencer la visite →
             </button>
             <a className="skip" href="#prestations" tabIndex={stop === 0 ? 0 : -1}>
               Passer la visite
@@ -380,8 +363,7 @@ export function VisitVideo() {
           <b ref={ringValRef}>0</b>
           <small>% de la visite</small>
         </div>
-        {steps && (
-          <nav className="v3-steps" aria-label="Étapes de la visite">
+        <nav className="v3-steps" aria-label="Étapes de la visite">
             <button type="button" aria-label="Étape précédente" disabled={stop === 0} onClick={() => goStop(stepTo(stop, -1, STOPS.length))}>
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -396,7 +378,6 @@ export function VisitVideo() {
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </button>
           </nav>
-        )}
         <ol className="v3-rail" aria-label="Zones de la visite">
           {STEPS.map((k, i) => (
             <li key={k} className={i === step ? "on" : undefined}>

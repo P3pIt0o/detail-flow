@@ -33,12 +33,15 @@
 .cleanyzer .clz-film {
   position: relative;
 }
+/* L66 : slider sur un seul écran (plus de section haute), glissement horizontal sans bloquer la page. */
 .cleanyzer .clz-film-stage {
-  position: sticky;
-  top: 0;
+  position: relative;
   height: 100vh;
   height: 100svh;
   overflow: hidden;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -158,27 +161,72 @@
   margin-top: 4px;
 }
 
-.cleanyzer .clz-film-rail {
+.cleanyzer .clz-film-stage:focus-visible {
+  outline: 2px solid var(--clz-blue);
+  outline-offset: -2px;
+}
+
+/* Flèches et points (même style que la visite). */
+.cleanyzer .clz-film-nav {
   position: absolute;
   left: 1.5rem;
-  bottom: 22px;
+  bottom: 14px;
+  z-index: 3;
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(7, 11, 20, 0.6);
+  border: 1px solid rgba(111, 182, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.2rem;
 }
-.cleanyzer .clz-film-rail b {
-  position: relative;
-  width: 28px;
-  height: 3px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--clz-line-dark);
+.cleanyzer .clz-film-nav ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 2px;
 }
-.cleanyzer .clz-film-rail span {
-  position: absolute;
-  inset: 0;
+.cleanyzer .clz-film-arrow {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.cleanyzer .clz-film-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.cleanyzer .clz-film-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.cleanyzer .clz-film-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(200, 215, 235, 0.4);
+  transition: width 0.3s, background 0.3s;
+}
+.cleanyzer .clz-film-dot[aria-current="step"]::before {
+  width: 16px;
   background: var(--clz-blue);
-  transform-origin: left;
-  transform: scaleX(0);
+}
+.cleanyzer .clz-film-nav button:focus-visible {
+  outline: 2px solid var(--clz-blue);
+  outline-offset: 2px;
 }
 
 /* Avant / après et galerie (realisations-tom.tsx) */
@@ -246,7 +294,7 @@
   .cleanyzer .clz-film-card {
     justify-content: flex-start;
     gap: 7px;
-    padding: 0 16px 40px;
+    padding: 0 16px 62px; /* L66 : place pour les flèches et les points */
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -330,15 +378,16 @@
     font-size: 11.5px;
     flex: none;
   }
-  .cleanyzer .clz-film-rail {
-    left: 16px;
-    bottom: 20px;
-    z-index: 3;
+  .cleanyzer .clz-film-nav {
+    left: 50%;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cleanyzer .clz-film-card {
+  .cleanyzer .clz-film-card,
+  .cleanyzer .clz-film-dot::before {
     transition: none;
   }
 }
