@@ -22,3 +22,7 @@ semaine après semaine sur « suivant » pour arriver au 16 janvier. Il veut que
 ## Vérification
 - Tests : congés jusqu'à J+50 → le calendrier s'ouvre sur J+51 présélectionné ; dispo aujourd'hui → comportement actuel inchangé.
 - Captures mobile et ordinateur. Aucune mention d'IA visible par les clients.
+
+## Décision de Clément (23/11/2026)
+applique toutes les corrections de la contre-expertise (plafond de recherche, test d'isolation entre pros, test de la flèche précédent, risque moyen)
+Ne pas redemander cette décision.
