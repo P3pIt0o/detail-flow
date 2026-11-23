@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/p/cleanyzer" }))
 import { ClzBaseProvider, ClzLink } from "@/components/custom-sites/cleanyzer/clz-link"
 import { CLZ_PARTNERS, CLZ_TESTIMONIALS, EXTERIEUR_FORMULAS, INTERIEUR_FORMULAS, partnerHref } from "@/components/custom-sites/cleanyzer/content"
 import { AvisSection, TemoignagesSection } from "@/components/custom-sites/cleanyzer/home-sections"
-import { AVANT_APRES_PAIRS, PAIRS, RS3_PAIR } from "@/components/custom-sites/cleanyzer/realisations-tom"
+import { AVANT_APRES_PAIRS, PAIRS, RS3_PAIR, TOM_PAIRS } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { clzBaseForHost, clzHref } from "@/components/custom-sites/cleanyzer/tokens"
 
 const ROOT = process.cwd()
@@ -180,7 +180,7 @@ describe("L60 — avant / après RS3 (point B)", () => {
     expect(RS3_PAIR.altBefore).toBe("Audi RS3 pendant le lavage")
     expect(RS3_PAIR.altAfter).toBe("Audi RS3 après le lavage")
     for (const f of [RS3_PAIR.before, RS3_PAIR.after]) expect(existsSync(path.join(ROOT, "public", f))).toBe(true)
-    expect(AVANT_APRES_PAIRS.slice(2)).toEqual(PAIRS)
+    expect(AVANT_APRES_PAIRS.slice(1)).toEqual(TOM_PAIRS)
     expect(PAIRS.map((p) => p.before)).toEqual(["phare-avant-1", "phare-avant-2", "siege-avant"])
   })
 })

@@ -91,7 +91,60 @@ export const RS3_PAIR: ClzPair = {
   kind: "exterieur",
 }
 
-export const AVANT_APRES_PAIRS: ClzPair[] = [RS3_PAIR, ISUZU_PAIR, ...PAIRS]
+const TOM = "/custom-sites/cleanyzer/avant-apres"
+
+/** Vraies paires de Tom (L72) : photos ≈ 1053×1400 → cadre 3 / 4. Sans prix, sans marque, sans détail ajouté. */
+export const TOM_PAIRS: ClzPair[] = [
+  {
+    before: `${TOM}/moteur-avant.webp`,
+    after: `${TOM}/moteur-apres.webp`,
+    altBefore: "Compartiment moteur poussiéreux et terne, capot ouvert, avant nettoyage",
+    altAfter: "Même compartiment moteur propre, plastiques noirs ravivés, après nettoyage",
+    title: "Compartiment moteur",
+    detail: "",
+    kind: "exterieur",
+  },
+  {
+    before: `${TOM}/sieges-tissu-avant.webp`,
+    after: `${TOM}/sieges-tissu-apres.webp`,
+    altBefore: "Siège avant en tissu gris clair couvert d'auréoles et de taches",
+    altAfter: "Même siège en tissu gris clair uniforme, sans taches, après nettoyage",
+    title: "Sièges en tissu : taches",
+    detail: "",
+    kind: "interieur",
+  },
+  {
+    before: `${TOM}/optiques-avant.webp`,
+    after: `${TOM}/optiques-apres.webp`,
+    altBefore: "Phare avant d'un utilitaire gris, opaque et jauni, avant rénovation",
+    altAfter: "Même phare redevenu transparent après rénovation des optiques",
+    title: "Rénovation des optiques",
+    detail: "",
+    kind: "exterieur",
+  },
+  {
+    before: `${TOM}/habitacle-beige-avant.webp`,
+    after: `${TOM}/habitacle-beige-apres.webp`,
+    altBefore: "Habitacle beige : siège conducteur taché et moquette pleine de terre, avant nettoyage",
+    altAfter: "Même habitacle beige : siège et moquette propres après nettoyage complet",
+    title: "Habitacle complet",
+    detail: "",
+    kind: "interieur",
+  },
+  {
+    before: `${TOM}/utilitaire-avant.webp`,
+    after: `${TOM}/utilitaire-apres.webp`,
+    altBefore: "Poste de conduite d'un utilitaire couvert de poussière, tapis boueux et housse de siège usée",
+    altAfter: "Même poste de conduite dépoussiéré, tapis et sièges propres après nettoyage",
+    title: "Utilitaire professionnel",
+    detail: "",
+    kind: "interieur",
+  },
+]
+
+/** Accueil (L72, décision de Clément 23/11/2026) : RS3 en premier puis les 5 paires de Tom.
+    ISUZU_PAIR et PAIRS restent dans le code (PAIRS sert aux pages prestations). */
+export const AVANT_APRES_PAIRS: ClzPair[] = [RS3_PAIR, ...TOM_PAIRS]
 
 /** Nom de fichier de `realisations/`, ou chemin absolu (paire ISUZU). */
 export const pairSrc = (name: string) => (name.startsWith("/") ? name : `${BASE}/${name}.webp`)
@@ -109,7 +162,7 @@ export function ClzPairCard({ pair, showLink = true, sizes }: { pair: ClzPair; s
         sizes={sizes}
       />
       <h3 className="mt-1 font-semibold text-[var(--clz-fg)]">{pair.title}</h3>
-      <p className="text-sm text-[var(--clz-muted)]">{pair.detail}</p>
+      {pair.detail && <p className="text-sm text-[var(--clz-muted)]">{pair.detail}</p>}
       {showLink && pair.link && (
         <Link href={pair.link.href} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--clz-blue)] hover:underline">
           {pair.link.label}

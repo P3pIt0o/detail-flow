@@ -9,7 +9,7 @@ import {
   swipeStops,
 } from "@/components/custom-sites/cleanyzer/visit-3d-swipe"
 import { clampPct } from "@/components/custom-sites/cleanyzer/compare-slider"
-import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, RS3_PAIR, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
+import { AVANT_APRES_PAIRS, ISUZU_PAIR, PAIRS, RS3_PAIR, TOM_PAIRS, pairSrc } from "@/components/custom-sites/cleanyzer/realisations-tom"
 import { CLZ_TESTIMONIALS, verifiedTestimonials } from "@/components/custom-sites/cleanyzer/content"
 import { ZONE } from "@/components/custom-sites/cleanyzer/zones"
 import { OVERVIEW_ZOOM, TILE_TIMEOUT_MS, labelsToShow, markerHtml, overviewZoom, tileFailure, viewFor } from "@/components/custom-sites/cleanyzer/zone-map"
@@ -108,8 +108,9 @@ describe("L28 — comparateur avant/après", () => {
     expect(order.indexOf("RealisationsTom")).toBe(order.indexOf("PrestationsFilm") + 1)
   })
 
-  it("avant/après : ISUZU intérieur puis les 3 paires de Tom, grille 2 × 2 sur ordinateur, empilée sur mobile", () => {
-    expect(AVANT_APRES_PAIRS.map((p) => p.before)).toEqual([RS3_PAIR.before, ISUZU_PAIR.before, "phare-avant-1", "phare-avant-2", "siege-avant"])
+  it("avant/après : RS3 puis les 5 paires de Tom (L72), grille 2 × 2 sur ordinateur, empilée sur mobile", () => {
+    expect(AVANT_APRES_PAIRS.map((p) => p.before)).toEqual([RS3_PAIR.before, ...TOM_PAIRS.map((p) => p.before)])
+    // ISUZU n'est plus affichée à l'accueil (L72) mais reste dans le code.
     expect(ISUZU_PAIR).toMatchObject({ title: "Nettoyage intérieur", detail: "Sièges, tapis, plastiques et recoins", kind: "interieur" })
     expect(pairSrc(ISUZU_PAIR.before)).toBe("/custom-sites/cleanyzer/isuzu-avant.webp")
     const src = read(`${CLZ}/realisations-tom.tsx`)
