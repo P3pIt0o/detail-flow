@@ -40,8 +40,15 @@ describe("L71 — Cleanyzer : boutons du hero plus bas sur mobile", () => {
     for (const h of [heroMin, 743, heroMax]) {
       const ctasTop = h - ctasBottom - stack
       expect(ctasTop, `hero ${h}px`).toBeGreaterThanOrEqual(h * 0.57)
-      // Visible sans défiler : le bas des boutons reste dans le hero.
-      expect(h - ctasBottom).toBeLessThanOrEqual(h)
+    }
+  })
+
+  it("mobile : bas des boutons visible sans défiler sur 360×640 et 390×844", () => {
+    const ctasBottom = num(/\.clz-neon-ctas \{[^}]*position: absolute;[^}]*bottom: calc\((\d+)px/)
+    // Hauteur du hero sur chaque écran (fiche : 600 px sur 360×640, ≈ 743 px sur 390×844).
+    for (const [viewport, hero] of [[640, 600], [844, 743]]) {
+      expect(ctasBottom).toBeGreaterThan(0)
+      expect(hero - ctasBottom, `écran ${viewport}px`).toBeLessThanOrEqual(viewport)
     }
   })
 
