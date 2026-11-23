@@ -35,3 +35,7 @@ Aperçu avant / après de la section en 390 px et 1440 px.
 ## Décision de Clément (23/11/2026)
 garder la paire RS3 en premier et ajouter les 5 nouvelles paires de Tom après (6 paires au total)
 Ne pas redemander cette décision.
+
+## Décision de Clément (23/11/2026)
+accueil uniquement (6 paires, RS3 en premier) ; mettre aussi la paire optiques de Tom sur la page optiques ; garder les autres photos des pages prestations ; n'afficher le paragraphe de description que s'il contient du texte
+Ne pas redemander cette décision.
