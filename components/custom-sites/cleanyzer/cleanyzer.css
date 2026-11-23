@@ -423,16 +423,18 @@
   .cleanyzer .clz-neon-hero { height: clamp(600px, 88svh, 760px); }
   /* L55 : vidéo et poster 720 au format portrait (720×1280) → plein cadre. */
   .cleanyzer .clz-neon-scene { inset: 0; width: 100%; height: 100%; aspect-ratio: auto; transform: none; }
-  .cleanyzer .clz-neon-copy { top: 104px; transform: none; }
-  .cleanyzer .clz-neon-copy::before { inset: -30% -10%; background: radial-gradient(70% 60% at 50% 45%, rgba(3,4,10,.6), transparent 75%); }
+  /* L71 : le bloc couvre tout le hero (titre toujours à 104px) pour ancrer les boutons en bas, sous la voiture. */
+  .cleanyzer .clz-neon-copy { top: 0; bottom: 0; padding-top: 104px; transform: none; }
+  .cleanyzer .clz-neon-copy::before { inset: 0 -10% auto; height: 520px; pointer-events: none; background: radial-gradient(70% 60% at 50% 45%, rgba(3,4,10,.6), transparent 75%); }
   .cleanyzer .clz-neon-copy .clz-neon-wrap { justify-content: center; }
   .cleanyzer .clz-neon-title { text-align: center; }
   .cleanyzer .clz-neon-mega { font-size: clamp(60px, 19vw, 96px); transform-origin: center; }
   .cleanyzer .clz-neon-sub { font-size: clamp(17px, 5.4vw, 24px); transform-origin: center; }
   .cleanyzer .clz-neon-rule { margin: 14px auto 0; }
   .cleanyzer .clz-neon-promise { margin: 14px auto 0; font-size: 13.5px; max-width: 32ch; color: rgba(242,244,250,.82); }
-  /* L66 : les deux boutons restent visibles sous le titre (première vue). */
-  .cleanyzer .clz-neon-ctas { justify-content: center; margin-top: 16px; }
+  /* L66 : les deux boutons restent visibles (première vue). L71 : sous la voiture, juste au-dessus des métiers
+     (bas des métiers 78px + 2 lignes 42px + 20px d'air). */
+  .cleanyzer .clz-neon-ctas { position: absolute; left: 0; right: 0; bottom: calc(140px + env(safe-area-inset-bottom, 0px)); margin-top: 0; padding: 0 16px; justify-content: center; }
   .cleanyzer .clz-neon-trades { font-size: 10.5px; letter-spacing: .18em; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
   .cleanyzer .clz-neon-trades li + li::before { margin: 0 10px; }
   .cleanyzer .clz-neon-gproof { bottom: calc(42px + env(safe-area-inset-bottom, 0px)); font-size: 11.5px; }

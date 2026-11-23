@@ -168,14 +168,18 @@ describe("L66 — haut de page et en-tête", () => {
     }
     // Hauteur minimale garantie du hero mobile, quelle que soit la hauteur d'écran (iPhone SE compris).
     const heroMin = num(/\.clz-neon-hero \{ height: clamp\((\d+)px/)
-    const copyTop = num(/\.clz-neon-copy \{ top: (\d+)px/)
+    // L71 : le titre reste à 104px du haut, les boutons sont ancrés en bas, au-dessus des métiers.
+    const copyTop = num(/\.clz-neon-copy \{[^}]*padding-top: (\d+)px/)
+    const ctasFromBottom = num(/\.clz-neon-ctas \{[^}]*position: absolute;[^}]*bottom: calc\((\d+)px/)
     const tradesBottom = num(/\.clz-neon-trades \{[^}]*bottom: calc\((\d+)px/)
     // Pire cas à 320 px, estimations hautes : titre 96px·0,86, sous-titre 10+24, trait 14+2,
-    // promesse 14 + 3 lignes de 13,5px·1,45, boutons 16 + 2 lignes de 46px + 10 d'écart.
-    const stack = 96 * 0.86 + (10 + 24) + (14 + 2) + (14 + 3 * 13.5 * 1.45) + (16 + 46 + 10 + 46)
-    const ctasBottom = copyTop + stack
+    // promesse 14 + 3 lignes de 13,5px·1,45 ; boutons sur 2 lignes de 46px + 10 d'écart.
+    const titleBottom = copyTop + 96 * 0.86 + (10 + 24) + (14 + 2) + (14 + 3 * 13.5 * 1.45)
+    const ctasTop = heroMin - ctasFromBottom - (46 + 10 + 46)
+    const ctasBottom = heroMin - ctasFromBottom
     // Métiers sur 2 lignes au pire (≈ 2 × 18px + 6px d'écart).
     const tradesTop = heroMin - tradesBottom - 42
+    expect(titleBottom + 16).toBeLessThanOrEqual(ctasTop)
     expect(ctasBottom + 16).toBeLessThanOrEqual(tradesTop)
   })
 
