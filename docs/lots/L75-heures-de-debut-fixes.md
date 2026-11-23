@@ -18,3 +18,7 @@ global (Paramètres → Planning & créneaux), pas d'heures de début précises 
 - Tests : samedi [08:00,13:00] → seulement 8 h et 13 h ; dimanche [08:00] → seulement 8 h ; jour sans option → pas global inchangé ;
   départ fixe occupé ou dans un congé → non proposé.
 - Captures admin + parcours de réservation. Aucune mention d'IA visible par les clients.
+
+## Décision de Clément (23/11/2026)
+applique toutes les corrections de la contre-expertise (filtre par pro à la sauvegarde, lecture tolérante si la colonne n'existe pas encore, captures prévues, tests base séparés)
+Ne pas redemander cette décision.
