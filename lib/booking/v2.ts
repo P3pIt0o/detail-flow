@@ -368,6 +368,37 @@ export function dateWindow(from: Date, offsetDays: number, count: number): strin
   })
 }
 
+const WINDOW = 14
+const MAX_OFFSET = 180
+
+function dayNumber(y: number, m: number, d: number): number {
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000)
+}
+
+/** Décalage de la fenêtre qui COMMENCE au jour `dateKey` (écart exact depuis `from`), entre 0 et 180. */
+export function windowOffsetFor(from: Date, dateKey: string): number {
+  const [y, m, d] = dateKey.split("-").map((n) => Number.parseInt(n, 10))
+  const diff = dayNumber(y, m, d) - dayNumber(from.getFullYear(), from.getMonth() + 1, from.getDate())
+  return Math.min(MAX_OFFSET, Math.max(0, diff))
+}
+
+/** Flèche « précédent » : pas de 14 jours, jamais avant aujourd'hui. */
+export function prevOffset(offset: number): number {
+  return Math.max(0, offset - WINDOW)
+}
+
+/** Flèche « suivant » : pas de 14 jours, désactivée au-delà de 180. */
+export function nextOffset(offset: number): number {
+  return offset >= MAX_OFFSET ? offset : offset + WINDOW
+}
+
+/** « Prochaine disponibilité : jeudi 16 janvier ». */
+export function formatNextAvailability(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map((n) => Number.parseInt(n, 10))
+  const label = new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+  return `Prochaine disponibilité : ${label}`
+}
+
 /** "09:00" → "9h00" (affichage français de la maquette). */
 export function formatSlotLabel(time: string): string {
   const [h, m] = time.split(":")
