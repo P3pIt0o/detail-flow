@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { createElement } from "react"
@@ -62,5 +62,49 @@ describe("L79 — preuve Google en direct", () => {
     expect(read("components/custom-sites/spirit-acs/home-page.tsx")).toMatch(
       /getTenantGoogleRating\(data\.tenant\.id,\s*\{\s*languageCode:\s*"fr"\s*\}\)/,
     )
+  })
+})
+
+// L79 (correction revue métier) : branchement réel Google → hero, sans lecture du source.
+vi.mock("next/font/google", () => {
+  const font = () => ({ className: "", variable: "", style: {} })
+  return { Fraunces: font, Inter: font }
+})
+
+vi.mock("@/lib/reviews/public", () => ({
+  getTenantGoogleRating: vi.fn(async (companyId: number) =>
+    companyId === 7 ? { rating: 4.9, reviewCount: 120 } : null,
+  ),
+}))
+
+type Node = { type?: unknown; props?: { children?: unknown; rating?: number; reviewCount?: number } }
+function findHero(node: unknown): Node | null {
+  if (!node || typeof node !== "object") return null
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findHero(n)
+      if (f) return f
+    }
+    return null
+  }
+  const n = node as Node
+  if (n.type === CleanyzerHero) return n
+  return findHero(n.props?.children)
+}
+
+describe("L79 — CleanyzerHome transmet la valeur Google du tenant au hero", () => {
+  const mk = (id: number) =>
+    ({ tenant: { id }, getContact: async () => null }) as never
+
+  it("tenant relié → hero reçoit 4,9 · 120", async () => {
+    const { CleanyzerHome } = await import("@/components/custom-sites/cleanyzer/home-page")
+    const hero = findHero(await CleanyzerHome({ data: mk(7) }))
+    expect(hero?.props).toMatchObject({ rating: 4.9, reviewCount: 120 })
+  })
+
+  it("autre tenant sans fiche Google → hero reçoit le repli 5 · 96", async () => {
+    const { CleanyzerHome } = await import("@/components/custom-sites/cleanyzer/home-page")
+    const hero = findHero(await CleanyzerHome({ data: mk(8) }))
+    expect(hero?.props).toMatchObject({ rating: 5, reviewCount: 96 })
   })
 })
