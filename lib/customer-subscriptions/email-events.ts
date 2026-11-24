@@ -1,6 +1,7 @@
 import { computeNextBillingAt, type ContractSubscriptionInput } from "./contract-summary"
 import { addBillingInterval, type BillingInterval } from "./dates"
 import { dedupeKeys, enqueueCustomerSubscriptionEmail, type EnqueueInput } from "./email-outbox"
+import { scheduleImmediateEmailDrain } from "./email-drain-now"
 import type { Executor } from "./engine"
 import { installmentAmountAt } from "./rights-period"
 
@@ -16,7 +17,10 @@ import { installmentAmountAt } from "./rights-period"
  */
 export async function enqueueEmailSafely(tx: Executor, input: EnqueueInput, now: Date = new Date()): Promise<{ enqueued: boolean }> {
   try {
-    return await tx.transaction((sp) => enqueueCustomerSubscriptionEmail(sp as unknown as Executor, input, now))
+    const result = await tx.transaction((sp) => enqueueCustomerSubscriptionEmail(sp as unknown as Executor, input, now))
+    // Envoi immédiat après la réponse (L81) ; le cron horaire reste le filet.
+    if (result.enqueued) scheduleImmediateEmailDrain(input.companyId)
+    return result
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String((error as { code: unknown }).code) : "unknown"
     console.log("[customer-subscriptions] email enqueue failed", { type: input.type, code })
