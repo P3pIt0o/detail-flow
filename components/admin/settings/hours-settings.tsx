@@ -7,7 +7,20 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { saveBusinessHours } from "@/app/admin/(dashboard)/parametres/actions"
 
-type Day = { dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }
+type Day = {
+  dayOfWeek: number
+  isOpen: boolean
+  openTime: string
+  closeTime: string
+  /** Heures de début fixes ("08:00,13:00") ; vide/null = pas global. */
+  fixedStartTimes?: string | null
+}
+
+const MAX_STARTS = 12
+
+function toList(v: string | null | undefined): string[] {
+  return v ? v.split(",").filter(Boolean) : []
+}
 
 const DAY_NAMES = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
 // Ordre d'affichage : lundi -> dimanche
@@ -31,7 +44,15 @@ export function HoursSettings({ hours }: { hours: Day[] }) {
   function save() {
     setMsg(null)
     startTransition(async () => {
-      const res = await saveBusinessHours(days)
+      const res = await saveBusinessHours(
+        days.map((d) => ({
+          dayOfWeek: d.dayOfWeek,
+          isOpen: d.isOpen,
+          openTime: d.openTime,
+          closeTime: d.closeTime,
+          fixedStartTimes: d.isOpen ? toList(d.fixedStartTimes).filter((t) => /^\d{2}:\d{2}$/.test(t)) : [],
+        })),
+      )
       setMsg(
         res.ok
           ? { type: "ok", text: "Horaires enregistrés." }
@@ -83,6 +104,71 @@ export function HoursSettings({ hours }: { hours: Day[] }) {
               </div>
             ) : (
               <span className="text-sm text-muted-foreground">Fermé</span>
+            )}
+            {d.isOpen && (
+              <div className="basis-full space-y-2 border-t pt-3">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={toList(d.fixedStartTimes).length > 0}
+                    onCheckedChange={(v) =>
+                      update(d.dayOfWeek, { fixedStartTimes: v ? d.openTime : null })
+                    }
+                    aria-label={`Heures de début fixes le ${DAY_NAMES[d.dayOfWeek]}`}
+                  />
+                  <span className="text-sm">Heures de début fixes</span>
+                </div>
+                {toList(d.fixedStartTimes).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground text-pretty">
+                      Seules ces heures de début seront proposées ce jour-là. Sans cette option, le
+                      pas de réservation habituel s&apos;applique.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {toList(d.fixedStartTimes).map((t, i, arr) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <Input
+                            type="time"
+                            value={t}
+                            onChange={(e) => {
+                              const next = [...arr]
+                              next[i] = e.target.value
+                              update(d.dayOfWeek, { fixedStartTimes: next.join(",") })
+                            }}
+                            className="w-32"
+                            aria-label={`Heure de début ${i + 1} ${DAY_NAMES[d.dayOfWeek]}`}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const next = arr.filter((_, j) => j !== i)
+                              update(d.dayOfWeek, { fixedStartTimes: next.join(",") || null })
+                            }}
+                            aria-label={`Retirer l'heure ${t}`}
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      ))}
+                      {toList(d.fixedStartTimes).length < MAX_STARTS && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            update(d.dayOfWeek, {
+                              fixedStartTimes: [...toList(d.fixedStartTimes), d.openTime].join(","),
+                            })
+                          }
+                        >
+                          + Ajouter une heure
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ))}

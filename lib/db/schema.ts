@@ -793,6 +793,8 @@ export const businessHours = pgTable(
     isOpen: boolean("isOpen").notNull().default(true),
     openTime: text("openTime").notNull().default("09:00"),
     closeTime: text("closeTime").notNull().default("18:00"),
+    // Heures de début fixes du jour ("08:00,13:00"). NULL = pas global (slotIntervalMin).
+    fixedStartTimes: text("fixedStartTimes"),
   },
   (t) => ({
     byCompany: index("business_hours_companyId_idx").on(t.companyId),

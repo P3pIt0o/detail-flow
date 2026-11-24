@@ -191,11 +191,42 @@ export async function getPriceFor(serviceId: number, vehicleTypeId: number, comp
 /** Horaires d'ouverture par jour de la semaine. */
 export async function getBusinessHours(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
-  return db
-    .select()
+  // Colonnes historiques explicites : fonctionne même si `fixedStartTimes` n'existe pas encore.
+  const rows = await db
+    .select({
+      id: businessHours.id,
+      companyId: businessHours.companyId,
+      dayOfWeek: businessHours.dayOfWeek,
+      isOpen: businessHours.isOpen,
+      openTime: businessHours.openTime,
+      closeTime: businessHours.closeTime,
+    })
     .from(businessHours)
     .where(eq(businessHours.companyId, cid))
     .orderBy(asc(businessHours.dayOfWeek))
+
+  // Heures fixes : seconde requête protégée (colonne absente avant migration => ignorées).
+  let fixed = new Map<number, string | null>()
+  try {
+    const f = await db
+      .select({ dayOfWeek: businessHours.dayOfWeek, fixedStartTimes: businessHours.fixedStartTimes })
+      .from(businessHours)
+      .where(eq(businessHours.companyId, cid))
+    fixed = new Map(f.map((r) => [r.dayOfWeek, r.fixedStartTimes]))
+  } catch (err) {
+    if (!isUndefinedColumnError(err)) throw err
+  }
+  return rows.map((r) => ({ ...r, fixedStartTimes: fixed.get(r.dayOfWeek) ?? null }))
+}
+
+/** Erreur Postgres 42703 (colonne inexistante), éventuellement enveloppée par Drizzle. */
+function isUndefinedColumnError(err: unknown): boolean {
+  let e: unknown = err
+  for (let i = 0; i < 3 && e && typeof e === "object"; i++) {
+    if ((e as { code?: unknown }).code === "42703") return true
+    e = (e as { cause?: unknown }).cause
+  }
+  return false
 }
 
 /** Périodes bloquées (vacances / indisponibilités). */
