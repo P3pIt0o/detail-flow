@@ -27,7 +27,7 @@ import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, normalizePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
 import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
-import { findFirstAvailableDate } from "@/lib/booking/first-available"
+import { createFirstAvailableCache, isValidSearch } from "@/lib/booking/first-available"
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
 import { getLocationConfig, setBookingLocationType, getBookingLocationType } from "@/lib/booking/location"
 import { toPublicLocation, resolveLocationType, type LocationType } from "@/lib/booking/location-shared"
@@ -245,8 +245,14 @@ export async function getAvailabilityRangeAction(dates: string[], durationMin: n
  * L73 : première date disponible (plafond 180 jours fixé côté serveur, jamais
  * fourni par le client). Même moteur `getAvailability`, tenant de la requête.
  */
+const firstAvailableCache = createFirstAvailableCache()
+
 export async function findFirstAvailableDateAction(durationMin: number, vehicleCount: number): Promise<string | null> {
-  return findFirstAvailableDate({ from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
+  if (!isValidSearch(durationMin, vehicleCount)) return null
+  // Tenant de la requête publique (jamais fourni par le client) : sert de clé à la mémoire courte.
+  const tenant = await resolveRequestTenant()
+  if (!tenant) return null
+  return firstAvailableCache.run(tenant.id, { from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
 }
 
 /* -------------------------------------------------------------------------- */

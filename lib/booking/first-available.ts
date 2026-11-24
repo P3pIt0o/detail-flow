@@ -37,6 +37,41 @@ export function isValidSearch(durationMin: unknown, vehicleCount: unknown): bool
   )
 }
 
+/** Durée de vie du résultat mémorisé (limite la charge d'une action publique relancée en boucle). */
+export const SEARCH_CACHE_TTL_MS = 60_000
+const SEARCH_CACHE_MAX_ENTRIES = 500
+
+type CacheEntry = { at: number; promise: Promise<string | null> }
+
+/**
+ * Mémoire courte PAR PROFESSIONNEL : la clé contient toujours le tenant, la date du jour
+ * et les paramètres. Les appels simultanés identiques partagent la même recherche.
+ * Un échec n'est jamais mémorisé.
+ */
+export function createFirstAvailableCache(now: () => number = Date.now) {
+  const entries = new Map<string, CacheEntry>()
+  return {
+    size: () => entries.size,
+    run(tenantId: string, input: FirstAvailableInput): Promise<string | null> {
+      const today = dateWindow(input.from, 0, 1)[0]
+      const key = `${tenantId}|${today}|${input.durationMin}|${input.vehicleCount}`
+      const t = now()
+      const hit = entries.get(key)
+      if (hit && t - hit.at < SEARCH_CACHE_TTL_MS) return hit.promise
+      if (entries.size >= SEARCH_CACHE_MAX_ENTRIES) {
+        for (const [k, v] of entries) if (t - v.at >= SEARCH_CACHE_TTL_MS) entries.delete(k)
+        if (entries.size >= SEARCH_CACHE_MAX_ENTRIES) entries.clear()
+      }
+      const promise = findFirstAvailableDate(input)
+      entries.set(key, { at: t, promise })
+      promise.catch(() => {
+        if (entries.get(key)?.promise === promise) entries.delete(key)
+      })
+      return promise
+    },
+  }
+}
+
 /** Première date (YYYY-MM-DD) avec au moins un créneau dans les 180 prochains jours, sinon null. */
 export async function findFirstAvailableDate({ from, durationMin, vehicleCount, getDay }: FirstAvailableInput): Promise<string | null> {
   if (!isValidSearch(durationMin, vehicleCount)) return null

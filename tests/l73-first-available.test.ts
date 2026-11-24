@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { findFirstAvailableDate, SEARCH_CONCURRENCY, SEARCH_MAX_DAYS, type DayLike } from "@/lib/booking/first-available"
+import { createFirstAvailableCache, findFirstAvailableDate, SEARCH_CACHE_TTL_MS, SEARCH_CONCURRENCY, SEARCH_MAX_DAYS, type DayLike } from "@/lib/booking/first-available"
 import { dateWindow, formatNextAvailability, nextOffset, prevOffset, windowOffsetFor } from "@/lib/booking/v2"
 
 const FROM = new Date(2026, 10, 23) // 23/11/2026
@@ -78,6 +78,53 @@ describe("L73 — première date disponible", () => {
     expect([a, a2]).toEqual([keyAt(51), keyAt(51)])
     expect([b, b2]).toEqual([keyAt(1), keyAt(1)])
     expect(proB.mock.calls.every((c) => c[0] < keyAt(14))).toBe(true)
+  })
+})
+
+describe("L73 — mémoire courte par pro (limite de charge)", () => {
+  const input = (getDay: ReturnType<typeof pro>, durationMin = 60) => ({ from: FROM, durationMin, vehicleCount: 1, getDay })
+
+  it("même pro, mêmes paramètres : une seule recherche (appels simultanés et répétés)", async () => {
+    const cache = createFirstAvailableCache(() => 1000)
+    const proA = pro(keyAt(51))
+    const res = await Promise.all([cache.run("A", input(proA)), cache.run("A", input(proA)), cache.run("A", input(proA))])
+    expect(res).toEqual([keyAt(51), keyAt(51), keyAt(51)])
+    const calls = proA.mock.calls.length
+    await cache.run("A", input(proA))
+    expect(proA.mock.calls.length).toBe(calls)
+  })
+
+  it("isolation : le pro B ne reçoit jamais le résultat mémorisé du pro A", async () => {
+    const cache = createFirstAvailableCache(() => 1000)
+    const proA = pro(keyAt(51))
+    const proB = pro(keyAt(1))
+    expect(await cache.run("A", input(proA))).toBe(keyAt(51))
+    expect(await cache.run("B", input(proB))).toBe(keyAt(1))
+    expect(await cache.run("A", input(proA))).toBe(keyAt(51))
+    expect(await cache.run("B", input(proB))).toBe(keyAt(1))
+    expect(proB.mock.calls.every((c) => c[0] < keyAt(14))).toBe(true)
+  })
+
+  it("paramètres différents ou mémoire expirée : nouvelle recherche", async () => {
+    let t = 0
+    const cache = createFirstAvailableCache(() => t)
+    const proA = pro(keyAt(2))
+    await cache.run("A", input(proA, 60))
+    const n1 = proA.mock.calls.length
+    await cache.run("A", input(proA, 90))
+    expect(proA.mock.calls.length).toBeGreaterThan(n1)
+    const n2 = proA.mock.calls.length
+    t = SEARCH_CACHE_TTL_MS + 1
+    await cache.run("A", input(proA, 60))
+    expect(proA.mock.calls.length).toBeGreaterThan(n2)
+  })
+
+  it("un échec n'est pas mémorisé", async () => {
+    const cache = createFirstAvailableCache(() => 1000)
+    const boom = vi.fn(async (): Promise<DayLike> => { throw new Error("bdd") })
+    await expect(cache.run("A", { from: FROM, durationMin: 60, vehicleCount: 1, getDay: boom })).rejects.toThrow()
+    await Promise.resolve()
+    expect(cache.size()).toBe(0)
   })
 })
 
