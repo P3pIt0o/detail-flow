@@ -11,6 +11,9 @@ export const SEARCH_MAX_DAYS = 180
 /** Taille d'un paquet de jours examinés (une fenêtre de l'écran). */
 export const SEARCH_PACK_DAYS = 14
 
+/** Jours examinés en parallèle au maximum. */
+export const SEARCH_CONCURRENCY = 4
+
 export type DayLike = { date: string; available: boolean; slots: string[] }
 
 export type FirstAvailableInput = {
@@ -40,9 +43,12 @@ export async function findFirstAvailableDate({ from, durationMin, vehicleCount, 
   for (let offset = 0; offset < SEARCH_MAX_DAYS; offset += SEARCH_PACK_DAYS) {
     const count = Math.min(SEARCH_PACK_DAYS, SEARCH_MAX_DAYS - offset)
     const dates = dateWindow(from, offset, count)
-    const days = await Promise.all(dates.map((d) => getDay(d, durationMin, vehicleCount)))
-    const hit = days.find((d) => d.available && d.slots.length > 0)
-    if (hit) return hit.date
+    // Au plus SEARCH_CONCURRENCY jours en parallèle (5 requêtes BDD chacun) : ne sature pas le pool partagé.
+    for (let i = 0; i < dates.length; i += SEARCH_CONCURRENCY) {
+      const days = await Promise.all(dates.slice(i, i + SEARCH_CONCURRENCY).map((d) => getDay(d, durationMin, vehicleCount)))
+      const hit = days.find((d) => d.available && d.slots.length > 0)
+      if (hit) return hit.date
+    }
   }
   return null
 }

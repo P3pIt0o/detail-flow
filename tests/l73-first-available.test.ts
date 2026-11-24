@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { findFirstAvailableDate, SEARCH_MAX_DAYS, type DayLike } from "@/lib/booking/first-available"
+import { findFirstAvailableDate, SEARCH_CONCURRENCY, SEARCH_MAX_DAYS, type DayLike } from "@/lib/booking/first-available"
 import { dateWindow, formatNextAvailability, nextOffset, prevOffset, windowOffsetFor } from "@/lib/booking/v2"
 
 const FROM = new Date(2026, 10, 23) // 23/11/2026
@@ -19,16 +19,30 @@ describe("L73 — première date disponible", () => {
     expect(await findFirstAvailableDate({ from: FROM, durationMin: 60, vehicleCount: 1, getDay })).toBe(keyAt(51))
   })
 
-  it("dispo aujourd'hui : un seul paquet de 14 jours", async () => {
+  it("dispo aujourd'hui : arrêt dès le premier groupe de 4 jours", async () => {
     const getDay = pro(keyAt(0))
     expect(await findFirstAvailableDate({ from: FROM, durationMin: 60, vehicleCount: 1, getDay })).toBe(keyAt(0))
-    expect(getDay).toHaveBeenCalledTimes(14)
+    expect(getDay).toHaveBeenCalledTimes(SEARCH_CONCURRENCY)
   })
 
-  it("arrêt au premier paquet positif", async () => {
+  it("arrêt au premier groupe positif (J+20 : jours 0 à 21 examinés)", async () => {
     const getDay = pro(keyAt(20))
     await findFirstAvailableDate({ from: FROM, durationMin: 60, vehicleCount: 1, getDay })
-    expect(getDay).toHaveBeenCalledTimes(28)
+    expect(getDay).toHaveBeenCalledTimes(22)
+  })
+
+  it("charge : jamais plus de 4 jours en parallèle", async () => {
+    let running = 0
+    let peak = 0
+    const getDay = async (date: string): Promise<DayLike> => {
+      running++
+      peak = Math.max(peak, running)
+      await new Promise((r) => setTimeout(r, 0))
+      running--
+      return { date, available: false, slots: [] }
+    }
+    await findFirstAvailableDate({ from: FROM, durationMin: 60, vehicleCount: 1, getDay })
+    expect(peak).toBeLessThanOrEqual(SEARCH_CONCURRENCY)
   })
 
   it("rien sur 180 jours → null, jamais plus de 180 jours examinés", async () => {
@@ -68,17 +82,20 @@ describe("L73 — première date disponible", () => {
 })
 
 describe("L73 — fenêtre et flèches", () => {
-  it("J+51 → décalage 42", () => {
-    expect(windowOffsetFor(FROM, keyAt(51))).toBe(42)
+  it("la fenêtre commence au jour trouvé : J+51 → décalage 51 (jour en 1re position)", () => {
+    expect(windowOffsetFor(FROM, keyAt(51))).toBe(51)
+    expect(dateWindow(FROM, windowOffsetFor(FROM, keyAt(51)), 14)[0]).toBe(keyAt(51))
     expect(windowOffsetFor(FROM, keyAt(0))).toBe(0)
-    expect(windowOffsetFor(FROM, keyAt(13))).toBe(0)
-    expect(windowOffsetFor(FROM, keyAt(14))).toBe(14)
+    expect(windowOffsetFor(FROM, keyAt(13))).toBe(13)
+    expect(windowOffsetFor(FROM, "2020-01-01")).toBe(0)
+    expect(windowOffsetFor(FROM, keyAt(400))).toBe(180)
   })
 
-  it("précédent : 42 → 28 → 14 → 0, jamais négatif", () => {
-    expect(prevOffset(42)).toBe(28)
-    expect(prevOffset(28)).toBe(14)
-    expect(prevOffset(14)).toBe(0)
+  it("précédent depuis J+51 : 37 → 23 → 9 → 0, jamais négatif", () => {
+    expect(prevOffset(51)).toBe(37)
+    expect(prevOffset(37)).toBe(23)
+    expect(prevOffset(23)).toBe(9)
+    expect(prevOffset(9)).toBe(0)
     expect(prevOffset(0)).toBe(0)
   })
 
@@ -89,7 +106,7 @@ describe("L73 — fenêtre et flèches", () => {
   })
 
   it("libellé français", () => {
-    expect(formatNextAvailability("2027-01-16")).toBe("Prochaine disponibilité : samedi 16 janvier")
-    expect(formatNextAvailability("2026-01-16")).toBe("Prochaine disponibilité : vendredi 16 janvier")
+    expect(formatNextAvailability("2027-01-16")).toMatch(/^Prochaine disponibilité : samedi 16 janvier$/)
+    expect(formatNextAvailability("2026-01-15")).toMatch(/^Prochaine disponibilité : jeudi 15 janvier$/)
   })
 })

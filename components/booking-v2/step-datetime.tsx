@@ -103,8 +103,11 @@ export function StepDateTime({
   const [offset, setOffset] = useState(0)
   const [pickedDate, setPickedDate] = useState<string | null>(date)
   const [calculating, setCalculating] = useState(false)
-  const [searchDone, setSearchDone] = useState(false)
+  const paramsKey = `${durationMin}|${vehicleCount}`
+  const [searchedKey, setSearchedKey] = useState<string | null>(null)
+  const [searchFailed, setSearchFailed] = useState(false)
   const [nextDate, setNextDate] = useState<string | null>(null)
+  const searchDone = searchedKey === paramsKey
 
   const dates = dateWindow(new Date(), offset, WINDOW_DAYS)
   const { data, error, isLoading } = useSWR(
@@ -124,16 +127,22 @@ export function StepDateTime({
     { revalidateOnFocus: false },
   )
   useEffect(() => {
+    // Durée ou nombre de véhicules modifié : l'ancien résultat n'est plus valable.
+    setNextDate(null)
+    setSearchFailed(false)
+  }, [paramsKey])
+  useEffect(() => {
     if (!needsSearch || (found === undefined && !searchError)) return
-    setSearchDone(true)
+    setSearchedKey(paramsKey)
+    setSearchFailed(Boolean(searchError))
     if (found) {
       setOffset(windowOffsetFor(new Date(), found))
       setPickedDate(found)
       setNextDate(found)
     }
-  }, [needsSearch, found, searchError])
+  }, [needsSearch, found, searchError, paramsKey])
   const searching = needsSearch && found === undefined && !searchError
-  const nothingFound = searchDone && !nextDate && !firstAvailable && !isLoading && !error
+  const nothingFound = searchDone && !searchFailed && !nextDate && !firstAvailable && !isLoading && !error
   // Date affichée : choix explicite si visible dans la fenêtre, sinon 1re date disponible (clic évité).
   const activeDate = pickedDate && byDate.has(pickedDate) ? pickedDate : firstAvailable
   const activeDay = activeDate ? byDate.get(activeDate) : undefined
@@ -331,6 +340,10 @@ export function StepDateTime({
         </div>
       </div>
 
+      {nextDate && pickedDate === nextDate && (
+        <p className="mt-2 text-sm font-medium text-foreground">{formatNextAvailability(nextDate)}</p>
+      )}
+
       <div className="-mx-4 mt-2.5 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {dates.map((key) => {
           const day = byDate.get(key)
@@ -374,7 +387,7 @@ export function StepDateTime({
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             Recherche des disponibilités…
           </p>
-        ) : error ? (
+        ) : error || searchFailed ? (
           <p className="mt-5 text-sm text-destructive">Impossible de charger les disponibilités. Réessayez.</p>
         ) : !activeDate ? (
           <p className="mt-5 rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
@@ -382,9 +395,6 @@ export function StepDateTime({
           </p>
         ) : (
           <>
-            {nextDate && (
-              <p className="mt-5 text-sm font-medium text-foreground">{formatNextAvailability(nextDate)}</p>
-            )}
             {renderSlots("MATIN", morning)}
             {renderSlots("APRÈS-MIDI", afternoon)}
           </>

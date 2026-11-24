@@ -375,11 +375,11 @@ function dayNumber(y: number, m: number, d: number): number {
   return Math.round(Date.UTC(y, m - 1, d) / 86_400_000)
 }
 
-/** Décalage (multiple de 14) de la fenêtre qui contient `dateKey`, vu depuis `from`. Jamais négatif. */
+/** Décalage de la fenêtre qui COMMENCE au jour `dateKey` (écart exact depuis `from`), entre 0 et 180. */
 export function windowOffsetFor(from: Date, dateKey: string): number {
   const [y, m, d] = dateKey.split("-").map((n) => Number.parseInt(n, 10))
   const diff = dayNumber(y, m, d) - dayNumber(from.getFullYear(), from.getMonth() + 1, from.getDate())
-  return diff <= 0 ? 0 : Math.floor(diff / WINDOW) * WINDOW
+  return Math.min(MAX_OFFSET, Math.max(0, diff))
 }
 
 /** Flèche « précédent » : pas de 14 jours, jamais avant aujourd'hui. */
