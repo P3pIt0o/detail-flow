@@ -89,7 +89,7 @@ export async function resolveTenantReviews(
 export async function getTenantGoogleRating(
   companyId: number,
   opts?: { revalidateSeconds?: number; languageCode?: string },
-): Promise<{ rating: number; url: string | null } | null> {
+): Promise<{ rating: number; url: string | null; reviewCount: number | null } | null> {
   const config = await getReviewsSourceConfig(companyId)
   if (!config.googlePlaceId) return null
   const res = await getGooglePlaceDetails(config.googlePlaceId, {
@@ -97,5 +97,9 @@ export async function getTenantGoogleRating(
     languageCode: opts?.languageCode,
   })
   if (!res.ok || typeof res.data.rating !== "number") return null
-  return { rating: res.data.rating, url: res.data.googleMapsUri }
+  return {
+    rating: res.data.rating,
+    url: res.data.googleMapsUri,
+    reviewCount: typeof res.data.userRatingCount === "number" ? res.data.userRatingCount : null,
+  }
 }

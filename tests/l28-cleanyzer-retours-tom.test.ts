@@ -102,7 +102,7 @@ describe("L28 — comparateur avant/après", () => {
 
   it("la section avant/après suit le héros et la présentation (ordre L35)", () => {
     const page = read(`${CLZ}/home-page.tsx`)
-    const order = [...page.matchAll(/^\s*<(\w+) \/>$/gm)].map((m) => m[1])
+    const order = [...page.matchAll(/^\s*<(\w+)(?: [^\n>]*)? \/>$/gm)].map((m) => m[1])
     expect(order.slice(0, 4)).toEqual(["CleanyzerHero", "ClzPresentation", "AvantApresSection", "PrestationsPreview"])
     // La galerie reste à sa place (après le film des prestations).
     expect(order.indexOf("RealisationsTom")).toBe(order.indexOf("PrestationsFilm") + 1)

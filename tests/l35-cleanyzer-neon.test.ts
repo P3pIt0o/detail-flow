@@ -152,11 +152,11 @@ describe("haut de page", () => {
     expect(h).toMatch(/href="[^"]*#tarifs"[^>]*>[^<]*Voir les tarifs/)
   })
 
-  it("pastille « 5,0 · 92 avis Google » vers le lien direct, nouvel onglet ; plus d'ancienne ligne de note", () => {
-    expect(BRAND.googleReviewCount).toBe(92)
+  it("pastille « 5,0 · 96 avis Google » (repli, L79) vers le lien direct, nouvel onglet ; plus d'ancienne ligne de note", () => {
+    expect(BRAND.googleReviewCount).toBe(96)
     expect(BRAND.googleReviewsUrl).toBe("https://maps.app.goo.gl/QeQ4NW2RQVX3xBNx8")
     expect(h).toMatch(/<a[^>]*href="https:\/\/maps\.app\.goo\.gl\/QeQ4NW2RQVX3xBNx8"[^>]*target="_blank"/)
-    expect(h).toMatch(/5,0<\/b> · 92 avis Google/)
+    expect(h).toMatch(/5,0<\/b> · 96 avis Google/)
     expect(h).not.toMatch(/\/5 — /)
     expect(h).toMatch(/Nettoyage auto[\s\S]*Detailing[\s\S]*Matelas[\s\S]*Canapés[\s\S]*Tapis & moquettes/)
   })

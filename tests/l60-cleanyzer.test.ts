@@ -170,7 +170,7 @@ describe("L60 — note Google une seule fois (point D)", () => {
     const out = html(createElement(AvisSection))
     expect(out).toContain("Ils ont adoré le résultat")
     expect(out).toContain("Voir les avis Google")
-    expect(out).not.toMatch(/5,0|\/ 5|92 avis|Basé sur|<svg/)
+    expect(out).not.toMatch(/5,0|\/ 5|96 avis|Basé sur|<svg/)
   })
 })
 
@@ -238,10 +238,10 @@ describe("L60 — accueil entier, C1 : chaque lien mène à sa cible dans les de
 })
 
 describe("L60 — accueil entier, D : note Google une seule fois", () => {
-  it("« 5,0 » et « 92 avis » apparaissent une seule fois sur toute la page", async () => {
+  it("« 5,0 » et « 96 avis » (repli, L79) apparaissent une seule fois sur toute la page", async () => {
     const text = (await renderHome("")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
     expect((text.match(/5,0/g) ?? []).length).toBe(1)
-    expect((text.match(/92 avis/g) ?? []).length).toBe(1)
+    expect((text.match(/96 avis/g) ?? []).length).toBe(1)
   })
 
   it("logo Mouthon jamais affiché au-delà de sa taille réelle (75 px de haut)", async () => {

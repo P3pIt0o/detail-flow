@@ -9,6 +9,7 @@
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import { ClzHostShell as CleanyzerShell } from "./site-base"
 import { CleanyzerHero } from "./hero"
+import { getClzGoogleProof } from "./google-proof"
 import {
   UniversSection,
   PrestationsPreview,
@@ -39,6 +40,8 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
   // Coordonnées RÉELLES du tenant (DetailFlow) pour le pied de page (NAP).
   // Aperçu sans tenant → aucune coordonnée affichée.
   const contact = data ? await data.getContact() : null
+  // L79 : note + nombre d'avis Google en direct (serveur, cache existant), repli sur BRAND.
+  const proof = await getClzGoogleProof(data?.tenant.id)
   // FAQPage : EXACTEMENT les questions/réponses affichées dans la section FAQ.
   const faqJsonLd = buildFaqJsonLd(CLZ_FAQ.map((e) => ({ question: e.q, answer: e.a })))
   return (
@@ -52,7 +55,7 @@ export async function CleanyzerHome({ data }: { data?: CustomSitePublicData }) {
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
-      <CleanyzerHero />
+      <CleanyzerHero rating={proof.rating} reviewCount={proof.reviewCount} />
       {/* L62 : accent néon alterné rouge/bleu par section ; tubes : témoignages + CTA final (+ hero = 3). */}
       <div className="clz-sec clz-sec-red">
         <ClzPresentation />
