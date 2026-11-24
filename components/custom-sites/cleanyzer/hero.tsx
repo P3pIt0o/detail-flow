@@ -10,8 +10,8 @@
  * - `prefers-reduced-motion` ou économie de données : aucune vidéo, la boucle reste sur son poster.
  * - Arrivée en erreur ou qui ne démarre pas : la boucle prend le relais (`runHeroSequence`).
  *
- * Preuve sociale Google : 5,0 — 92 avis (BRAND dans content.ts, relevé manuel). Ne pas modifier
- * sans instruction.
+ * Preuve sociale Google (L79) : valeurs en direct passées en props par home-page ; repli 5,0 — 96 avis
+ * (BRAND dans content.ts). Ne pas modifier sans instruction.
  */
 
 import { useEffect, useRef, useState } from "react"
@@ -99,9 +99,13 @@ export function runHeroSequence(
 export const CLZ_TARIFS_HREF = `${CLZ_HOME_HREF}#tarifs`
 
 const TRADES = ["Nettoyage auto", "Detailing", "Matelas", "Canapés", "Tapis & moquettes"]
-const RATING = (BRAND.googleRating ?? 5).toLocaleString("fr-FR", { minimumFractionDigits: 1 })
+const formatRating = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 1 })
 
-export function CleanyzerHero() {
+/** L79 : note et nombre d'avis lus côté serveur (home-page) ; repli = BRAND. Aucun appel Google ici. */
+export function CleanyzerHero({
+  rating = BRAND.googleRating ?? 5,
+  reviewCount = BRAND.googleReviewCount,
+}: { rating?: number; reviewCount?: number | null } = {}) {
   const introRef = useRef<HTMLVideoElement>(null)
   const loopRef = useRef<HTMLVideoElement>(null)
   // "intro" : arrivée en cours (ou poster) · "loop" : boucle visible · "still" : mouvement réduit.
@@ -168,12 +172,12 @@ export function CleanyzerHero() {
         ))}
       </ul>
 
-      {BRAND.googleReviewsUrl && BRAND.googleReviewCount != null && (
+      {BRAND.googleReviewsUrl && reviewCount != null && (
         <a className="clz-neon-gproof" href={BRAND.googleReviewsUrl} target="_blank" rel="noopener noreferrer">
           <span className="clz-neon-stars" aria-hidden="true">
             ★★★★★
           </span>{" "}
-          <b>{RATING}</b> · {BRAND.googleReviewCount} avis Google
+          <b>{formatRating(rating)}</b> · {reviewCount} avis Google
           <span className="sr-only"> (nouvel onglet)</span>
         </a>
       )}
