@@ -162,15 +162,17 @@ describe("L75 — saveBusinessHours avant migration (colonne absente)", () => {
     state.columnMissing = true
     const res = await saveBusinessHours([{ dayOfWeek: 6, isOpen: true, openTime: "07:00", closeTime: "19:00", fixedStartTimes: [] }])
     expect(res.ok).toBe(true)
+    expect(res.warning).toBeUndefined()
     expect(state.rows.find((r) => r.id === 2)).toMatchObject({ openTime: "07:00", closeTime: "19:00" })
   })
 
-  it("avec heures fixes : horaires enregistrés, message clair sur les heures fixes", async () => {
+  it("avec heures fixes : horaires enregistrés = succès + avertissement (pas une erreur)", async () => {
     state.tenantId = TENANT_B
     state.columnMissing = true
     const res = await saveBusinessHours([{ dayOfWeek: 6, isOpen: true, openTime: "07:00", closeTime: "19:00", fixedStartTimes: ["08:00"] }])
-    expect(res.ok).toBe(false)
-    expect(res.error).toMatch(/heures de début fixes/)
+    expect(res.ok).toBe(true)
+    expect(res.error).toBeUndefined()
+    expect(res.warning).toMatch(/heures de début fixes/)
     expect(state.rows.find((r) => r.id === 2)).toMatchObject({ openTime: "07:00", fixedStartTimes: null })
   })
 })

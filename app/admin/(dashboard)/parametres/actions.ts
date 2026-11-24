@@ -16,7 +16,8 @@ import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
 
-export type ActionResult = { ok: boolean; error?: string }
+/** `warning` : action réussie avec une réserve à afficher (en avertissement, pas en erreur). */
+export type ActionResult = { ok: boolean; error?: string; warning?: string }
 
 function revalidate() {
   revalidatePath("/admin/parametres")
@@ -445,9 +446,10 @@ export async function saveBusinessHours(
   }
   revalidate()
   if (fixedUnavailable) {
+    // Les horaires sont bien enregistrés : succès avec avertissement (affiché en orange).
     return {
-      ok: false,
-      error:
+      ok: true,
+      warning:
         "Horaires enregistrés, mais les heures de début fixes ne sont pas encore disponibles. Réessayez plus tard.",
     }
   }
