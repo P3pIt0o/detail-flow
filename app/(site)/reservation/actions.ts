@@ -250,9 +250,9 @@ const firstAvailableCache = createFirstAvailableCache()
 export async function findFirstAvailableDateAction(durationMin: number, vehicleCount: number): Promise<string | null> {
   if (!isValidSearch(durationMin, vehicleCount)) return null
   // Tenant de la requête publique (jamais fourni par le client) : sert de clé à la mémoire courte.
-  const tenant = await resolveRequestTenant()
+  const tenant = await resolvePublicRequestTenant()
   if (!tenant) return null
-  return firstAvailableCache.run(tenant.id, { from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
+  return firstAvailableCache.run(String(tenant.id), { from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
 }
 
 /* -------------------------------------------------------------------------- */
