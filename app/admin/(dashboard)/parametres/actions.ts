@@ -6,11 +6,18 @@ import { db } from "@/lib/db"
 import { settings, businessHours, timeOff, bookings, companies } from "@/lib/db/schema"
 import { requireCompanyMember } from "@/lib/admin"
 import { isAllowedTenantLogoPathname } from "@/lib/admin/logo-policy"
+import {
+  normalizeFixedStarts,
+  isValidDayOfWeek,
+  isUndefinedColumnError,
+  businessHoursFixedStarts,
+} from "@/lib/booking/slot-times"
 import { geocodeAddress } from "@/lib/booking/travel"
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/booking/types"
 import { getCountryProfile, SUPPORTED_COUNTRIES } from "@/lib/billing/country-profiles"
 
-export type ActionResult = { ok: boolean; error?: string }
+/** `warning` : action réussie avec une réserve à afficher (en avertissement, pas en erreur). */
+export type ActionResult = { ok: boolean; error?: string; warning?: string }
 
 function revalidate() {
   revalidatePath("/admin/parametres")
@@ -363,15 +370,45 @@ export async function saveVacationMode(input: {
 /* --------------------------- Horaires (semaine) --------------------------- */
 
 export async function saveBusinessHours(
-  days: Array<{ dayOfWeek: number; isOpen: boolean; openTime: string; closeTime: string }>,
+  days: Array<{
+    dayOfWeek: number
+    isOpen: boolean
+    openTime: string
+    closeTime: string
+    fixedStartTimes?: string[]
+  }>,
 ): Promise<ActionResult> {
+  // companyId UNIQUEMENT depuis la session : jamais du client.
   const { tenant } = await requireCompanyMember()
+
+  // Validation complète avant toute écriture.
+  const prepared: Array<{
+    dayOfWeek: number
+    isOpen: boolean
+    openTime: string
+    closeTime: string
+    fixedStartTimes: string | null
+  }> = []
   for (const d of days) {
+    if (!isValidDayOfWeek(d.dayOfWeek)) return { ok: false, error: "Jour invalide." }
+    const fixed = normalizeFixedStarts(d.fixedStartTimes)
+    if (!fixed.ok) return { ok: false, error: fixed.error }
+    prepared.push({
+      dayOfWeek: d.dayOfWeek,
+      isOpen: d.isOpen,
+      openTime: d.openTime,
+      closeTime: d.closeTime,
+      fixedStartTimes: fixed.value,
+    })
+  }
+
+  for (const d of prepared) {
     const existing = await db
       .select({ id: businessHours.id })
       .from(businessHours)
       .where(and(eq(businessHours.companyId, tenant.id), eq(businessHours.dayOfWeek, d.dayOfWeek)))
       .limit(1)
+    // Colonnes historiques seulement : fonctionne même avant la migration L75.
     const values = {
       companyId: tenant.id,
       dayOfWeek: d.dayOfWeek,
@@ -380,12 +417,42 @@ export async function saveBusinessHours(
       closeTime: d.closeTime,
     }
     if (existing.length) {
-      await db.update(businessHours).set(values).where(eq(businessHours.id, existing[0].id))
+      await db
+        .update(businessHours)
+        .set(values)
+        .where(and(eq(businessHours.id, existing[0].id), eq(businessHours.companyId, tenant.id)))
     } else {
       await db.insert(businessHours).values(values)
     }
   }
+
+  // Heures fixes : écriture séparée, filtrée par pro + jour, tolérante à la colonne absente.
+  let fixedUnavailable = false
+  try {
+    for (const d of prepared) {
+      await db
+        .update(businessHoursFixedStarts)
+        .set({ fixedStartTimes: d.fixedStartTimes })
+        .where(
+          and(
+            eq(businessHoursFixedStarts.companyId, tenant.id),
+            eq(businessHoursFixedStarts.dayOfWeek, d.dayOfWeek),
+          ),
+        )
+    }
+  } catch (err) {
+    if (!isUndefinedColumnError(err)) throw err
+    fixedUnavailable = prepared.some((d) => d.fixedStartTimes !== null)
+  }
   revalidate()
+  if (fixedUnavailable) {
+    // Les horaires sont bien enregistrés : succès avec avertissement (affiché en orange).
+    return {
+      ok: true,
+      warning:
+        "Horaires enregistrés, mais les heures de début fixes ne sont pas encore disponibles. Réessayez plus tard.",
+    }
+  }
   return { ok: true }
 }
 

@@ -798,6 +798,9 @@ export const businessHours = pgTable(
     byCompany: index("business_hours_companyId_idx").on(t.companyId),
   }),
 )
+// L75 : la colonne `fixedStartTimes` de business_hours est volontairement absente d'ici.
+// Elle est déclarée à part (`businessHoursFixedStarts`, lib/booking/slot-times.ts) pour que
+// création d'entreprise, export et select() complets fonctionnent même avant la migration.
 
 /** Périodes bloquées : vacances, jours fériés, indisponibilités. */
 export const timeOff = pgTable(

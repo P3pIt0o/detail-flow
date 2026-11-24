@@ -21,19 +21,9 @@ import {
   getActiveBookingsForDate,
   countVehiclesForDate,
 } from "./queries"
+import { timeToMinutes, minutesToTime, computeSlotStarts, parseFixedStarts } from "./slot-times"
 
-/** "09:30" -> 570 (minutes depuis minuit). */
-export function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number)
-  return h * 60 + m
-}
-
-/** 570 -> "09:30". */
-export function minutesToTime(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-}
+export { timeToMinutes, minutesToTime }
 
 export type AvailabilityResult = {
   date: string
@@ -120,24 +110,18 @@ export async function getAvailability(
     end: timeToMinutes(b.endTime),
   }))
 
-  const slots: string[] = []
-  for (let start = open; start + durationMin <= close; start += step) {
-    const end = start + durationMin
-
-    // Respect du préavis minimum.
-    if (start < minStartFromNotice) continue
-
-    // Chevauchement avec une réservation existante (tampon des deux côtés).
-    const overlaps = busy.some((b) => start < b.end + buffer && end + buffer > b.start)
-    if (overlaps) continue
-
-    // Chevauchement avec une plage d'indisponibilité (durée prestation prise en
-    // compte : slotStart < blockedEnd && slotEnd > blockedStart).
-    const inBlocked = blockedRanges.some((r) => start < r.end && end > r.start)
-    if (inBlocked) continue
-
-    slots.push(minutesToTime(start))
-  }
+  // Heures fixes du jour si définies, sinon pas global (logique pure : slot-times.ts).
+  const slots = computeSlotStarts({
+    open,
+    close,
+    durationMin,
+    step,
+    buffer,
+    minStartFromNotice,
+    busy,
+    blockedRanges,
+    fixedStarts: parseFixedStarts(todayHours.fixedStartTimes),
+  })
 
   if (!slots.length) return empty("full")
   return { date: dateStr, available: true, slots }

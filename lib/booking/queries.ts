@@ -28,6 +28,7 @@ import {
 import { and, asc, count, eq, inArray, ne } from "drizzle-orm"
 import { requireCompanyId, getCompanyIdOrNull } from "@/lib/tenant"
 import { attachServiceHighlights } from "@/lib/services/highlight-store"
+import { isUndefinedColumnError, businessHoursFixedStarts } from "@/lib/booking/slot-times"
 
 /** Statuts qui occupent réellement un créneau (bloquants). */
 export const BLOCKING_STATUSES = ["pending_deposit", "confirmed", "completed"]
@@ -191,11 +192,35 @@ export async function getPriceFor(serviceId: number, vehicleTypeId: number, comp
 /** Horaires d'ouverture par jour de la semaine. */
 export async function getBusinessHours(companyId?: number) {
   const cid = companyId ?? (await requireCompanyId())
-  return db
-    .select()
+  // Colonnes historiques explicites : fonctionne même si `fixedStartTimes` n'existe pas encore.
+  const rows = await db
+    .select({
+      id: businessHours.id,
+      companyId: businessHours.companyId,
+      dayOfWeek: businessHours.dayOfWeek,
+      isOpen: businessHours.isOpen,
+      openTime: businessHours.openTime,
+      closeTime: businessHours.closeTime,
+    })
     .from(businessHours)
     .where(eq(businessHours.companyId, cid))
     .orderBy(asc(businessHours.dayOfWeek))
+
+  // Heures fixes : seconde requête protégée (colonne absente avant migration => ignorées).
+  let fixed = new Map<number, string | null>()
+  try {
+    const f = await db
+      .select({
+        dayOfWeek: businessHoursFixedStarts.dayOfWeek,
+        fixedStartTimes: businessHoursFixedStarts.fixedStartTimes,
+      })
+      .from(businessHoursFixedStarts)
+      .where(eq(businessHoursFixedStarts.companyId, cid))
+    fixed = new Map(f.map((r) => [r.dayOfWeek, r.fixedStartTimes]))
+  } catch (err) {
+    if (!isUndefinedColumnError(err)) throw err
+  }
+  return rows.map((r) => ({ ...r, fixedStartTimes: fixed.get(r.dayOfWeek) ?? null }))
 }
 
 /** Périodes bloquées (vacances / indisponibilités). */
