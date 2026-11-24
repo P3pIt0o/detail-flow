@@ -50,7 +50,8 @@ export function HoursSettings({ hours }: { hours: Day[] }) {
           isOpen: d.isOpen,
           openTime: d.openTime,
           closeTime: d.closeTime,
-          fixedStartTimes: d.isOpen ? toList(d.fixedStartTimes).filter((t) => /^\d{2}:\d{2}$/.test(t)) : [],
+          // Conservées même si le jour est fermé (ignorées à la réservation) : rouvrir le jour les retrouve.
+          fixedStartTimes: toList(d.fixedStartTimes).filter((t) => /^\d{2}:\d{2}$/.test(t)),
         })),
       )
       setMsg(

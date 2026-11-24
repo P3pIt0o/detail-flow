@@ -793,13 +793,14 @@ export const businessHours = pgTable(
     isOpen: boolean("isOpen").notNull().default(true),
     openTime: text("openTime").notNull().default("09:00"),
     closeTime: text("closeTime").notNull().default("18:00"),
-    // Heures de début fixes du jour ("08:00,13:00"). NULL = pas global (slotIntervalMin).
-    fixedStartTimes: text("fixedStartTimes"),
   },
   (t) => ({
     byCompany: index("business_hours_companyId_idx").on(t.companyId),
   }),
 )
+// L75 : la colonne `fixedStartTimes` de business_hours est volontairement absente d'ici.
+// Elle est déclarée à part (`businessHoursFixedStarts`, lib/booking/slot-times.ts) pour que
+// création d'entreprise, export et select() complets fonctionnent même avant la migration.
 
 /** Périodes bloquées : vacances, jours fériés, indisponibilités. */
 export const timeOff = pgTable(

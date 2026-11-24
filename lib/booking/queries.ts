@@ -28,6 +28,7 @@ import {
 import { and, asc, count, eq, inArray, ne } from "drizzle-orm"
 import { requireCompanyId, getCompanyIdOrNull } from "@/lib/tenant"
 import { attachServiceHighlights } from "@/lib/services/highlight-store"
+import { isUndefinedColumnError, businessHoursFixedStarts } from "@/lib/booking/slot-times"
 
 /** Statuts qui occupent réellement un créneau (bloquants). */
 export const BLOCKING_STATUSES = ["pending_deposit", "confirmed", "completed"]
@@ -209,24 +210,17 @@ export async function getBusinessHours(companyId?: number) {
   let fixed = new Map<number, string | null>()
   try {
     const f = await db
-      .select({ dayOfWeek: businessHours.dayOfWeek, fixedStartTimes: businessHours.fixedStartTimes })
-      .from(businessHours)
-      .where(eq(businessHours.companyId, cid))
+      .select({
+        dayOfWeek: businessHoursFixedStarts.dayOfWeek,
+        fixedStartTimes: businessHoursFixedStarts.fixedStartTimes,
+      })
+      .from(businessHoursFixedStarts)
+      .where(eq(businessHoursFixedStarts.companyId, cid))
     fixed = new Map(f.map((r) => [r.dayOfWeek, r.fixedStartTimes]))
   } catch (err) {
     if (!isUndefinedColumnError(err)) throw err
   }
   return rows.map((r) => ({ ...r, fixedStartTimes: fixed.get(r.dayOfWeek) ?? null }))
-}
-
-/** Erreur Postgres 42703 (colonne inexistante), éventuellement enveloppée par Drizzle. */
-function isUndefinedColumnError(err: unknown): boolean {
-  let e: unknown = err
-  for (let i = 0; i < 3 && e && typeof e === "object"; i++) {
-    if ((e as { code?: unknown }).code === "42703") return true
-    e = (e as { cause?: unknown }).cause
-  }
-  return false
 }
 
 /** Périodes bloquées (vacances / indisponibilités). */

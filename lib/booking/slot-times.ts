@@ -3,7 +3,26 @@
  * testable partout. Utilisée par `getAvailability`.
  */
 
+import { integer, pgTable, serial, text } from "drizzle-orm/pg-core"
+
 export const MAX_FIXED_STARTS = 12
+
+/**
+ * L75 — Déclaration Drizzle SÉPARÉE de la table `business_hours`, limitée à la colonne
+ * `fixedStartTimes` (migration scripts/business-hours-fixed-starts-migration.sql).
+ * Simple déclaration (aucune connexion). Hors de `lib/db/schema.ts` (pas de doublon de
+ * nom de table dans le schéma) et hors de `businessHours` : insertions (création
+ * d'entreprise), export et select() complets ne la référencent pas et fonctionnent
+ * avant la migration. Utilisée seulement par getBusinessHours / saveBusinessHours,
+ * toujours filtrée par companyId et tolérante à l'erreur 42703 (colonne absente).
+ */
+export const businessHoursFixedStarts = pgTable("business_hours", {
+  id: serial("id").primaryKey(),
+  companyId: integer("companyId").notNull(),
+  dayOfWeek: integer("dayOfWeek").notNull(),
+  // Heures de début fixes du jour ("08:00,13:00"). NULL = pas global (slotIntervalMin).
+  fixedStartTimes: text("fixedStartTimes"),
+})
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/
 
@@ -48,6 +67,16 @@ export function normalizeFixedStarts(
     return { ok: false, error: `Maximum ${MAX_FIXED_STARTS} heures de début par jour.` }
   }
   return { ok: true, value: [...set].sort().join(",") }
+}
+
+/** Erreur Postgres 42703 (colonne inexistante), éventuellement enveloppée (cause). */
+export function isUndefinedColumnError(err: unknown): boolean {
+  let e: unknown = err
+  for (let i = 0; i < 3 && e && typeof e === "object"; i++) {
+    if ((e as { code?: unknown }).code === "42703") return true
+    e = (e as { cause?: unknown }).cause
+  }
+  return false
 }
 
 /** Vrai si dayOfWeek est un entier 0–6. */
