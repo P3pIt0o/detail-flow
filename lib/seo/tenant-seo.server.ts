@@ -215,7 +215,7 @@ export async function buildTenantMetadata(args: {
     imageUrl,
     imageAlt: share ? share.ogAlt : seo.siteName,
     icons: share ? { icon: share.icon, apple: share.icon } : undefined,
-    neutralizePlatformTags: Boolean(seo.customSiteKey || seo.isSpirit),
+    neutralizePlatformTags: Boolean(seo.isSpirit),
     robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots,
   })
 }

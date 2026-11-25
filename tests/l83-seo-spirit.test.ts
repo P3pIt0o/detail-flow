@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { buildTenantPageMetadata } from "@/lib/seo/tenant-metadata"
@@ -8,6 +8,26 @@ import { tenantCanonicalHost } from "@/lib/tenant-shared"
 import { getPublicSiteCatalog, listSitemapPaths } from "@/lib/public-site/provider"
 import { GET } from "@/app/favicon.ico/route"
 import { SPIRIT_PAGE_META, SPIRIT_SERVICES } from "@/components/custom-sites/spirit-acs/seo-content"
+
+const tenantRef = vi.hoisted(() => ({ tenant: null as Record<string, unknown> | null }))
+vi.mock("server-only", () => ({}))
+vi.mock("@/lib/tenant", () => ({ getCurrentTenant: async () => tenantRef.tenant }))
+vi.mock("@/lib/public-contact", () => ({ getPublicHours: async () => [] }))
+vi.mock("@/lib/reviews/public", () => ({ getTenantGoogleRating: async () => null }))
+vi.mock("@/lib/licensing/server", () => ({ hasFeature: async () => true }))
+vi.mock("@/lib/public-page/config", () => ({ getEffectivePublicPageForCurrentTenant: async () => null }))
+import { buildTenantMetadata, buildTenantLocalBusiness } from "@/lib/seo/tenant-seo.server"
+
+const mkTenant = (slug: string, customSiteKey: string | null) => ({
+  id: `id-${slug}`,
+  slug,
+  name: slug === "spirit-acs" ? "Spirit ACS" : "Autre",
+  customSiteKey,
+  logoUrl: null,
+  phone: null,
+  email: null,
+  socialLinks: null,
+})
 
 const root = process.cwd()
 const bytes = (rel: string) => readFileSync(path.join(root, rel))
@@ -36,10 +56,9 @@ describe("L83 favicon par hôte", () => {
     const { body } = await favicon(h)
     expect(body.equals(bytes("public/icons/icon-192.png"))).toBe(true)
   })
-  it("Cleanyzer garde la sienne, différente de Spirit", async () => {
-    const { body } = await favicon("cleanyzer.fr")
-    expect(body.equals(bytes("public/custom-sites/cleanyzer/icon.png"))).toBe(true)
-    expect(body.equals(bytes("public/custom-sites/spirit-acs/icon.png"))).toBe(false)
+  it("Cleanyzer inchangé : pas de /favicon.ico (404 comme avant)", async () => {
+    const { res } = await favicon("cleanyzer.fr")
+    expect(res.status).toBe(404)
   })
 })
 
@@ -62,12 +81,33 @@ describe("L83 métadonnées sans DetailFlow", () => {
   })
 })
 
+describe("L83 métadonnées via buildTenantMetadata", () => {
+  it("Spirit neutralisé, Cleanyzer et hors tenant inchangés", async () => {
+    tenantRef.tenant = mkTenant("spirit-acs", "spirit-acs")
+    const spirit = await buildTenantMetadata({ path: "/", title: "T", description: "D" })
+    expect(spirit.manifest).toBeNull()
+    expect(JSON.stringify(spirit)).not.toMatch(/detailflow/i)
+    tenantRef.tenant = mkTenant("cleanyzer", "cleanyzer")
+    const clean = await buildTenantMetadata({ path: "/", title: "T", description: "D" })
+    expect("manifest" in clean).toBe(false)
+    tenantRef.tenant = null
+    const none = await buildTenantMetadata({ path: "/", title: "T", description: "D" })
+    expect("manifest" in none).toBe(false)
+  })
+})
+
 describe("L83 JSON-LD logo", () => {
-  it("logo Spirit absolu, sans areaServed ni aggregateRating", () => {
-    const src = readFileSync(path.join(root, "lib/seo/tenant-seo.server.ts"), "utf8")
-    expect(src).toContain("${SPIRIT_ICON}")
-    expect(src).not.toMatch(/aggregateRating/)
-    expect(src).toContain("areaServed: args?.areaServed ?? null")
+  it("Spirit : logo absolu, sans areaServed ni aggregateRating", async () => {
+    tenantRef.tenant = mkTenant("spirit-acs", "spirit-acs")
+    const ld = (await buildTenantLocalBusiness()) as Record<string, unknown>
+    expect(ld.logo).toBe("https://www.spiritacs.com/custom-sites/spirit-acs/icon.png")
+    expect("areaServed" in ld).toBe(false)
+    expect("aggregateRating" in ld).toBe(false)
+  })
+  it("Cleanyzer sans logoUrl : pas de logo ajouté", async () => {
+    tenantRef.tenant = mkTenant("cleanyzer", "cleanyzer")
+    const ld = (await buildTenantLocalBusiness()) as Record<string, unknown>
+    expect(ld.logo).toBeUndefined()
   })
 })
 
@@ -89,10 +129,14 @@ describe("L83 textes", () => {
 })
 
 describe("L83 sitemap", () => {
-  it("aucun lastmod (pas de fausse date)", () => {
-    for (const h of ["spiritacs.com", "cleanyzer.fr", "www.detailflow.fr", null]) {
-      for (const e of sitemapEntriesForHost(h)) expect(e.lastModified, `${h} ${e.url}`).toBeUndefined()
+  it("Spirit : aucun lastmod ; les autres sitemaps gardent le leur", () => {
+    for (const e of sitemapEntriesForHost("spiritacs.com")) expect(e.lastModified, e.url).toBeUndefined()
+    for (const h of ["cleanyzer.fr", "www.detailflow.fr"]) {
+      for (const e of sitemapEntriesForHost(h)) expect(e.lastModified, `${h} ${e.url}`).toBeDefined()
     }
+  })
+  it("description d'accueil sans promesse « gratuit »", () => {
+    expect(SPIRIT_PAGE_META.home.description).not.toMatch(/gratuit/i)
   })
   it("URL du sitemap = canonique de chaque page Spirit", () => {
     const catalog = getPublicSiteCatalog("spirit-acs" as never)!

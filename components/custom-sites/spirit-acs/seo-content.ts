@@ -57,7 +57,7 @@ export const SPIRIT_PAGE_META = {
   home: {
     title: "Detailing automobile à Lagny-sur-Marne | Spirit ACS",
     description:
-      "Spirit ACS, detailing automobile à Lagny-sur-Marne : nettoyage, polissage, protection céramique, PPF et prestations moto. Demandez votre devis gratuit en ligne.",
+      "Spirit ACS, detailing automobile à Lagny-sur-Marne : nettoyage, polissage, protection céramique, PPF et prestations moto. Demandez votre devis dès maintenant.",
   },
   avis: {
     title: "Avis clients Spirit ACS | Detailing à Lagny-sur-Marne",
