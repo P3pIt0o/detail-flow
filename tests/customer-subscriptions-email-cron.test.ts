@@ -88,9 +88,9 @@ describe("cron /api/cron/customer-subscription-emails", () => {
     expect(await res.json()).toEqual({ ok: false })
   })
 
-  it("vercel.json conserve le cron reminders quotidien et ajoute le cron emails */5", () => {
+  it("vercel.json conserve le cron reminders quotidien et ajoute le cron emails horaire", () => {
     const cfg = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"))
     expect(cfg.crons).toContainEqual({ path: "/api/cron/reminders", schedule: "0 9 * * *" })
-    expect(cfg.crons).toContainEqual({ path: "/api/cron/customer-subscription-emails", schedule: "*/5 * * * *" })
+    expect(cfg.crons).toContainEqual({ path: "/api/cron/customer-subscription-emails", schedule: "0 * * * *" })
   })
 })
