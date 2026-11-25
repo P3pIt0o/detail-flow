@@ -215,6 +215,7 @@ export async function buildTenantMetadata(args: {
     imageUrl,
     imageAlt: share ? share.ogAlt : seo.siteName,
     icons: share ? { icon: share.icon, apple: share.icon } : undefined,
+    neutralizePlatformTags: Boolean(seo.customSiteKey || seo.isSpirit),
     robots: isPrepublicationSite(seo.customSiteKey) ? PREPUBLICATION_ROBOTS : args.robots,
   })
 }
@@ -273,7 +274,9 @@ export async function buildTenantLocalBusiness(args?: {
 
   const logoAbsolute = tenant.logoUrl
     ? `${BASE}/api/company-logo?company=${encodeURIComponent(tenant.slug)}`
-    : null
+    : seo.isSpirit && resolveTenantOrigin(seo.identity)
+      ? `${resolveTenantOrigin(seo.identity)}${SPIRIT_ICON}`
+      : null
 
   // Repli SEO Spirit ACS : coordonnées professionnelles vérifiées utilisées
   // UNIQUEMENT quand la donnée Neon correspondante est absente (la donnée réelle

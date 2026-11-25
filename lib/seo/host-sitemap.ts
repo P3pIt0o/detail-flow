@@ -18,12 +18,11 @@ function customSlugForHost(host: string | null | undefined): string | null {
 }
 
 export function sitemapEntriesForHost(host: string | null | undefined): MetadataRoute.Sitemap {
-  const now = new Date()
   const domainSlug = customSlugForHost(host)
   const entries: MetadataRoute.Sitemap = []
 
   if (!domainSlug) {
-    entries.push({ url: siteConfig.seo.url, lastModified: now, changeFrequency: "weekly", priority: 1 })
+    entries.push({ url: siteConfig.seo.url, changeFrequency: "weekly", priority: 1 })
   }
 
   for (const key of SITE_KEYS) {
@@ -38,7 +37,7 @@ export function sitemapEntriesForHost(host: string | null | undefined): Metadata
       publicPathPrefix: tenantCanonicalPathPrefix(slug),
     })
     for (const { path, priority } of listSitemapPaths(catalog)) {
-      entries.push({ url: tenantCanonicalUrl(path, identity), lastModified: now, changeFrequency: "monthly", priority })
+      entries.push({ url: tenantCanonicalUrl(path, identity), changeFrequency: "monthly", priority })
     }
   }
   return entries

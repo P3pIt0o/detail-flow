@@ -57,12 +57,12 @@ export const SPIRIT_PAGE_META = {
   home: {
     title: "Detailing automobile à Lagny-sur-Marne | Spirit ACS",
     description:
-      "Spirit ACS, detailing automobile à Lagny-sur-Marne : nettoyage intérieur et extérieur, nettoyage textile, polissage, protection céramique, PPF, personnalisation, entretien régulier et prestations moto. Intervention possible à domicile. Demandez votre devis.",
+      "Spirit ACS, detailing automobile à Lagny-sur-Marne : nettoyage, polissage, protection céramique, PPF et prestations moto. Demandez votre devis gratuit en ligne.",
   },
   avis: {
     title: "Avis clients Spirit ACS | Detailing à Lagny-sur-Marne",
     description:
-      "Découvrez les avis Google des clients de Spirit ACS pour ses prestations de nettoyage, polissage et detailing automobile à Lagny-sur-Marne.",
+      "Découvrez les avis Google des clients de Spirit ACS pour ses prestations de nettoyage, polissage et detailing automobile à Lagny-sur-Marne en Seine-et-Marne.",
   },
   contact: {
     title: "Contact et devis | Spirit ACS Lagny-sur-Marne",
@@ -339,9 +339,9 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       "Nettoyage soigné de l'habitacle et de l'extérieur, formules d'entretien régulier, nettoyage moteur et rénovation d'échappement : surfaces, textiles, plastiques, vitres, carrosserie, jantes et finitions.",
     image: "/custom-sites/spirit-acs/nettoyage-interieur-cuir.jpg",
     imageAlt: "Habitacle cuir nettoyé et soigné par Spirit ACS",
-    metaTitle: "Nettoyage automobile intérieur & extérieur à Lagny-sur-Marne | Spirit ACS",
+    metaTitle: "Nettoyage auto à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
-      "Nettoyage automobile intérieur et extérieur, entretien régulier mensuel ou trimestriel, nettoyage moteur et rénovation d'échappement par Spirit ACS à Lagny-sur-Marne.",
+      "Nettoyage automobile intérieur et extérieur, entretien régulier, nettoyage moteur et rénovation d'échappement par Spirit ACS à Lagny-sur-Marne.",
     h1: "Nettoyage automobile intérieur et extérieur",
     breadcrumbLabel: "Nettoyage automobile",
     intro: [
@@ -559,7 +559,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     imageAlt: "Avant de Porsche 911 aux surfaces exposées préservées",
     metaTitle: "Protection PPF à Lagny-sur-Marne | Spirit ACS",
     metaDescription:
-      "Pose de film de protection PPF par Spirit ACS à Lagny-sur-Marne : protection transparente des zones sensibles pour limiter les impacts sur les surfaces exposées.",
+      "Pose de film de protection PPF par Spirit ACS à Lagny-sur-Marne : protection transparente des zones sensibles contre les impacts. Demandez un devis.",
     h1: "PPF et personnalisation",
     breadcrumbLabel: "PPF & personnalisation",
     intro: [

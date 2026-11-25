@@ -34,6 +34,12 @@ export type TenantPageMetadataInput = {
   icons?: Metadata["icons"]
   /** Surcharge d'indexation (ex. pages légales : noindex, follow). */
   robots?: Metadata["robots"]
+  /**
+   * Site personnalisé : neutralise les balises héritées du layout racine qui
+   * affichent DetailFlow (manifest PWA, application-name, titre iOS, auteur,
+   * mots-clés, generator). Le nom du tenant les remplace quand c'est utile.
+   */
+  neutralizePlatformTags?: boolean
 }
 
 /**
@@ -51,6 +57,17 @@ export function buildTenantPageMetadata(input: TenantPageMetadataInput): Metadat
     alternates: { canonical },
     ...(input.icons ? { icons: input.icons } : {}),
     ...(input.robots ? { robots: input.robots } : {}),
+    ...(input.neutralizePlatformTags
+      ? {
+          manifest: null,
+          applicationName: input.siteName,
+          appleWebApp: { capable: false, title: input.siteName },
+          authors: [{ name: input.siteName }],
+          creator: input.siteName,
+          keywords: null,
+          generator: null,
+        }
+      : {}),
     openGraph: {
       type: "website",
       locale: siteConfig.seo.locale,
