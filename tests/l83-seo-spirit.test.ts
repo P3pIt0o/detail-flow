@@ -138,12 +138,15 @@ describe("L83 sitemap", () => {
   it("description d'accueil sans promesse « gratuit »", () => {
     expect(SPIRIT_PAGE_META.home.description).not.toMatch(/gratuit/i)
   })
-  it("URL du sitemap = canonique de chaque page Spirit", () => {
+  it("URL du sitemap = canonique rendue de chaque page Spirit (accueil sans « / » final)", () => {
     const catalog = getPublicSiteCatalog("spirit-acs" as never)!
     const urls = sitemapEntriesForHost("spiritacs.com").map((e) => e.url)
-    const expected = listSitemapPaths(catalog).map(({ path: p }) => tenantCanonicalUrl(p, spiritIdentity))
+    // Next rend la canonique de la racine sous la forme de l'origine seule.
+    const expected = listSitemapPaths(catalog).map(({ path: p }) =>
+      p === "/" ? "https://www.spiritacs.com" : tenantCanonicalUrl(p, spiritIdentity),
+    )
     expect(urls).toEqual(expected)
-    expect(urls).toContain("https://www.spiritacs.com/")
+    expect(urls).toContain("https://www.spiritacs.com")
   })
   it("cloisonnement Spirit / Cleanyzer", () => {
     expect(sitemapEntriesForHost("spiritacs.com").some((e) => /cleanyzer/.test(e.url))).toBe(false)

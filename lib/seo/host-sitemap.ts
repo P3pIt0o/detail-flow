@@ -39,9 +39,12 @@ export function sitemapEntriesForHost(host: string | null | undefined): Metadata
     })
     for (const { path, priority } of listSitemapPaths(catalog)) {
       // Spirit ACS : aucune date réelle disponible → pas de lastmod (jamais une fausse date).
+      // Accueil sans « / » final, comme la canonique que Next rend pour la racine.
+      const isSpirit = slug === "spirit-acs"
+      const url = tenantCanonicalUrl(path, identity)
       entries.push({
-        url: tenantCanonicalUrl(path, identity),
-        ...(slug === "spirit-acs" ? {} : { lastModified: now }),
+        url: isSpirit && path === "/" ? url.replace(/\/$/, "") : url,
+        ...(isSpirit ? {} : { lastModified: now }),
         changeFrequency: "monthly",
         priority,
       })

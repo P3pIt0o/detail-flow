@@ -406,7 +406,9 @@ describe("SEO — sitemap tenant-aware", async () => {
   const urls = await sitemapUrls("www.spiritacs.com", "www.cleanyzer.fr", "www.detailflow.fr")
 
   it("Spirit ACS (domaine personnalisé connecté) : URL sur www.spiritacs.com SANS ?tenant=", () => {
-    expect(urls).toContain("https://www.spiritacs.com/")
+    // Accueil sans « / » final : c'est la forme de la canonique rendue par Next.
+    expect(urls).toContain("https://www.spiritacs.com")
+    expect(urls).not.toContain("https://www.spiritacs.com/")
     expect(urls).toContain("https://www.spiritacs.com/avis")
     expect(urls).toContain("https://www.spiritacs.com/contact")
   })
