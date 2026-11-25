@@ -14,9 +14,15 @@ import { after } from "next/server"
 export const IMMEDIATE_DRAIN_LIMIT = 10
 
 /** Tenants dont un envoi immédiat est déjà planifié (un seul envoi par tenant en attente). */
-const pendingCompanies = new Set<number>()
+const pendingCompanies = new Map<number, number>()
+
+/** Expiration d'une planification restée sans exécution (instance coupée avant `after`). */
+export const PENDING_TTL_MS = 60_000
 
 export async function runImmediateDrain(companyId: number): Promise<void> {
+  // Libéré AVANT le drain : un e-mail mis en file pendant l'envoi planifie son propre drain
+  // (le claim SKIP LOCKED évite tout double envoi).
+  pendingCompanies.delete(companyId)
   try {
     // Imports tardifs : évite un cycle email-events → email-drain-now → notifications → engine.
     const [{ db }, { drainCustomerSubscriptionOutbox }, { sendEmail }] = await Promise.all([
@@ -30,15 +36,14 @@ export async function runImmediateDrain(companyId: number): Promise<void> {
     })
   } catch (error) {
     console.log("[customer-subscriptions] immediate email drain failed", { code: (error as { code?: string })?.code ?? "unknown" })
-  } finally {
-    pendingCompanies.delete(companyId)
   }
 }
 
 /** Planifie l'envoi immédiat après la réponse. Ne lève jamais d'erreur. */
 export function scheduleImmediateEmailDrain(companyId: number): void {
-  if (pendingCompanies.has(companyId)) return
-  pendingCompanies.add(companyId)
+  const since = pendingCompanies.get(companyId)
+  if (since !== undefined && Date.now() - since < PENDING_TTL_MS) return
+  pendingCompanies.set(companyId, Date.now())
   try {
     after(() => runImmediateDrain(companyId))
   } catch {

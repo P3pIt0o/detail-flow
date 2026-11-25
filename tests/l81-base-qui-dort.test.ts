@@ -67,6 +67,27 @@ describe("L81 — envoi immédiat", () => {
     expect(afterMock).toHaveBeenCalledTimes(1)
   })
 
+  it("un e-mail mis en file pendant un drain en cours planifie un nouveau drain", () => {
+    scheduleImmediateEmailDrain(907)
+    expect(afterMock).toHaveBeenCalledTimes(1)
+    vi.spyOn(console, "log").mockImplementation(() => {})
+    void runImmediateDrain(907) // drain démarré (callback `after` exécuté)
+    scheduleImmediateEmailDrain(907)
+    expect(afterMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("une planification jamais exécutée expire après le délai de sécurité", () => {
+    const now = vi.spyOn(Date, "now")
+    now.mockReturnValue(1_000_000)
+    scheduleImmediateEmailDrain(908)
+    scheduleImmediateEmailDrain(908)
+    expect(afterMock).toHaveBeenCalledTimes(1)
+    now.mockReturnValue(1_000_000 + 61_000)
+    scheduleImmediateEmailDrain(908)
+    expect(afterMock).toHaveBeenCalledTimes(2)
+    now.mockRestore()
+  })
+
   it("l'échec de l'envoi immédiat est avalé", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {})
     // Sans base ni module e-mail configurés dans ce test, le drain échoue : ne doit jamais lever.
