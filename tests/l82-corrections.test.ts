@@ -14,7 +14,7 @@ vi.mock("@/lib/calendar-sync/store", () => ({
 }))
 
 import { externalBlocksForDay, parseBusyEvents } from "@/lib/calendar-sync/ics-parse"
-import { formatSince, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
+import { formatSince, linkErrorMessage, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
 import { connectCalendar, syncAllDue, syncCompany, type SyncDeps } from "@/lib/calendar-sync/sync"
 
 const TZ = "Europe/Paris"
@@ -152,5 +152,54 @@ describe("L82 — écran", () => {
     for (const code of ["http_error", "too_large", "not_calendar", "timeout"]) {
       expect(syncErrorMessage(code)).toContain("derniers créneaux")
     }
+  })
+})
+
+describe("L82 — revue 2 : règles impossibles, message de liaison, mode d'emploi", () => {
+  const trap = (count: number, start: string, rule: string) =>
+    cal(
+      ...Array.from({ length: count }, (_, i) =>
+        ev(`UID:t${i}`, `DTSTART:${start}T090000Z`, `DTEND:${start}T100000Z`, `RRULE:${rule}`),
+      ),
+    )
+
+  it.each([
+    ["6e lundi du mois", 200, "01000101", "FREQ=MONTHLY;BYDAY=6MO,7MO,-6TU"],
+    ["position 300 dans la semaine", 200, "01000101", "FREQ=WEEKLY;BYSETPOS=300"],
+    ["30 février", 600, "01000230", "FREQ=YEARLY"],
+  ])("une règle qui ne produit jamais rien consomme le budget (%s)", (_label, count, start, rule) => {
+    const t0 = Date.now()
+    expect(() => parse(trap(count, start, rule))).toThrow("calendar_too_complex")
+    expect(Date.now() - t0).toBeLessThan(10_000)
+  })
+
+  it("un événement annuel antérieur à 1970 reste bloqué", () => {
+    const ics = cal(ev("UID:y", "DTSTART;VALUE=DATE:19601225", "RRULE:FREQ=YEARLY"))
+    expect(externalBlocksForDay(parse(ics), "2026-12-25", TZ).fullDay).toBe(true)
+  })
+
+  it("dernier jour du mois (BYMONTHDAY=-1)", () => {
+    const ics = cal(ev("UID:m", "DTSTART:20261130T090000Z", "DTEND:20261130T100000Z", "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1;COUNT=3"))
+    expect(days(ics)).toEqual(["2026-11-30", "2026-12-31", "2027-01-31"])
+  })
+
+  it("liaison impossible : aucune promesse fausse", () => {
+    for (const code of ["http_error", "too_large", "not_calendar", "timeout", "invalid_url", "network"]) {
+      for (const existing of [false, true]) {
+        expect(linkErrorMessage(code, existing)).not.toMatch(/derniers créneaux|réessayons/i)
+      }
+      expect(linkErrorMessage(code, false)).toContain("Agenda non relié")
+      expect(linkErrorMessage(code, true)).toContain("votre ancien agenda reste relié")
+    }
+  })
+
+  it("mode d'emploi d'abonnement et titres de l'aperçu", () => {
+    const panel = read("components/admin/calendar-sync-panel.tsx")
+    expect(panel).toContain("Réglages → Calendrier → Comptes → Ajouter un abonnement")
+    expect(panel).toContain("Avec Google Agenda")
+    expect(panel).toMatch(/SUBSCRIBE_HELP\.map/)
+    expect(panel).toContain("1. Mes rendez-vous dans mon téléphone")
+    expect(panel).toContain("2. Bloquer mes indisponibilités")
+    expect(panel).toContain("Quel téléphone avez-vous ?")
   })
 })

@@ -200,8 +200,8 @@ function parseRule(value: string, tenantTz: string): Rule | null {
         .filter((x) => Number.isInteger(x) && x !== 0 && x >= min && x <= max),
     ),
   ]
-  const bymonthday = ints(kv.BYMONTHDAY, 1, 31)
-  const bysetpos = ints(kv.BYSETPOS, -366, 366)
+  const bymonthday = ints(kv.BYMONTHDAY, -31, 31)
+  const bysetpos = ints(kv.BYSETPOS, -366, 366).slice(0, 62) // coût par période borné
   return { freq, interval, count, until, byday, bymonthday, bysetpos }
 }
 
@@ -223,7 +223,16 @@ const ymdOf = (dn: number) => {
 const wdOf = (dn: number) => (new Date(dn * DAY_MS).getUTCDay() + 6) % 7
 const daysInMonth = (y: number, mo: number) => new Date(Date.UTC(y, mo, 0)).getUTCDate()
 
-function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number }, limitDn: number): Generator<number> {
+/**
+ * `onEmptyPeriod` est appelé pour chaque période qui ne produit aucun jour : une règle
+ * impossible (6e lundi, 30 février…) consomme ainsi elle aussi le budget de calcul.
+ */
+function* occurrenceDays(
+  rule: Rule,
+  base: { y: number; mo: number; d: number },
+  limitDn: number,
+  onEmptyPeriod: () => void,
+): Generator<number> {
   const baseDn = dnOf(base.y, base.mo, base.d)
   const { interval } = rule
   let guard = 0
@@ -231,20 +240,26 @@ function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number },
     for (let k = 0; guard++ < MAX_LOOP; k++) {
       const dn = baseDn + k * interval
       if (dn > limitDn) return
-      if (rule.byday.length && !rule.byday.some((b) => b.wd === wdOf(dn))) continue
+      if (rule.byday.length && !rule.byday.some((b) => b.wd === wdOf(dn))) {
+        onEmptyPeriod()
+        continue
+      }
       yield dn
     }
   } else if (rule.freq === "WEEKLY") {
-    const wds = (rule.byday.length ? rule.byday.map((b) => b.wd) : [wdOf(baseDn)]).sort((a, b) => a - b)
+    const wds = [...new Set(rule.byday.length ? rule.byday.map((b) => b.wd) : [wdOf(baseDn)])].sort((a, b) => a - b)
     const weekStart = baseDn - wdOf(baseDn)
     for (let k = 0; guard++ < MAX_LOOP; k++) {
       const w0 = weekStart + k * interval * 7
       if (w0 > limitDn) return
+      let produced = false
       for (const dn of pickPositions(wds.map((wd) => w0 + wd), rule.bysetpos)) {
         if (dn < baseDn) continue
         if (dn > limitDn) return
+        produced = true
         yield dn
       }
+      if (!produced) onEmptyPeriod()
     }
   } else if (rule.freq === "MONTHLY") {
     for (let k = 0; guard++ < MAX_LOOP; k++) {
@@ -256,9 +271,12 @@ function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number },
       const dim = daysInMonth(y, mo)
       const days = new Set<number>()
       if (rule.byday.length) {
+        // Un seul parcours du mois, quel que soit le nombre d'entrées BYDAY.
+        const byWd: number[][] = [[], [], [], [], [], [], []]
+        const firstWd = wdOf(firstDn)
+        for (let d = 0; d < dim; d++) byWd[(firstWd + d) % 7].push(firstDn + d)
         for (const b of rule.byday) {
-          const all: number[] = []
-          for (let d = 1; d <= dim; d++) if (wdOf(firstDn + d - 1) === b.wd) all.push(firstDn + d - 1)
+          const all = byWd[b.wd]
           if (!b.ord) all.forEach((x) => days.add(x))
           else {
             const pick = b.ord > 0 ? all[b.ord - 1] : all[all.length + b.ord]
@@ -266,19 +284,28 @@ function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number },
           }
         }
       } else {
-        for (const d of rule.bymonthday.length ? rule.bymonthday : [base.d]) if (d <= dim) days.add(firstDn + d - 1)
+        for (const d of rule.bymonthday.length ? rule.bymonthday : [base.d]) {
+          const day = d > 0 ? d : dim + d + 1 // -1 = dernier jour du mois
+          if (day >= 1 && day <= dim) days.add(firstDn + day - 1)
+        }
       }
+      let produced = false
       for (const dn of pickPositions([...days].sort((a, b) => a - b), rule.bysetpos)) {
         if (dn < baseDn) continue
         if (dn > limitDn) return
+        produced = true
         yield dn
       }
+      if (!produced) onEmptyPeriod()
     }
   } else {
     for (let k = 0; guard++ < MAX_LOOP; k++) {
       const y = base.y + k * interval
       if (dnOf(y, 1, 1) > limitDn) return
-      if (base.d > daysInMonth(y, base.mo)) continue
+      if (base.d > daysInMonth(y, base.mo)) {
+        onEmptyPeriod()
+        continue
+      }
       const dn = dnOf(y, base.mo, base.d)
       if (dn > limitDn) return
       yield dn
@@ -432,7 +459,7 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
     const firstUsefulDn = Math.floor(winStart / DAY_MS) - spanLen - 2
     const replaced = uid ? overridden.get(uid) : undefined
     let n = 0
-    for (const dn of occurrenceDays(rule, start.wall, limitDn)) {
+    for (const dn of occurrenceDays(rule, start.wall, limitDn, () => spend(budget, "steps"))) {
       if (rule.count !== null && n >= rule.count) break
       n++
       spend(budget, "steps")

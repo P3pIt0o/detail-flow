@@ -36,7 +36,7 @@ describe("L80 — écran « Mon agenda »", () => {
   })
 
   it("choix iPhone / Android, puis 3 étapes pour ce téléphone seulement", () => {
-    expect(panel).toContain("Quel téléphone utilisez-vous ?")
+    expect(panel).toContain("Quel téléphone avez-vous ?")
     expect(panel).toMatch(/PHONE_STEPS\[phone\]\.map/)
     expect(panel).toMatch(/\/android\/i\.test\(navigator\.userAgent\)/)
     const steps = panel.match(/iphone: \[([\s\S]*?)\],\n\s+android: \[([\s\S]*?)\],/)

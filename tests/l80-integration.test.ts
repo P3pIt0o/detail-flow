@@ -312,7 +312,8 @@ describe("L80 — actions admin : la société vient de la session", () => {
     fd.set("address", "https://calendar.example.com/x.ics")
     const res = await a.saveExternalCalendarAction(fd)
     expect(res.ok).toBe(false)
-    expect(res.error).toContain("derniers créneaux")
+    expect(res.error).toContain("Agenda non relié")
+    expect(res.error).not.toMatch(/derniers créneaux|réessayons/i)
   })
 })
 

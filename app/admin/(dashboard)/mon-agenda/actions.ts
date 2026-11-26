@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { requireCompanyMember } from "@/lib/admin"
 import { parseExternalUrl } from "@/lib/calendar-sync/safe-fetch"
-import { syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
+import { linkErrorMessage, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
 import { connectCalendar, syncCompany } from "@/lib/calendar-sync/sync"
 import { ensureSyncSettings, getSyncSettings, regenerateFeedToken, setExternalUrl } from "@/lib/calendar-sync/store"
 
@@ -19,14 +19,19 @@ async function companyIdFromSession(): Promise<number> {
   return ctx.tenant.id
 }
 
+async function linkFailure(companyId: number, code: string): Promise<AgendaActionResult> {
+  const settings = await getSyncSettings(companyId).catch(() => null)
+  return { ok: false, error: linkErrorMessage(code, Boolean(settings?.externalUrl)) }
+}
+
 export async function saveExternalCalendarAction(formData: FormData): Promise<AgendaActionResult> {
   const companyId = await companyIdFromSession()
   const raw = String(formData.get("address") ?? "")
   const parsed = parseExternalUrl(raw)
-  if (!parsed) return { ok: false, error: syncErrorMessage("invalid_url") ?? GENERIC }
+  if (!parsed) return linkFailure(companyId, "invalid_url")
   try {
     const res = await connectCalendar(companyId, parsed.url.toString())
-    if (!res.ok) return { ok: false, error: syncErrorMessage(res.code) ?? GENERIC }
+    if (!res.ok) return linkFailure(companyId, res.code)
     revalidatePath("/admin/mon-agenda")
     return { ok: true }
   } catch {

@@ -34,6 +34,26 @@ const PHONE_ICONS: Record<Phone, LucideIcon[]> = {
   android: [Settings, Copy, Link2],
 }
 
+/** Abonnement à la main (DetailFlow → téléphone), si le bouton ne réagit pas. */
+export const SUBSCRIBE_HELP: { title: string; steps: string[] }[] = [
+  {
+    title: "Sur iPhone",
+    steps: [
+      "Copiez l'adresse privée affichée plus bas.",
+      "Ouvrez Réglages → Calendrier → Comptes → Ajouter un abonnement.",
+      "Collez l'adresse, puis validez.",
+    ],
+  },
+  {
+    title: "Avec Google Agenda",
+    steps: [
+      "Copiez l'adresse privée affichée plus bas.",
+      "Sur un ordinateur, ouvrez Google Agenda : à côté de « Autres agendas », cliquez sur « + » puis « À partir de l'URL ».",
+      "Collez l'adresse, puis cliquez sur « Ajouter l'agenda ».",
+    ],
+  },
+]
+
 export function CalendarSyncPanel(props: {
   iphoneUrl: string
   googleUrl: string
@@ -89,7 +109,7 @@ export function CalendarSyncPanel(props: {
       </header>
 
       <section className="space-y-3 rounded-xl border p-4">
-        <h2 className="font-medium">1. Voir mes rendez-vous DetailFlow sur mon téléphone</h2>
+        <h2 className="font-medium">1. Mes rendez-vous dans mon téléphone</h2>
         <p className="text-sm text-muted-foreground">
           Vos rendez-vous DetailFlow apparaissent dans votre agenda, mis à jour automatiquement.
         </p>
@@ -106,6 +126,24 @@ export function CalendarSyncPanel(props: {
             <CalendarPlus className="size-5" /> Ajouter à Google Agenda
           </a>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Google Agenda peut mettre plusieurs heures à afficher un nouveau rendez-vous.
+        </p>
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Le bouton ne marche pas ? Mode d&apos;emploi</summary>
+          <div className="mt-2 space-y-2">
+            {SUBSCRIBE_HELP.map((help) => (
+              <div key={help.title}>
+                <p className="font-medium">{help.title}</p>
+                <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+                  {help.steps.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        </details>
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground">Autre agenda</summary>
           <div className="mt-2 space-y-2">
@@ -132,11 +170,11 @@ export function CalendarSyncPanel(props: {
       </section>
 
       <section className="space-y-3 rounded-xl border p-4">
-        <h2 className="font-medium">2. Bloquer les créneaux déjà pris dans mon téléphone</h2>
+        <h2 className="font-medium">2. Bloquer mes indisponibilités</h2>
         <p className="text-sm text-muted-foreground">
           Vos moments « occupés » ne seront plus proposés aux clients. Seuls les horaires sont lus, jamais le titre. Vos rendez-vous DetailFlow sont reconnus et ignorés automatiquement.
         </p>
-        <p className="text-sm font-medium">Quel téléphone utilisez-vous ?</p>
+        <p className="text-sm font-medium">Quel téléphone avez-vous ?</p>
         <div className="flex gap-2" role="group" aria-label="Type de téléphone">
           {(["iphone", "android"] as const).map((p) => (
             <Button key={p} type="button" variant={phone === p ? "default" : "outline"} onClick={() => setPhone(p)}>
@@ -144,6 +182,7 @@ export function CalendarSyncPanel(props: {
             </Button>
           ))}
         </div>
+        <p className="text-sm font-medium">Sur {phone === "iphone" ? "iPhone" : "Android"}, en 3 étapes</p>
         <ol className="space-y-2 text-sm">
           {PHONE_STEPS[phone].map((t, i) => {
             const Icon = PHONE_ICONS[phone][i]
@@ -158,6 +197,9 @@ export function CalendarSyncPanel(props: {
             )
           })}
         </ol>
+        <p className="text-xs text-muted-foreground">
+          Ne partagez pas ce lien : toute personne qui l&apos;a peut lire votre agenda.
+        </p>
         <form
           className="flex flex-col gap-2 sm:flex-row"
           action={(fd) => run(() => saveExternalCalendarAction(fd), "Agenda relié. Vos créneaux occupés sont pris en compte.")}

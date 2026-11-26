@@ -144,3 +144,24 @@ export function syncErrorMessage(code: string | null | undefined): string | null
       return "La dernière mise à jour a échoué. Nous réessayons automatiquement ; vos derniers créneaux restent pris en compte."
   }
 }
+
+/**
+ * Message quand une adresse collée n'a pas pu être reliée : rien n'est enregistré,
+ * donc ne jamais promettre de nouvel essai ni de « derniers créneaux ».
+ * `hasExisting` : un agenda précédent reste relié.
+ */
+export function linkErrorMessage(code: string, hasExisting: boolean): string {
+  const causes: Record<string, string> = {
+    invalid_url: "Cette adresse n'est pas acceptée.",
+    blocked_host: "Cette adresse n'est pas acceptée.",
+    redirects: "Cette adresse n'est pas acceptée.",
+    timeout: "Votre agenda met trop de temps à répondre.",
+    too_large: "Votre agenda est trop volumineux pour être lu.",
+    http_error: "Votre agenda a refusé la lecture.",
+    not_calendar: "Cette adresse ne mène pas à un agenda.",
+  }
+  const cause = causes[code] ?? "La lecture de cette adresse a échoué."
+  return hasExisting
+    ? `${cause} Rien n'a changé : votre ancien agenda reste relié.`
+    : `${cause} Agenda non relié : vérifiez l'adresse et réessayez.`
+}
