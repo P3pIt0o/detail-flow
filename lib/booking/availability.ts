@@ -21,6 +21,8 @@ import {
   getActiveBookingsForDate,
   countVehiclesForDate,
 } from "./queries"
+import { requireCompanyId } from "@/lib/tenant"
+import { getExternalBusyForDate } from "@/lib/calendar-sync/store"
 import { timeToMinutes, minutesToTime, computeSlotStarts, parseFixedStarts } from "./slot-times"
 
 export { timeToMinutes, minutesToTime }
@@ -84,9 +86,13 @@ export async function getAvailability(
     const publicLabel = fullDayBlock.publicLabel?.trim() || undefined
     return { ...empty("time_off"), publicLabel }
   }
+  // Blocages de l'agenda du téléphone (lecture base seule, jamais de réseau).
+  const external = await getExternalBusyForDate(await requireCompanyId(), dateStr)
+  if (external.fullDay) return empty("time_off")
   const blockedRanges = dayBlocks
     .filter((r) => r.startTime && r.endTime)
     .map((r) => ({ start: timeToMinutes(r.startTime as string), end: timeToMinutes(r.endTime as string) }))
+    .concat(external.ranges)
 
   // 4. Ouvert ce jour-là ?
   const dow = day.getDay() // 0 = dimanche ... 6 = samedi

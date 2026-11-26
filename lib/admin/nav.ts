@@ -91,6 +91,7 @@ function baseAdminNav(opts: { intent: OnboardingIntentValue | null; customSiteKe
   const nav: AdminNavItem[] = [
     { href: "/admin", label: "Tableau de bord", icon: "dashboard" },
     { href: "/admin/calendrier", label: "Calendrier", icon: "calendar" },
+    { href: "/admin/mon-agenda", label: "Mon agenda", icon: "calendar" },
     { href: "/admin/reservations", label: "Réservations", icon: "reservations" },
     { href: "/admin/demandes", label: "Demandes", icon: "demandes" },
     { href: "/admin/leads", label: "Prospects", icon: "leads" },
@@ -152,6 +153,7 @@ const ADMIN_NAV_GROUP_OF: Readonly<Record<string, string>> = {
   "/admin/offres": "gestion",
   "/admin/factures": "gestion",
   "/admin/analyse": "gestion",
+  "/admin/mon-agenda": "reglages",
   "/admin/parametres": "reglages",
   "/admin/abonnement": "reglages",
 }

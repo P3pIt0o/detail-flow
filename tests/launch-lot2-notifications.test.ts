@@ -247,6 +247,7 @@ describe("Route /api/cron/notifications", () => {
       { path: "/api/cron/reminders", schedule: "0 9 * * *" },
       { path: "/api/cron/customer-subscription-emails", schedule: "*/5 * * * *" },
       { path: "/api/cron/notifications", schedule: "*/15 * * * *" },
+      { path: "/api/cron/calendar-sync", schedule: "*/15 * * * *" },
     ])
   })
 })
