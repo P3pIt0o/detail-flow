@@ -125,7 +125,7 @@ export function MobileTabBar({ items }: { items: readonly MainNavItem[] }) {
               className={cn(actionClass, "border-b-0")}
             >
               <FileText className="size-6 shrink-0" aria-hidden="true" />
-              Factures / encaisser
+              Factures et devis
             </Link>
             <button
               type="button"

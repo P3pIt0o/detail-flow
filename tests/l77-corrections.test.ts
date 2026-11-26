@@ -187,6 +187,17 @@ describe("L77 — accueil : rendez-vous du jour et dernières visites", () => {
     expect(todayInTimezone(null, lateUtc)).toBe("2026-03-11")
   })
 
+  it("un fuseau stocké invalide ne fait pas planter l'accueil (repli Europe/Paris)", () => {
+    const lateUtc = new Date("2026-03-10T23:30:00Z")
+    expect(todayInTimezone("Pas/UnFuseau", lateUtc)).toBe("2026-03-11")
+  })
+
+  it("le bouton (+) n'annonce pas d'écran d'encaissement inexistant", () => {
+    const bar = read("components/admin/mobile-tab-bar.tsx")
+    expect(bar).toContain("Factures et devis")
+    expect(bar).not.toContain("Factures / encaisser")
+  })
+
   it("l'accueil standard utilise companyId issu de requireCompanyMember()", () => {
     const page = read("app/admin/(dashboard)/page.tsx")
     expect(page).toContain("getTodayBookings(companyId, company.timezone)")

@@ -275,8 +275,16 @@ export const TODAY_BOOKING_STATUSES = ["confirmed", "pending_deposit", "complete
 
 /** Date du jour (AAAA-MM-JJ) dans le fuseau de l'entreprise. */
 export function todayInTimezone(timezone: string | null | undefined, now = new Date()): string {
-  return now.toLocaleDateString("en-CA", { timeZone: timezone || "Europe/Paris" })
+  try {
+    return now.toLocaleDateString("en-CA", { timeZone: timezone || "Europe/Paris" })
+  } catch {
+    // Fuseau stocké invalide : on ne casse jamais l'accueil.
+    return now.toLocaleDateString("en-CA", { timeZone: "Europe/Paris" })
+  }
 }
+
+/** Plafond défensif de la liste « Aujourd'hui ». */
+export const TODAY_BOOKINGS_MAX = 100
 
 /** Total prévu du jour, en centimes : les rendez-vous annulés ne comptent jamais. */
 export function todayTotalCents(list: { status: string; totalCents: number }[]): number {
@@ -305,6 +313,7 @@ export async function getTodayBookings(
       ),
     )
     .orderBy(bookings.startTime)
+    .limit(TODAY_BOOKINGS_MAX)
   return withServicesAndVehicles(rows)
 }
 
