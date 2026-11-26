@@ -55,7 +55,7 @@ describe("L80 — écran « Mon agenda »", () => {
   })
 
   it("accès : bouton en haut du Calendrier + « Mon agenda » dans Plus, pas dans la barre du bas", () => {
-    expect(read("app/admin/(dashboard)/calendrier/page.tsx")).toMatch(/href="\/admin\/mon-agenda"[\s\S]*Relier à mon téléphone/)
+    expect(read("components/admin/admin-calendar.tsx")).toMatch(/href="\/admin\/mon-agenda"[\s\S]*Relier à mon téléphone/)
     const opts = { intent: null, customSiteKey: null } as const
     const hrefs = buildAdminNavGroups(opts).flatMap((g) => g.items.map((i) => i.href))
     expect(hrefs).toContain("/admin/mon-agenda")
