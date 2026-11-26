@@ -112,7 +112,11 @@ describe("Cleanyzer — sitemap et catalogue", async () => {
         publicDomain: tenantCanonicalHost(catalog.tenantSlug),
         publicPathPrefix: tenantCanonicalPathPrefix(catalog.tenantSlug),
       })
-      for (const { path: p } of listSitemapPaths(catalog)) expect(urls).toContain(tenantCanonicalUrl(p, id))
+      for (const { path: p } of listSitemapPaths(catalog)) {
+        // L83 : l'accueil Spirit est listé sans « / » final (forme canonique rendue par Next).
+        const url = tenantCanonicalUrl(p, id)
+        expect(urls).toContain(key === "spirit-acs" && p === "/" ? url.replace(/\/$/, "") : url)
+      }
     }
   })
 
