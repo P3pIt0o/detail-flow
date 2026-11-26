@@ -121,7 +121,7 @@ export function CalendarSyncPanel(props: {
             href={props.googleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonVariants({ size: "lg", variant: "outline", className: "h-12 text-base" })}
+            className={buttonVariants({ size: "lg", className: "h-12 text-base" })}
           >
             <CalendarPlus className="size-5" /> Ajouter à Google Agenda
           </a>

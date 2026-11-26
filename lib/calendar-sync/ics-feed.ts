@@ -42,7 +42,13 @@ export function feedGoogleUrl(httpsUrl: string): string {
 }
 
 function esc(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n")
+  // Saisie publique (nom, adresse) : un `\r` seul ne doit pas ouvrir une nouvelle ligne.
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
 }
 
 /** Repli à 75 octets, CRLF. */

@@ -113,11 +113,6 @@ export function AdminCalendar({
           <p className="mt-1 text-sm capitalize text-muted-foreground">{title}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {phoneSync && (
-            <Link href="/admin/mon-agenda" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              <Smartphone className="size-4" /> Relier à mon téléphone
-            </Link>
-          )}
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Précédent">
               <ChevronLeft className="h-4 w-4" />
@@ -137,6 +132,11 @@ export function AdminCalendar({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          {phoneSync && (
+            <Link href="/admin/mon-agenda" className={buttonVariants({ size: "sm" })}>
+              <Smartphone className="size-4" /> Relier à mon téléphone
+            </Link>
+          )}
           <div className="flex rounded-lg border border-border p-0.5">
             {VIEWS.map((v) => (
               <button

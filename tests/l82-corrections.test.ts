@@ -14,7 +14,7 @@ vi.mock("@/lib/calendar-sync/store", () => ({
 }))
 
 import { externalBlocksForDay, parseBusyEvents } from "@/lib/calendar-sync/ics-parse"
-import { formatSince, linkErrorMessage, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
+import { buildFeed, formatSince, linkErrorMessage, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
 import { connectCalendar, syncAllDue, syncCompany, type SyncDeps } from "@/lib/calendar-sync/sync"
 
 const TZ = "Europe/Paris"
@@ -201,5 +201,45 @@ describe("L82 — revue 2 : règles impossibles, message de liaison, mode d'empl
     expect(panel).toContain("1. Mes rendez-vous dans mon téléphone")
     expect(panel).toContain("2. Bloquer mes indisponibilités")
     expect(panel).toContain("Quel téléphone avez-vous ?")
+  })
+})
+
+describe("L82 — boutons conformes à l'aperçu validé", () => {
+  it("« Relier à mon téléphone » : bouton plein, placé après « Aujourd'hui »", () => {
+    const calendar = read("components/admin/admin-calendar.tsx")
+    expect(calendar.indexOf('href="/admin/mon-agenda"')).toBeGreaterThan(calendar.indexOf("Aujourd&apos;hui"))
+    expect(calendar).toContain('href="/admin/mon-agenda" className={buttonVariants({ size: "sm" })}')
+  })
+
+  it("« Ajouter à Google Agenda » : bouton plein, comme celui de l'iPhone", () => {
+    const panel = read("components/admin/calendar-sync-panel.tsx")
+    const google = panel.slice(panel.indexOf("href={props.googleUrl}"), panel.indexOf("Ajouter à Google Agenda\n"))
+    expect(google).toContain('buttonVariants({ size: "lg", className: "h-12 text-base" })')
+    expect(google).not.toContain("outline")
+  })
+})
+
+describe("L82 — flux : un nom saisi par un visiteur n'ajoute aucune ligne", () => {
+  it("retour chariot seul et caractères de contrôle neutralisés", () => {
+    const feed = buildFeed(
+      [
+        {
+          id: 1,
+          reference: "DF-20261130-1234",
+          date: "2026-11-30",
+          startTime: "09:00",
+          endTime: "10:00",
+          customerName: "Jean\rATTENDEE:mailto:x@example.com\u0000",
+          customerPhone: "0600000000",
+          address: "1 rue A\r\nBEGIN:VALARM",
+          serviceNames: ["Lavage"],
+        },
+      ],
+      { tz: TZ, now: NOW },
+    )
+    const unfolded = feed.replace(/\r\n /g, "")
+    expect(unfolded.replace(/\r\n/g, "")).not.toMatch(/[\u0000-\u0008\u000a-\u001f\u007f]/)
+    expect(unfolded).toContain("Jean\\nATTENDEE")
+    expect(unfolded.split("\r\n")).not.toContain("BEGIN:VALARM")
   })
 })
