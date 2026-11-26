@@ -16,6 +16,8 @@ import {
   Activity,
 } from "lucide-react"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
+import { getLocationConfig } from "@/lib/booking/location"
+import { showDirections } from "@/lib/admin/nav"
 import {
   getDashboardStats,
   getUpcomingBookingsDetailed,
@@ -321,11 +323,14 @@ export default async function DashboardPage({
       </div>
     )
 
+  // « Itinéraire » : inutile pour un detailer qui travaille uniquement en atelier.
+  const directions = showDirections(await getLocationConfig(companyId))
+
   // Ligne « prochain rendez-vous » réutilisée par les deux dispositions et, pour
   // Spirit, par « Aujourd'hui » comme par « Prochains rendez-vous ». Une seule
   // source de vérité pour le rendu d'un rendez-vous.
   const renderUpcoming = (b: UpcomingBookingDetailed) => {
-    const mapsUrl = buildMapsDirectionsUrl(b.address)
+    const mapsUrl = directions ? buildMapsDirectionsUrl(b.address) : null
     return (
       <li key={b.id} className="flex items-start justify-between gap-3 py-3">
         <div className="flex min-w-0 items-start gap-3">

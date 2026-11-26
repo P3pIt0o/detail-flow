@@ -46,6 +46,8 @@ export function SettingsSearch({
                 <li key={`${r.tab}-${r.label}`} className="border-b border-border last:border-b-0">
                   <Link
                     href={withTenant(settingsSearchHref(r.tab), tenantParam)}
+                    // Depuis « Tous les réglages », la page reste montée : on referme la liste.
+                    onClick={() => setQ("")}
                     className="block min-h-11 px-3 py-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   >
                     <span className="block text-base font-medium text-foreground">{r.label}</span>
