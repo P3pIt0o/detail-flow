@@ -137,7 +137,7 @@ export function syncErrorMessage(code: string | null | undefined): string | null
     case "invalid_url":
     case "blocked_host":
     case "redirects":
-      return "Cette adresse n'est pas acceptée. Vérifiez que vous avez bien copié l'adresse privée de votre agenda."
+      return "Cette adresse n'est pas acceptée. Vérifiez que vous avez bien copié l'adresse privée de votre agenda. Vos derniers créneaux restent pris en compte."
     case "timeout":
       return "Votre agenda met trop de temps à répondre. Nous réessayons automatiquement ; vos derniers créneaux restent pris en compte."
     case "too_large":

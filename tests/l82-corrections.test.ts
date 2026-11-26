@@ -153,6 +153,15 @@ describe("L82 — écran", () => {
       expect(syncErrorMessage(code)).toContain("derniers créneaux")
     }
   })
+
+  it.each(["invalid_url", "blocked_host", "redirects"])(
+    "adresse refusée après liaison (%s) : les derniers créneaux restent pris en compte",
+    (code) => {
+      expect(syncErrorMessage(code)).toBe(
+        "Cette adresse n'est pas acceptée. Vérifiez que vous avez bien copié l'adresse privée de votre agenda. Vos derniers créneaux restent pris en compte.",
+      )
+    },
+  )
 })
 
 describe("L82 — revue 2 : règles impossibles, message de liaison, mode d'emploi", () => {

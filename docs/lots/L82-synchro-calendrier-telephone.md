@@ -55,3 +55,7 @@ Limite de lecture d'un agenda externe : 10 Mo (décision déjà prise).
 
 ## Délégation de Clément (26/11)
 Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.
+
+## Décision de Clément (26/11 20:36) — tranchée par Apollon par délégation
+**Décision (par délégation) :** dans `syncErrorMessage` (`lib/calendar-sync/ics-feed.ts`), pour `invalid_url`, `blocked_host` et `redirects`, ajouter à la fin du message actuel la phrase « Vos derniers créneaux restent pris en compte. », avec un test pour ces trois codes ; ne pas toucher à `linkErrorMessage` ni aux autres messages, et ne pas ajouter la durée de panne ou l'heure prévues dans l'aperçu (écart accepté, la ligne « Dernière mise à jour il y a… » suffit).
+Cette décision remplace, pour ce seul message, l'interdiction du plan de changer les messages d'erreur : la noter sous « Décisions prises par délégation » et, si la garde demande une ré-approbation, la demander sans la contourner.
