@@ -24,6 +24,10 @@ import {
   getDashboardWeek,
   getPendingDepositCount,
   getBookingCount,
+  getTodayBookings,
+  getRecentVisits,
+  todayInTimezone,
+  todayTotalCents,
   type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
@@ -138,15 +142,18 @@ export default async function DashboardPage({
   // le bénéfice (profitability_analysis). Les visites (business_stats) et les
   // KPI ne sont pas calculés inutilement quand aucune feature ne les autorise.
   const needStats = canStats || canProfit
-  const [stats, upcoming, week, requests, visitStats, pendingDepositCount] = await Promise.all([
+  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits] = await Promise.all([
     needStats ? getDashboardStats(companyId) : Promise.resolve(null),
-    // Spirit sépare « aujourd'hui » et « prochains » : on charge un peu plus large.
-    getUpcomingBookingsDetailed(isSpirit ? 8 : 5),
+    // « Aujourd'hui » et « prochains » sont séparés : on charge un peu plus large.
+    getUpcomingBookingsDetailed(isSpirit ? 8 : 15, companyId),
     getDashboardWeek(),
     listCustomRequests(),
     canStats ? getVisitStats() : Promise.resolve(null),
     // Compteur OPÉRATIONNEL (alerte), toujours chargé — indépendant du premium.
     getPendingDepositCount(companyId),
+    // L77 — accueil standard : rendez-vous du jour + dernières visites (opérationnel, non gaté).
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getTodayBookings(companyId, company.timezone),
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getRecentVisits(companyId),
   ])
 
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
@@ -515,6 +522,11 @@ export default async function DashboardPage({
     )
   }
 
+  // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
+  const companyToday = todayInTimezone(company.timezone)
+  const laterUpcoming = upcoming.filter((b) => b.date > companyToday).slice(0, 5)
+  const todayTotal = todayTotalCents(todayList)
+
   /* ------------------------------------------------------------------ */
   /*  Disposition STANDARD — inchangée pour tous les autres tenants.    */
   /* ------------------------------------------------------------------ */
@@ -555,7 +567,28 @@ export default async function DashboardPage({
         </section>
       )}
 
-      {/* 2. AUJOURD'HUI / PROCHAINS RENDEZ-VOUS — NIVEAU 2, cœur opérationnel. */}
+      {/* 2. AUJOURD'HUI — NIVEAU 2, cœur opérationnel : tous les rendez-vous du
+          jour (fuseau de l'entreprise), leur nombre et le total prévu. */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Aujourd&apos;hui</h2>
+            <p className="text-xs text-muted-foreground">
+              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} prévus` : ""}
+            </p>
+          </div>
+          <Link href={href("/admin/calendrier")} className="text-xs font-medium text-primary hover:underline">
+            Agenda
+          </Link>
+        </div>
+        {todayList.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Aucun rendez-vous aujourd&apos;hui.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border">{todayList.map(renderUpcoming)}</ul>
+        )}
+      </section>
+
+      {/* Prochains rendez-vous : uniquement les jours suivants. */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Prochains rendez-vous</h2>
@@ -564,7 +597,7 @@ export default async function DashboardPage({
           </Link>
         </div>
 
-        {upcoming.length === 0 ? (
+        {laterUpcoming.length === 0 ? (
           <div className="py-8 text-center">
             <p className="text-sm font-medium text-foreground">Aucun rendez-vous à venir.</p>
             <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">
@@ -572,9 +605,36 @@ export default async function DashboardPage({
             </p>
           </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">{upcoming.map(renderUpcoming)}</ul>
+          <ul className="flex flex-col divide-y divide-border">{laterUpcoming.map(renderUpcoming)}</ul>
         )}
       </section>
+
+      {/* Dernières visites : 5 derniers rendez-vous terminés (clic → fiche). */}
+      {recentVisits.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Dernières visites</h2>
+          <ul className="flex flex-col divide-y divide-border">
+            {recentVisits.map((v) => (
+              <li key={v.id}>
+                <Link
+                  href={href(`/admin/reservations/${v.id}`)}
+                  className="flex min-h-11 items-center justify-between gap-3 py-2.5 transition-colors hover:text-primary"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-foreground">{v.customerName}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {[formatDateShort(v.date), v.services.join(" · "), v.vehicles.join(", ")]
+                        .filter(Boolean)
+                        .join(" — ")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-foreground">{formatPrice(v.totalCents)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Aperçu de la semaine (planning). */}
       <div className="mt-6">

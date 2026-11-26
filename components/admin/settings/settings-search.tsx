@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { Search } from "lucide-react"
-import { SETTINGS_SEARCH_EMPTY, searchSettings, settingsSearchHref } from "@/lib/admin/settings-search"
+import { SETTINGS_SEARCH_EMPTY, searchSettings, settingsResultContext } from "@/lib/admin/settings-search"
 import { withTenant } from "@/lib/tenant-link"
 
 /** Champ « Rechercher un réglage » : filtre à chaque lettre, sans accent ni majuscule. */
@@ -43,15 +43,15 @@ export function SettingsSearch({
               <li className="p-3 text-sm text-muted-foreground">{SETTINGS_SEARCH_EMPTY}</li>
             ) : (
               results.map((r) => (
-                <li key={`${r.tab}-${r.label}`} className="border-b border-border last:border-b-0">
+                <li key={r.href} className="border-b border-border last:border-b-0">
                   <Link
-                    href={withTenant(settingsSearchHref(r.tab), tenantParam)}
+                    href={withTenant(r.href, tenantParam)}
                     // Depuis « Tous les réglages », la page reste montée : on referme la liste.
                     onClick={() => setQ("")}
                     className="block min-h-11 px-3 py-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   >
                     <span className="block text-base font-medium text-foreground">{r.label}</span>
-                    <span className="block text-sm text-muted-foreground">{r.category}</span>
+                    <span className="block text-sm text-muted-foreground">{settingsResultContext(r)}</span>
                   </Link>
                 </li>
               ))

@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
 import { getSettings, getBusinessHours, getTimeOff, getServices } from "@/lib/booking/queries"
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
@@ -77,11 +78,12 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; tenant?: string; sms_session?: string; bloc?: string }>
+  searchParams: Promise<{ tab?: string; tenant?: string; sms_session?: string }>
 }) {
   const { tenant, role, isSuperAdmin } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
-  const { tab, tenant: tenantParam, sms_session, bloc } = await searchParams
+  // `bloc` (recherche) est lu côté navigateur par SettingsHighlight.
+  const { tab, tenant: tenantParam, sms_session } = await searchParams
   const smsSession = typeof sms_session === "string" && sms_session.startsWith("cs_") ? sms_session : null
 
   // Site Spirit ACS : shell 100 % personnalisé. On masque UNIQUEMENT pour lui les
@@ -282,8 +284,9 @@ export default async function ParametresPage({
             </div>
           </div>
 
-          {/* `key` : un résultat de recherche cliqué depuis cette page change bien d'onglet. */}
-          <Tabs key={activeTab} defaultValue={activeTab} className="w-full">
+          {/* Onglet piloté par l'adresse : un résultat de recherche cliqué depuis
+              cette page change toujours d'onglet, même après un clic sur une pastille. */}
+          <SettingsTabs defaultTab={activeTab} tabs={visibleSubTabs.map((t) => t.value)} className="w-full">
             {/* Navigation secondaire légère, uniquement si plusieurs sous-sections.
                 Les pastilles passent à la ligne : aucune barre coupée sur mobile. */}
             {visibleSubTabs.length > 1 && (
@@ -620,8 +623,8 @@ export default async function ParametresPage({
                 </TabsContent>
               </>
             )}
-          </Tabs>
-          {bloc ? <SettingsHighlight key={bloc} bloc={bloc} /> : null}
+          </SettingsTabs>
+          <SettingsHighlight />
         </div>
       )}
     </div>

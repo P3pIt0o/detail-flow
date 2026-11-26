@@ -100,7 +100,8 @@ describe("L77 — recherche des réglages", () => {
   it("« horaires » mène au réglage Horaires d'ouverture", () => {
     const [first] = searchSettings("horaires")
     expect(first).toMatchObject({ label: "Horaires d'ouverture", tab: "hours", category: "Réservations" })
-    expect(settingsSearchHref(first.tab)).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
+    expect(settingsSearchHref("hours")).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
+    expect(first.href).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
   })
 
   it.each([

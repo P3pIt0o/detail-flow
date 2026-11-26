@@ -90,7 +90,7 @@ export function PlanningSettings(props: Props) {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6 space-y-5">
+      <Card id="reglage-vacances" className="p-6 space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">Mode vacances</h2>
@@ -131,7 +131,7 @@ export function PlanningSettings(props: Props) {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-5">
+      <Card id="reglage-creneaux" className="p-6 space-y-5">
         <div>
           <h2 className="text-lg font-semibold">Planning &amp; créneaux</h2>
           <p className="text-sm text-muted-foreground text-pretty">
@@ -184,7 +184,7 @@ export function PlanningSettings(props: Props) {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-5">
+      <Card id="reglage-acompte" className="p-6 space-y-5">
         <div>
           <h2 className="text-lg font-semibold">Acompte à la réservation</h2>
           <p className="text-sm text-muted-foreground text-pretty">

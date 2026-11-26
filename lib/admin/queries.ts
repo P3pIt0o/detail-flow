@@ -253,6 +253,74 @@ export async function getUpcomingBookingsDetailed(
     .orderBy(bookings.date, bookings.startTime)
     .limit(limit)
 
+  return withServicesAndVehicles(rows)
+}
+
+type BookingSummaryRow = Omit<UpcomingBookingDetailed, "services" | "vehicles">
+
+const bookingSummaryColumns = {
+  id: bookings.id,
+  reference: bookings.reference,
+  customerName: bookings.customerName,
+  date: bookings.date,
+  startTime: bookings.startTime,
+  status: bookings.status,
+  totalCents: bookings.totalCents,
+  address: bookings.address,
+  customerPhone: bookings.customerPhone,
+}
+
+/** L77 : statuts comptés dans « Aujourd'hui » (les annulés sont exclus). */
+export const TODAY_BOOKING_STATUSES = ["confirmed", "pending_deposit", "completed"] as const
+
+/** Date du jour (AAAA-MM-JJ) dans le fuseau de l'entreprise. */
+export function todayInTimezone(timezone: string | null | undefined, now = new Date()): string {
+  return now.toLocaleDateString("en-CA", { timeZone: timezone || "Europe/Paris" })
+}
+
+/** Total prévu du jour, en centimes : les rendez-vous annulés ne comptent jamais. */
+export function todayTotalCents(list: { status: string; totalCents: number }[]): number {
+  return list
+    .filter((b) => (TODAY_BOOKING_STATUSES as readonly string[]).includes(b.status))
+    .reduce((acc, b) => acc + (Number.isFinite(b.totalCents) ? b.totalCents : 0), 0)
+}
+
+/**
+ * L77 — Rendez-vous du jour (fuseau de l'entreprise), tous ceux non annulés,
+ * triés par heure. `companyId` résolu côté serveur par l'appelant.
+ */
+export async function getTodayBookings(
+  companyId: number,
+  timezone?: string | null,
+): Promise<UpcomingBookingDetailed[]> {
+  const today = todayInTimezone(timezone)
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, companyId),
+        eq(bookings.date, today),
+        inArray(bookings.status, [...TODAY_BOOKING_STATUSES]),
+      ),
+    )
+    .orderBy(bookings.startTime)
+  return withServicesAndVehicles(rows)
+}
+
+/** L77 — Dernières visites : 5 derniers rendez-vous terminés de l'entreprise. */
+export async function getRecentVisits(companyId: number, limit = 5): Promise<UpcomingBookingDetailed[]> {
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(and(eq(bookings.companyId, companyId), eq(bookings.status, "completed")))
+    .orderBy(desc(bookings.date), desc(bookings.startTime))
+    .limit(limit)
+  return withServicesAndVehicles(rows)
+}
+
+/** Ajoute prestations et véhicules distincts (lignes des seules réservations reçues). */
+async function withServicesAndVehicles(rows: BookingSummaryRow[]): Promise<UpcomingBookingDetailed[]> {
   if (rows.length === 0) return []
 
   const ids = rows.map((r) => r.id)

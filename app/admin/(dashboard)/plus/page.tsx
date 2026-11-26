@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
-import { buildPlusGroups, type PlusItem } from "@/lib/admin/nav"
+import { buildPlusGroups, canExportData, type PlusItem } from "@/lib/admin/nav"
 import { getBookingDistributionMode } from "@/lib/company/booking-distribution"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { withTenant } from "@/lib/tenant-link"
@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Plus" }
 export default async function PlusPage({ searchParams }: { searchParams: Promise<{ tenant?: string }> }) {
   const { tenant: tenantParam } = await searchParams
   // Contexte résolu CÔTÉ SERVEUR ; `tenantParam` ne sert qu'à conserver les liens d'aperçu.
-  const { tenant: company } = await requireCompanyMember()
+  const { tenant: company, role, isSuperAdmin } = await requireCompanyMember()
 
   const customSiteKey = company.customSiteKey ?? null
   const intent = resolveDashboardIntent({ persisted: company.onboardingIntent, customSiteKey })
@@ -26,6 +26,7 @@ export default async function PlusPage({ searchParams }: { searchParams: Promise
     intent,
     customSiteKey,
     bookingDistributionMode: await getBookingDistributionMode(company.id),
+    canExport: canExportData({ role, isSuperAdmin }),
   })
 
   return (

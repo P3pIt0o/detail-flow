@@ -2,12 +2,15 @@ import { findCategoryByTab } from "@/lib/admin/settings-nav"
 
 /**
  * Index ÉCRIT EN DUR de la recherche « Rechercher un réglage » (aucun appel serveur,
- * aucune donnée tenant). Le bloc visé dans la page des Paramètres porte l'`id`
- * `reglage-<onglet>`.
+ * aucune donnée tenant). Chaque entrée vise un bloc précis de la page des Paramètres
+ * (`id` = `bloc`, sinon `reglage-<onglet>`). Si ce bloc n'est pas affiché pour le
+ * tenant (ex. frais de déplacement en atelier seul), on arrive en haut de l'onglet.
  */
 export type SettingsSearchEntry = {
   label: string
   tab: string
+  /** `id` du bloc visé dans l'onglet (défaut : `reglage-<onglet>`). */
+  bloc?: string
   /** Mots et synonymes que le detailer peut taper. */
   words: string
   /** Réglage du modèle de site standard : sans effet sur le site 100 % personnalisé Spirit ACS. */
@@ -18,20 +21,23 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Nom et coordonnées", tab: "business", words: "nom entreprise societe telephone mobile email e-mail mail contact" },
   { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail" },
   { label: "Congés et fermetures", tab: "timeoff", words: "conges vacances fermeture absence repos indisponibilite" },
-  { label: "Créneaux et délai de réservation", tab: "planning", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
-  { label: "Acompte", tab: "planning", words: "acompte arrhes avance pourcentage paiement reservation" },
-  { label: "Mode vacances", tab: "planning", words: "vacances pause fermer reservations message" },
+  { label: "Créneaux et délai de réservation", tab: "planning", bloc: "reglage-creneaux", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
+  { label: "Acompte", tab: "planning", bloc: "reglage-acompte", words: "acompte arrhes avance pourcentage paiement reservation" },
+  { label: "Mode vacances", tab: "planning", bloc: "reglage-vacances", words: "vacances pause fermer reservations message" },
   { label: "Atelier ou à domicile", tab: "travel", words: "lieu atelier domicile mobile adresse intervention zone" },
-  { label: "Frais de déplacement", tab: "travel", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
+  { label: "Frais de déplacement", tab: "travel", bloc: "reglage-frais-deplacement", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
   { label: "Contenu du site", tab: "site", words: "site page vitrine titre texte presentation" },
-  { label: "Logo de votre site", tab: "site", words: "logo image marque identite", standardOnly: true },
-  { label: "Réseaux sociaux et conditions de vente", tab: "site", words: "reseaux sociaux instagram facebook tiktok cgv conditions" },
+  { label: "Logo de votre site", tab: "site", bloc: "reglage-logo-site", words: "logo image marque identite", standardOnly: true },
+  { label: "Réseaux sociaux", tab: "site", bloc: "reglage-reseaux", words: "reseaux sociaux instagram facebook tiktok liens" },
+  { label: "Conditions générales de vente", tab: "site", bloc: "reglage-cgv", words: "cgv conditions generales vente" },
   { label: "Apparence et couleurs", tab: "appearance", words: "apparence couleurs couleur theme style" },
   { label: "Galerie de photos", tab: "gallery", words: "galerie photos images realisations avant apres vehicules" },
   { label: "Avis des clients", tab: "reviews", words: "avis google etoiles temoignages notes" },
   { label: "Demandes spéciales", tab: "custom-requests", words: "demandes speciales devis sur mesure formulaire" },
   { label: "Paiements en ligne", tab: "payments", words: "paiement carte bancaire stripe encaisser encaissement commission virement" },
-  { label: "Factures et mentions légales", tab: "invoicing", words: "logo facture facturation devis tva siret iban bic mentions legales echeance" },
+  { label: "Factures et mentions légales", tab: "invoicing", words: "facture facturation devis siret iban bic mentions legales echeance" },
+  { label: "Logo des factures", tab: "invoicing", bloc: "reglage-logo-factures", words: "logo facture factures devis image" },
+  { label: "TVA", tab: "invoicing", bloc: "reglage-tva", words: "tva taxe taux exoneration 293b" },
   { label: "Codes promo", tab: "promo", words: "promo promotion remise reduction code bon" },
   { label: "Rappels par SMS", tab: "sms", words: "sms rappel message texto credits recharge" },
   { label: "Rappels par e-mail et demande d'avis", tab: "notifications", words: "rappel email e-mail mail demande avis notification" },
@@ -40,10 +46,42 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Aide et support", tab: "support", words: "aide support probleme question contacter assistance" },
 ]
 
+/**
+ * Écrans hors Paramètres proposés par la recherche (même masquage que le menu :
+ * Mes prestations n'existe pas pour Spirit ACS).
+ */
+const SCREEN_SEARCH = [
+  {
+    label: "Mes prestations",
+    href: "/admin/prestations",
+    category: "Mon activité",
+    tabLabel: "Prestations et prix",
+    words: "prix tarifs tarif prestation prestations forfaits services duree",
+    hiddenFor: "spirit-acs",
+  },
+] as const
+
 export const SETTINGS_SEARCH_EMPTY = "Aucun réglage trouvé. Essayez un autre mot."
 
-export function settingsSearchHref(tab: string): string {
-  return `/admin/parametres?tab=${tab}&bloc=reglage-${tab}`
+/** Adresse d'un résultat : onglet + bloc précis à mettre en évidence. */
+export function settingsSearchHref(tab: string, bloc?: string): string {
+  return `/admin/parametres?tab=${tab}&bloc=${bloc ?? `reglage-${tab}`}`
+}
+
+export type SettingsSearchResult = {
+  label: string
+  href: string
+  /** Catégorie des Paramètres (ou rubrique de « Plus »). */
+  category: string
+  /** Onglet dans la catégorie. */
+  tabLabel: string
+  /** Onglet visé (absent pour un écran hors Paramètres). */
+  tab?: string
+}
+
+/** Libellé secondaire d'un résultat : « catégorie · onglet ». */
+export function settingsResultContext(r: Pick<SettingsSearchResult, "category" | "tabLabel">): string {
+  return r.tabLabel && r.tabLabel !== r.category ? `${r.category} · ${r.tabLabel}` : r.category
 }
 
 const norm = (s: string) =>
@@ -61,17 +99,32 @@ export function searchSettings(
   query: string,
   customSiteKey?: string | null,
   onboardingIntent?: string | null,
-): (SettingsSearchEntry & { category: string })[] {
+): SettingsSearchResult[] {
   const terms = norm(query).split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []
-  const out: (SettingsSearchEntry & { category: string })[] = []
+  const matches = (text: string) => {
+    const haystack = norm(text)
+    return terms.every((t) => haystack.includes(t))
+  }
+  const out: SettingsSearchResult[] = []
   for (const entry of SETTINGS_SEARCH) {
     if (entry.standardOnly && customSiteKey === "spirit-acs") continue
     const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
     if (!category) continue
     const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
-    const haystack = norm(`${entry.label} ${tabLabel} ${entry.words}`)
-    if (terms.every((t) => haystack.includes(t))) out.push({ ...entry, category: category.label })
+    if (!matches(`${entry.label} ${tabLabel} ${entry.words}`)) continue
+    out.push({
+      label: entry.label,
+      href: settingsSearchHref(entry.tab, entry.bloc),
+      category: category.label,
+      tabLabel,
+      tab: entry.tab,
+    })
+  }
+  for (const screen of SCREEN_SEARCH) {
+    if (customSiteKey === screen.hiddenFor) continue
+    if (!matches(`${screen.label} ${screen.words}`)) continue
+    out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
   }
   return out
 }

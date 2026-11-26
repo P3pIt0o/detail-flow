@@ -1,7 +1,7 @@
 import type React from "react"
 import { requireCompanyMember } from "@/lib/admin"
 import { AdminShell } from "@/components/admin/admin-shell"
-import { buildMainNav, buildPlusGroups } from "@/lib/admin/nav"
+import { buildMainNav, buildPlusGroups, canExportData } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
@@ -45,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     intent: onboardingIntent,
     customSiteKey: ctx.tenant.customSiteKey ?? null,
     bookingDistributionMode,
+    canExport: canExportData(ctx),
   }
   const mainNav = buildMainNav()
   const groups = buildPlusGroups(navOpts)

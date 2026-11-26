@@ -247,6 +247,8 @@ export function buildPlusGroups(opts: {
   intent: OnboardingIntentValue | null
   customSiteKey: string | null
   bookingDistributionMode?: string | null
+  /** Droit d'export lu côté serveur (OWNER/ADMIN/super-admin, comme la route `/admin/export`). Défaut : oui. */
+  canExport?: boolean
 }): PlusGroup[] {
   const byHref = new Map(buildAdminNav(opts).map((i) => [i.href, i] as const))
   const fromNav = (href: string, label?: string, hint?: string): PlusItem[] => {
@@ -265,8 +267,10 @@ export function buildPlusGroups(opts: {
       items: [
         ...fromNav("/admin/prestations", "Mes prestations", "Vos prestations et leurs prix"),
         ...fromNav("/admin/produits"),
-        ...fromNav("/admin/factures", "Factures", "Devis, factures et encaissements"),
-        { href: "/admin/export", label: "Export de vos données", icon: "export", download: true },
+        ...fromNav("/admin/factures", "Devis & factures", "Devis, factures et encaissements"),
+        ...(opts.canExport === false
+          ? []
+          : [{ href: "/admin/export", label: "Export de vos données", icon: "export" as const, download: true }]),
         ...fromNav("/admin/reservations", "Tous les rendez-vous"),
         ...fromNav("/admin/analyse", "Statistiques"),
         ...fromNav("/admin/demandes", "Demandes spéciales"),
@@ -298,6 +302,11 @@ export function buildPlusGroups(opts: {
     },
   ]
   return groups.filter((g) => g.items.length > 0)
+}
+
+/** Même règle que la route `/admin/export` (qui garde son 403). */
+export function canExportData(ctx: { role: string | null | undefined; isSuperAdmin?: boolean }): boolean {
+  return ctx.role === "OWNER" || ctx.role === "ADMIN" || Boolean(ctx.isSuperAdmin)
 }
 
 /** « Itinéraire » : seulement pour un detailer qui se déplace (réglage « Lieu »). */
