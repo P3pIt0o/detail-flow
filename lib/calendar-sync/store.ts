@@ -7,7 +7,7 @@ import "server-only"
  */
 
 import { randomBytes } from "node:crypto"
-import { and, asc, eq, gte, inArray, isNotNull, lte, or, isNull, lt } from "drizzle-orm"
+import { and, count, eq, gte, inArray, isNotNull, lte, or, isNull, lt, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import {
   bookings,
@@ -56,13 +56,45 @@ export async function findCompanyIdByFeedToken(token: string): Promise<number | 
   return row?.companyId ?? null
 }
 
-export async function setExternalUrl(companyId: number, url: string | null): Promise<void> {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/** Remplace les lignes de blocage de la société, dans une transaction déjà ouverte. */
+async function writeBlocks(tx: Tx, companyId: number, blocks: readonly BusyBlock[]): Promise<void> {
+  await tx.delete(calendarExternalBlocks).where(eq(calendarExternalBlocks.companyId, companyId))
+  for (let i = 0; i < blocks.length; i += 500) {
+    await tx.insert(calendarExternalBlocks).values(
+      blocks.slice(i, i + 500).map((b) => ({ companyId, startsAt: b.startsAt, endsAt: b.endsAt, allDay: b.allDay })),
+    )
+  }
+}
+
+/** Délie l'agenda externe : adresse et blocages supprimés ensemble. */
+export async function setExternalUrl(companyId: number, url: null): Promise<void> {
   await ensureSyncSettings(companyId)
-  await db
-    .update(calendarSyncSettings)
-    .set({ externalUrl: url, lastError: null, lastSyncAt: null, lastSuccessAt: null, updatedAt: new Date() })
-    .where(eq(calendarSyncSettings.companyId, companyId))
-  if (!url) await db.delete(calendarExternalBlocks).where(eq(calendarExternalBlocks.companyId, companyId))
+  await db.transaction(async (tx) => {
+    await tx
+      .update(calendarSyncSettings)
+      .set({ externalUrl: url, lastError: null, lastSyncAt: null, lastSuccessAt: null, updatedAt: new Date() })
+      .where(eq(calendarSyncSettings.companyId, companyId))
+    await writeBlocks(tx, companyId, [])
+  })
+}
+
+/** Nouvelle adresse déjà lue avec succès : elle remplace l'ancienne et ses blocages. */
+export async function saveExternalCalendar(
+  companyId: number,
+  url: string,
+  blocks: readonly BusyBlock[],
+  now = new Date(),
+): Promise<void> {
+  await ensureSyncSettings(companyId)
+  await db.transaction(async (tx) => {
+    await tx
+      .update(calendarSyncSettings)
+      .set({ externalUrl: url, lastError: null, lastSyncAt: now, lastSuccessAt: now, updatedAt: now })
+      .where(eq(calendarSyncSettings.companyId, companyId))
+    await writeBlocks(tx, companyId, blocks)
+  })
 }
 
 export async function getCompanyTimezone(companyId: number): Promise<string> {
@@ -70,28 +102,52 @@ export async function getCompanyTimezone(companyId: number): Promise<string> {
   return row?.tz || "Europe/Paris"
 }
 
-/** Remplace les blocages de la société (transaction) et enregistre le succès. */
-export async function replaceExternalBlocks(companyId: number, blocks: readonly BusyBlock[], now = new Date()): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.delete(calendarExternalBlocks).where(eq(calendarExternalBlocks.companyId, companyId))
-    for (let i = 0; i < blocks.length; i += 500) {
-      await tx.insert(calendarExternalBlocks).values(
-        blocks.slice(i, i + 500).map((b) => ({ companyId, startsAt: b.startsAt, endsAt: b.endsAt, allDay: b.allDay })),
-      )
-    }
+/**
+ * Remplace les blocages après une relecture. La ligne de réglages est verrouillée :
+ * si l'adresse lue n'est plus celle enregistrée (déliée, changée), rien n'est écrit.
+ */
+export async function replaceExternalBlocks(
+  companyId: number,
+  blocks: readonly BusyBlock[],
+  now: Date,
+  expectedUrl: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ externalUrl: calendarSyncSettings.externalUrl })
+      .from(calendarSyncSettings)
+      .where(eq(calendarSyncSettings.companyId, companyId))
+      .for("update")
+    if (current?.externalUrl !== expectedUrl) return false
+    await writeBlocks(tx, companyId, blocks)
     await tx
       .update(calendarSyncSettings)
       .set({ lastSyncAt: now, lastSuccessAt: now, lastError: null, updatedAt: now })
       .where(eq(calendarSyncSettings.companyId, companyId))
+    return true
   })
 }
 
+/** Début d'une relecture (ordre de passage du cron). */
+export async function markSyncAttempt(companyId: number, now = new Date()): Promise<void> {
+  await db.update(calendarSyncSettings).set({ lastSyncAt: now }).where(eq(calendarSyncSettings.companyId, companyId))
+}
+
 /** Échec : les anciens blocages sont CONSERVÉS, seul le statut change. */
-export async function recordSyncError(companyId: number, code: string, now = new Date()): Promise<void> {
+export async function recordSyncError(companyId: number, code: string, now: Date, expectedUrl: string): Promise<void> {
   await db
     .update(calendarSyncSettings)
     .set({ lastSyncAt: now, lastError: code, updatedAt: now })
-    .where(eq(calendarSyncSettings.companyId, companyId))
+    .where(and(eq(calendarSyncSettings.companyId, companyId), eq(calendarSyncSettings.externalUrl, expectedUrl)))
+}
+
+/** Nombre de créneaux importés à venir (affiché dans « Mon agenda »). */
+export async function countExternalBlocks(companyId: number, now = new Date()): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(calendarExternalBlocks)
+    .where(and(eq(calendarExternalBlocks.companyId, companyId), gte(calendarExternalBlocks.endsAt, now)))
+  return row?.n ?? 0
 }
 
 /** Sociétés à relire (adresse enregistrée, dernière lecture > 14 min). */
@@ -106,7 +162,7 @@ export async function listDueCompanyIds(now: Date, limit = 100): Promise<number[
         or(isNull(calendarSyncSettings.lastSyncAt), lt(calendarSyncSettings.lastSyncAt, threshold)),
       ),
     )
-    .orderBy(asc(calendarSyncSettings.lastSyncAt))
+    .orderBy(sql`${calendarSyncSettings.lastSyncAt} asc nulls first`)
     .limit(limit)
   return rows.map((r) => r.companyId)
 }

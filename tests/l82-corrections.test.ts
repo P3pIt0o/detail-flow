@@ -1,0 +1,156 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("server-only", () => ({}))
+vi.mock("@/lib/calendar-sync/store", () => ({
+  getCompanyTimezone: vi.fn(),
+  getSyncSettings: vi.fn(),
+  listDueCompanyIds: vi.fn(),
+  markSyncAttempt: vi.fn(),
+  recordSyncError: vi.fn(),
+  replaceExternalBlocks: vi.fn(),
+  saveExternalCalendar: vi.fn(),
+}))
+
+import { externalBlocksForDay, parseBusyEvents } from "@/lib/calendar-sync/ics-parse"
+import { formatSince, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
+import { connectCalendar, syncAllDue, syncCompany, type SyncDeps } from "@/lib/calendar-sync/sync"
+
+const TZ = "Europe/Paris"
+const NOW = new Date("2026-11-24T08:00:00Z")
+const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
+const cal = (...events: string[]) => `BEGIN:VCALENDAR\r\n${events.join("\r\n")}\r\nEND:VCALENDAR\r\n`
+const ev = (...lines: string[]) => ["BEGIN:VEVENT", ...lines, "END:VEVENT"].join("\r\n")
+const parse = (ics: string) => parseBusyEvents(ics, { tenantTz: TZ, now: NOW })
+const days = (ics: string) => parse(ics).map((b) => b.startsAt.toISOString().slice(0, 10)).sort()
+
+describe("L82 — lecture de l'agenda", () => {
+  it("un événement à J+150 (dans la fenêtre réservable) est bloqué", () => {
+    const blocks = parse(cal(ev("UID:a", "DTSTART;VALUE=DATE:20270423", "DTEND;VALUE=DATE:20270424")))
+    expect(externalBlocksForDay(blocks, "2027-04-23", TZ).fullDay).toBe(true)
+  })
+
+  const weekly = ev("UID:s", "DTSTART:20261125T090000Z", "DTEND:20261125T100000Z", "RRULE:FREQ=WEEKLY;COUNT=3")
+
+  it("occurrence déplacée : l'ancien horaire est libéré, le nouveau bloqué", () => {
+    const moved = ev("UID:s", "RECURRENCE-ID:20261202T090000Z", "DTSTART:20261203T090000Z", "DTEND:20261203T100000Z")
+    expect(days(cal(weekly, moved))).toEqual(["2026-11-25", "2026-12-03", "2026-12-09"])
+    expect(days(cal(moved, weekly))).toEqual(["2026-11-25", "2026-12-03", "2026-12-09"])
+  })
+
+  it("occurrence annulée ou passée « disponible » : plus bloquée", () => {
+    for (const flag of ["STATUS:CANCELLED", "TRANSP:TRANSPARENT"]) {
+      const o = ev("UID:s", "RECURRENCE-ID:20261202T090000Z", "DTSTART:20261202T090000Z", "DTEND:20261202T100000Z", flag)
+      expect(days(cal(weekly, o))).toEqual(["2026-11-25", "2026-12-09"])
+    }
+  })
+
+  it("BYSETPOS : « dernier jour ouvré du mois » ne bloque qu'un jour par mois", () => {
+    const rule = "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3"
+    const ics = cal(ev("UID:p", "DTSTART:20261130T090000Z", "DTEND:20261130T100000Z", rule))
+    expect(days(ics)).toEqual(["2026-11-30", "2026-12-31", "2027-01-29"])
+  })
+
+  it("budget de calcul global : un fichier piégé est refusé au lieu de figer le serveur", () => {
+    const old = Array.from({ length: 2000 }, (_, i) =>
+      ev(`UID:x${i}`, "DTSTART:18000101T090000Z", "DTEND:18000101T100000Z", "RRULE:FREQ=DAILY"),
+    )
+    const t0 = Date.now()
+    expect(() => parse(cal(...old))).toThrow()
+    expect(Date.now() - t0).toBeLessThan(10_000)
+  })
+
+  it("une série ancienne mais normale reste lue", () => {
+    const ics = cal(ev("UID:o", "DTSTART:20200101T090000Z", "DTEND:20200101T100000Z", "RRULE:FREQ=DAILY"))
+    expect(days(ics)).toContain("2026-11-25")
+  })
+})
+
+const ICS = cal(ev("UID:z", "DTSTART:20261130T090000Z", "DTEND:20261130T100000Z"))
+const mkDeps = (res: { ok: true; text: string } | { ok: false; code: string }) => ({
+  fetchIcs: vi.fn(async () => res),
+  getExternalUrl: vi.fn(async () => "https://calendar.example.com/old.ics"),
+  getTimezone: vi.fn(async () => TZ),
+  markAttempt: vi.fn(async () => undefined),
+  replaceBlocks: vi.fn(async () => true),
+  saveCalendar: vi.fn(async () => undefined),
+  recordError: vi.fn(async () => undefined),
+})
+const asDeps = (d: ReturnType<typeof mkDeps>) => d as unknown as SyncDeps
+
+describe("L82 — enregistrement et relecture", () => {
+  const URL_NEW = "https://calendar.example.com/new.ics"
+
+  it("nouvelle adresse illisible : rien n'est enregistré, l'ancienne reste", async () => {
+    for (const res of [{ ok: false as const, code: "http_error" }, { ok: true as const, text: "<html/>" }]) {
+      const d = mkDeps(res)
+      expect((await connectCalendar(1, URL_NEW, NOW, asDeps(d))).ok).toBe(false)
+      expect(d.saveCalendar).not.toHaveBeenCalled()
+      expect(d.recordError).not.toHaveBeenCalled()
+    }
+  })
+
+  it("nouvelle adresse lisible : enregistrée avec ses créneaux", async () => {
+    const d = mkDeps({ ok: true, text: ICS })
+    expect(await connectCalendar(1, URL_NEW, NOW, asDeps(d))).toEqual({ ok: true, blocks: 1 })
+    expect(d.saveCalendar).toHaveBeenCalledWith(1, URL_NEW, expect.any(Array), NOW)
+  })
+
+  it("la relecture marque la tentative avant de télécharger", async () => {
+    const d = mkDeps({ ok: true, text: ICS })
+    await syncCompany(1, NOW, asDeps(d))
+    expect(d.markAttempt.mock.invocationCallOrder[0]).toBeLessThan(d.fetchIcs.mock.invocationCallOrder[0])
+  })
+
+  it("agenda délié ou changé pendant la lecture : résultat abandonné", async () => {
+    const d = mkDeps({ ok: true, text: ICS })
+    d.replaceBlocks.mockResolvedValueOnce(false)
+    expect(await syncCompany(1, NOW, asDeps(d))).toEqual({ ok: false, code: "stale" })
+    expect(d.replaceBlocks).toHaveBeenCalledWith(1, expect.any(Array), NOW, "https://calendar.example.com/old.ics")
+    const store = read("lib/calendar-sync/store.ts")
+    expect(store).toContain('.for("update")')
+    expect(store).toMatch(/current\?\.externalUrl !== expectedUrl/)
+  })
+
+  it("le passage du cron s'arrête avant la limite de durée", async () => {
+    let t = 0
+    const sync = vi.fn(async () => {
+      t += 10_000
+      return { ok: true as const, blocks: 0 }
+    })
+    const ids = Array.from({ length: 30 }, (_, i) => i + 1)
+    const res = await syncAllDue(NOW, { list: async () => ids, sync, clock: () => t })
+    expect(sync.mock.calls.length).toBeLessThan(30)
+    expect(res.checked).toBe(sync.mock.calls.length)
+    expect(read("app/api/cron/calendar-sync/route.ts")).toContain("export const maxDuration = 60")
+    expect(read("lib/calendar-sync/store.ts")).toContain("asc nulls first")
+  })
+})
+
+describe("L82 — écran", () => {
+  const panel = read("components/admin/calendar-sync-panel.tsx")
+
+  it("durée relative", () => {
+    const at = (min: number) => new Date(NOW.getTime() - min * 60_000).toISOString()
+    expect(formatSince(at(0), NOW.getTime())).toBe("à l'instant")
+    expect(formatSince(at(6), NOW.getTime())).toBe("il y a 6 min")
+    expect(formatSince(at(125), NOW.getTime())).toBe("il y a 2 h")
+    expect(formatSince(at(3 * 24 * 60), NOW.getTime())).toBe("il y a 3 jours")
+    expect(panel).not.toContain("toLocaleString")
+    expect(panel).toContain("pris en compte")
+  })
+
+  it("textes et pictogrammes de l'aperçu validé", () => {
+    expect(panel).toContain("Seuls les horaires sont lus, jamais le titre.")
+    expect(panel).toContain("Vos rendez-vous DetailFlow sont reconnus et ignorés automatiquement.")
+    expect(panel).toContain("mis à jour automatiquement")
+    expect(panel).toMatch(/PHONE_ICONS\[phone\]\[i\]/)
+  })
+
+  it("les messages d'échec disent que les derniers créneaux restent pris en compte", () => {
+    for (const code of ["http_error", "too_large", "not_calendar", "timeout"]) {
+      expect(syncErrorMessage(code)).toContain("derniers créneaux")
+    }
+  })
+})

@@ -112,6 +112,15 @@ export function buildFeed(bookings: readonly FeedBooking[], opts: { tz: string; 
   return lines.map(fold).join("\r\n") + "\r\n"
 }
 
+/** « il y a 6 min » à partir d'une date ISO. */
+export function formatSince(iso: string, nowMs: number): string {
+  const min = Math.floor((nowMs - new Date(iso).getTime()) / 60_000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  if (min < 48 * 60) return `il y a ${Math.floor(min / 60)} h`
+  return `il y a ${Math.floor(min / (24 * 60))} jours`
+}
+
 /** Message clair (sans jargon) pour un code d'erreur de lecture. */
 export function syncErrorMessage(code: string | null | undefined): string | null {
   switch (code) {
@@ -126,11 +135,11 @@ export function syncErrorMessage(code: string | null | undefined): string | null
     case "timeout":
       return "Votre agenda met trop de temps à répondre. Nous réessayons automatiquement ; vos derniers créneaux restent pris en compte."
     case "too_large":
-      return "Votre agenda est trop volumineux pour être lu."
+      return "Votre agenda est trop volumineux pour être lu. Vos derniers créneaux restent pris en compte."
     case "http_error":
-      return "Votre agenda a refusé la lecture. L'adresse a peut-être changé : copiez-la de nouveau."
+      return "Votre agenda a refusé la lecture. L'adresse a peut-être changé : copiez-la de nouveau. Vos derniers créneaux restent pris en compte."
     case "not_calendar":
-      return "Cette adresse ne mène pas à un agenda. Copiez de nouveau l'adresse privée de votre agenda."
+      return "Cette adresse ne mène pas à un agenda. Copiez de nouveau l'adresse privée de votre agenda. Vos derniers créneaux restent pris en compte."
     default:
       return "La dernière mise à jour a échoué. Nous réessayons automatiquement ; vos derniers créneaux restent pris en compte."
   }

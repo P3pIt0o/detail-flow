@@ -36,7 +36,9 @@ const storeMock = {
   getSyncSettings: vi.fn(async () => null),
   listDueCompanyIds: vi.fn(async () => []),
   recordSyncError: vi.fn(async () => undefined),
-  replaceExternalBlocks: vi.fn(async () => undefined),
+  replaceExternalBlocks: vi.fn(async () => true),
+  markSyncAttempt: vi.fn(async () => undefined),
+  saveExternalCalendar: vi.fn(async () => undefined),
 }
 vi.mock("@/lib/calendar-sync/store", () => storeMock)
 
@@ -168,7 +170,9 @@ describe("L80 — relecture : échec = anciens blocages conservés", () => {
     fetchIcs: vi.fn(fetchIcs) as never,
     getExternalUrl: vi.fn(async () => "https://calendar.example.com/x.ics"),
     getTimezone: vi.fn(async () => TZ),
-    replaceBlocks: vi.fn(async () => undefined),
+    markAttempt: vi.fn(async () => undefined),
+    replaceBlocks: vi.fn(async () => true),
+    saveCalendar: vi.fn(async () => undefined),
     recordError: vi.fn(async () => undefined),
   })
 
@@ -188,7 +192,7 @@ describe("L80 — relecture : échec = anciens blocages conservés", () => {
     const res = await syncCompany(1, new Date(), deps)
     expect(res).toEqual({ ok: false, code: "timeout" })
     expect(deps.replaceBlocks).not.toHaveBeenCalled()
-    expect(deps.recordError).toHaveBeenCalledWith(1, "timeout", expect.any(Date))
+    expect(deps.recordError).toHaveBeenCalledWith(1, "timeout", expect.any(Date), expect.any(String))
   })
 
   it("réponse qui n'est pas un agenda : anciens blocages conservés", async () => {
@@ -196,7 +200,7 @@ describe("L80 — relecture : échec = anciens blocages conservés", () => {
     const deps = mk(async () => ({ ok: true, text: "<html>erreur</html>" }))
     expect(await syncCompany(1, new Date(), deps)).toEqual({ ok: false, code: "not_calendar" })
     expect(deps.replaceBlocks).not.toHaveBeenCalled()
-    expect(deps.recordError).toHaveBeenCalledWith(1, "not_calendar", expect.any(Date))
+    expect(deps.recordError).toHaveBeenCalledWith(1, "not_calendar", expect.any(Date), expect.any(String))
   })
 
   it("pas d'adresse : rien n'est lu", async () => {
@@ -256,13 +260,14 @@ describe("L80 — actions admin : la société vient de la session", () => {
     getSyncSettings: vi.fn(async () => null),
   }
   const syncCompany = vi.fn(async () => ({ ok: true, blocks: 0 }))
+  const connectCalendar = vi.fn(async () => ({ ok: true, blocks: 0 }))
   const requireCompanyMember = vi.fn(async (_roles?: string[]) => ({ tenant: { id: 1 } }))
 
   beforeEach(() => {
     vi.doMock("next/cache", () => ({ revalidatePath: vi.fn() }))
     vi.doMock("@/lib/admin", () => ({ requireCompanyMember }))
     vi.doMock("@/lib/calendar-sync/store", () => calls)
-    vi.doMock("@/lib/calendar-sync/sync", () => ({ syncCompany }))
+    vi.doMock("@/lib/calendar-sync/sync", () => ({ syncCompany, connectCalendar }))
     vi.resetModules()
   })
   afterEach(() => {
@@ -278,8 +283,7 @@ describe("L80 — actions admin : la société vient de la session", () => {
     fd.set("address", "webcal://calendar.example.com/x.ics")
     fd.set("companyId", "2")
     expect((await a.saveExternalCalendarAction(fd)).ok).toBe(true)
-    expect(calls.setExternalUrl).toHaveBeenCalledWith(1, "https://calendar.example.com/x.ics")
-    expect(syncCompany).toHaveBeenCalledWith(1)
+    expect(connectCalendar).toHaveBeenCalledWith(1, "https://calendar.example.com/x.ics")
     await a.regenerateFeedAddressAction()
     expect(calls.regenerateFeedToken).toHaveBeenCalledWith(1)
     await a.removeExternalCalendarAction()
@@ -298,11 +302,11 @@ describe("L80 — actions admin : la société vient de la session", () => {
       expect(res.error).toMatch(/adresse/i)
     }
     expect(calls.setExternalUrl).not.toHaveBeenCalled()
-    expect(syncCompany).not.toHaveBeenCalled()
+    expect(connectCalendar).not.toHaveBeenCalled()
   })
 
   it("un échec de lecture est remonté en message clair", async () => {
-    syncCompany.mockResolvedValueOnce({ ok: false, code: "timeout" } as never)
+    connectCalendar.mockResolvedValueOnce({ ok: false, code: "timeout" } as never)
     const a = await import("@/app/admin/(dashboard)/mon-agenda/actions")
     const fd = new FormData()
     fd.set("address", "https://calendar.example.com/x.ics")

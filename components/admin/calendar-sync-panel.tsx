@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { Check, CalendarPlus, Smartphone } from "lucide-react"
+import { Check, CalendarDays, CalendarPlus, ClipboardPaste, Copy, Info, Link2, Settings, Smartphone, type LucideIcon } from "lucide-react"
+import { formatSince } from "@/lib/calendar-sync/ics-feed"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -27,6 +28,12 @@ export const PHONE_STEPS: Record<Phone, string[]> = {
   ],
 }
 
+/** Un pictogramme par étape, dans l'ordre de PHONE_STEPS. */
+const PHONE_ICONS: Record<Phone, LucideIcon[]> = {
+  iphone: [CalendarDays, Info, ClipboardPaste],
+  android: [Settings, Copy, Link2],
+}
+
 export function CalendarSyncPanel(props: {
   iphoneUrl: string
   googleUrl: string
@@ -34,6 +41,7 @@ export function CalendarSyncPanel(props: {
   externalMasked: string | null
   lastSuccessAt: string | null
   errorMessage: string | null
+  blockCount: number
 }) {
   const [phone, setPhone] = useState<Phone>("iphone")
   const [pending, startTransition] = useTransition()
@@ -62,9 +70,14 @@ export function CalendarSyncPanel(props: {
     }
   }
 
-  const last = props.lastSuccessAt
-    ? new Date(props.lastSuccessAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })
-    : null
+  // Calculé après montage : évite l'heure du serveur et les écarts d'hydratation.
+  const [since, setSince] = useState<string | null>(null)
+  useEffect(() => {
+    const update = () => setSince(props.lastSuccessAt ? formatSince(props.lastSuccessAt, Date.now()) : null)
+    update()
+    const timer = setInterval(update, 60_000)
+    return () => clearInterval(timer)
+  }, [props.lastSuccessAt])
 
   return (
     <div className="space-y-6">
@@ -77,6 +90,9 @@ export function CalendarSyncPanel(props: {
 
       <section className="space-y-3 rounded-xl border p-4">
         <h2 className="font-medium">1. Voir mes rendez-vous DetailFlow sur mon téléphone</h2>
+        <p className="text-sm text-muted-foreground">
+          Vos rendez-vous DetailFlow apparaissent dans votre agenda, mis à jour automatiquement.
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           <a href={props.iphoneUrl} className={buttonVariants({ size: "lg", className: "h-12 text-base" })}>
             <Smartphone className="size-5" /> Ajouter à mon iPhone
@@ -117,7 +133,10 @@ export function CalendarSyncPanel(props: {
 
       <section className="space-y-3 rounded-xl border p-4">
         <h2 className="font-medium">2. Bloquer les créneaux déjà pris dans mon téléphone</h2>
-        <p className="text-sm text-muted-foreground">Quel téléphone utilisez-vous ?</p>
+        <p className="text-sm text-muted-foreground">
+          Vos moments « occupés » ne seront plus proposés aux clients. Seuls les horaires sont lus, jamais le titre. Vos rendez-vous DetailFlow sont reconnus et ignorés automatiquement.
+        </p>
+        <p className="text-sm font-medium">Quel téléphone utilisez-vous ?</p>
         <div className="flex gap-2" role="group" aria-label="Type de téléphone">
           {(["iphone", "android"] as const).map((p) => (
             <Button key={p} type="button" variant={phone === p ? "default" : "outline"} onClick={() => setPhone(p)}>
@@ -126,14 +145,18 @@ export function CalendarSyncPanel(props: {
           ))}
         </div>
         <ol className="space-y-2 text-sm">
-          {PHONE_STEPS[phone].map((t, i) => (
-            <li key={t} className="flex gap-3">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                {i + 1}
-              </span>
-              <span>{t}</span>
-            </li>
-          ))}
+          {PHONE_STEPS[phone].map((t, i) => {
+            const Icon = PHONE_ICONS[phone][i]
+            return (
+              <li key={t} className="flex gap-3">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                  {i + 1}
+                </span>
+                <Icon aria-hidden className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                <span>{t}</span>
+              </li>
+            )
+          })}
         </ol>
         <form
           className="flex flex-col gap-2 sm:flex-row"
@@ -158,7 +181,12 @@ export function CalendarSyncPanel(props: {
               Agenda relié : <strong>{props.externalMasked}</strong>
             </p>
             <p className="text-muted-foreground">
-              {last ? `Dernière mise à jour réussie : ${last}.` : "Pas encore de mise à jour réussie."} Mise à jour automatique toutes les 15 minutes.
+              {since
+                ? `Dernière mise à jour ${since} — ${props.blockCount} ${props.blockCount > 1 ? "événements pris" : "événement pris"} en compte.`
+                : props.lastSuccessAt
+                  ? ""
+                  : "Pas encore de mise à jour réussie."}{" "}
+              Mise à jour automatique toutes les 15 minutes.
             </p>
             {props.errorMessage ? <p className="text-destructive">{props.errorMessage}</p> : null}
             <div className="flex gap-2">

@@ -3,6 +3,7 @@ import { rejectUnauthorizedCron } from "@/lib/cron/auth"
 import { syncAllDue } from "@/lib/calendar-sync/sync"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 /** L80 — Relecture des agendas externes, toutes les 15 min (garde CRON_SECRET fail-closed). */
 export async function GET(request: Request) {

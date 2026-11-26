@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { requireCompanyMember } from "@/lib/admin"
 import { parseExternalUrl } from "@/lib/calendar-sync/safe-fetch"
 import { syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
-import { syncCompany } from "@/lib/calendar-sync/sync"
+import { connectCalendar, syncCompany } from "@/lib/calendar-sync/sync"
 import { ensureSyncSettings, getSyncSettings, regenerateFeedToken, setExternalUrl } from "@/lib/calendar-sync/store"
 
 export type AgendaActionResult = { ok: boolean; error?: string }
@@ -25,10 +25,9 @@ export async function saveExternalCalendarAction(formData: FormData): Promise<Ag
   const parsed = parseExternalUrl(raw)
   if (!parsed) return { ok: false, error: syncErrorMessage("invalid_url") ?? GENERIC }
   try {
-    await setExternalUrl(companyId, parsed.url.toString())
-    const res = await syncCompany(companyId)
-    revalidatePath("/admin/mon-agenda")
+    const res = await connectCalendar(companyId, parsed.url.toString())
     if (!res.ok) return { ok: false, error: syncErrorMessage(res.code) ?? GENERIC }
+    revalidatePath("/admin/mon-agenda")
     return { ok: true }
   } catch {
     return { ok: false, error: GENERIC }
@@ -62,7 +61,10 @@ export async function refreshExternalCalendarAction(): Promise<AgendaActionResul
   try {
     await ensureSyncSettings(companyId)
     const s = await getSyncSettings(companyId)
-    if (s?.lastSyncAt && Date.now() - s.lastSyncAt.getTime() < REFRESH_MIN_GAP_MS) return { ok: true }
+    if (s?.lastSyncAt && Date.now() - s.lastSyncAt.getTime() < REFRESH_MIN_GAP_MS) {
+      const previous = syncErrorMessage(s.lastError)
+      return previous ? { ok: false, error: previous } : { ok: true }
+    }
     const res = await syncCompany(companyId)
     revalidatePath("/admin/mon-agenda")
     if (!res.ok) return { ok: false, error: syncErrorMessage(res.code) ?? GENERIC }

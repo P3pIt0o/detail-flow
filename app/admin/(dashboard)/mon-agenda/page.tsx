@@ -2,7 +2,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { marketingOrigin } from "@/lib/tenant-shared"
-import { ensureSyncSettings } from "@/lib/calendar-sync/store"
+import { countExternalBlocks, ensureSyncSettings } from "@/lib/calendar-sync/store"
 import { feedGoogleUrl, feedHttpsUrl, feedIphoneUrl, syncErrorMessage } from "@/lib/calendar-sync/ics-feed"
 import { maskExternalUrl } from "@/lib/calendar-sync/safe-fetch"
 import { CalendarSyncPanel } from "@/components/admin/calendar-sync-panel"
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic"
 export default async function MonAgendaPage() {
   const { tenant } = await requireCompanyMember(["OWNER", "ADMIN"])
   const settings = await ensureSyncSettings(tenant.id)
+  const blockCount = await countExternalBlocks(tenant.id)
   const httpsUrl = feedHttpsUrl(marketingOrigin(process.env.NEXT_PUBLIC_ROOT_DOMAIN), settings.feedToken)
 
   return (
@@ -27,6 +28,7 @@ export default async function MonAgendaPage() {
         externalMasked={maskExternalUrl(settings.externalUrl)}
         lastSuccessAt={settings.lastSuccessAt ? settings.lastSuccessAt.toISOString() : null}
         errorMessage={syncErrorMessage(settings.lastError)}
+        blockCount={blockCount}
       />
     </div>
   )

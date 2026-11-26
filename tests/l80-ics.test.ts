@@ -120,7 +120,7 @@ describe("L80 — événements « occupé » → créneaux bloqués", () => {
   })
 
   it("récurrence mensuelle (1er lundi) et annuelle", () => {
-    const monthly = parse(cal(ev("UID:m", "DTSTART:20260105T090000Z", "DTEND:20260105T100000Z", "RRULE:FREQ=MONTHLY;BYDAY=1MO")))
+    const monthly = parse(cal(ev("UID:m", "DTSTART:20260105T090000Z", "DTEND:20260105T100000Z", "RRULE:FREQ=MONTHLY;BYDAY=1MO")), { horizonDays: 90 })
     expect(monthly.map((b) => b.startsAt.toISOString().slice(0, 10))).toEqual(["2026-12-07", "2027-01-04", "2027-02-01"])
     const yearly = parse(cal(ev("UID:y", "DTSTART;VALUE=DATE:20200301", "RRULE:FREQ=YEARLY")), { horizonDays: 400 })
     expect(yearly.some((b) => b.allDay)).toBe(true)

@@ -5,16 +5,28 @@
  * description ni le lieu (ils ne sont même pas lus). Gère : lignes repliées,
  * dates UTC / fuseau (TZID) / flottantes / journée entière, DURATION, TRANSP,
  * STATUS, RRULE (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY,
- * BYMONTHDAY), EXDATE. Les événements dont l'UID est celui d'un rendez-vous
- * DetailFlow sont ignorés (anti-boucle).
+ * BYMONTHDAY, BYSETPOS), EXDATE, RECURRENCE-ID (occurrence déplacée ou annulée).
+ * Les événements dont l'UID est celui d'un rendez-vous DetailFlow sont ignorés
+ * (anti-boucle).
  */
 
 export type BusyBlock = { startsAt: Date; endsAt: Date; allDay: boolean }
 
-export const HORIZON_DAYS = 90
+/** Doit couvrir toute la fenêtre réservable (180 j, `SEARCH_MAX_DAYS`) avec une marge. */
+export const HORIZON_DAYS = 200
 const MAX_BLOCKS = 5000
 const MAX_LOOP = 60000
+/** Budget de calcul pour TOUT un fichier (dépassé → lecture refusée, anciens blocages conservés). */
+const MAX_TOTAL_STEPS = 500_000
+const MAX_EVENTS = 20_000
+const MAX_EXCEPTIONS = 20_000
 const DAY_MS = 86_400_000
+
+type Budget = { steps: number; exceptions: number }
+
+function spend(budget: Budget, key: keyof Budget) {
+  if (--budget[key] < 0) throw new Error("calendar_too_complex")
+}
 
 /* ------------------------------ Fuseaux ------------------------------ */
 
@@ -157,6 +169,7 @@ type Rule = {
   until: Dt | null
   byday: { ord: number; wd: number }[]
   bymonthday: number[]
+  bysetpos: number[]
 }
 
 const WD: Record<string, number> = { MO: 0, TU: 1, WE: 2, TH: 3, FR: 4, SA: 5, SU: 6 }
@@ -175,13 +188,30 @@ function parseRule(value: string, tenantTz: string): Rule | null {
   const byday: Rule["byday"] = []
   for (const tok of (kv.BYDAY ?? "").split(",")) {
     const m = /^([+-]?\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$/i.exec(tok.trim())
-    if (m) byday.push({ ord: m[1] ? Number(m[1]) : 0, wd: WD[m[2].toUpperCase()] })
+    if (!m) continue
+    const day = { ord: m[1] ? Number(m[1]) : 0, wd: WD[m[2].toUpperCase()] }
+    if (!byday.some((b) => b.ord === day.ord && b.wd === day.wd) && byday.length < 70) byday.push(day)
   }
-  const bymonthday = (kv.BYMONTHDAY ?? "")
-    .split(",")
-    .map((x) => Number.parseInt(x, 10))
-    .filter((x) => Number.isInteger(x) && x >= 1 && x <= 31)
-  return { freq, interval, count, until, byday, bymonthday }
+  const ints = (list: string | undefined, min: number, max: number) => [
+    ...new Set(
+      (list ?? "")
+        .split(",")
+        .map((x) => Number.parseInt(x, 10))
+        .filter((x) => Number.isInteger(x) && x !== 0 && x >= min && x <= max),
+    ),
+  ]
+  const bymonthday = ints(kv.BYMONTHDAY, 1, 31)
+  const bysetpos = ints(kv.BYSETPOS, -366, 366)
+  return { freq, interval, count, until, byday, bymonthday, bysetpos }
+}
+
+/** BYSETPOS : ne garde que les positions demandées dans les jours d'une période. */
+function pickPositions(days: number[], positions: number[]): number[] {
+  if (!positions.length) return days
+  const picked = positions
+    .map((p) => (p > 0 ? days[p - 1] : days[days.length + p]))
+    .filter((x): x is number => x !== undefined)
+  return [...new Set(picked)].sort((a, b) => a - b)
 }
 
 const dnOf = (y: number, mo: number, d: number) => Math.round(Date.UTC(y, mo - 1, d) / DAY_MS)
@@ -210,8 +240,7 @@ function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number },
     for (let k = 0; guard++ < MAX_LOOP; k++) {
       const w0 = weekStart + k * interval * 7
       if (w0 > limitDn) return
-      for (const wd of wds) {
-        const dn = w0 + wd
+      for (const dn of pickPositions(wds.map((wd) => w0 + wd), rule.bysetpos)) {
         if (dn < baseDn) continue
         if (dn > limitDn) return
         yield dn
@@ -239,7 +268,7 @@ function* occurrenceDays(rule: Rule, base: { y: number; mo: number; d: number },
       } else {
         for (const d of rule.bymonthday.length ? rule.bymonthday : [base.d]) if (d <= dim) days.add(firstDn + d - 1)
       }
-      for (const dn of [...days].sort((a, b) => a - b)) {
+      for (const dn of pickPositions([...days].sort((a, b) => a - b), rule.bysetpos)) {
         if (dn < baseDn) continue
         if (dn > limitDn) return
         yield dn
@@ -279,6 +308,10 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
   let inEvent = false
   let alarmDepth = 0
   let ev: Line[] = []
+  const events: Line[][] = []
+  const budget: Budget = { steps: MAX_TOTAL_STEPS, exceptions: MAX_EXCEPTIONS }
+  /** Par UID : occurrences remplacées par un événement `RECURRENCE-ID` (clés comme EXDATE). */
+  const overridden = new Map<string, Set<number>>()
 
   for (const raw of lines) {
     const upper = raw.trim().toUpperCase()
@@ -289,9 +322,12 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
       continue
     }
     if (upper === "END:VEVENT") {
-      if (inEvent) handleEvent(ev)
+      if (inEvent) {
+        if (events.length >= MAX_EVENTS) throw new Error("calendar_too_complex")
+        events.push(ev)
+        registerOverride(ev)
+      }
       inEvent = false
-      if (blocks.length >= MAX_BLOCKS) break
       continue
     }
     if (!inEvent) continue
@@ -307,7 +343,25 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
     const l = parseLine(raw)
     if (!l) continue
     // Seuls ces champs sont lus : titre, lieu et description sont volontairement ignorés.
-    if (["UID", "DTSTART", "DTEND", "DURATION", "TRANSP", "STATUS", "RRULE", "EXDATE"].includes(l.name)) ev.push(l)
+    if (["UID", "DTSTART", "DTEND", "DURATION", "TRANSP", "STATUS", "RRULE", "EXDATE", "RECURRENCE-ID"].includes(l.name)) ev.push(l)
+  }
+
+  // Les événements sont traités après la lecture complète : une exception peut précéder sa série.
+  for (const props of events) {
+    handleEvent(props)
+    if (blocks.length >= MAX_BLOCKS) break
+  }
+
+  function registerOverride(props: Line[]) {
+    const rid = props.find((p) => p.name === "RECURRENCE-ID")
+    const uid = props.find((p) => p.name === "UID")?.value.trim()
+    if (!rid || !uid) return
+    spend(budget, "exceptions")
+    const x = parseDt(rid.value, rid.params, tenantTz)
+    if (!x) return
+    const keys = overridden.get(uid) ?? new Set<number>()
+    keys.add(x.allDay ? dnOf(x.wall.y, x.wall.mo, x.wall.d) : x.ms)
+    overridden.set(uid, keys)
   }
 
   function handleEvent(props: Line[]) {
@@ -344,6 +398,7 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
     const exKeys = new Set<number>()
     for (const p of props.filter((x) => x.name === "EXDATE")) {
       for (const v of p.value.split(",")) {
+        spend(budget, "exceptions")
         const x = parseDt(v, p.params, tenantTz)
         if (x) exKeys.add(x.allDay ? dnOf(x.wall.y, x.wall.mo, x.wall.d) : x.ms)
       }
@@ -373,13 +428,19 @@ export function parseBusyEvents(ics: string, opts: ParseOptions): BusyBlock[] {
       return
     }
     const limitDn = Math.ceil(winEnd / DAY_MS) + 2
+    const spanLen = start.allDay ? spanDays : Math.ceil(durationMs / DAY_MS)
+    const firstUsefulDn = Math.floor(winStart / DAY_MS) - spanLen - 2
+    const replaced = uid ? overridden.get(uid) : undefined
     let n = 0
     for (const dn of occurrenceDays(rule, start.wall, limitDn)) {
       if (rule.count !== null && n >= rule.count) break
       n++
+      spend(budget, "steps")
+      if (dn < firstUsefulDn) continue // passé : compté (COUNT) sans calcul de fuseau
       const { s } = occurrenceBounds(dn)
       if (rule.until && (start.allDay ? dn > dnOf(rule.until.wall.y, rule.until.wall.mo, rule.until.wall.d) : s > rule.until.ms)) break
-      if (exKeys.has(start.allDay ? dn : s)) continue
+      const key = start.allDay ? dn : s
+      if (exKeys.has(key) || replaced?.has(key)) continue
       push(dn)
       if (blocks.length >= MAX_BLOCKS) break
     }
