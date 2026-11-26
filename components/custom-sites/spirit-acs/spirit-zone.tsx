@@ -12,20 +12,31 @@
  *            affichée (aucune commune inventée) : seul le texte de base est rendu.
  */
 
+import Link from "next/link"
 import { MapPin } from "lucide-react"
 import { Reveal } from "@/components/ui/reveal"
+import { withTenant } from "@/lib/tenant-link"
 import { SPIRIT_ANCHOR_PRIMARY, SPIRIT_SECTIONS } from "./tokens"
-import { SPIRIT_ZONE_TEXT, SPIRIT_ZONE_TEXTILE_NOTE } from "./seo-content"
+import {
+  SPIRIT_ZONE_PATH,
+  SPIRIT_ZONE_TEXT,
+  SPIRIT_ZONE_TEXTILE_NOTE,
+  spiritCityPageFor,
+  spiritCityPath,
+} from "./seo-content"
 
 export function SpiritZone({
   cities,
   city,
   text,
+  tenantSlug = null,
 }: {
-  cities: string[]
+  cities: readonly string[]
   city?: string | null
   /** Texte effectif de la zone (override → `SPIRIT_ZONE_TEXT`). */
   text?: string
+  /** Slug du tenant (liens internes, `?tenant=` préservé hors domaine personnalisé). */
+  tenantSlug?: string | null
 }) {
   // Titre = ville réelle du tenant + « et alentours » (aucune géographie
   // inventée). Repli neutre si la ville n'est pas renseignée.
@@ -50,16 +61,38 @@ export function SpiritZone({
 
             {cities.length > 0 && (
               <ul className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Communes desservies">
-                {cities.map((c) => (
-                  <li
-                    key={c}
-                    className="rounded-full bg-white/5 px-3 py-1 text-sm text-[color:var(--spirit-muted)] ring-1 ring-white/10"
-                  >
-                    {c}
-                  </li>
-                ))}
+                {cities.map((c) => {
+                  // Les 5 communes ayant une page dédiée sont cliquables (L85).
+                  const page = spiritCityPageFor(c)
+                  return page ? (
+                    <li key={c}>
+                      <Link
+                        href={withTenant(spiritCityPath(page.slug), tenantSlug)}
+                        className="inline-block rounded-full bg-white/5 px-3 py-1 text-sm font-medium text-white ring-1 ring-[var(--spirit-teal)] transition-colors hover:bg-[var(--spirit-teal)]/15"
+                      >
+                        {c}
+                      </Link>
+                    </li>
+                  ) : (
+                    <li
+                      key={c}
+                      className="rounded-full bg-white/5 px-3 py-1 text-sm text-[color:var(--spirit-muted)] ring-1 ring-white/10"
+                    >
+                      {c}
+                    </li>
+                  )
+                })}
               </ul>
             )}
+
+            <p className="mt-5">
+              <Link
+                href={withTenant(SPIRIT_ZONE_PATH, tenantSlug)}
+                className="text-sm font-medium text-[color:var(--spirit-teal)] hover:underline"
+              >
+                Voir la zone d&apos;intervention<span aria-hidden="true"> →</span>
+              </Link>
+            </p>
 
             <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-[color:var(--spirit-muted)]/90">
               {SPIRIT_ZONE_TEXTILE_NOTE}

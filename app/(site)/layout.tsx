@@ -15,7 +15,8 @@ import {
   buildTenantLocalBusiness,
   resolvePublicPageRobots,
 } from "@/lib/seo/tenant-seo.server"
-import { SPIRIT_PAGE_META } from "@/components/custom-sites/spirit-acs/seo-content"
+import { SPIRIT_PAGE_META, SPIRIT_TENANT_SLUG } from "@/components/custom-sites/spirit-acs/seo-content"
+import { SPIRIT_LOCAL_BUSINESS_OPTIONS } from "@/components/custom-sites/spirit-acs/service-offers"
 import {
   CLZ_HOME_META,
   CLZ_AREA_SERVED,
@@ -158,12 +159,16 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   // Google vérifiée). `hasMap` et `sameAs` sont dérivés en interne des sources
   // Google/réseaux existantes. Renvoie null hors contexte tenant → aucun script.
   // CLEANYZER : zone servie et fourchette de prix issues du barème de Tom.
+  // SPIRIT ACS (L85) : les 14 communes confirmées (objets `City`) + `@id` stable.
   const isCleanyzer = tenant?.customSiteKey?.trim() === "cleanyzer"
+  const isSpirit = tenant?.customSiteKey?.trim() === "spirit-acs" || tenant?.slug === SPIRIT_TENANT_SLUG
   const localBusinessJsonLd = tenant
     ? await buildTenantLocalBusiness(
         isCleanyzer
           ? { areaServed: CLZ_AREA_SERVED, priceRange: CLZ_PRICE_RANGE, withStableId: true }
-          : undefined,
+          : isSpirit
+            ? SPIRIT_LOCAL_BUSINESS_OPTIONS
+            : undefined,
       )
     : null
 

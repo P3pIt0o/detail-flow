@@ -49,6 +49,8 @@ export type LocalBusinessInput = {
   address?: PostalAddressInput | null
   openingHours?: OpeningHoursDay[] | null
   areaServed?: string[] | null
+  /** Émet `areaServed` en objets `{ "@type": "City", name }` (opt-in, défaut : chaînes). */
+  areaServedAsCity?: boolean
   sameAs?: string[] | null
   hasMap?: string | null
   /** Fourchette de prix réellement publiée (ex. « 30 € – 160 € »). */
@@ -177,7 +179,9 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
     ...(clean(input.logo) ? { logo: clean(input.logo) } : {}),
     ...(address ? { address } : {}),
     ...(hours.length ? { openingHoursSpecification: hours } : {}),
-    ...(area.length ? { areaServed: area } : {}),
+    ...(area.length
+      ? { areaServed: input.areaServedAsCity ? area.map((name) => ({ "@type": "City", name })) : area }
+      : {}),
     ...(sameAs.length ? { sameAs } : {}),
     ...(clean(input.hasMap) ? { hasMap: clean(input.hasMap) } : {}),
     ...(clean(input.priceRange) ? { priceRange: clean(input.priceRange) } : {}),

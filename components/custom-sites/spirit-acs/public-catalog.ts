@@ -20,7 +20,7 @@
  */
 
 import type { PublicServicePage, PublicSiteCatalog } from "@/lib/public-site/types"
-import { SPIRIT_SERVICES, SPIRIT_TENANT_SLUG } from "./seo-content"
+import { SPIRIT_CITY_PAGES, SPIRIT_SERVICES, SPIRIT_TENANT_SLUG, SPIRIT_ZONE_PATH, spiritCityPath } from "./seo-content"
 
 /** Projette une prestation éditoriale Spirit vers une page publique commune. */
 function toPublicServicePage(s: (typeof SPIRIT_SERVICES)[number]): PublicServicePage {
@@ -59,6 +59,9 @@ export function getSpiritPublicCatalog(): PublicSiteCatalog {
       { path: "/", sitemapPriority: 0.9 },
       { path: "/avis", sitemapPriority: 0.6 },
       { path: "/contact", sitemapPriority: 0.6 },
+      // L85 : page zone + 5 pages ville (sitemap Spirit uniquement).
+      { path: SPIRIT_ZONE_PATH, sitemapPriority: 0.7 },
+      ...SPIRIT_CITY_PAGES.map((p) => ({ path: spiritCityPath(p.slug), sitemapPriority: 0.7 })),
     ],
     servicePages: SPIRIT_SERVICES.map(toPublicServicePage),
   }

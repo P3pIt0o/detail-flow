@@ -21,10 +21,12 @@ import { RozanLocalPage } from "@/components/custom-sites/rozan/local-page"
 import { getRozanLocalPage, rozanLocalSlugs } from "@/components/custom-sites/rozan/content"
 import { CleanyzerZonePage } from "@/components/custom-sites/cleanyzer/service-page"
 import { CLZ_ZONE_PAGE, isClzZoneSlug } from "@/components/custom-sites/cleanyzer/seo-content"
+import { SpiritZonePage } from "@/components/custom-sites/spirit-acs/zone-page"
+import { SPIRIT_ZONE_PAGE, SPIRIT_ZONE_PATH, SPIRIT_ZONE_SLUG } from "@/components/custom-sites/spirit-acs/seo-content"
 
-/** Candidats connus (Rozan, Cleanyzer). Rendu dynamique : dépend de l'en-tête tenant. */
+/** Candidats connus (Rozan, Cleanyzer, Spirit). Rendu dynamique : dépend de l'en-tête tenant. */
 export function generateStaticParams(): { localSlug: string }[] {
-  return [...rozanLocalSlugs(), CLZ_ZONE_PAGE.slug].map((localSlug) => ({ localSlug }))
+  return [...rozanLocalSlugs(), CLZ_ZONE_PAGE.slug, SPIRIT_ZONE_SLUG].map((localSlug) => ({ localSlug }))
 }
 
 export async function generateMetadata({
@@ -40,6 +42,15 @@ export async function generateMetadata({
       path: `/${CLZ_ZONE_PAGE.slug}`,
       title: CLZ_ZONE_PAGE.metaTitle,
       description: CLZ_ZONE_PAGE.metaDescription,
+    })
+  }
+  // SPIRIT ACS (L85) : une seule page « zone d'intervention ».
+  if (customSite?.key === "spirit-acs") {
+    if (localSlug !== SPIRIT_ZONE_SLUG) return {}
+    return buildTenantMetadata({
+      path: SPIRIT_ZONE_PATH,
+      title: SPIRIT_ZONE_PAGE.metaTitle,
+      description: SPIRIT_ZONE_PAGE.metaDescription,
     })
   }
   if (customSite?.key !== "rozan") return {}
@@ -73,6 +84,14 @@ export default async function CustomSiteLocalRoute({
         contact={contact ? { phone: contact.phone, phoneRaw: contact.phoneRaw, email: contact.email } : null}
       />
     )
+  }
+
+  // SPIRIT ACS (L85) : page « zone d'intervention » uniquement ; tout autre slug → 404.
+  if (customSite?.key === "spirit-acs") {
+    if (localSlug !== SPIRIT_ZONE_SLUG) notFound()
+    const data = await getCustomSitePublicData()
+    if (!data) notFound()
+    return <SpiritZonePage data={data} />
   }
 
   // Réservé aux pages locales Rozan. Tout autre cas → 404 (comportement actuel).

@@ -18,13 +18,15 @@ import Link from "next/link"
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import { withTenant } from "@/lib/tenant-link"
 import { formatPrice } from "@/lib/format"
-import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data"
+import { buildBreadcrumbJsonLd, LOCAL_BUSINESS_ID_FRAGMENT } from "@/lib/seo/structured-data"
 import { tenantCanonicalUrl, tenantSeoIdentity } from "@/lib/seo/tenant-url"
+import { tenantCanonical } from "@/lib/seo/tenant-seo.server"
+import { buildSpiritServiceJsonLd } from "./service-offers"
 import { SpiritSiteShell } from "./site-shell"
 import { SpiritFaq } from "./spirit-faq"
 import { Reveal } from "@/components/ui/reveal"
 import { buildSpiritShellPropsForSubpage } from "./shell-props"
-import { SPIRIT_SERVICES, type ServiceContent } from "./seo-content"
+import { SPIRIT_BUSINESS, SPIRIT_SERVICES, type ServiceContent } from "./seo-content"
 import { spiritPhotoOverrides } from "./service-photos"
 
 /**
@@ -90,6 +92,20 @@ export async function SpiritServicePage({
     crumbs.map((c) => ({ name: c.name, url: c.canonical })),
   )
 
+  // L85 : JSON-LD `Service` avec une `Offer` par formule chiffrée (prix « dès »
+  // existants, rien pour les formules sur devis). Prestataire référencé par
+  // l'`@id` stable de l'établissement émis par le layout (même canonique).
+  const [homeCanonical, pageCanonical] = await Promise.all([
+    tenantCanonical("/"),
+    tenantCanonical(`/prestations/${service.slug}`),
+  ])
+  const serviceJsonLd = buildSpiritServiceJsonLd({
+    service,
+    url: pageCanonical,
+    providerId: `${homeCanonical}${LOCAL_BUSINESS_ID_FRAGMENT}`,
+    providerName: SPIRIT_BUSINESS.name,
+  })
+
   // CTA CONTEXTUALISÉ (préparation Phase 5) : le lien transporte la prestation
   // via `?prestation=<slug>`. Aujourd'hui il mène au formulaire de devis de
   // l'accueil ; en Phase 5, le configurateur lira ce paramètre pour
@@ -109,6 +125,11 @@ export async function SpiritServicePage({
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
       />
 
       <article className="bg-[var(--spirit-paper)] text-[color:var(--spirit-ink)]">

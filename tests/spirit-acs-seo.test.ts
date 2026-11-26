@@ -32,6 +32,34 @@ import sitemap from "@/app/sitemap"
 
 const hostRef = vi.hoisted(() => ({ host: "" }))
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: hostRef.host }) }))
+
+// L85 — dépendances serveur simulées (aucune BDD) pour le JSON-LD tenant et les routes.
+const l85 = vi.hoisted(() => ({
+  tenant: null as Record<string, unknown> | null,
+  siteKey: null as string | null,
+}))
+vi.mock("server-only", () => ({}))
+vi.mock("next/font/google", () => {
+  const font = () => ({ className: "", variable: "", style: {} })
+  return { Oswald: font, Fraunces: font, Inter: font }
+})
+vi.mock("next/font/local", () => ({ default: () => ({ className: "", variable: "", style: {} }) }))
+vi.mock("@/lib/tenant",() => ({ getCurrentTenant: async () => l85.tenant }))
+vi.mock("@/lib/public-contact", () => ({ getPublicHours: async () => [] }))
+vi.mock("@/lib/reviews/public", () => ({ getTenantGoogleRating: async () => null }))
+vi.mock("@/lib/licensing/server", () => ({ hasFeature: async () => true }))
+vi.mock("@/lib/public-page/config", () => ({ getEffectivePublicPageForCurrentTenant: async () => null }))
+vi.mock("@/lib/licensing/website-guard", () => ({ requireWebsiteFeature: async () => undefined }))
+vi.mock("@/lib/custom-sites/server", () => ({
+  resolveCustomSite: async () => (l85.siteKey ? { key: l85.siteKey } : null),
+  getCustomSitePublicData: async () => ({ tenant: { slug: String(l85.tenant?.slug ?? "") } }),
+}))
+vi.mock("next/navigation", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND")
+  },
+}))
 async function sitemapUrls(...hosts: string[]) {
   const out: string[] = []
   for (const h of hosts) {
@@ -444,5 +472,309 @@ describe("SEO — sitemap tenant-aware", async () => {
         /^https:\/\/www\.cleanyzer\.fr\//.test(u)
       expect(ok, `URL tenant ambiguë: ${u}`).toBe(true)
     }
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  L85 — zone d'intervention, pages ville, prix « dès » dans le JSON-LD       */
+/* -------------------------------------------------------------------------- */
+
+const L85_CITIES = [
+  "Lagny-sur-Marne",
+  "Chelles",
+  "Jossigny",
+  "Serris",
+  "Crécy-la-Chapelle",
+  "Jablines",
+  "Collégien",
+  "Villevaudé",
+  "Pomponne",
+  "Saint-Thibault-des-Vignes",
+  "Gouvernes",
+  "Conches-sur-Gondoire",
+  "Montévrain",
+  "Bussy-Saint-Georges",
+]
+const L85_CITY_SLUGS = ["chelles", "bussy-saint-georges", "serris", "montevrain", "saint-thibault-des-vignes"]
+const l85Tenant = (slug: string, customSiteKey: string | null) => ({
+  id: `id-${slug}`,
+  slug,
+  name: slug === "spirit-acs" ? "Spirit ACS" : "Autre",
+  customSiteKey,
+  logoUrl: null,
+  phone: null,
+  email: null,
+  socialLinks: null,
+})
+const notFoundOf = async (fn: () => Promise<unknown>) => {
+  try {
+    await fn()
+    return false
+  } catch (e) {
+    return e instanceof Error && e.message === "NEXT_NOT_FOUND"
+  }
+}
+
+describe("L85 — communes confirmées (source unique)", async () => {
+  const content = await import("@/components/custom-sites/spirit-acs/seo-content")
+
+  it("SPIRIT_CITIES = les 14 communes de la fiche, orthographe exacte, sans Marne-la-Vallée", () => {
+    expect([...content.SPIRIT_CITIES]).toEqual(L85_CITIES)
+    expect(content.SPIRIT_CITIES).not.toContain("Marne-la-Vallée" as never)
+    expect("SPIRIT_ZONE_CITIES" in content).toBe(false)
+  })
+
+  it("le texte de zone par défaut cite le secteur de Marne-la-Vallée", () => {
+    expect(content.SPIRIT_ZONE_TEXT).toMatch(/secteur de Marne-la-Vallée/)
+  })
+
+  it("la section zone et l'accueil utilisent SPIRIT_CITIES", () => {
+    const home = read(`${SPIRIT}/home-page.tsx`)
+    expect(home).toMatch(/cities=\{SPIRIT_CITIES\}/)
+    expect(home).not.toMatch(/SPIRIT_ZONE_CITIES/)
+  })
+})
+
+describe("L85 — JSON-LD AutoWash : areaServed en objets City", async () => {
+  const { buildTenantLocalBusiness } = await import("@/lib/seo/tenant-seo.server")
+  const { SPIRIT_LOCAL_BUSINESS_OPTIONS } = await import("@/components/custom-sites/spirit-acs/service-offers")
+  const { CLZ_AREA_SERVED, CLZ_PRICE_RANGE } = await import("@/components/custom-sites/cleanyzer/seo-content")
+
+  it("Spirit : 14 City exactes, @id stable, sans Marne-la-Vallée ni aggregateRating", async () => {
+    l85.tenant = l85Tenant("spirit-acs", "spirit-acs")
+    const ld = (await buildTenantLocalBusiness(SPIRIT_LOCAL_BUSINESS_OPTIONS))!
+    expect(ld.areaServed).toEqual(L85_CITIES.map((name) => ({ "@type": "City", name })))
+    expect(JSON.stringify(ld.areaServed)).not.toMatch(/Marne-la-Vallée/)
+    expect(ld["@id"]).toBe("https://www.spiritacs.com/#business")
+    expect("aggregateRating" in ld).toBe(false)
+  })
+
+  it("le layout passe ces options au seul tenant Spirit", () => {
+    const src = read("app/(site)/layout.tsx")
+    expect(src).toMatch(/isSpirit\s*\n?\s*\? SPIRIT_LOCAL_BUSINESS_OPTIONS/)
+  })
+
+  it("Cleanyzer inchangé (chaînes) ; tenant standard sans areaServed", async () => {
+    l85.tenant = l85Tenant("cleanyzer", "cleanyzer")
+    const clz = (await buildTenantLocalBusiness({
+      areaServed: CLZ_AREA_SERVED,
+      priceRange: CLZ_PRICE_RANGE,
+      withStableId: true,
+    }))!
+    expect(clz.areaServed).toEqual(["Annecy"])
+    l85.tenant = l85Tenant("autre-garage", null)
+    const std = (await buildTenantLocalBusiness())!
+    expect("areaServed" in std).toBe(false)
+    expect("@id" in std).toBe(false)
+  })
+})
+
+describe("L85 — pages zone et ville : textes", async () => {
+  const c = await import("@/components/custom-sites/spirit-acs/seo-content")
+  const pages = [c.SPIRIT_ZONE_PAGE, ...c.SPIRIT_CITY_PAGES]
+
+  it("exactement les 5 communes prévues, pas de page Lagny", () => {
+    expect(c.SPIRIT_CITY_PAGES.map((p) => p.slug)).toEqual(L85_CITY_SLUGS)
+    expect(c.getSpiritCityPage("lagny-sur-marne")).toBeUndefined()
+    expect(c.getSpiritCityPage("marne-la-vallee")).toBeUndefined()
+  })
+
+  it("titres ≤ 60, descriptions 140-160", () => {
+    for (const p of pages) {
+      expect(p.metaTitle.length, p.metaTitle).toBeLessThanOrEqual(60)
+      expect(p.metaDescription.length, p.metaDescription).toBeGreaterThanOrEqual(140)
+      expect(p.metaDescription.length, p.metaDescription).toBeLessThanOrEqual(160)
+    }
+  })
+
+  it("titres, descriptions, H1 et intros différents deux à deux (et des autres pages Spirit)", () => {
+    const others = [
+      ...Object.values(c.SPIRIT_PAGE_META).map((m) => m.title),
+      ...c.SPIRIT_SERVICES.map((s) => s.metaTitle),
+    ]
+    for (const key of ["metaTitle", "metaDescription", "h1", "intro"] as const) {
+      const values = pages.map((p) => p[key])
+      expect(new Set(values).size, key).toBe(values.length)
+    }
+    for (const p of pages) expect(others).not.toContain(p.metaTitle)
+  })
+
+  it("chaque page ville nomme sa commune dans le titre, le H1 et l'intro", () => {
+    for (const p of c.SPIRIT_CITY_PAGES) {
+      expect(p.metaTitle).toContain(p.city)
+      expect(p.h1).toContain(p.city)
+      expect(p.intro).toContain(p.city)
+    }
+  })
+
+  it("communes proches : toutes dans la liste, jamais la ville elle-même, listes différentes", () => {
+    for (const p of c.SPIRIT_CITY_PAGES) {
+      expect(p.nearby.length).toBeGreaterThan(0)
+      expect(p.nearby).not.toContain(p.city)
+      for (const n of p.nearby) expect(L85_CITIES).toContain(n)
+      expect(new Set(p.nearby).size).toBe(p.nearby.length)
+    }
+    const keys = c.SPIRIT_CITY_PAGES.map((p) => p.nearby.join("|"))
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it("aucune distance ni durée de trajet inventée", () => {
+    for (const p of pages) expect(`${p.intro} ${p.metaDescription}`).not.toMatch(/\d+\s*(km|min)/)
+  })
+
+  it("une seule balise <h1> par gabarit", () => {
+    for (const f of ["zone-page.tsx", "city-page.tsx"]) {
+      expect((read(`${SPIRIT}/${f}`).match(/<h1[\s>]/g) ?? []).length, f).toBe(1)
+    }
+  })
+
+  it("pages ville : FAQ affichée sans JSON-LD FAQPage ; bouton « Réserver une prestation » vers /#demande-devis", async () => {
+    expect(read(`${SPIRIT}/city-page.tsx`)).toMatch(/<SpiritFaq entries=\{SPIRIT_FAQ\} withJsonLd=\{false\}/)
+    const z = await import("@/components/custom-sites/spirit-acs/zone-page")
+    expect(z.SPIRIT_BOOK_LABEL).toBe("Réserver une prestation")
+    expect(z.SPIRIT_BOOK_PATH).toBe("/#demande-devis")
+  })
+
+  it("pied de page et section zone renvoient vers les pages", () => {
+    const footer = read(`${SPIRIT}/spirit-footer.tsx`)
+    expect(footer).toMatch(/Nous intervenons à/)
+    expect(footer).toMatch(/spiritCityPath\(p\.slug\)/)
+    expect(footer).toMatch(/SPIRIT_ZONE_PATH/)
+    const zone = read(`${SPIRIT}/spirit-zone.tsx`)
+    expect(zone).toMatch(/Voir la zone d&apos;intervention/)
+    expect(zone).toMatch(/spiritCityPath\(page\.slug\)/)
+  })
+})
+
+describe("L85 — prix « dès » (affichage et JSON-LD Service)", async () => {
+  const c = await import("@/components/custom-sites/spirit-acs/seo-content")
+  const o = await import("@/components/custom-sites/spirit-acs/service-offers")
+
+  it("une Offer par formule chiffrée, montant = priceCents / 100, rien pour « quote »", () => {
+    for (const s of c.SPIRIT_SERVICES) {
+      const offers = o.spiritServiceOffers(s) as Array<{
+        name: string
+        priceCurrency: string
+        priceSpecification: { minPrice: number; priceCurrency: string }
+      }>
+      const priced = (s.formules ?? []).filter(
+        (f) => (f.priceKind === "from" || f.priceKind === "exact") && typeof f.priceCents === "number",
+      )
+      expect(offers.map((x) => x.name), s.slug).toEqual(priced.map((f) => f.label))
+      offers.forEach((x, i) => {
+        expect(x.priceSpecification.minPrice).toBe(priced[i].priceCents! / 100)
+        expect(x.priceCurrency).toBe("EUR")
+        expect(x.priceSpecification.priceCurrency).toBe("EUR")
+      })
+      for (const q of (s.formules ?? []).filter((f) => f.priceKind === "quote")) {
+        expect(offers.map((x) => x.name), q.label).not.toContain(q.label)
+      }
+    }
+  })
+
+  it("Service : provider par @id, 14 City, offers absent pour une prestation tout sur devis, pas d'aggregateRating", () => {
+    const base = c.getSpiritService("protection-ppf")!
+    const ld = o.buildSpiritServiceJsonLd({
+      service: base,
+      url: "https://www.spiritacs.com/prestations/protection-ppf",
+      providerId: "https://www.spiritacs.com/#business",
+      providerName: "Spirit Auto Clean Service",
+    })
+    expect(ld["@type"]).toBe("Service")
+    expect((ld.provider as Record<string, unknown>)["@id"]).toBe("https://www.spiritacs.com/#business")
+    expect((ld.areaServed as unknown[]).length).toBe(14)
+    expect(ld.offers).toEqual([expect.objectContaining({ name: "Peinture d'étriers" })])
+    expect("aggregateRating" in ld).toBe(false)
+
+    const allQuote = { ...base, formules: base.formules!.filter((f) => f.priceKind === "quote") }
+    const ldQuote = o.buildSpiritServiceJsonLd({
+      service: allQuote,
+      url: "https://www.spiritacs.com/prestations/protection-ppf",
+      providerId: "https://www.spiritacs.com/#business",
+      providerName: "Spirit Auto Clean Service",
+    })
+    expect("offers" in ldQuote).toBe(false)
+    expect(o.spiritStartingPriceLabel(allQuote)).toBe("Sur devis")
+  })
+
+  it("prix « dès » affiché = plus petit montant du code, toujours suivi du nom de la formule", () => {
+    const start = o.spiritStartingPrice(c.getSpiritService("nettoyage-automobile")!)
+    expect(start).toEqual({ priceCents: 7500, label: "Entretien régulier — Citadine" })
+    const label = o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-automobile")!)
+    expect(label.startsWith("dès 75")).toBe(true)
+    expect(label.endsWith(" · Entretien régulier — Citadine")).toBe(true)
+    expect(o.spiritStartingPrice(c.getSpiritService("nettoyage-textile")!)?.label).toBe("À partir de 5 chaises")
+  })
+
+  it("la page prestation émet le JSON-LD Service", () => {
+    const src = read(`${SPIRIT}/service-page.tsx`)
+    expect(src).toMatch(/buildSpiritServiceJsonLd\(/)
+    expect(src).toMatch(/JSON\.stringify\(serviceJsonLd\)/)
+  })
+})
+
+describe("L85 — sitemaps : 6 nouvelles URL chez Spirit uniquement", async () => {
+  const spirit = await sitemapUrls("www.spiritacs.com")
+  const others = await sitemapUrls("www.cleanyzer.fr", "www.detailflow.fr")
+
+  it("Spirit : /zone-intervention et les 5 pages ville", () => {
+    expect(spirit).toContain("https://www.spiritacs.com/zone-intervention")
+    for (const s of L85_CITY_SLUGS) expect(spirit).toContain(`https://www.spiritacs.com/detailing/${s}`)
+    expect(spirit).not.toContain("https://www.spiritacs.com/detailing/lagny-sur-marne")
+  })
+
+  it("Cleanyzer et detailflow.fr : aucune de ces URL", () => {
+    for (const u of others) {
+      expect(u).not.toMatch(/\/zone-intervention(\?|$)/)
+      expect(u).not.toMatch(/\/detailing\//)
+    }
+  })
+})
+
+describe("L85 — routes : isolation tenant et communes inconnues", async () => {
+  const city = await import("@/app/(site)/detailing/[commune]/page")
+  const local = await import("@/app/(site)/[localSlug]/page")
+  const cityParams = (commune: string) => ({ params: Promise.resolve({ commune }) })
+  const localParams = (localSlug: string) => ({ params: Promise.resolve({ localSlug }) })
+  const as = (slug: string, key: string | null) => {
+    l85.tenant = slug ? l85Tenant(slug, key) : null
+    l85.siteKey = key
+  }
+
+  it("Spirit : les 5 pages ville et la page zone se rendent", async () => {
+    as("spirit-acs", "spirit-acs")
+    for (const s of L85_CITY_SLUGS) expect(await notFoundOf(() => city.default(cityParams(s)))).toBe(false)
+    expect(await notFoundOf(() => local.default(localParams("zone-intervention")))).toBe(false)
+  })
+
+  it("Spirit : commune inconnue (dont Lagny) → notFound", async () => {
+    as("spirit-acs", "spirit-acs")
+    for (const s of ["lagny-sur-marne", "jossigny", "marne-la-vallee", "inconnue"]) {
+      expect(await notFoundOf(() => city.default(cityParams(s))), s).toBe(true)
+    }
+    expect(await notFoundOf(() => local.default(localParams("zone-intervention-annecy")))).toBe(true)
+  })
+
+  it("Cleanyzer, site standard et domaine racine → notFound sur les pages Spirit", async () => {
+    for (const [slug, key] of [
+      ["cleanyzer", "cleanyzer"],
+      ["autre-garage", null],
+      ["", null],
+    ] as const) {
+      as(slug, key)
+      expect(await notFoundOf(() => city.default(cityParams("chelles"))), `${slug}`).toBe(true)
+      expect(await city.generateMetadata(cityParams("chelles"))).toEqual({})
+    }
+    as("cleanyzer", "cleanyzer")
+    expect(await notFoundOf(() => local.default(localParams("zone-intervention")))).toBe(true)
+  })
+
+  it("métadonnées Spirit : titre et canonique www.spiritacs.com", async () => {
+    as("spirit-acs", "spirit-acs")
+    const m = JSON.stringify(await city.generateMetadata(cityParams("chelles")))
+    expect(m).toContain("Detailing à Chelles à domicile | Spirit ACS")
+    expect(m).toContain("https://www.spiritacs.com/detailing/chelles")
+    const z = JSON.stringify(await local.generateMetadata(localParams("zone-intervention")))
+    expect(z).toContain("https://www.spiritacs.com/zone-intervention")
   })
 })
