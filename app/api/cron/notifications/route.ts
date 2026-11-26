@@ -6,7 +6,7 @@ import { rejectUnauthorizedCron } from "@/lib/cron/auth"
 export const dynamic = "force-dynamic"
 
 /**
- * Passe des notifications LOT D, toutes les 15 minutes (vercel.json) :
+ * Passe des notifications LOT D, toutes les 30 minutes (vercel.json) :
  *  - rappel AU PROFESSIONNEL 1 h / 2 h / 24 h avant le RDV ;
  *  - demande d'avis AU CLIENT après completed_at.
  * Le rappel historique AU CLIENT (J+1) reste dans /api/cron/reminders.

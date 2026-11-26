@@ -100,14 +100,16 @@ export async function enqueueCustomerSubscriptionEmail(db: Executor, input: Enqu
 export type OutboxRow = typeof outbox.$inferSelect
 
 /** Réclame atomiquement jusqu'à `limit` emails dus (pending, failed retentable, sending périmé). */
-export async function claimDueEmails(db: Executor, now: Date, limit = 50): Promise<OutboxRow[]> {
+export async function claimDueEmails(db: Executor, now: Date, limit = 50, companyId?: number): Promise<OutboxRow[]> {
   const stale = new Date(now.getTime() - OUTBOX_STALE_SENDING_MS)
+  const tenantFilter = companyId === undefined ? sql`` : sql`AND "companyId" = ${companyId}`
   const result = await db.execute(sql`
     UPDATE "maintenance_subscription_email_outbox" o
        SET "status" = 'sending', "attempts" = o."attempts" + 1, "claimedAt" = ${now}, "updatedAt" = ${now}
      WHERE o."id" IN (
        SELECT "id" FROM "maintenance_subscription_email_outbox"
         WHERE "sendAt" <= ${now}
+          ${tenantFilter}
           AND (
             "status" = 'pending'
             OR ("status" = 'failed' AND "attempts" < ${OUTBOX_MAX_ATTEMPTS})

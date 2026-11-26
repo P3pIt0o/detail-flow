@@ -241,12 +241,12 @@ describe("Route /api/cron/notifications", () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ ran: false, reason: "migration_pending" })
   })
-  it("vercel.json : nouveau cron 15 min, crons existants inchangés", () => {
+  it("vercel.json : cron notifications 30 min, crons existants inchangés", () => {
     const cfg = JSON.parse(src("vercel.json")) as { crons: Array<{ path: string; schedule: string }> }
     expect(cfg.crons).toEqual([
       { path: "/api/cron/reminders", schedule: "0 9 * * *" },
-      { path: "/api/cron/customer-subscription-emails", schedule: "*/5 * * * *" },
-      { path: "/api/cron/notifications", schedule: "*/15 * * * *" },
+      { path: "/api/cron/customer-subscription-emails", schedule: "0 * * * *" },
+      { path: "/api/cron/notifications", schedule: "*/30 * * * *" },
     ])
   })
 })

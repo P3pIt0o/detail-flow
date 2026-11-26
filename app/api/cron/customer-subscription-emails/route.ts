@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic"
 
 /**
  * Worker dédié à l'outbox emails des abonnements clients (voir vercel.json).
+ * Filet horaire : l'envoi normal est immédiat après la mise en file (email-drain-now.ts).
  * Ne traite QUE l'outbox : aucun rappel Booking, SMS, nettoyage ou appel Stripe.
  * Le claim/idempotence de l'outbox reste la seule source de vérité.
  * Sécurité : `Authorization: Bearer <CRON_SECRET>` exigé ; fail-closed (503)
