@@ -42,3 +42,16 @@ Aperçu `.lot-state/L80.apercu.html` (écran mobile « Mon agenda » + créneau 
 - Tests : événement externe bloque le créneau ; titre jamais stocké ; jeton régénéré invalide l'ancien ; adresse interne refusée ;
   isolation tenant A / tenant B (flux et blocages).
 - Migration additive, idempotente, non exécutée. Aucune mention d'IA ni de Claude visible.
+
+## Décision de Clément (26/11, 12 h 30) — les 3 tests « d'autres parties » qui cassent
+Ces tests cassent parce que ce lot ajoute une tâche planifiée (`vercel.json`) et des tables (`lib/db/schema.ts`) : les tests existants
+qui listent exactement les crons de `vercel.json` ou les tables du schéma doivent être mis à jour pour inclure calendar-sync et les
+nouvelles tables, SANS changer ce qu'ils vérifient d'autre. Identifier les 3 tests avec `verify`, les corriger ainsi, puis relancer.
+Si un des 3 ne concerne ni les crons ni le schéma, le corriger seulement s'il est cassé par ce lot ; sinon le noter comme « déjà cassé avant » dans le rapport et continuer.
+Limite de lecture d'un agenda externe : 10 Mo (décision déjà prise).
+
+## Décision de Clément (26/11 11:02) — tranchée par Apollon par délégation
+**Décision : passer la limite de lecture à 10 Mo** (`MAX_BYTES = 10 * 1024 * 1024` dans `lib/calendar-sync/safe-fetch.ts`), sans changer les délais (8 s / 20 s), les protections d'adresse, les plafonds d'analyse ni les messages d'erreur. Mettre à jour le commentaire, les « 2 Mo » du plan et de `tests/l80-safe-fetch.test.ts`, et ajouter un test qui lit et analyse un agenda de plus de 2 Mo ; cette décision vaut accord métier pour remplacer le « 2 Mo » du plan, sans contourner la ré-approbation si la garde la demande.
+
+## Délégation de Clément (26/11)
+Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.

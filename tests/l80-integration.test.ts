@@ -338,7 +338,12 @@ describe("L80 — toute requête sur table tenant filtre par companyId", () => {
 
   it("aucune adresse externe ni jeton dans les logs", () => {
     for (const f of ["lib/calendar-sync/store.ts", "lib/calendar-sync/sync.ts", "lib/calendar-sync/safe-fetch.ts", "app/api/calendar/[token]/route.ts"]) {
-      expect(readFileSync(path.join(process.cwd(), f), "utf8")).not.toMatch(/console\.(log|error|warn)/)
+      // Seul journal admis : société + code d'erreur (revue sécurité L82), à l'identique.
+      const src = readFileSync(path.join(process.cwd(), f), "utf8").replace(
+        'console.error("[calendar-sync] lecture des blocages impossible", { companyId, code: code ?? "inconnu" })',
+        "",
+      )
+      expect(src).not.toMatch(/console\.(log|error|warn)/)
     }
   })
 

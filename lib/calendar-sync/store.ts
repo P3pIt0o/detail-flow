@@ -169,7 +169,7 @@ export async function listDueCompanyIds(now: Date, limit = 100): Promise<number[
 
 /**
  * Blocages externes d'une journée pour `getAvailability` (lecture base SEULE).
- * Protégé : migration absente ou erreur → aucun blocage (jamais d'échec de réservation).
+ * Erreur de base → aucun blocage (jamais d'échec de réservation), avec trace au journal.
  */
 export async function getExternalBusyForDate(companyId: number, dateStr: string) {
   try {
@@ -187,7 +187,14 @@ export async function getExternalBusyForDate(companyId: number, dateStr: string)
         ),
       )
     return externalBlocksForDay(rows, dateStr, tz)
-  } catch {
+  } catch (err) {
+    // La réservation reste ouverte. La table absente (migration pas encore appliquée)
+    // est attendue ; toute autre erreur est journalisée (code seul, jamais la requête).
+    const e = err as { code?: string; cause?: { code?: string } } | null
+    const code = e?.code ?? e?.cause?.code
+    if (code !== "42P01") {
+      console.error("[calendar-sync] lecture des blocages impossible", { companyId, code: code ?? "inconnu" })
+    }
     return { fullDay: false, ranges: [] as { start: number; end: number }[] }
   }
 }

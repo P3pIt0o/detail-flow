@@ -5,7 +5,7 @@ import "server-only"
  * (anti-SSRF). Règles : https/webcal seulement, port 443, pas d'IP ni d'hôte
  * interne, nom d'hôte résolu UNE fois par saut, TOUTES les IP contrôlées, puis
  * connexion sur l'IP validée (SNI/Host = nom d'origine) — anti DNS-rebinding.
- * Redirections revalidées (3 max). Lecture par paquets : 2 Mo max ET durée max
+ * Redirections revalidées (3 max). Lecture par paquets : 10 Mo max ET durée max
  * (8 s par lecture, 20 s au total).
  */
 
@@ -13,7 +13,7 @@ import { lookup } from "node:dns/promises"
 import https from "node:https"
 import net from "node:net"
 
-export const MAX_BYTES = 2 * 1024 * 1024
+export const MAX_BYTES = 10 * 1024 * 1024
 export const MAX_REDIRECTS = 3
 export const READ_TIMEOUT_MS = 8_000
 export const TOTAL_TIMEOUT_MS = 20_000

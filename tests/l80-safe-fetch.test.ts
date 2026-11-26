@@ -12,6 +12,7 @@ import {
   type FetchDeps,
   type RawResponse,
 } from "@/lib/calendar-sync/safe-fetch"
+import { externalBlocksForDay, parseBusyEvents } from "@/lib/calendar-sync/ics-parse"
 
 const enc = new TextEncoder()
 const ICS = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
@@ -147,7 +148,29 @@ describe("L80 — connexion à l'adresse vérifiée (anti DNS-rebinding)", () =>
 })
 
 describe("L80 — lecture par paquets : taille et durée", () => {
-  it("réponse sans Content-Length dépassant 2 Mo coupée en route", async () => {
+  it("limite : 10 Mo", () => {
+    expect(MAX_BYTES).toBe(10 * 1024 * 1024)
+  })
+
+  it("agenda de plus de 2 Mo lu puis analysé : le créneau attendu est bloqué", async () => {
+    // Descriptions volumineuses : le poids vient du texte, pas du nombre d'événements.
+    const filler = Array.from(
+      { length: 600 },
+      (_, i) => `BEGIN:VEVENT\r\nUID:old-${i}\r\nDTSTART:20200101T090000Z\r\nDTEND:20200101T100000Z\r\nDESCRIPTION:${"x".repeat(4000)}\r\nEND:VEVENT\r\n`,
+    ).join("")
+    const wanted = "BEGIN:VEVENT\r\nUID:futur\r\nDTSTART:20261130T090000Z\r\nDTEND:20261130T100000Z\r\nEND:VEVENT\r\n"
+    const big = `BEGIN:VCALENDAR\r\n${filler}${wanted}END:VCALENDAR\r\n`
+    expect(enc.encode(big).length).toBeGreaterThan(2 * 1024 * 1024)
+
+    const request = vi.fn().mockResolvedValue(ok(big))
+    const res = await safeFetchIcs("https://a.example.com/", deps({ request }))
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    const blocks = parseBusyEvents(res.text, { tenantTz: "Europe/Paris", now: new Date("2026-11-26T12:00:00Z") })
+    expect(externalBlocksForDay(blocks, "2026-11-30", "Europe/Paris").ranges).toEqual([{ start: 600, end: 660 }])
+  })
+
+  it("réponse sans Content-Length dépassant 10 Mo coupée en route", async () => {
     let produced = 0
     async function* big() {
       for (;;) {
@@ -168,7 +191,12 @@ describe("L80 — lecture par paquets : taille et durée", () => {
     expect(await safeFetchIcs("https://a.example.com/", deps({ request }))).toEqual({ ok: false, code: "too_large" })
   })
 
-  it("exactement 2 Mo accepté", async () => {
+  it("exactement 10 Mo accepté, avec Content-Length", async () => {
+    const request = vi.fn().mockResolvedValue(ok([new Uint8Array(MAX_BYTES)], { contentLength: MAX_BYTES }))
+    expect((await safeFetchIcs("https://a.example.com/", deps({ request }))).ok).toBe(true)
+  })
+
+  it("exactement 10 Mo accepté, sans Content-Length", async () => {
     const request = vi.fn().mockResolvedValue(ok([new Uint8Array(MAX_BYTES)]))
     expect((await safeFetchIcs("https://a.example.com/", deps({ request }))).ok).toBe(true)
   })
