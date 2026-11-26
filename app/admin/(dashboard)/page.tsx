@@ -26,7 +26,7 @@ import {
   getBookingCount,
   getTodayBookings,
   getRecentVisits,
-  todayInTimezone,
+  getLaterBookings,
   todayTotalCents,
   type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
@@ -142,10 +142,9 @@ export default async function DashboardPage({
   // le bénéfice (profitability_analysis). Les visites (business_stats) et les
   // KPI ne sont pas calculés inutilement quand aucune feature ne les autorise.
   const needStats = canStats || canProfit
-  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits] = await Promise.all([
+  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits, laterList] = await Promise.all([
     needStats ? getDashboardStats(companyId) : Promise.resolve(null),
-    // « Aujourd'hui » et « prochains » sont séparés : on charge un peu plus large.
-    getUpcomingBookingsDetailed(isSpirit ? 8 : 15, companyId),
+    getUpcomingBookingsDetailed(isSpirit ? 8 : 5),
     getDashboardWeek(),
     listCustomRequests(),
     canStats ? getVisitStats() : Promise.resolve(null),
@@ -154,6 +153,8 @@ export default async function DashboardPage({
     // L77 — accueil standard : rendez-vous du jour + dernières visites (opérationnel, non gaté).
     isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getTodayBookings(companyId, company.timezone),
     isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getRecentVisits(companyId),
+    // « Prochains » = jours suivants seulement, lus à part pour rester remplis un jour chargé.
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getLaterBookings(companyId, company.timezone),
   ])
 
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
@@ -523,8 +524,7 @@ export default async function DashboardPage({
   }
 
   // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
-  const companyToday = todayInTimezone(company.timezone)
-  const laterUpcoming = upcoming.filter((b) => b.date > companyToday).slice(0, 5)
+  const laterUpcoming = laterList
   const todayTotal = todayTotalCents(todayList)
 
   /* ------------------------------------------------------------------ */

@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 type Where =
   | { op: "eq"; col: string; val: unknown }
+  | { op: "gt"; col: string; val: unknown }
   | { op: "in"; col: string; vals: unknown[] }
   | { op: "and"; parts: Where[] }
 
@@ -20,6 +21,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   return {
     ...actual,
     eq: (col: { name: string }, val: unknown) => ({ op: "eq", col: col.name, val }),
+    gt: (col: { name: string }, val: unknown) => ({ op: "gt", col: col.name, val }),
     inArray: (col: { name: string }, vals: unknown[]) => ({ op: "in", col: col.name, vals }),
     and: (...parts: unknown[]) => ({ op: "and", parts }),
     desc: (col: { name: string }) => ({ desc: col.name }),
@@ -35,6 +37,7 @@ vi.mock("@/lib/admin/admin-company", () => ({
 function matches(row: Record<string, unknown>, w: Where): boolean {
   if (w.op === "and") return w.parts.every((p) => matches(row, p))
   if (w.op === "in") return w.vals.includes(row[w.col])
+  if (w.op === "gt") return String(row[w.col]) > String(w.val)
   return row[w.col] === w.val
 }
 
@@ -84,6 +87,7 @@ vi.mock("@/lib/db", () => ({
 
 import { bookings } from "@/lib/db/schema"
 import {
+  getLaterBookings,
   getRecentVisits,
   getTodayBookings,
   todayInTimezone,
@@ -139,6 +143,24 @@ describe("L77 — accueil : rendez-vous du jour et dernières visites", () => {
 
   it("dernières visites : terminés seulement, du plus récent au plus ancien", async () => {
     expect((await getRecentVisits(TENANT_A)).map((b) => b.id)).toEqual([5, 4])
+  })
+
+  it("prochains rendez-vous : jours suivants seulement, isolés par entreprise, même si le jour est chargé", async () => {
+    const many = Array.from({ length: 20 }, (_, i) => booking(100 + i, TENANT_A, TODAY, "confirmed", 1000))
+    state.rows = [
+      ...many,
+      booking(200, TENANT_A, "2999-01-02", "confirmed", 1000),
+      booking(201, TENANT_A, "2999-01-01", "pending_deposit", 1000),
+      booking(202, TENANT_A, "2999-01-03", "cancelled", 1000),
+      booking(203, TENANT_A, "2999-01-04", "completed", 1000),
+      booking(300, TENANT_B, "2999-01-01", "confirmed", 1000),
+    ]
+    expect((await getLaterBookings(TENANT_A, "Europe/Paris")).map((b) => b.id).sort()).toEqual([200, 201])
+    expect((await getLaterBookings(TENANT_B, "Europe/Paris")).map((b) => b.id)).toEqual([300])
+    const page = read("app/admin/(dashboard)/page.tsx")
+    expect(page).toContain("getLaterBookings(companyId, company.timezone)")
+    // Contrat de licensing-analytics : la lecture historique reste hors de toute condition premium.
+    expect(page).toContain("getUpcomingBookingsDetailed(isSpirit ? 8 : 5)")
   })
 
   it("aucun rendez-vous : liste vide et total à 0", async () => {

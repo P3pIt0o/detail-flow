@@ -1,7 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases, payments } from "@/lib/db/schema"
-import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
+import { and, count, desc, eq, gt, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
@@ -305,6 +305,31 @@ export async function getTodayBookings(
       ),
     )
     .orderBy(bookings.startTime)
+  return withServicesAndVehicles(rows)
+}
+
+/**
+ * L77 — Prochains rendez-vous : jours SUIVANTS seulement (fuseau de l'entreprise),
+ * pour que la liste reste remplie même quand le jour est chargé.
+ */
+export async function getLaterBookings(
+  companyId: number,
+  timezone?: string | null,
+  limit = 5,
+): Promise<UpcomingBookingDetailed[]> {
+  const today = todayInTimezone(timezone)
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, companyId),
+        gt(bookings.date, today),
+        inArray(bookings.status, ["confirmed", "pending_deposit"]),
+      ),
+    )
+    .orderBy(bookings.date, bookings.startTime)
+    .limit(limit)
   return withServicesAndVehicles(rows)
 }
 
