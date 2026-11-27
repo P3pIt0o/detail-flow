@@ -2419,3 +2419,49 @@ export const maintenanceSubscriptionEmailOutbox = pgTable(
     ),
   }),
 )
+
+/* -------------------------------------------------------------------------- */
+/*  L80 — Synchro agenda téléphone                                            */
+/* -------------------------------------------------------------------------- */
+
+/** Réglages de synchro agenda : 1 ligne par société (jeton du flux + adresse de l'agenda externe). */
+export const calendarSyncSettings = pgTable(
+  "calendar_sync_settings",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Jeton long aléatoire (32 octets base64url) du flux DetailFlow → téléphone.
+    feedToken: text("feedToken").notNull(),
+    // Adresse privée de l'agenda du téléphone (jamais journalisée ni renvoyée en entier).
+    externalUrl: text("externalUrl"),
+    lastSyncAt: timestamp("lastSyncAt"),
+    lastSuccessAt: timestamp("lastSuccessAt"),
+    // Code d'erreur court (jamais de contenu distant).
+    lastError: text("lastError"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  },
+  (t) => ({
+    byCompany: uniqueIndex("calendar_sync_settings_companyId_idx").on(t.companyId),
+    byToken: uniqueIndex("calendar_sync_settings_feedToken_idx").on(t.feedToken),
+  }),
+)
+
+/** Créneaux « occupé » lus dans l'agenda externe : début/fin seulement (jamais titre/lieu/description). */
+export const calendarExternalBlocks = pgTable(
+  "calendar_external_blocks",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("companyId")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    startsAt: timestamp("startsAt", { withTimezone: true }).notNull(),
+    endsAt: timestamp("endsAt", { withTimezone: true }).notNull(),
+    allDay: boolean("allDay").notNull().default(false),
+  },
+  (t) => ({
+    byCompany: index("calendar_external_blocks_companyId_idx").on(t.companyId),
+  }),
+)

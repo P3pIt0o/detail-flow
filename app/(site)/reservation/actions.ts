@@ -28,6 +28,7 @@ import { validatePromoCode, consumePromoCode, normalizePromoCode, type PromoInva
 import type { AppliedPromo } from "@/lib/booking/types"
 import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import { createFirstAvailableCache, isValidSearch } from "@/lib/booking/first-available"
+import { getExternalBusyForDate } from "@/lib/calendar-sync/store"
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
 import { getLocationConfig, setBookingLocationType, getBookingLocationType } from "@/lib/booking/location"
 import { toPublicLocation, resolveLocationType, type LocationType } from "@/lib/booking/location-shared"
@@ -554,6 +555,12 @@ export async function createBookingAction(input: CreateBookingInput): Promise<Cr
         return startMin < be + buffer && endMin + buffer > bs
       })
       if (overlaps) return { conflict: "slot_taken" as const }
+
+      // L82 : agenda du téléphone (même règle que getAvailability, sans tampon).
+      const external = await getExternalBusyForDate(companyId, date)
+      if (external.fullDay || external.ranges.some((r) => startMin < r.end && endMin > r.start)) {
+        return { conflict: "slot_taken" as const }
+      }
 
       const booked = await countVehiclesForDate(date, companyId)
       if (booked + vehicleCount > settings.maxVehiclesPerDay) return { conflict: "slot_taken" as const }

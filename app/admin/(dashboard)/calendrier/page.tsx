@@ -11,5 +11,5 @@ export default async function CalendrierPage() {
   const end = new Date(now.getFullYear(), now.getMonth() + 4, 0).toISOString().slice(0, 10)
   const bookings = await getBookingsBetween(start, end)
 
-  return <AdminCalendar bookings={bookings} />
+  return <AdminCalendar bookings={bookings} phoneSync />
 }

@@ -1,8 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { ChevronLeft, ChevronRight, Smartphone } from "lucide-react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { statusMeta } from "@/lib/booking/status"
 import { formatPrice } from "@/lib/format"
@@ -48,7 +49,14 @@ function isSameDay(a: Date, b: Date) {
 
 /* -------------------------------- Composant ------------------------------- */
 
-export function AdminCalendar({ bookings }: { bookings: CalendarBooking[] }) {
+export function AdminCalendar({
+  bookings,
+  phoneSync = false,
+}: {
+  bookings: CalendarBooking[]
+  /** Bouton vers « Mon agenda » (absent des captures marketing). */
+  phoneSync?: boolean
+}) {
   const [view, setView] = useState<ViewMode>("week")
   const [anchor, setAnchor] = useState(() => {
     const d = new Date()
@@ -104,7 +112,7 @@ export function AdminCalendar({ bookings }: { bookings: CalendarBooking[] }) {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Calendrier</h1>
           <p className="mt-1 text-sm capitalize text-muted-foreground">{title}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Précédent">
               <ChevronLeft className="h-4 w-4" />
@@ -124,6 +132,11 @@ export function AdminCalendar({ bookings }: { bookings: CalendarBooking[] }) {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          {phoneSync && (
+            <Link href="/admin/mon-agenda" className={buttonVariants({ size: "sm" })}>
+              <Smartphone className="size-4" /> Relier à mon téléphone
+            </Link>
+          )}
           <div className="flex rounded-lg border border-border p-0.5">
             {VIEWS.map((v) => (
               <button
