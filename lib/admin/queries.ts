@@ -287,6 +287,24 @@ export function todayInTimezone(timezone: string | null | undefined, now = new D
 export const TODAY_BOOKINGS_MAX = 100
 
 /** Total prévu du jour, en centimes : les rendez-vous annulés ne comptent jamais. */
+/**
+ * Date d'une visite telle que la maquette : « aujourd'hui », « hier », sinon
+ * « lun. 23 nov. » (année ajoutée seulement si elle diffère). Dates AAAA-MM-JJ.
+ */
+export function visitDateLabel(date: string, todayYmd: string): string {
+  const day = (ymd: string) => new Date(`${ymd}T00:00:00Z`)
+  const daysAgo = Math.round((day(todayYmd).getTime() - day(date).getTime()) / 86_400_000)
+  if (daysAgo === 0) return "aujourd'hui"
+  if (daysAgo === 1) return "hier"
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: date.slice(0, 4) === todayYmd.slice(0, 4) ? undefined : "numeric",
+    timeZone: "UTC",
+  }).format(day(date))
+}
+
 export function todayTotalCents(list: { status: string; totalCents: number }[]): number {
   return list
     .filter((b) => (TODAY_BOOKING_STATUSES as readonly string[]).includes(b.status))

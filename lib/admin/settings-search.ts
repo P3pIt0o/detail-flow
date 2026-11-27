@@ -112,7 +112,9 @@ export function searchSettings(
     const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
     if (!category) continue
     const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
-    if (!matches(`${entry.label} ${tabLabel} ${entry.words}`)) continue
+    // Un bloc précis ne se cherche pas par le nom de son onglet (« Planning & acompte »
+    // ferait sortir Créneaux et Mode vacances quand on tape « acompte »).
+    if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${entry.words}`)) continue
     out.push({
       label: entry.label,
       href: settingsSearchHref(entry.tab, entry.bloc),
@@ -126,5 +128,6 @@ export function searchSettings(
     if (!matches(`${screen.label} ${screen.words}`)) continue
     out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
   }
-  return out
+  // Les résultats dont le TITRE correspond passent en premier (tri stable).
+  return out.sort((a, b) => Number(matches(b.label)) - Number(matches(a.label)))
 }

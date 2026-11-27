@@ -92,6 +92,7 @@ import {
   getTodayBookings,
   todayInTimezone,
   todayTotalCents,
+  visitDateLabel,
 } from "@/lib/admin/queries"
 import { buildPlusGroups, canExportData } from "@/lib/admin/nav"
 import { SETTINGS_SEARCH, searchSettings, settingsResultContext } from "@/lib/admin/settings-search"
@@ -242,6 +243,26 @@ describe("L77 — un bloc par réglage", () => {
 })
 
 describe("L77 — libellé des résultats et écrans", () => {
+  it("« acompte » ne propose que le bloc Acompte (le nom de l'onglet ne compte pas)", () => {
+    expect(searchSettings("acompte").map((r) => r.label)).toEqual(["Acompte"])
+  })
+
+  it("les titres correspondants sortent en premier", () => {
+    expect(searchSettings("vacances")[0].label).toBe("Mode vacances")
+  })
+
+  it("« Dernières visites » : format de la maquette (véhicule · client, date relative, chevron)", () => {
+    expect(visitDateLabel("2026-11-27", "2026-11-27")).toBe("aujourd'hui")
+    expect(visitDateLabel("2026-11-26", "2026-11-27")).toBe("hier")
+    expect(visitDateLabel("2026-11-23", "2026-11-27")).toBe("lun. 23 nov.")
+    expect(visitDateLabel("2025-12-31", "2026-01-01")).toBe("hier")
+    expect(visitDateLabel("2025-11-24", "2026-11-27")).toBe("lun. 24 nov. 2025")
+    const page = read("app/admin/(dashboard)/page.tsx")
+    expect(page).toContain('[v.vehicles.join(", "), v.customerName].filter(Boolean).join(" · ")')
+    expect(page).toContain("visitDateLabel(v.date, todayYmd)")
+    expect(page).toContain("<ChevronRight")
+  })
+
   it("« catégorie · onglet »", () => {
     const [acompte] = searchSettings("acompte")
     expect(settingsResultContext(acompte)).toBe("Réservations · Planning & acompte")

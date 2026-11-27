@@ -14,6 +14,7 @@ import {
   Inbox,
   Info,
   Activity,
+  ChevronRight,
 } from "lucide-react"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
 import { getLocationConfig } from "@/lib/booking/location"
@@ -28,6 +29,8 @@ import {
   getRecentVisits,
   getLaterBookings,
   todayTotalCents,
+  todayInTimezone,
+  visitDateLabel,
   type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
@@ -528,6 +531,7 @@ export default async function DashboardPage({
   // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
   const laterUpcoming = laterList
   const todayTotal = todayTotalCents(todayList)
+  const todayYmd = todayInTimezone(company.timezone)
 
   /* ------------------------------------------------------------------ */
   /*  Disposition STANDARD — inchangée pour tous les autres tenants.    */
@@ -622,15 +626,13 @@ export default async function DashboardPage({
                   href={href(`/admin/reservations/${v.id}`)}
                   className="flex min-h-11 items-center justify-between gap-3 py-2.5 transition-colors hover:text-primary"
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-foreground">{v.customerName}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {[formatDateShort(v.date), v.services.join(" · "), v.vehicles.join(", ")]
-                        .filter(Boolean)
-                        .join(" — ")}
-                    </span>
+                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {[v.vehicles.join(", "), v.customerName].filter(Boolean).join(" · ")}
                   </span>
-                  <span className="shrink-0 text-sm font-semibold text-foreground">{formatPrice(v.totalCents)}</span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                    {visitDateLabel(v.date, todayYmd)}
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </span>
                 </Link>
               </li>
             ))}
