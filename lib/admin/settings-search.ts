@@ -124,18 +124,20 @@ export function searchSettings(
   }
   for (const entry of SETTINGS_SEARCH) {
     if (entry.standardOnly && customSiteKey === "spirit-acs") continue
-    const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
+    // `booking_only` n'a pas l'onglet « Contenu du site » : son lien est sous « Demandes spéciales ».
+    const tab = entry.bloc === "reglage-lien" && onboardingIntent === "booking_only" ? "custom-requests" : entry.tab
+    const category = findCategoryByTab(tab, customSiteKey, onboardingIntent)
     if (!category) continue
-    const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
+    const tabLabel = category.subTabs.find((t) => t.value === tab)?.label ?? ""
     // Un bloc précis ne se cherche pas par le nom de son onglet (« Créneaux » ferait
     // sortir Mode vacances quand on tape « creneaux »).
     if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${entry.words}`)) continue
     out.push({
       label: entry.label,
-      href: settingsSearchHref(entry.tab, entry.bloc),
+      href: settingsSearchHref(tab, entry.bloc),
       category: category.label,
       tabLabel,
-      tab: entry.tab,
+      tab,
     })
   }
   // Les résultats dont le TITRE correspond passent en premier (tri stable).

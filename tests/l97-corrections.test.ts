@@ -112,7 +112,7 @@ describe("L97 — la barre fixe ne fait perdre aucune saisie", () => {
     expect(save).toContain("saveVacationMode(")
   })
   it("facturation : barre fixée seulement si ce formulaire est modifié", () => {
-    expect(read("components/admin/settings/invoicing-settings.tsx")).toMatch(/<StickySaveBar pinned=\{dirty/)
+    expect(read("components/admin/settings/invoicing-settings.tsx")).toContain("<StickySaveBar pinned={pinned}>")
     const bar = read("components/admin/settings/more-options.tsx")
     expect(bar).toContain("pinned = true")
   })
@@ -149,6 +149,36 @@ describe("L97 — textes repris après la revue", () => {
     expect(read("components/admin/settings/settings-search.tsx")).toContain(
       'placeholder="Rechercher : acompte, horaires, SMS…"',
     )
+  })
+})
+
+describe("L97 — deuxième revue", () => {
+  it("facturation : la confirmation reste visible quelques secondes avec la barre fixe", () => {
+    const src = read("components/admin/settings/invoicing-settings.tsx")
+    expect(src).toContain("const pinned = dirty || pending || justSaved")
+    expect(src).toContain("setJustSaved(true)")
+    expect(src).toMatch(/setTimeout\(\(\) => setJustSaved\(false\)/)
+    expect(src).toContain("pinned && (error || notice)")
+  })
+  it("en-tête comme sur la maquette : accueil sans sous-titre, catégorie = retour, titre, onglets", () => {
+    const page = read("app/admin/(dashboard)/parametres/page.tsx")
+    expect(page).not.toContain("Personnalisez DetailFlow")
+    expect(page).not.toContain("activeCategory.description")
+    expect(page).not.toContain("CategoryIcon")
+    const category = page.slice(page.indexOf("{/* En-tête de catégorie"), page.indexOf("<SettingsTabs"))
+    expect(category).toContain("{activeCategory.label}</h1>")
+    expect(category).not.toContain("<SettingsSearch")
+    expect(page.indexOf("<SettingsSearch")).toBeLessThan(page.indexOf("<SettingsCategoryGrid"))
+  })
+  it("booking_only : « QR code » mène au lien, dans « Demandes spéciales »", () => {
+    expect(searchSettings("QR code", null, "booking_only").map((r) => r.href)).toContain(
+      "/admin/parametres?tab=custom-requests&bloc=reglage-lien",
+    )
+  })
+  it("formule sans paiements en ligne : aucun point pour un compte impossible à terminer", () => {
+    const line = buildSettingsStatus({ ...BASE, onlinePaymentsAllowed: false, paymentsReady: false }).billing
+    expect(line?.attention).toBe(false)
+    expect(line?.text).not.toContain("compte de paiement")
   })
 })
 

@@ -106,6 +106,9 @@ export function InvoicingSettings(props: Props) {
   // La barre ne se fixe que si CE formulaire est modifié : le profil vendeur,
   // au-dessus, a son propre bouton.
   const dirty = snapshot !== savedSnapshot
+  // Après un enregistrement réussi, la barre reste fixée le temps de lire la confirmation.
+  const [justSaved, setJustSaved] = useState(false)
+  const pinned = dirty || pending || justSaved
 
   function save() {
     setError(null)
@@ -118,6 +121,8 @@ export function InvoicingSettings(props: Props) {
       }
       setSavedSnapshot(snapshot)
       setNotice("Paramètres de facturation enregistrés.")
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 5000)
       router.refresh()
     })
   }
@@ -402,13 +407,13 @@ export function InvoicingSettings(props: Props) {
         <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">{notice}</div>
       )}
 
-      <StickySaveBar pinned={dirty || pending}>
+      <StickySaveBar pinned={pinned}>
         <Button onClick={save} disabled={pending} className="w-full sm:w-auto">
           {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Enregistrer la facturation
         </Button>
         {/* Sur mobile, le retour reste visible avec le bouton fixe. */}
-        {error || notice ? (
+        {pinned && (error || notice) ? (
           <span role="status" className={`text-sm sm:hidden ${error ? "text-destructive" : "text-primary"}`}>
             {error ?? notice}
           </span>

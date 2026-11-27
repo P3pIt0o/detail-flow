@@ -113,7 +113,7 @@ export function buildSettingsStatus(
     attention: false,
   }
 
-  const accountMissing = !spirit && input.paymentsEnabled && !input.paymentsReady
+  const accountMissing = !spirit && input.onlinePaymentsAllowed && input.paymentsEnabled && !input.paymentsReady
   const billing = [
     spirit ? "" : paymentLabel(input),
     input.billingComplete ? "facturation prête" : "facturation à compléter",

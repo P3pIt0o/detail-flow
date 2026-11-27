@@ -126,7 +126,6 @@ export default async function ParametresPage({
   // tenant : un ?tab= inconnu OU masqué (Spirit / booking_only) renvoie null => grille.
   const activeCategory = findCategoryByTab(tab, tenant.customSiteKey, dashboardIntent)
   const activeTab = activeCategory && tab ? tab : undefined
-  const CategoryIcon = activeCategory?.icon
   const visibleSubTabs = activeCategory?.subTabs ?? []
 
   // Attribution mensuelle SMS incluse (idempotente) : un nouvel abonné PRO n'attend pas le cron.
@@ -296,21 +295,14 @@ export default async function ParametresPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-balance">Paramètres</h1>
-        <p className="text-sm text-muted-foreground text-pretty">
-          Personnalisez DetailFlow selon le fonctionnement de votre entreprise.
-        </p>
-      </div>
-
-      <SettingsSearch
-        tenantParam={tenantParam ?? null}
-        customSiteKey={tenant.customSiteKey ?? null}
-        onboardingIntent={dashboardIntent}
-      />
-
       {!activeCategory ? (
         <>
+          <h1 className="text-2xl font-bold tracking-tight text-balance">Paramètres</h1>
+          <SettingsSearch
+            tenantParam={tenantParam ?? null}
+            customSiteKey={tenant.customSiteKey ?? null}
+            onboardingIntent={dashboardIntent}
+          />
           {onlineBooking ? (
             <OnlineBookingSettings bookingUrl={onlineBooking.bookingUrl} scriptSnippet={onlineBooking.scriptSnippet} />
           ) : null}
@@ -333,15 +325,7 @@ export default async function ParametresPage({
               <ArrowLeft className="size-4" aria-hidden="true" />
               Retour aux paramètres
             </Link>
-            <div className="flex items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                {CategoryIcon && <CategoryIcon className="size-5" aria-hidden="true" />}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-foreground">{activeCategory.label}</h2>
-                <p className="text-sm text-muted-foreground text-pretty">{activeCategory.description}</p>
-              </div>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-balance text-foreground">{activeCategory.label}</h1>
           </div>
 
           {activeCategory.id === "site" && reservationUrl ? (
