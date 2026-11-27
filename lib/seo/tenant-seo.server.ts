@@ -290,8 +290,10 @@ export async function buildTenantLocalBusiness(args?: {
   const input: LocalBusinessInput = {
     id: args?.withStableId ? `${homeUrl}${LOCAL_BUSINESS_ID_FRAGMENT}` : null,
     type: "AutoWash",
-    name: biz?.name ?? seo.siteName,
-    alternateName: biz?.alternateName ?? null,
+    // Spirit (fiche L85) : nom affiché « Spirit ACS » ; la raison commerciale et
+    // la graphie du domaine passent en noms alternatifs.
+    name: biz?.alternateName ?? seo.siteName,
+    alternateName: biz ? [biz.name, "spiritacs"] : null,
     url: homeUrl,
     telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,

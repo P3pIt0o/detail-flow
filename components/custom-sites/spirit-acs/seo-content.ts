@@ -503,10 +503,10 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     // mensuel/trimestriel pour ne jamais mélanger les prix (§7 du cahier des charges).
     formules: [
       { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €.", priceUnit: "par mois", startingCondition: ", mensuel ; nettoyage ponctuel sur devis" },
-      { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
-      { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €." },
-      { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €." },
-      { label: "Entretien régulier — Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €." },
+      { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €.", priceUnit: "par mois" },
       { label: "Nettoyage moteur", priceKind: "quote", note: "Sur devis, après analyse du compartiment moteur." },
       { label: "Rénovation d'échappement", priceKind: "quote", note: "Sur devis, selon l'état et le type de véhicule." },
     ],

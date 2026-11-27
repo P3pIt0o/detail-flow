@@ -549,6 +549,18 @@ describe("L85 — JSON-LD AutoWash : areaServed en objets City", async () => {
     expect("aggregateRating" in ld).toBe(false)
   })
 
+  it("Spirit : nom « Spirit ACS », noms alternatifs de la fiche ; aucun pour un tenant standard", async () => {
+    l85.tenant = l85Tenant("spirit-acs", "spirit-acs")
+    const ld = (await buildTenantLocalBusiness(SPIRIT_LOCAL_BUSINESS_OPTIONS))!
+    expect(ld.name).toBe("Spirit ACS")
+    expect(ld.alternateName).toEqual(["Spirit Auto Clean Service", "spiritacs"])
+    expect(read(`${SPIRIT}/service-page.tsx`)).toMatch(/providerName: SPIRIT_BUSINESS\.alternateName/)
+    l85.tenant = l85Tenant("autre-garage", null)
+    const std = (await buildTenantLocalBusiness())!
+    expect(std.name).toBe("Autre")
+    expect("alternateName" in std).toBe(false)
+  })
+
   it("le layout passe ces options au seul tenant Spirit", () => {
     const src = read("app/(site)/layout.tsx")
     expect(src).toMatch(/isSpirit\s*\n?\s*\? SPIRIT_LOCAL_BUSINESS_OPTIONS/)
@@ -738,7 +750,8 @@ describe("L85 — prix « dès » (affichage et JSON-LD Service)", async () => {
         (x) => x.priceSpecification.unitText,
       )
     expect(unitTexts("nettoyage-textile")).toContain("par chaise")
-    expect(unitTexts("nettoyage-automobile")).toContain("par mois")
+    // Les 5 formules d'entretien chiffrées sont mensuelles.
+    expect(unitTexts("nettoyage-automobile")).toEqual(Array(5).fill("par mois"))
     expect(unitTexts("protection-ppf")).toEqual([undefined])
   })
 

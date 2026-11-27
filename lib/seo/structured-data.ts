@@ -39,8 +39,8 @@ export type LocalBusinessInput = {
   /** Type Schema.org (défaut « AutoWash »). */
   type?: string
   name: string
-  /** Nom commercial alternatif (ex. sigle « Spirit ACS »). */
-  alternateName?: string | null
+  /** Nom(s) alternatif(s) de l'établissement (raison commerciale, graphie du domaine). */
+  alternateName?: string | string[] | null
   url?: string | null
   telephone?: string | null
   email?: string | null
@@ -162,6 +162,10 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
   const hours = buildOpeningHours(input.openingHours)
   const area = (input.areaServed ?? []).map((a) => clean(a)).filter((a): a is string => a !== null)
   const sameAs = sanitizeSameAs(input.sameAs)
+  // Une chaîne reste une chaîne ; une liste reste une liste ; rien si vide.
+  const alternateName = Array.isArray(input.alternateName)
+    ? input.alternateName.map((a) => clean(a)).filter((a): a is string => a !== null)
+    : clean(input.alternateName)
   // Téléphone normalisé E.164 pour le JSON-LD, en tenant compte du pays de
   // l'adresse (aucune valeur en dur, aucune écriture en base).
   const telephone = normalizePhoneForJsonLd(input.telephone, input.address?.addressCountry)
@@ -171,7 +175,7 @@ export function buildLocalBusinessJsonLd(input: LocalBusinessInput): Record<stri
     "@type": input.type ?? "AutoWash",
     ...(clean(input.id) ? { "@id": clean(input.id) } : {}),
     name: input.name,
-    ...(clean(input.alternateName) ? { alternateName: clean(input.alternateName) } : {}),
+    ...(alternateName?.length ? { alternateName } : {}),
     ...(clean(input.url) ? { url: clean(input.url) } : {}),
     ...(telephone ? { telephone } : {}),
     ...(clean(input.email) ? { email: clean(input.email) } : {}),

@@ -103,7 +103,7 @@ export async function SpiritServicePage({
     service,
     url: pageCanonical,
     providerId: `${homeCanonical}${LOCAL_BUSINESS_ID_FRAGMENT}`,
-    providerName: SPIRIT_BUSINESS.name,
+    providerName: SPIRIT_BUSINESS.alternateName,
   })
 
   // CTA CONTEXTUALISÉ (préparation Phase 5) : le lien transporte la prestation
