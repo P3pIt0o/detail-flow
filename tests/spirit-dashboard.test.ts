@@ -10,11 +10,14 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
  * style que les tests de licensing existants). Aucune donnée réelle requise.
  */
 describe("dashboard Spirit ACS — réorganisation gatée", () => {
-  const page = read("app/admin/(dashboard)/page.tsx")
+  // L96 : l'écran Spirit a été déplacé tel quel dans son propre fichier.
+  const entry = read("app/admin/(dashboard)/page.tsx")
+  const page = read("app/admin/(dashboard)/spirit-dashboard-home.tsx")
 
   it("la disposition spécifique est strictement gatée par customSiteKey", () => {
-    expect(page).toContain('company.customSiteKey === "spirit-acs"')
-    expect(page).toMatch(/if \(isSpirit\) \{/)
+    expect(entry).toContain('company.customSiteKey === "spirit-acs"')
+    expect(entry).toMatch(/if \(isSpirit\) \{\s*return <SpiritDashboardHome company=\{company\}/)
+    expect(entry.split("<SpiritDashboardHome").length - 1).toBe(1)
   })
 
   it('"À traiter" réutilise UNIQUEMENT des statuts réels (new + accepted)', () => {
@@ -27,8 +30,9 @@ describe("dashboard Spirit ACS — réorganisation gatée", () => {
   })
 
   it("les demandes proviennent du module existant, scopé tenant côté serveur", () => {
-    expect(page).toContain("requireCompanyMember()")
+    expect(entry).toContain("requireCompanyMember()")
     expect(page).toContain("listCustomRequests()")
+    expect(page).toContain("const companyId = company.id")
   })
 
   it("le détail d'une demande réutilise la route admin protégée existante", () => {
@@ -39,15 +43,12 @@ describe("dashboard Spirit ACS — réorganisation gatée", () => {
 
   it("Spirit ne pointe pas le planning vers Réservations (menu masqué)", () => {
     // Le bloc Spirit envoie vers le calendrier existant.
-    const spiritBranch = page.slice(page.indexOf("if (isSpirit)"), page.indexOf("Disposition STANDARD"))
-    expect(spiritBranch).toContain('href("/admin/calendrier")')
-    expect(spiritBranch).not.toContain('href("/admin/reservations")')
+    expect(page).toContain('href("/admin/calendrier")')
+    expect(page).not.toContain('href("/admin/reservations")')
   })
 
-  it("la disposition standard des autres tenants reste inchangée", () => {
-    const standardBranch = page.slice(page.indexOf("Disposition STANDARD"))
-    // Le lien « Tout voir » standard pointe toujours vers Réservations.
-    expect(standardBranch).toContain('href("/admin/reservations")')
+  it("les autres tenants gardent des liens vers les réservations", () => {
+    expect(read("lib/admin/today.ts")).toContain('"/admin/reservations"')
   })
 })
 

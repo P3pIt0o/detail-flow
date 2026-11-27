@@ -1,4 +1,3 @@
-import { getCustomSiteAdminProfile } from "@/lib/admin/custom-site-admin-profile"
 import { findCategoryByTab } from "@/lib/admin/settings-nav"
 
 /**
@@ -16,8 +15,6 @@ export type SettingsSearchEntry = {
   words: string
   /** Réglage du modèle de site standard : sans effet sur le site 100 % personnalisé Spirit ACS. */
   standardOnly?: boolean
-  /** Mots à utiliser quand le profil du site sur mesure masque les textes standard (L102). */
-  customSiteWords?: string
 }
 
 export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
@@ -29,7 +26,7 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Mode vacances", tab: "planning", bloc: "reglage-vacances", words: "vacances pause fermer reservations message" },
   { label: "Atelier ou à domicile", tab: "travel", words: "lieu atelier domicile mobile adresse intervention zone" },
   { label: "Frais de déplacement", tab: "travel", bloc: "reglage-frais-deplacement", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
-  { label: "Contenu du site", tab: "site", words: "site page vitrine titre texte presentation", customSiteWords: "site page vitrine" },
+  { label: "Contenu du site", tab: "site", words: "site page vitrine titre texte presentation" },
   { label: "Logo de votre site", tab: "site", bloc: "reglage-logo-site", words: "logo image marque identite", standardOnly: true },
   { label: "Réseaux sociaux", tab: "site", bloc: "reglage-reseaux", words: "reseaux sociaux instagram facebook tiktok liens" },
   { label: "Conditions générales de vente", tab: "site", bloc: "reglage-cgv", words: "cgv conditions generales vente" },
@@ -110,7 +107,6 @@ export function searchSettings(
     return terms.every((t) => haystack.includes(t))
   }
   const out: SettingsSearchResult[] = []
-  const { hideStandardSiteContent } = getCustomSiteAdminProfile(customSiteKey)
   // Les écrans d'abord : « prix » doit mener à Mes prestations avant les frais.
   for (const screen of SCREEN_SEARCH) {
     if (customSiteKey === screen.hiddenFor) continue
@@ -124,8 +120,7 @@ export function searchSettings(
     const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
     // Un bloc précis ne se cherche pas par le nom de son onglet (« Planning & acompte »
     // ferait sortir Créneaux et Mode vacances quand on tape « acompte »).
-    const words = (hideStandardSiteContent && entry.customSiteWords) || entry.words
-    if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${words}`)) continue
+    if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${entry.words}`)) continue
     out.push({
       label: entry.label,
       href: settingsSearchHref(entry.tab, entry.bloc),
