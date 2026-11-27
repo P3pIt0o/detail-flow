@@ -255,9 +255,9 @@ export function buildPlusGroups(opts: {
     const item = byHref.get(href)
     return item ? [{ ...item, label: label ?? item.label, hint }] : []
   }
-  const settingsTab = (tab: string, label: string, icon: MainNavIcon, hint: string): PlusItem[] =>
+  const settingsTab = (tab: string, label: string, icon: MainNavIcon): PlusItem[] =>
     findCategoryByTab(tab, opts.customSiteKey, opts.intent)
-      ? [{ href: `/admin/parametres?tab=${tab}`, label, icon, hint }]
+      ? [{ href: `/admin/parametres?tab=${tab}`, label, icon }]
       : []
 
   const groups: PlusGroup[] = [
@@ -267,7 +267,7 @@ export function buildPlusGroups(opts: {
       items: [
         ...fromNav("/admin/prestations", "Mes prestations", "Vos prestations et leurs prix"),
         ...fromNav("/admin/produits"),
-        ...fromNav("/admin/factures", "Devis & factures", "Devis, factures et encaissements"),
+        ...fromNav("/admin/factures", "Devis & factures"),
         ...(opts.canExport === false
           ? []
           : [{ href: "/admin/export", label: "Export de vos données", icon: "export" as const, download: true }]),
@@ -284,7 +284,7 @@ export function buildPlusGroups(opts: {
       items: [
         ...fromNav(webNavItem(opts.intent).href),
         ...fromNav("/admin/offres"),
-        ...settingsTab("reviews", "Avis clients", "reviews", "Les avis affichés sur votre page"),
+        ...settingsTab("reviews", "Avis clients", "reviews"),
         // Un tenant au site 100 % personnalisé l'a déjà : pas de proposition en double.
         ...(opts.customSiteKey
           ? []
@@ -295,7 +295,7 @@ export function buildPlusGroups(opts: {
       id: "reglages",
       label: "Réglages",
       items: [
-        ...settingsTab("payments", "Paiements en ligne", "billing", "Carte bancaire et acomptes"),
+        ...settingsTab("payments", "Paiements en ligne", "billing"),
         ...fromNav("/admin/parametres", "Tous les réglages"),
         ...fromNav("/admin/abonnement"),
       ],

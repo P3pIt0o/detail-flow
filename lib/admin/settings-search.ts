@@ -22,7 +22,7 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail" },
   { label: "Congés et fermetures", tab: "timeoff", words: "conges vacances fermeture absence repos indisponibilite" },
   { label: "Créneaux et délai de réservation", tab: "planning", bloc: "reglage-creneaux", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
-  { label: "Acompte", tab: "planning", bloc: "reglage-acompte", words: "acompte arrhes avance pourcentage paiement reservation" },
+  { label: "Acompte", tab: "planning", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
   { label: "Mode vacances", tab: "planning", bloc: "reglage-vacances", words: "vacances pause fermer reservations message" },
   { label: "Atelier ou à domicile", tab: "travel", words: "lieu atelier domicile mobile adresse intervention zone" },
   { label: "Frais de déplacement", tab: "travel", bloc: "reglage-frais-deplacement", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
@@ -107,6 +107,12 @@ export function searchSettings(
     return terms.every((t) => haystack.includes(t))
   }
   const out: SettingsSearchResult[] = []
+  // Les écrans d'abord : « prix » doit mener à Mes prestations avant les frais.
+  for (const screen of SCREEN_SEARCH) {
+    if (customSiteKey === screen.hiddenFor) continue
+    if (!matches(`${screen.label} ${screen.words}`)) continue
+    out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
+  }
   for (const entry of SETTINGS_SEARCH) {
     if (entry.standardOnly && customSiteKey === "spirit-acs") continue
     const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
@@ -122,11 +128,6 @@ export function searchSettings(
       tabLabel,
       tab: entry.tab,
     })
-  }
-  for (const screen of SCREEN_SEARCH) {
-    if (customSiteKey === screen.hiddenFor) continue
-    if (!matches(`${screen.label} ${screen.words}`)) continue
-    out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
   }
   // Les résultats dont le TITRE correspond passent en premier (tri stable).
   return out.sort((a, b) => Number(matches(b.label)) - Number(matches(a.label)))

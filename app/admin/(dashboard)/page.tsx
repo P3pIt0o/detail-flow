@@ -31,6 +31,7 @@ import {
   todayTotalCents,
   todayInTimezone,
   visitDateLabel,
+  noLaterBookingsText,
   type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
@@ -530,6 +531,7 @@ export default async function DashboardPage({
 
   // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
   const laterUpcoming = laterList
+  const noLater = noLaterBookingsText(todayList.length, recentVisits.length)
   const todayTotal = todayTotalCents(todayList)
   const todayYmd = todayInTimezone(company.timezone)
 
@@ -605,10 +607,10 @@ export default async function DashboardPage({
 
         {laterUpcoming.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-sm font-medium text-foreground">Aucun rendez-vous à venir.</p>
-            <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">
-              Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.
-            </p>
+            <p className="text-sm font-medium text-foreground">{noLater.title}</p>
+            {noLater.hint && (
+              <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">{noLater.hint}</p>
+            )}
           </div>
         ) : (
           <ul className="flex flex-col divide-y divide-border">{laterUpcoming.map(renderUpcoming)}</ul>

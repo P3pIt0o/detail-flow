@@ -90,6 +90,7 @@ import {
   getLaterBookings,
   getRecentVisits,
   getTodayBookings,
+  noLaterBookingsText,
   todayInTimezone,
   todayTotalCents,
   visitDateLabel,
@@ -274,6 +275,37 @@ describe("L77 — libellé des résultats et écrans", () => {
       expect(searchSettings(q).map((r) => r.href)).toContain("/admin/prestations")
       expect(searchSettings(q, "spirit-acs").map((r) => r.href)).not.toContain("/admin/prestations")
     }
+  })
+})
+
+describe("L77 — textes et ordre (3e relecture)", () => {
+  it("rendez-vous du jour ou visites passées : pas de « premiers rendez-vous »", () => {
+    for (const [today, visits] of [[2, 0], [0, 3], [1, 1]]) {
+      expect(noLaterBookingsText(today, visits)).toEqual({ title: "Aucun rendez-vous les jours suivants." })
+    }
+    expect(noLaterBookingsText(0, 0)).toEqual({
+      title: "Aucun rendez-vous à venir.",
+      hint: "Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.",
+    })
+    expect(read("app/admin/(dashboard)/page.tsx")).toContain(
+      "noLaterBookingsText(todayList.length, recentVisits.length)",
+    )
+  })
+
+  it("« Plus » : seul « Mes prestations » a un sous-titre, comme sur la maquette", () => {
+    const withHint = buildPlusGroups({ intent: null, customSiteKey: null })
+      .flatMap((g) => g.items)
+      .filter((i) => i.hint)
+      .map((i) => i.label)
+    expect(withHint).toEqual(["Mes prestations"])
+  })
+
+  it("« prix » propose d'abord Mes prestations", () => {
+    expect(searchSettings("prix")[0].href).toBe("/admin/prestations")
+  })
+
+  it("« acomptes » au pluriel trouve le bloc Acompte", () => {
+    expect(searchSettings("acomptes").map((r) => r.label)).toEqual(["Acompte"])
   })
 })
 

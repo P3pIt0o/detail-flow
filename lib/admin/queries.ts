@@ -305,6 +305,18 @@ export function visitDateLabel(date: string, todayYmd: string): string {
   }).format(day(date))
 }
 
+/**
+ * Message de « Prochains rendez-vous » quand la liste est vide : « premiers
+ * rendez-vous » seulement si rien aujourd'hui et aucune visite passée.
+ */
+export function noLaterBookingsText(todayCount: number, visitCount: number): { title: string; hint?: string } {
+  if (todayCount > 0 || visitCount > 0) return { title: "Aucun rendez-vous les jours suivants." }
+  return {
+    title: "Aucun rendez-vous à venir.",
+    hint: "Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.",
+  }
+}
+
 export function todayTotalCents(list: { status: string; totalCents: number }[]): number {
   return list
     .filter((b) => (TODAY_BOOKING_STATUSES as readonly string[]).includes(b.status))
