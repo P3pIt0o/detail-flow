@@ -81,7 +81,7 @@ export async function findFirstAvailableDate({ from, durationMin, vehicleCount, 
   for (let offset = 0; offset < SEARCH_MAX_DAYS; offset += SEARCH_PACK_DAYS) {
     const count = Math.min(SEARCH_PACK_DAYS, SEARCH_MAX_DAYS - offset)
     const dates = dateWindow(from, offset, count)
-    // Au plus SEARCH_CONCURRENCY jours en parallèle (5 requêtes BDD chacun) : ne sature pas le pool partagé.
+    // Au plus SEARCH_CONCURRENCY jours en parallèle (réservations lues jour par jour) : ne sature pas le pool partagé.
     for (let i = 0; i < dates.length; i += SEARCH_CONCURRENCY) {
       const days = await Promise.all(dates.slice(i, i + SEARCH_CONCURRENCY).map((d) => getDay(d, durationMin, vehicleCount)))
       const hit = days.find((d) => d.available && d.slots.length > 0)

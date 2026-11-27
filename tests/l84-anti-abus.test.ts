@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
@@ -32,6 +34,15 @@ const { st, firewall, q } = vi.hoisted(() => {
   }
 })
 
+/** Clés demandées à SWR par l'écran ; la fenêtre de dates répond « vide ». */
+const swr = vi.hoisted(() => ({ keys: [] as unknown[] }))
+vi.mock("swr", () => ({
+  default: (key: unknown) => {
+    swr.keys.push(key)
+    return Array.isArray(key) && key[0] === "bv2-availability" ? { data: [], isLoading: false } : { data: undefined, isLoading: false }
+  },
+}))
+
 vi.mock("@vercel/firewall", () => ({ checkRateLimit: firewall }))
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-real-ip": st.ip }) }))
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND") } }))
@@ -53,6 +64,7 @@ import { createAvailabilityContext, getAvailability } from "@/lib/booking/availa
 import { SEARCH_MAX_DAYS, SEARCH_RATE_LIMITED_MESSAGE } from "@/lib/booking/first-available"
 import { SEARCH_RATE_LIMIT_ID, isSearchRateLimited } from "@/lib/booking/rate-limit"
 import { dateWindow } from "@/lib/booking/v2"
+import { StepDateTime } from "@/components/booking-v2/step-datetime"
 
 const keyAt = (n: number) => dateWindow(new Date(), n, 1)[0]
 const reads = () => [q.getSettings, q.getBusinessHours, q.getTimeOff, q.getActiveBookingsForDate, q.countVehiclesForDate]
@@ -185,8 +197,44 @@ describe("L84 — écran (contrôle sur le source)", () => {
     expect(screen).toMatch(/refused && offset === 0\s*\?\s*SEARCH_RATE_LIMITED_MESSAGE\s*:\s*nothingFound/)
     expect(screen).toMatch(/const nothingFound = [^\n]*!refused/)
   })
-  it("un refus gardé par le navigateur est ignoré à la prochaine ouverture", () => {
-    expect(screen).toContain("found.openId !== openId")
-    expect(screen).toContain("dedupingInterval: 0")
+  it("refus avec une date choisie devenue sans créneau : le message reste affiché", () => {
+    expect(screen).toMatch(/!activeDate \|\| \(refused && offset === 0 && !activeDay\?\.slots\.length\)/)
+  })
+})
+
+describe("L84 — réouverture de l'étape date", () => {
+  /** Rend l'écran avec une fenêtre vide et renvoie la clé de la recherche de première date. */
+  function openStep() {
+    swr.keys.length = 0
+    renderToStaticMarkup(
+      createElement(StepDateTime, {
+        date: null,
+        startTime: null,
+        durationMin: 60,
+        vehicleCount: 1,
+        onSelectSlot: () => {},
+        location: { mobile: false, workshop: true, workshopAddress: null },
+        locationType: null,
+        onLocationType: () => {},
+        address: "",
+        onAddress: () => {},
+        travel: null,
+        onTravel: () => {},
+        roundTrip: false,
+        freeDistanceKm: 0,
+      }),
+    )
+    return swr.keys.find((k) => Array.isArray(k) && k[0] === "bv2-first-available") as unknown[]
+  }
+
+  // SWR ne relance pas une requête déjà en vol sur la même clé : chaque ouverture doit avoir la sienne,
+  // sinon un retour sur l'étape pendant la recherche (ou après un refus) la laisse sans réponse.
+  it("chaque ouverture a sa propre recherche", () => {
+    const first = openStep()
+    const second = openStep()
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second).not.toEqual(first)
+    expect(second).toEqual(expect.arrayContaining([60, 1]))
   })
 })
