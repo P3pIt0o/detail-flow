@@ -149,7 +149,7 @@ export default async function ReservationPage({
               ? "bg-background py-6"
               : neon
                 ? "bg-background pb-16 pt-4 md:pb-20"
-                : "bg-background pb-6 pt-8 md:pt-12"
+                : view === "both" ? "bg-background pb-16 pt-8 md:pb-20 md:pt-8" : "bg-background pb-16 pt-24 md:pb-20 md:pt-28"
           }
         >
           <BookingV2

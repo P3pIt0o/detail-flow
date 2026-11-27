@@ -19,7 +19,7 @@ export default async function DemandeConfirmationPage({
   const contact = await getPublicContact()
 
   return (
-    <section className="min-h-[70vh] bg-background py-16">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-2xl px-4">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
