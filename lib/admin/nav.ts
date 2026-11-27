@@ -298,6 +298,7 @@ export function buildPlusGroups(opts: {
       label: "Réglages",
       items: [
         ...settingsTab("payments", "Paiements en ligne", "billing"),
+        ...fromNav("/admin/mon-agenda", "Mon agenda"),
         ...fromNav("/admin/parametres", "Tous les réglages"),
         ...fromNav("/admin/abonnement"),
       ],

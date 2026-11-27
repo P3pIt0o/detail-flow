@@ -228,7 +228,7 @@ export function CalendarSyncPanel(props: {
                 : props.lastSuccessAt
                   ? ""
                   : "Pas encore de mise à jour réussie."}{" "}
-              Mise à jour automatique toutes les 15 minutes.
+              Mise à jour automatique toutes les 30 minutes.
             </p>
             {props.errorMessage ? <p className="text-destructive">{props.errorMessage}</p> : null}
             <div className="flex gap-2">

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { buildAdminNavGroups, buildMobilePrimaryNav } from "@/lib/admin/nav"
+import { buildAdminNavGroups, buildMainNav, buildPlusGroups } from "@/lib/admin/nav"
 
 const read = (f: string) => readFileSync(path.join(process.cwd(), f), "utf8")
 const FORBIDDEN = /ical|webcal|caldav/i
@@ -59,6 +59,7 @@ describe("L80 — écran « Mon agenda »", () => {
     const opts = { intent: null, customSiteKey: null } as const
     const hrefs = buildAdminNavGroups(opts).flatMap((g) => g.items.map((i) => i.href))
     expect(hrefs).toContain("/admin/mon-agenda")
-    expect(buildMobilePrimaryNav(opts).map((i) => i.href)).not.toContain("/admin/mon-agenda")
+    expect(buildMainNav().map((i) => i.href)).not.toContain("/admin/mon-agenda")
+    expect(buildPlusGroups(opts).flatMap((g) => g.items.map((i) => i.href))).toContain("/admin/mon-agenda")
   })
 })

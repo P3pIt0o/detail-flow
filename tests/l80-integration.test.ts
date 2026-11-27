@@ -244,9 +244,9 @@ describe("L80 — cron", () => {
     expect(syncAllDue).toHaveBeenCalledTimes(1)
   })
 
-  it("planifié toutes les 15 minutes dans vercel.json", () => {
+  it("planifié toutes les 30 minutes dans vercel.json (aligné sur notifications, L81)", () => {
     const cfg = JSON.parse(readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"))
-    expect(cfg.crons).toContainEqual({ path: "/api/cron/calendar-sync", schedule: "*/15 * * * *" })
+    expect(cfg.crons).toContainEqual({ path: "/api/cron/calendar-sync", schedule: "*/30 * * * *" })
   })
 })
 
