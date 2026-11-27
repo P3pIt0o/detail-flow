@@ -2,6 +2,9 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { loadPublicDigitalCard } from "@/lib/digital-card.server"
 import { DigitalCardView } from "@/components/digital-card/digital-card-view"
+import { buildTenantPageMetadata } from "@/lib/seo/tenant-metadata"
+import { resolveTenantOrigin, SEO_BASE, tenantSeoIdentity } from "@/lib/seo/tenant-url"
+import { tenantCanonicalHost } from "@/lib/tenant-shared"
 
 /**
  * Carte digitale publique du tenant (L45). Hors du groupe `(site)` : plein écran, sans
@@ -10,10 +13,31 @@ import { DigitalCardView } from "@/components/digital-card/digital-card-view"
 
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadPublicDigitalCard()
+  // Page de partage : pas d'indexation (évite le contenu dupliqué avec le site).
+  const noindex = { robots: { index: false, follow: false } }
+  if (!data) return noindex
+
+  // Toutes les balises héritées du layout racine (DetailFlow) sont remplacées par celles du tenant.
+  const identity = tenantSeoIdentity({ slug: data.slug, publicDomain: tenantCanonicalHost(data.slug) })
+  const image = data.logoSrc ? `${resolveTenantOrigin(identity) ?? SEO_BASE}${data.logoSrc}` : null
+  const description = data.line ?? `Carte de contact de ${data.name}`
+  const meta = buildTenantPageMetadata({
+    identity,
+    path: "/carte",
+    title: data.name,
+    description,
+    siteName: data.name,
+    imageUrl: image ?? "",
+    icons: image ? { icon: image, apple: image } : undefined,
+    robots: noindex.robots,
+    neutralizePlatformTags: true,
+  })
+  // Logo (carré, format libre) en vignette ; sans logo, aucune image.
+  const images = image ? [{ url: image, alt: data.name }] : []
   return {
-    title: data ? { absolute: data.name } : undefined,
-    // Page de partage : pas d'indexation (évite le contenu dupliqué avec le site).
-    robots: { index: false, follow: false },
+    ...meta,
+    openGraph: { ...meta.openGraph, images },
+    twitter: { card: "summary", title: data.name, description, images: image ? [image] : [] },
   }
 }
 
