@@ -23,7 +23,7 @@ type Props = {
   paymentsEnabled: boolean
   paymentMode: PaymentMode
   feePercent: string
-  /** Résumé lisible de l'acompte configuré (onglet Planning). */
+  /** Résumé lisible de l'acompte configuré (onglet Acompte). */
   depositConfigured: boolean
   depositSummary: string
 }
@@ -169,8 +169,8 @@ export function PaymentsSettings(props: Props) {
             title="Acompte à la réservation"
             desc={
               props.depositConfigured
-                ? `Montant de l'acompte : ${props.depositSummary} (réglage dans l'onglet Planning & acompte).`
-                : "Aucun acompte n'est encore configuré. Définissez-le dans l'onglet Planning & acompte."
+                ? `Montant de l'acompte : ${props.depositSummary} (réglage dans Paiements et factures, onglet Acompte).`
+                : "Aucun acompte n'est encore configuré. Définissez-le dans Paiements et factures, onglet Acompte."
             }
             warn={mode === "deposit" && !props.depositConfigured}
           />
@@ -187,7 +187,7 @@ export function PaymentsSettings(props: Props) {
             desc={
               props.depositConfigured
                 ? `Le client choisit entre l'acompte (${props.depositSummary}) et le paiement intégral au moment de la réservation.`
-                : "Le client pourra régler la totalité. Configurez un acompte dans l'onglet Planning & acompte pour proposer aussi l'acompte."
+                : "Le client pourra régler la totalité. Configurez un acompte dans Paiements et factures, onglet Acompte, pour proposer aussi l'acompte."
             }
           />
         </fieldset>

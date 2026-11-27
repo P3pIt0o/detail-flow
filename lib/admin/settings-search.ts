@@ -19,10 +19,11 @@ export type SettingsSearchEntry = {
 
 export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Nom et coordonnées", tab: "business", words: "nom entreprise societe telephone mobile email e-mail mail contact" },
-  { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail" },
+  { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail heures de debut fixes" },
+  { label: "Lien et QR code", tab: "site", bloc: "reglage-lien", words: "lien qr code reservation partager adresse", standardOnly: true },
   { label: "Congés et fermetures", tab: "timeoff", words: "conges vacances fermeture absence repos indisponibilite" },
   { label: "Créneaux et délai de réservation", tab: "planning", bloc: "reglage-creneaux", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
-  { label: "Acompte", tab: "planning", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
+  { label: "Acompte", tab: "deposit", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
   { label: "Mode vacances", tab: "planning", bloc: "reglage-vacances", words: "vacances pause fermer reservations message" },
   { label: "Atelier ou à domicile", tab: "travel", words: "lieu atelier domicile mobile adresse intervention zone" },
   { label: "Frais de déplacement", tab: "travel", bloc: "reglage-frais-deplacement", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
@@ -54,10 +55,18 @@ const SCREEN_SEARCH = [
   {
     label: "Mes prestations",
     href: "/admin/prestations",
-    category: "Mon activité",
-    tabLabel: "Prestations et prix",
-    words: "prix tarifs tarif prestation prestations forfaits services duree",
+    category: "Mes prestations et prix",
+    tabLabel: "Mes prestations et prix",
+    words: "prix tarifs tarif prestation prestations forfaits services duree gabarits vehicules",
     hiddenFor: "spirit-acs",
+  },
+  {
+    label: "Abonnement",
+    href: "/admin/abonnement",
+    category: "Mon compte",
+    tabLabel: "Abonnement",
+    words: "abonnement formule detailflow resilier changer",
+    hiddenFor: null,
   },
 ] as const
 
@@ -109,24 +118,26 @@ export function searchSettings(
   const out: SettingsSearchResult[] = []
   // Les écrans d'abord : « prix » doit mener à Mes prestations avant les frais.
   for (const screen of SCREEN_SEARCH) {
-    if (customSiteKey === screen.hiddenFor) continue
+    if (screen.hiddenFor && customSiteKey === screen.hiddenFor) continue
     if (!matches(`${screen.label} ${screen.words}`)) continue
     out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
   }
   for (const entry of SETTINGS_SEARCH) {
     if (entry.standardOnly && customSiteKey === "spirit-acs") continue
-    const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
+    // `booking_only` n'a pas l'onglet « Contenu du site » : son lien est sous « Demandes spéciales ».
+    const tab = entry.bloc === "reglage-lien" && onboardingIntent === "booking_only" ? "custom-requests" : entry.tab
+    const category = findCategoryByTab(tab, customSiteKey, onboardingIntent)
     if (!category) continue
-    const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
-    // Un bloc précis ne se cherche pas par le nom de son onglet (« Planning & acompte »
-    // ferait sortir Créneaux et Mode vacances quand on tape « acompte »).
+    const tabLabel = category.subTabs.find((t) => t.value === tab)?.label ?? ""
+    // Un bloc précis ne se cherche pas par le nom de son onglet (« Créneaux » ferait
+    // sortir Mode vacances quand on tape « creneaux »).
     if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${entry.words}`)) continue
     out.push({
       label: entry.label,
-      href: settingsSearchHref(entry.tab, entry.bloc),
+      href: settingsSearchHref(tab, entry.bloc),
       category: category.label,
       tabLabel,
-      tab: entry.tab,
+      tab,
     })
   }
   // Les résultats dont le TITRE correspond passent en premier (tri stable).

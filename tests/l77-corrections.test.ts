@@ -227,6 +227,8 @@ describe("L77 — un bloc par réglage", () => {
       "components/admin/settings/site-branding.tsx",
       "components/admin/settings/invoicing-settings.tsx",
       "components/admin/settings/location-settings.tsx",
+      // Bloc « Lien et QR code », posé par la page elle-même (L97).
+      "app/admin/(dashboard)/parametres/page.tsx",
     ]
       .map(read)
       .join("\n")
@@ -259,7 +261,7 @@ describe("L77 — libellé des résultats et écrans", () => {
 
   it("« catégorie · onglet »", () => {
     const [acompte] = searchSettings("acompte")
-    expect(settingsResultContext(acompte)).toBe("Réservations · Planning & acompte")
+    expect(settingsResultContext(acompte)).toBe("Paiements et factures · Acompte")
     expect(read("components/admin/settings/settings-search.tsx")).toContain("settingsResultContext(r)")
   })
 

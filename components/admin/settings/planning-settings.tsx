@@ -9,8 +9,11 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { savePlanning, saveDeposit, saveVacationMode } from "@/app/admin/(dashboard)/parametres/actions"
 import { DEPOSIT_METHODS, DEPOSIT_METHOD_LABELS, type DepositMethod } from "@/lib/booking/types"
+import { MoreOptions, StickySaveBar } from "@/components/admin/settings/more-options"
 
 type Props = {
+  /** Bloc affiché (L97) : mode vacances + créneaux, ou acompte. Chacun n'enregistre que le sien. */
+  section: "planning" | "deposit"
   maxVehiclesPerDay: number
   slotIntervalMin: number
   bufferMin: number
@@ -51,10 +54,15 @@ export function PlanningSettings(props: Props) {
   const [vacPending, startVacTransition] = useTransition()
   const [vacMsg, setVacMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
 
+  // Dernier état vacances enregistré : le bouton du bas ne doit pas l'oublier.
+  const [savedVacation, setSavedVacation] = useState({ mode: props.vacationMode, message: props.vacationMessage })
+  const vacationChanged = vacationMode !== savedVacation.mode || vacationMessage !== savedVacation.message
+
   function saveVacation() {
     setVacMsg(null)
     startVacTransition(async () => {
       const r = await saveVacationMode({ vacationMode, vacationMessage })
+      if (r.ok) setSavedVacation({ mode: vacationMode, message: vacationMessage })
       setVacMsg(
         r.ok
           ? { type: "ok", text: "Mode vacances mis à jour." }
@@ -66,26 +74,134 @@ export function PlanningSettings(props: Props) {
   function save() {
     setMsg(null)
     startTransition(async () => {
-      const r1 = await savePlanning({
-        maxVehiclesPerDay: Number(maxVehicles) || 1,
-        slotIntervalMin: Number(interval) || 30,
-        bufferMin: Number(buffer) || 0,
-        minNoticeHours: Number(notice) || 0,
-      })
       const rawValue = Number.parseFloat(depositValue) || 0
-      const r2 = await saveDeposit({
-        depositType,
-        depositValue: depositType === "fixed" ? Math.round(rawValue * 100) : Math.round(rawValue),
-        depositMethods,
-        depositInstructions,
-      })
-      const ok = r1.ok && r2.ok
-      setMsg(
-        ok
-          ? { type: "ok", text: "Paramètres enregistrés." }
-          : { type: "err", text: r1.error ?? r2.error ?? "Erreur" },
-      )
+      const r =
+        props.section === "deposit"
+          ? await saveDeposit({
+              depositType,
+              depositValue: depositType === "fixed" ? Math.round(rawValue * 100) : Math.round(rawValue),
+              depositMethods,
+              depositInstructions,
+            })
+          : await savePlanning({
+              maxVehiclesPerDay: Number(maxVehicles) || 1,
+              slotIntervalMin: Number(interval) || 30,
+              bufferMin: Number(buffer) || 0,
+              minNoticeHours: Number(notice) || 0,
+            })
+      let failed = r.ok ? null : (r.error ?? "Erreur")
+      if (!failed && props.section === "planning" && vacationChanged) {
+        const v = await saveVacationMode({ vacationMode, vacationMessage })
+        if (v.ok) setSavedVacation({ mode: vacationMode, message: vacationMessage })
+        else failed = v.error ?? "Erreur"
+        setVacMsg(null)
+      }
+      setMsg(failed ? { type: "err", text: failed } : { type: "ok", text: "Paramètres enregistrés." })
     })
+  }
+
+  const saveBar = (
+    <StickySaveBar>
+      <Button onClick={save} disabled={pending} className="w-full sm:w-auto">
+        {pending ? "Enregistrement…" : "Enregistrer"}
+      </Button>
+      {msg && (
+        <span role="status" className={msg.type === "ok" ? "text-sm text-primary" : "text-sm text-destructive"}>
+          {msg.text}
+        </span>
+      )}
+    </StickySaveBar>
+  )
+
+  if (props.section === "deposit") {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <section id="reglage-acompte" className="space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold">Acompte à la réservation</h2>
+            <p className="text-sm text-muted-foreground text-pretty">
+              Montant demandé pour confirmer une réservation en ligne.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="depositType">Type d&apos;acompte</Label>
+              <select
+                id="depositType"
+                value={depositType}
+                onChange={(e) => setDepositType(e.target.value as Props["depositType"])}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="none">Aucun acompte</option>
+                <option value="percent">Pourcentage du total</option>
+                <option value="fixed">Montant fixe</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Le client voit le montant à régler avant de confirmer.
+              </p>
+            </div>
+            {depositType !== "none" && (
+              <div className="space-y-2">
+                <Label htmlFor="depositValue">
+                  {depositType === "percent" ? "Pourcentage (%)" : "Montant (€)"}
+                </Label>
+                <Input
+                  id="depositValue"
+                  type="number"
+                  step={depositType === "percent" ? "1" : "0.01"}
+                  value={depositValue}
+                  onChange={(e) => setDepositValue(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {depositType !== "none" && (
+            <>
+              <div className="space-y-2">
+                <Label>Moyens de paiement acceptés</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cochez les moyens proposés au client pour régler l&apos;acompte.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {DEPOSIT_METHODS.map((m) => (
+                    <label
+                      key={m}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={depositMethods.includes(m)}
+                        onChange={() => toggleMethod(m)}
+                      />
+                      {DEPOSIT_METHOD_LABELS[m]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <MoreOptions hint="instructions de paiement">
+                <div className="space-y-2">
+                  <Label htmlFor="depositInstructions">Instructions de paiement</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ces informations seront affichées au client et incluses dans l&apos;email de
+                    confirmation (IBAN, numéro Wero, lien de paiement, etc.).
+                  </p>
+                  <Textarea
+                    id="depositInstructions"
+                    rows={4}
+                    placeholder={"IBAN : FR76 ...\nBénéficiaire : ...\nWero : 06 ...\nMerci d'indiquer votre référence de réservation."}
+                    value={depositInstructions}
+                    onChange={(e) => setDepositInstructions(e.target.value)}
+                  />
+                </div>
+              </MoreOptions>
+            </>
+          )}
+        </section>
+        {saveBar}
+      </div>
+    )
   }
 
   return (
@@ -147,17 +263,20 @@ export function PlanningSettings(props: Props) {
               value={maxVehicles}
               onChange={(e) => setMaxVehicles(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Une fois ce nombre atteint, le jour n&apos;est plus proposé au client.
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="interval">Pas des horaires proposés (min)</Label>
+            <Label htmlFor="notice">Préavis minimum (heures)</Label>
             <Input
-              id="interval"
+              id="notice"
               type="number"
-              value={interval}
-              onChange={(e) => setInterval(e.target.value)}
+              value={notice}
+              onChange={(e) => setNotice(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Fréquence des heures de début proposées au client. Ex. 30 → 9h00, 9h30, 10h00…
+              Délai minimum entre la réservation du client et son rendez-vous.
             </p>
           </div>
           <div className="space-y-2">
@@ -172,107 +291,24 @@ export function PlanningSettings(props: Props) {
               Temps libre réservé après un rendez-vous (rangement, trajet) avant le suivant.
             </p>
           </div>
+        </div>
+        <MoreOptions hint="pas des horaires proposés">
           <div className="space-y-2">
-            <Label htmlFor="notice">Préavis minimum (heures)</Label>
+            <Label htmlFor="interval">Pas des horaires proposés (min)</Label>
             <Input
-              id="notice"
+              id="interval"
               type="number"
-              value={notice}
-              onChange={(e) => setNotice(e.target.value)}
+              value={interval}
+              onChange={(e) => setInterval(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Fréquence des heures de début proposées au client. Ex. 30 → 9h00, 9h30, 10h00…
+            </p>
           </div>
-        </div>
+        </MoreOptions>
       </Card>
 
-      <Card id="reglage-acompte" className="p-6 space-y-5">
-        <div>
-          <h2 className="text-lg font-semibold">Acompte à la réservation</h2>
-          <p className="text-sm text-muted-foreground text-pretty">
-            Montant demandé pour confirmer une réservation en ligne.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="depositType">Type d&apos;acompte</Label>
-            <select
-              id="depositType"
-              value={depositType}
-              onChange={(e) => setDepositType(e.target.value as Props["depositType"])}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="none">Aucun acompte</option>
-              <option value="percent">Pourcentage du total</option>
-              <option value="fixed">Montant fixe</option>
-            </select>
-          </div>
-          {depositType !== "none" && (
-            <div className="space-y-2">
-              <Label htmlFor="depositValue">
-                {depositType === "percent" ? "Pourcentage (%)" : "Montant (€)"}
-              </Label>
-              <Input
-                id="depositValue"
-                type="number"
-                step={depositType === "percent" ? "1" : "0.01"}
-                value={depositValue}
-                onChange={(e) => setDepositValue(e.target.value)}
-              />
-            </div>
-          )}
-        </div>
-
-        {depositType !== "none" && (
-          <div className="space-y-4 border-t pt-5">
-            <div className="space-y-2">
-              <Label>Moyens de paiement acceptés</Label>
-              <p className="text-xs text-muted-foreground">
-                Cochez les moyens proposés au client pour régler l&apos;acompte.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {DEPOSIT_METHODS.map((m) => (
-                  <label
-                    key={m}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-primary"
-                      checked={depositMethods.includes(m)}
-                      onChange={() => toggleMethod(m)}
-                    />
-                    {DEPOSIT_METHOD_LABELS[m]}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="depositInstructions">Instructions de paiement</Label>
-              <p className="text-xs text-muted-foreground">
-                Ces informations seront affichées au client et incluses dans l&apos;email de
-                confirmation (IBAN, numéro Wero, lien de paiement, etc.).
-              </p>
-              <Textarea
-                id="depositInstructions"
-                rows={4}
-                placeholder={"IBAN : FR76 ...\nBénéficiaire : ...\nWero : 06 ...\nMerci d'indiquer votre référence de réservation."}
-                value={depositInstructions}
-                onChange={(e) => setDepositInstructions(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-      </Card>
-
-      <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={pending}>
-          {pending ? "Enregistrement…" : "Enregistrer"}
-        </Button>
-        {msg && (
-          <span className={msg.type === "ok" ? "text-sm text-primary" : "text-sm text-destructive"}>
-            {msg.text}
-          </span>
-        )}
-      </div>
+      {saveBar}
     </div>
   )
 }

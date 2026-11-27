@@ -101,13 +101,13 @@ describe("L77 — page « Plus »", () => {
 describe("L77 — recherche des réglages", () => {
   it("« horaires » mène au réglage Horaires d'ouverture", () => {
     const [first] = searchSettings("horaires")
-    expect(first).toMatchObject({ label: "Horaires d'ouverture", tab: "hours", category: "Réservations" })
+    expect(first).toMatchObject({ label: "Horaires d'ouverture", tab: "hours", category: "Mes disponibilités" })
     expect(settingsSearchHref("hours")).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
     expect(first.href).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
   })
 
   it.each([
-    ["acompte", "planning"],
+    ["acompte", "deposit"],
     ["conges", "timeoff"],
     ["Congés", "timeoff"],
     ["SMS", "sms"],

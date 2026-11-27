@@ -13,6 +13,7 @@ import {
   saveReviewRequestAction,
   testReviewLinkAction,
 } from "@/app/admin/(dashboard)/parametres/notifications-actions"
+import { minimalPlanName } from "@/lib/admin/settings-status"
 
 type Props = {
   canReminders: boolean
@@ -34,12 +35,13 @@ type Props = {
 
 type Msg = { type: "ok" | "err"; text: string } | null
 
-function LockedBanner() {
+function LockedBanner({ feature }: { feature: "email_reminders" | "review_requests" }) {
+  const plan = minimalPlanName(feature)
   return (
     <Card className="border-amber-500/30 bg-amber-500/10 p-4">
       <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
         <Lock className="size-4 shrink-0" aria-hidden="true" />
-        Cette fonctionnalité n&apos;est pas incluse dans votre offre. Passez à une offre supérieure pour l&apos;activer.
+        Cette fonctionnalité n&apos;est pas incluse dans votre offre.{plan ? ` Disponible avec ${plan}.` : null}
       </p>
     </Card>
   )
@@ -107,7 +109,7 @@ function ProReminderCard(props: Props) {
 
   return (
     <div className="space-y-4">
-      {locked ? <LockedBanner /> : null}
+      {locked ? <LockedBanner feature="email_reminders" /> : null}
       {!props.migrationApplied ? (
         <Card className="border-border bg-muted/30 p-4">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -244,7 +246,7 @@ function ReviewRequestCard(props: Props) {
 
   return (
     <div className="space-y-4">
-      {locked ? <LockedBanner /> : null}
+      {locked ? <LockedBanner feature="review_requests" /> : null}
       {!props.migrationApplied ? (
         <Card className="border-border bg-muted/30 p-4">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
