@@ -16,7 +16,7 @@ import { siteConfig } from "@/config/site"
 import { withTenant } from "@/lib/tenant-link"
 import { toTelHref } from "@/lib/phone"
 import { SPIRIT_SECTIONS } from "./tokens"
-import { SPIRIT_BUSINESS, SPIRIT_SOCIALS } from "./seo-content"
+import { SPIRIT_BUSINESS, SPIRIT_CITY_PAGES, SPIRIT_SOCIALS, SPIRIT_ZONE_PATH, spiritCityPath } from "./seo-content"
 
 /* Icônes de marque en SVG inline (monochromes, reconnaissables) — aucune
    dépendance externe, aucune icône lucide dédiée pour Instagram/TikTok ici. */
@@ -202,7 +202,32 @@ export function SpiritFooter({ brandName, logoSrc, phone, phoneRaw, email, city,
           </div>
         </div>
 
-        <div className="mt-12 border-t border-white/10 pt-6 text-center text-sm text-[color:var(--spirit-muted)]">
+        {/* L85 : maillage vers les pages ville et la page zone. */}
+        <nav aria-label="Pied de page — zone d'intervention" className="mt-12 border-t border-white/10 pt-6">
+          <h2 className="spirit-eyebrow">Nous intervenons à</h2>
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            {SPIRIT_CITY_PAGES.map((p) => (
+              <li key={p.slug}>
+                <Link
+                  href={withTenant(spiritCityPath(p.slug), tenant)}
+                  className="whitespace-nowrap text-white/90 transition-colors hover:text-[var(--spirit-teal)]"
+                >
+                  {p.city}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link
+                href={withTenant(SPIRIT_ZONE_PATH, tenant)}
+                className="whitespace-nowrap text-[color:var(--spirit-teal)] hover:underline"
+              >
+                Toute la zone d&apos;intervention
+              </Link>
+            </li>
+          </ul>
+        </nav>
+
+        <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-[color:var(--spirit-muted)]">
           <p>
             &copy; {year} {brandName}. Tous droits réservés.
           </p>

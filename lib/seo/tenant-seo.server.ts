@@ -245,6 +245,8 @@ function extractSameAs(tenant: Tenant): string[] {
 export async function buildTenantLocalBusiness(args?: {
   /** Villes réellement confirmées (areaServed). */
   areaServed?: string[] | null
+  /** Émet `areaServed` en objets `City` (opt-in, défaut : chaînes — Cleanyzer inchangé). */
+  areaServedAsCity?: boolean
   /** Fourchette de prix publiée (ex. « 30 € – 160 € »), si connue. */
   priceRange?: string | null
   /** Émet un `@id` stable `<accueil canonique>#business` (opt-in, défaut : non). */
@@ -288,8 +290,10 @@ export async function buildTenantLocalBusiness(args?: {
   const input: LocalBusinessInput = {
     id: args?.withStableId ? `${homeUrl}${LOCAL_BUSINESS_ID_FRAGMENT}` : null,
     type: "AutoWash",
-    name: biz?.name ?? seo.siteName,
-    alternateName: biz?.alternateName ?? null,
+    // Spirit (fiche L85) : nom affiché « Spirit ACS » ; la raison commerciale et
+    // la graphie du domaine passent en noms alternatifs.
+    name: biz?.alternateName ?? seo.siteName,
+    alternateName: biz ? [biz.name, "spiritacs"] : null,
     url: homeUrl,
     telephone: tenant.phone ?? biz?.phone ?? null,
     email: tenant.email ?? null,
@@ -306,6 +310,7 @@ export async function buildTenantLocalBusiness(args?: {
     },
     openingHours: hours.map((h) => ({ day: h.day, open: h.open, from: h.from ?? null, to: h.to ?? null })),
     areaServed: args?.areaServed ?? null,
+    areaServedAsCity: args?.areaServedAsCity ?? false,
     sameAs: sameAs.length ? sameAs : null,
     // Uniquement la fiche Google vérifiée du tenant courant, jamais une
     // recherche générique sur la ville.

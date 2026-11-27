@@ -33,7 +33,7 @@ import { withTenant } from "@/lib/tenant-link"
 import { getSpiritPublicCatalog } from "./public-catalog"
 import { spiritPhotoOverrides } from "./service-photos"
 import { listNavigationServicePages } from "@/lib/public-site/provider"
-import { SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER, SPIRIT_ZONE_CITIES } from "./seo-content"
+import { SPIRIT_CITIES, SPIRIT_FAQ, SPIRIT_HERO_H1, SPIRIT_HERO_KICKER } from "./seo-content"
 import {
   SPIRIT_SECTIONS,
   SPIRIT_LOGO_FALLBACK,
@@ -239,9 +239,14 @@ export async function SpiritAcsHome({ data }: { data: CustomSitePublicData }) {
       {/* Déroulement en 4 étapes (contenu éditorial local). */}
       <SpiritProcess />
 
-      {/* Zone d'intervention : ville réelle + éventuelles communes confirmées
-          (SPIRIT_ZONE_CITIES, vide par défaut → aucune ville inventée). */}
-      <SpiritZone cities={SPIRIT_ZONE_CITIES} city={contact.city} text={spiritTexts.zoneText} />
+      {/* Zone d'intervention : ville réelle + les 14 communes confirmées
+          (SPIRIT_CITIES, source unique ; 5 ouvrent leur page dédiée). */}
+      <SpiritZone
+        cities={SPIRIT_CITIES}
+        city={contact.city}
+        text={spiritTexts.zoneText}
+        tenantSlug={data.tenant.slug}
+      />
 
       {/* Bandeau flotte / professionnels : conduit vers la MÊME demande de devis
           avec le contexte « flotte » (?demande=flotte → formulaire libre du

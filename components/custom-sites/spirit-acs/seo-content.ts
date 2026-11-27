@@ -119,7 +119,7 @@ export const SPIRIT_PROCESS_STEPS: ProcessStep[] = [
 /* -------------------------------------------------------------------------- */
 
 export const SPIRIT_ZONE_TEXT =
-  "Spirit ACS est basé à Lagny-sur-Marne et se déplace à domicile pour les prestations compatibles, à Lagny-sur-Marne et dans les communes voisines de Seine-et-Marne."
+  "Spirit ACS est basé à Lagny-sur-Marne et se déplace à domicile pour les prestations compatibles, à Lagny-sur-Marne et dans les communes voisines du secteur de Marne-la-Vallée."
 
 /** Précision déplacement pour le nettoyage textile (règle confirmée par Spirit ACS). */
 export const SPIRIT_ZONE_TEXTILE_NOTE =
@@ -142,11 +142,140 @@ export const SPIRIT_SOCIALS: { instagram: string | null; tiktok: string | null; 
 }
 
 /**
- * Villes voisines confirmées. VIDE par défaut : aucune ville supplémentaire
- * n'est inventée. À compléter uniquement avec des communes réellement
- * confirmées (idéalement depuis les données du tenant, plus tard).
+ * Communes où Spirit ACS intervient RÉELLEMENT (liste confirmée par Corentin le
+ * 26/11/2026, orthographe officielle). SOURCE UNIQUE : section « Zone
+ * d'intervention » de l'accueil, page /zone-intervention et `areaServed` du
+ * JSON-LD. « Marne-la-Vallée » n'est pas une commune : elle n'apparaît que dans
+ * les textes (« secteur de Marne-la-Vallée »), jamais ici.
  */
-export const SPIRIT_ZONE_CITIES: string[] = []
+export const SPIRIT_CITIES = [
+  "Lagny-sur-Marne",
+  "Chelles",
+  "Jossigny",
+  "Serris",
+  "Crécy-la-Chapelle",
+  "Jablines",
+  "Collégien",
+  "Villevaudé",
+  "Pomponne",
+  "Saint-Thibault-des-Vignes",
+  "Gouvernes",
+  "Conches-sur-Gondoire",
+  "Montévrain",
+  "Bussy-Saint-Georges",
+] as const
+
+export type SpiritCity = (typeof SPIRIT_CITIES)[number]
+
+/* -------------------------------------------------------------------------- */
+/*  PAGES ZONE D'INTERVENTION ET VILLES (L85)                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Chemin de la page « Zone d'intervention ». */
+export const SPIRIT_ZONE_PATH = "/zone-intervention"
+/** Segment d'URL de la page zone (route `[localSlug]`). */
+export const SPIRIT_ZONE_SLUG = "zone-intervention"
+
+export const SPIRIT_ZONE_PAGE = {
+  metaTitle: "Zone d'intervention autour de Lagny-sur-Marne | Spirit ACS",
+  metaDescription:
+    `Découvrez les ${SPIRIT_CITIES.length} communes desservies par Spirit ACS autour de Lagny-sur-Marne, dans le secteur de Marne-la-Vallée, avec les prestations et tarifs de départ.`,
+  h1: "Zone d'intervention de Spirit ACS",
+  intro:
+    "Basé à Lagny-sur-Marne, Spirit ACS se déplace à domicile ou sur votre lieu de travail, pour les prestations compatibles, dans le secteur de Marne-la-Vallée.",
+} as const
+
+/**
+ * Page dédiée à une commune. Aucune information locale inventée : le texte se
+ * différencie seulement par la formulation et les communes voisines (prises
+ * dans `SPIRIT_CITIES`, sans distance ni temps de trajet).
+ */
+export type SpiritCityPage = {
+  /** Segment d'URL sous /detailing (ex. « chelles »). */
+  slug: string
+  city: SpiritCity
+  metaTitle: string
+  metaDescription: string
+  h1: string
+  intro: string
+  /** Communes proches desservies (toutes dans `SPIRIT_CITIES`, jamais la ville elle-même). */
+  nearby: SpiritCity[]
+}
+
+/** Les 5 plus grandes communes uniquement (Lagny-sur-Marne = l'accueil, pas de doublon). */
+export const SPIRIT_CITY_PAGES: SpiritCityPage[] = [
+  {
+    slug: "chelles",
+    city: "Chelles",
+    metaTitle: "Detailing à Chelles à domicile | Spirit ACS",
+    metaDescription:
+      "Detailing à Chelles par Spirit ACS : nettoyage intérieur et extérieur, polissage, protection céramique et PPF, à domicile ou au travail selon la prestation.",
+    h1: "Detailing à Chelles à domicile",
+    intro:
+      "Vous habitez ou travaillez à Chelles ? Spirit ACS vient à vous pour les prestations compatibles : votre véhicule est pris en charge à domicile ou sur votre lieu de travail, selon la demande.",
+    nearby: ["Villevaudé", "Pomponne", "Lagny-sur-Marne"],
+  },
+  {
+    slug: "bussy-saint-georges",
+    city: "Bussy-Saint-Georges",
+    metaTitle: "Detailing à Bussy-Saint-Georges à domicile | Spirit ACS",
+    metaDescription:
+      "Spirit ACS intervient à Bussy-Saint-Georges pour le detailing de votre véhicule : nettoyage, polissage, céramique et rénovation de phares. Demandez un devis.",
+    h1: "Detailing à Bussy-Saint-Georges à domicile",
+    intro:
+      "À Bussy-Saint-Georges, confiez l'entretien esthétique de votre véhicule à Spirit ACS : pour les prestations compatibles, l'intervention se fait chez vous ou à votre travail.",
+    nearby: ["Collégien", "Jossigny", "Conches-sur-Gondoire", "Gouvernes"],
+  },
+  {
+    slug: "serris",
+    city: "Serris",
+    metaTitle: "Detailing à Serris à domicile | Spirit ACS",
+    metaDescription:
+      "Nettoyage auto, polissage et protection de carrosserie à Serris : Spirit ACS étudie votre demande et se déplace chez vous lorsque la prestation le permet.",
+    h1: "Detailing à Serris à domicile",
+    intro:
+      "Nettoyage, polissage ou protection de carrosserie : à Serris, Spirit ACS étudie votre demande puis propose une intervention à domicile ou au travail lorsque la prestation s'y prête.",
+    nearby: ["Montévrain", "Jossigny", "Bussy-Saint-Georges"],
+  },
+  {
+    slug: "montevrain",
+    city: "Montévrain",
+    metaTitle: "Detailing à Montévrain à domicile | Spirit ACS",
+    metaDescription:
+      "Detailing automobile à Montévrain avec Spirit ACS, basé à Lagny-sur-Marne : nettoyage, polissage, protection céramique et prestations moto sur demande.",
+    h1: "Detailing à Montévrain à domicile",
+    intro:
+      "Basé à Lagny-sur-Marne, Spirit ACS intervient aussi à Montévrain. Décrivez votre véhicule et le résultat attendu : la solution adaptée vous est proposée, sur place lorsque c'est possible.",
+    nearby: ["Serris", "Lagny-sur-Marne", "Jossigny", "Conches-sur-Gondoire"],
+  },
+  {
+    slug: "saint-thibault-des-vignes",
+    city: "Saint-Thibault-des-Vignes",
+    // Sans « à domicile » : avec, le titre dépasserait 60 caractères (D4).
+    metaTitle: "Detailing à Saint-Thibault-des-Vignes | Spirit ACS",
+    metaDescription:
+      "Spirit ACS, detailing à Saint-Thibault-des-Vignes : nettoyage, polissage, céramique, PPF et nettoyage textile, avec déplacement possible selon la prestation.",
+    h1: "Detailing à Saint-Thibault-des-Vignes à domicile",
+    intro:
+      "Vous cherchez un spécialiste du detailing à Saint-Thibault-des-Vignes ? Spirit ACS nettoie, rénove et protège votre véhicule, avec un déplacement possible selon la prestation.",
+    nearby: ["Lagny-sur-Marne", "Pomponne", "Gouvernes", "Collégien"],
+  },
+]
+
+/** Chemin d'une page ville. */
+export function spiritCityPath(slug: string): string {
+  return `/detailing/${slug}`
+}
+
+/** Retrouve une page ville par son slug (undefined pour toute autre commune, dont Lagny). */
+export function getSpiritCityPage(slug: string): SpiritCityPage | undefined {
+  return SPIRIT_CITY_PAGES.find((p) => p.slug === slug)
+}
+
+/** Page ville d'une commune, si elle en a une. */
+export function spiritCityPageFor(city: string): SpiritCityPage | undefined {
+  return SPIRIT_CITY_PAGES.find((p) => p.city === city)
+}
 
 /* -------------------------------------------------------------------------- */
 /*  FAQ (accueil) — le contenu du JSON-LD FAQPage doit être IDENTIQUE          */
@@ -241,6 +370,10 @@ export type ServiceFormula = {
   priceKind: PriceKind
   /** Précision courte et factuelle (optionnelle). */
   note?: string
+  /** Unité du montant (« par mois », « par chaise »), affichée avec le prix « dès ». */
+  priceUnit?: string
+  /** Condition affichée après le nom de la formule dans la liste des prix « dès ». */
+  startingCondition?: string
 }
 
 /** Modes de conversion connus (cf. lib/public-site/types.ts). Copié localement
@@ -369,11 +502,11 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     // récurrent sont distincts des prestations ponctuelles : les notes précisent
     // mensuel/trimestriel pour ne jamais mélanger les prix (§7 du cahier des charges).
     formules: [
-      { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €." },
-      { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
-      { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €." },
-      { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €." },
-      { label: "Entretien régulier — Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €." },
+      { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €.", priceUnit: "par mois", startingCondition: ", mensuel ; nettoyage ponctuel sur devis" },
+      { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €.", priceUnit: "par mois" },
+      { label: "Entretien régulier — Monospace 7 places", priceCents: 11000, priceKind: "exact", note: "Mensuel 110 € · Trimestriel 140 €.", priceUnit: "par mois" },
       { label: "Nettoyage moteur", priceKind: "quote", note: "Sur devis, après analyse du compartiment moteur." },
       { label: "Rénovation d'échappement", priceKind: "quote", note: "Sur devis, selon l'état et le type de véhicule." },
     ],
@@ -771,7 +904,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       { label: "Canapé 5 places ou canapé d'angle", priceCents: 12000, priceKind: "exact" },
       { label: "Fauteuil", priceCents: 5000, priceKind: "exact" },
       { label: "Chaise", priceCents: 2000, priceKind: "exact" },
-      { label: "À partir de 5 chaises", priceCents: 1500, priceKind: "from", note: "15 € par chaise." },
+      { label: "À partir de 5 chaises", priceCents: 1500, priceKind: "from", note: "15 € par chaise.", priceUnit: "par chaise" },
       { label: "Nettoyage cuir", priceCents: 5000, priceKind: "exact", note: "Hydratation du cuir en complément : sur devis." },
     ],
     priceCaveat:
