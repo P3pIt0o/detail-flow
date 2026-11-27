@@ -191,7 +191,7 @@ describe("Admin — simplification Spirit (réglages standard sans effet masqué
     expect(src).toMatch(/customSiteKey === "spirit-acs"/)
     // Le masquage (dont l'onglet Apparence) passe désormais par le helper
     // centralisé, isolé par customSiteKey, plutôt qu'un filtre inline.
-    expect(src).toMatch(/getVisibleSettingsCategories\(tenant\.customSiteKey\)/)
+    expect(src).toMatch(/getVisibleSettingsCategories\(tenant\.customSiteKey, dashboardIntent\)/)
   })
 
   it("masque pour Spirit l'ordre des sections et l'onglet Apparence ; regroupe le contenu", () => {

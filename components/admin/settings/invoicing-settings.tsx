@@ -6,6 +6,7 @@ import { Loader2, Save, Upload, ImageIcon, Trash2, ExternalLink, Sparkles } from
 import { Button } from "@/components/ui/button"
 import { saveInvoicingSettings } from "@/app/admin/(dashboard)/parametres/actions"
 import { FieldHelp } from "@/components/admin/settings/field-help"
+import { MoreOptions, StickySaveBar } from "@/components/admin/settings/more-options"
 import { getExemptionMentions } from "@/lib/billing/exemption-mentions"
 
 const inputClass =
@@ -120,7 +121,7 @@ export function InvoicingSettings(props: Props) {
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo des factures</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Affiché en haut de vos factures PDF (PNG ou JPG, max 2 Mo). Il est indépendant du logo du
-          site public (onglet « Site public ») : vous pouvez en utiliser un différent ici, ou
+          site (« Ma page de réservation ») : vous pouvez en utiliser un différent ici, ou
           téléverser le même.
         </p>
         <div className="flex items-center gap-4">
@@ -184,7 +185,7 @@ export function InvoicingSettings(props: Props) {
             />
             <p className="mt-1 text-xs text-muted-foreground text-pretty">
               Adresse légale imprimée sur vos factures. Distincte de l&apos;adresse de départ
-              utilisée pour le calcul des frais de déplacement (onglet « Déplacement »).
+              utilisée pour le calcul des frais de déplacement (« Mon entreprise », onglet « Lieu »).
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -313,6 +314,7 @@ export function InvoicingSettings(props: Props) {
         </div>
       </div>
 
+      <MoreOptions hint="mentions sur la facture, e-mail d'envoi">
       {/* Mentions PDF */}
       <div className={cardClass}>
         <h2 className="mb-4 text-base font-semibold text-foreground">Mentions sur la facture</h2>
@@ -383,6 +385,7 @@ export function InvoicingSettings(props: Props) {
           </div>
         </div>
       </div>
+      </MoreOptions>
 
       {error && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
@@ -391,10 +394,18 @@ export function InvoicingSettings(props: Props) {
         <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">{notice}</div>
       )}
 
-      <Button onClick={save} disabled={pending}>
-        {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-        Enregistrer la facturation
-      </Button>
+      <StickySaveBar>
+        <Button onClick={save} disabled={pending} className="w-full sm:w-auto">
+          {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Enregistrer la facturation
+        </Button>
+        {/* Sur mobile, le retour reste visible avec le bouton fixe. */}
+        {error || notice ? (
+          <span role="status" className={`text-sm sm:hidden ${error ? "text-destructive" : "text-primary"}`}>
+            {error ?? notice}
+          </span>
+        ) : null}
+      </StickySaveBar>
     </div>
   )
 }

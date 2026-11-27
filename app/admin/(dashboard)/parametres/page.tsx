@@ -22,7 +22,11 @@ import { getGooglePlaceDetails } from "@/lib/reviews/google-places"
 import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
 import { LocationSettings } from "@/components/admin/settings/location-settings"
 import { getLocationConfig, locationColumnsExist } from "@/lib/booking/location"
-import { DEFAULT_LOCATION_CONFIG, sanitizeLocationLabels } from "@/lib/booking/location-shared"
+import { DEFAULT_LOCATION_CONFIG, describeLocation, sanitizeLocationLabels } from "@/lib/booking/location-shared"
+import { redirect } from "next/navigation"
+import { LinkActions, LinkDisplay } from "@/components/admin/booking-hub/link-actions"
+import { humanReservationUrl } from "@/lib/admin/public-link"
+import { buildSettingsStatus } from "@/lib/admin/settings-status"
 
 /** Libellés de lieu tels que saisis (vide = texte par défaut affiché en placeholder). */
 function storedLocationLabels(raw: unknown) {
@@ -61,7 +65,12 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
 import { SettingsSearch } from "@/components/admin/settings/settings-search"
 import { SettingsHighlight } from "@/components/admin/settings/settings-highlight"
-import { findCategoryByTab, getVisibleSettingsCategories } from "@/lib/admin/settings-nav"
+import {
+  findCategoryByTab,
+  getSettingsHome,
+  getVisibleSettingsCategories,
+  legacySettingsRedirect,
+} from "@/lib/admin/settings-nav"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { withTenant } from "@/lib/tenant-link"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
@@ -78,12 +87,15 @@ export const metadata: Metadata = { title: "Paramètres" }
 export default async function ParametresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; tenant?: string; sms_session?: string }>
+  searchParams: Promise<{ tab?: string; tenant?: string; sms_session?: string; bloc?: string }>
 }) {
   const { tenant, role, isSuperAdmin } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
   // `bloc` (recherche) est lu côté navigateur par SettingsHighlight.
-  const { tab, tenant: tenantParam, sms_session } = await searchParams
+  const { tab, tenant: tenantParam, sms_session, bloc } = await searchParams
+  // Ancien lien de l'acompte (bloc de « planning ») => son nouvel onglet.
+  const moved = legacySettingsRedirect({ tab, bloc, tenant: tenantParam })
+  if (moved) redirect(moved)
   const smsSession = typeof sms_session === "string" && sms_session.startsWith("cs_") ? sms_session : null
 
   // Site Spirit ACS : shell 100 % personnalisé. On masque UNIQUEMENT pour lui les
@@ -137,10 +149,10 @@ export default async function ParametresPage({
     promoCodesList,
     servicesList,
   ] = await Promise.all([
-    getSettings(),
-    getBusinessHours(),
-    getTimeOff(),
-    getFullSettings(),
+    getSettings(tenant.id),
+    getBusinessHours(tenant.id),
+    getTimeOff(tenant.id),
+    getFullSettings(tenant.id),
     listGalleryItems(),
     listPhotoGalleryItems(),
     listReviews(),
@@ -154,8 +166,9 @@ export default async function ParametresPage({
     getServices(tenant.id),
   ])
 
+  // Lieu : écran « Mon entreprise » et ligne d'état de l'accueil.
   const [locationConfig, locationAvailable] =
-    activeCategory?.id === "reservations"
+    !activeCategory || activeCategory.id === "entreprise"
       ? await Promise.all([getLocationConfig(tenant.id), locationColumnsExist()])
       : [null, false]
 
@@ -235,6 +248,48 @@ export default async function ParametresPage({
     frBusinessCategory: fullSettings?.frBusinessCategory,
   })
 
+  // Accueil : entrées visibles et leur état, à partir des seules lectures du tenant connecté.
+  const home = getSettingsHome(tenant.customSiteKey, dashboardIntent)
+  const homeStatus = buildSettingsStatus({
+    businessName: settings.businessName,
+    businessEmail: settings.businessEmail,
+    businessPhone: settings.businessPhone,
+    locationSummary: describeLocation(locationConfig ?? DEFAULT_LOCATION_CONFIG),
+    servicesCount: servicesList.length,
+    openDaysCount: hours.filter((h) => h.isOpen).length,
+    vacationMode: settings.vacationMode,
+    depositType: settings.depositType,
+    depositValue: settings.depositValue,
+    paymentsEnabled: paymentConfig.paymentsEnabled,
+    paymentsReady: paymentConfig.chargesEnabled,
+    billingComplete: billingSetup.allMandatoryDone,
+    smsAllowed: smsFeatureEnabled,
+    smsEnabled: settings.smsRemindersEnabled,
+    smsOffsetHours: settings.smsReminderOffsetHours,
+    smsBalance: smsBalance.balance,
+    customSiteKey: tenant.customSiteKey,
+    onboardingIntent: dashboardIntent,
+  })
+
+  const planningProps = {
+    maxVehiclesPerDay: settings.maxVehiclesPerDay,
+    slotIntervalMin: settings.slotIntervalMin,
+    bufferMin: settings.bufferMin,
+    minNoticeHours: settings.minNoticeHours,
+    depositType: (settings.depositType === "fixed" ? "fixed" : settings.depositType === "none" ? "none" : "percent") as
+      | "none"
+      | "fixed"
+      | "percent",
+    depositValue: settings.depositValue,
+    depositMethods: (fullSettings?.depositMethods ?? "").split(",").filter(Boolean),
+    depositInstructions: fullSettings?.depositInstructions ?? "",
+    vacationMode: settings.vacationMode,
+    vacationMessage: settings.vacationMessage ?? "",
+  }
+
+  // Lien et QR code de la page de réservation (Spirit ACS fonctionne sur devis).
+  const reservationUrl = isSpiritSite ? null : humanReservationUrl(tenant.slug, rootDomain)
+
   return (
     <div className="space-y-6">
       <div>
@@ -255,11 +310,12 @@ export default async function ParametresPage({
           {onlineBooking ? (
             <OnlineBookingSettings bookingUrl={onlineBooking.bookingUrl} scriptSnippet={onlineBooking.scriptSnippet} />
           ) : null}
-          {/* Accueil : 6 cartes (grille sur ordinateur, liste verticale sur mobile). */}
+          {/* Accueil : une ligne par entrée avec son état, puis « Mon compte ». */}
           <SettingsCategoryGrid
-            categories={visibleCategories}
+            main={home.main}
+            account={home.account}
+            status={homeStatus}
             tenantParam={tenantParam ?? null}
-            billingPercent={billingSetup.percent}
           />
         </>
       ) : (
@@ -284,6 +340,17 @@ export default async function ParametresPage({
             </div>
           </div>
 
+          {activeCategory.id === "site" && reservationUrl ? (
+            <section aria-label="Lien et QR code" className="max-w-2xl space-y-3 border-b border-border pb-6">
+              <h3 className="text-base font-semibold text-foreground">Votre lien de réservation</h3>
+              <p className="text-sm text-muted-foreground text-pretty">
+                Vos clients réservent depuis ce lien ou en scannant le QR code.
+              </p>
+              <LinkDisplay url={reservationUrl} />
+              <LinkActions url={reservationUrl} />
+            </section>
+          ) : null}
+
           {/* Onglet piloté par l'adresse : un résultat de recherche cliqué depuis
               cette page change toujours d'onglet, même après un clic sur une pastille. */}
           <SettingsTabs defaultTab={activeTab} tabs={visibleSubTabs.map((t) => t.value)} className="w-full">
@@ -301,18 +368,39 @@ export default async function ParametresPage({
 
             {/* ENTREPRISE */}
             {activeCategory.id === "entreprise" && (
-              <TabsContent value="business" className="mt-6">
-                <div id="reglage-business">
-                  <BusinessContact
-                    businessName={settings.businessName ?? ""}
-                    businessEmail={settings.businessEmail ?? ""}
-                    businessPhone={settings.businessPhone ?? ""}
-                  />
-                </div>
-              </TabsContent>
+              <>
+                <TabsContent value="business" className="mt-6">
+                  <div id="reglage-business">
+                    <BusinessContact
+                      businessName={settings.businessName ?? ""}
+                      businessEmail={settings.businessEmail ?? ""}
+                      businessPhone={settings.businessPhone ?? ""}
+                    />
+                  </div>
+                </TabsContent>
+                {!isSpiritSite && (
+                  <TabsContent value="travel" className="mt-6">
+                    <div id="reglage-travel">
+                      <LocationSettings
+                        initial={locationConfig ?? DEFAULT_LOCATION_CONFIG}
+                        initialLabels={storedLocationLabels((tenant.siteContent as { locationLabels?: unknown } | null)?.locationLabels)}
+                        available={locationAvailable}
+                        travel={{
+                          businessAddress: settings.businessAddress ?? "",
+                          freeDistanceKm: Number.parseFloat(settings.freeDistanceKm),
+                          pricePerKmCents: settings.pricePerKmCents,
+                          maxDistanceKm: Number.parseFloat(settings.maxDistanceKm),
+                          roundTrip: settings.roundTrip,
+                          hasCoords: Boolean(settings.businessLat && settings.businessLng),
+                        }}
+                      />
+                    </div>
+                  </TabsContent>
+                )}
+              </>
             )}
 
-            {/* RÉSERVATIONS */}
+            {/* DISPONIBILITÉS */}
             {activeCategory.id === "reservations" && (
               <>
                 <TabsContent value="hours" className="mt-6">
@@ -327,35 +415,7 @@ export default async function ParametresPage({
                 </TabsContent>
                 <TabsContent value="planning" className="mt-6">
                   <div id="reglage-planning">
-                  <PlanningSettings
-                    maxVehiclesPerDay={settings.maxVehiclesPerDay}
-                    slotIntervalMin={settings.slotIntervalMin}
-                    bufferMin={settings.bufferMin}
-                    minNoticeHours={settings.minNoticeHours}
-                    depositType={settings.depositType === "fixed" ? "fixed" : settings.depositType === "none" ? "none" : "percent"}
-                    depositValue={settings.depositValue}
-                    depositMethods={(fullSettings?.depositMethods ?? "").split(",").filter(Boolean)}
-                    depositInstructions={fullSettings?.depositInstructions ?? ""}
-                    vacationMode={settings.vacationMode}
-                    vacationMessage={settings.vacationMessage ?? ""}
-                  />
-                  </div>
-                </TabsContent>
-                <TabsContent value="travel" className="mt-6">
-                  <div id="reglage-travel">
-                  <LocationSettings
-                    initial={locationConfig ?? DEFAULT_LOCATION_CONFIG}
-                    initialLabels={storedLocationLabels((tenant.siteContent as { locationLabels?: unknown } | null)?.locationLabels)}
-                    available={locationAvailable}
-                    travel={{
-                      businessAddress: settings.businessAddress ?? "",
-                      freeDistanceKm: Number.parseFloat(settings.freeDistanceKm),
-                      pricePerKmCents: settings.pricePerKmCents,
-                      maxDistanceKm: Number.parseFloat(settings.maxDistanceKm),
-                      roundTrip: settings.roundTrip,
-                      hasCoords: Boolean(settings.businessLat && settings.businessLng),
-                    }}
-                  />
+                  <PlanningSettings section="planning" {...planningProps} />
                   </div>
                 </TabsContent>
               </>
@@ -480,9 +540,16 @@ export default async function ParametresPage({
               </>
             )}
 
-            {/* PAIEMENTS ET FACTURATION */}
+            {/* PAIEMENTS ET FACTURES */}
             {activeCategory.id === "billing" && (
               <>
+                {!isSpiritSite && (
+                  <TabsContent value="deposit" className="mt-6">
+                    <div id="reglage-deposit">
+                      <PlanningSettings section="deposit" {...planningProps} />
+                    </div>
+                  </TabsContent>
+                )}
                 <TabsContent value="payments" className="mt-6">
                   <div id="reglage-payments">
                   <PaymentsSettings

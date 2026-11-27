@@ -7,13 +7,17 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react"
+import { withTenant } from "@/lib/tenant-link"
 
 /**
- * Organisation des Paramètres en 6 catégories.
+ * Organisation des Paramètres (L97) : « Mes prestations et prix » (écran à part)
+ * et 5 catégories à onglets, puis « Mon compte ».
  *
  * Chaque catégorie regroupe des sous-sections identifiées par la valeur d'onglet
  * HISTORIQUE (`tab`). Ces valeurs sont INCHANGÉES : les anciens liens `?tab=...`
  * et les liens du panneau d'onboarding continuent d'ouvrir la bonne sous-section.
+ * Seul l'acompte a quitté `planning` pour `deposit` (voir `legacySettingsRedirect`).
+ * Correspondance complète : docs/audits/L97-correspondance.md.
  *
  * Module de DONNÉES pures (aucun hook, aucun accès réseau) : importable aussi
  * bien côté serveur (page) que client (grille de cartes).
@@ -36,27 +40,29 @@ export type SettingsCategory = {
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   {
     id: "entreprise",
-    label: "Entreprise",
-    description: "Les informations principales de votre entreprise et votre identité visuelle.",
+    label: "Mon entreprise",
+    description: "Qui vous êtes et où vous intervenez.",
     icon: Building2,
-    subTabs: [{ value: "business", label: "Coordonnées" }],
-  },
-  {
-    id: "reservations",
-    label: "Réservations",
-    description: "Configurez vos disponibilités et le fonctionnement de vos rendez-vous.",
-    icon: CalendarClock,
     subTabs: [
-      { value: "hours", label: "Horaires" },
-      { value: "timeoff", label: "Congés" },
-      { value: "planning", label: "Planning & acompte" },
+      { value: "business", label: "Coordonnées" },
       { value: "travel", label: "Lieu" },
     ],
   },
   {
+    id: "reservations",
+    label: "Mes disponibilités",
+    description: "Quand vos clients peuvent réserver.",
+    icon: CalendarClock,
+    subTabs: [
+      { value: "hours", label: "Horaires" },
+      { value: "timeoff", label: "Congés" },
+      { value: "planning", label: "Créneaux" },
+    ],
+  },
+  {
     id: "site",
-    label: "Site public",
-    description: "Personnalisez les informations visibles par vos clients.",
+    label: "Ma page de réservation",
+    description: "Ce que vos clients voient avant de réserver.",
     icon: Globe,
     subTabs: [
       { value: "site", label: "Contenu du site" },
@@ -68,10 +74,11 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     id: "billing",
-    label: "Paiements et facturation",
-    description: "Préparez vos paiements et vos documents de facturation.",
+    label: "Paiements et factures",
+    description: "Comment vous êtes payé et ce qui figure sur vos factures.",
     icon: CreditCard,
     subTabs: [
+      { value: "deposit", label: "Acompte" },
       { value: "payments", label: "Paiements" },
       { value: "invoicing", label: "Facturation" },
       { value: "promo", label: "Codes promo" },
@@ -79,8 +86,8 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     id: "communications",
-    label: "Communications",
-    description: "Gérez les messages et rappels envoyés automatiquement à vos clients.",
+    label: "Messages aux clients",
+    description: "Les rappels et demandes d'avis envoyés automatiquement.",
     icon: MessageSquare,
     subTabs: [
       { value: "sms", label: "Rappels SMS" },
@@ -89,13 +96,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     id: "account",
-    label: "Compte et assistance",
-    description: "Gérez votre compte, vos données et vos demandes d'aide.",
+    label: "Mon compte",
+    description: "Votre connexion, vos données et vos demandes d'aide.",
     icon: ShieldCheck,
     subTabs: [
       { value: "security", label: "Sécurité" },
       { value: "data", label: "Mes données" },
-      { value: "support", label: "Support" },
+      { value: "support", label: "Assistance" },
     ],
   },
 ]
@@ -109,9 +116,9 @@ export const ALL_SETTINGS_TABS: string[] = SETTINGS_CATEGORIES.flatMap((c) =>
  * Sous-onglets masqués POUR LE TENANT SPIRIT ACS UNIQUEMENT (site 100 %
  * personnalisé). Aucune route/donnée n'est supprimée : ces réglages restent
  * disponibles pour tous les autres detailers et réactivables plus tard.
- * - Réservations (hours/timeoff/planning/travel) : Spirit fonctionne en
- *   demande → devis, sans moteur de réservation standard.
- * - payments : aucun paiement/acompte encaissé pendant le parcours public.
+ * - hours/timeoff/planning/travel : Spirit fonctionne en demande → devis,
+ *   sans moteur de réservation standard.
+ * - deposit/payments : aucun paiement/acompte encaissé pendant le parcours public.
  * - promo : aucun parcours Spirit ne consomme de code promo.
  * - appearance : couleurs sans effet sur le shell custom.
  */
@@ -120,6 +127,7 @@ const SPIRIT_ACS_HIDDEN_TABS = new Set([
   "timeoff",
   "planning",
   "travel",
+  "deposit",
   "payments",
   "promo",
   "appearance",
@@ -144,9 +152,9 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
  * - Standard (`customSiteKey` nul/autre, intention nulle) : liste complète
  *   inchangée (aucune régression pour les tenants historiques et public_page).
  * - Spirit ACS : sous-onglets masqués retirés, et toute catégorie devenue vide
- *   (ex. « Réservations ») disparaît de la grille.
+ *   (« Mes disponibilités ») disparaît de l'accueil.
  * - `booking_only` : le professionnel a déjà son site ; DetailFlow ne fournit
- *   que le moteur de réservation. La catégorie « Site public » est réduite au
+ *   que le moteur de réservation. La catégorie « Ma page de réservation » est réduite au
  *   seul sous-onglet « Demandes spéciales » (lien /demande à poser sur son site) ;
  *   contenu, apparence, galerie et avis (réglages de VITRINE) restent masqués.
  *   Aucune donnée n'est supprimée, aucune route n'est retirée.
@@ -194,4 +202,55 @@ export function findCategoryByTab(
       c.subTabs.some((t) => t.value === tab),
     ) ?? null
   )
+}
+
+export type SettingsHomeEntry = {
+  id: string
+  label: string
+  /** Lien sans `?tenant=` (ajouté par l'appelant via `withTenant`). */
+  href: string
+}
+
+/**
+ * Accueil des Paramètres : les entrées principales et « Mon compte », avec le
+ * même masquage tenant que les onglets (et que le menu pour « Mes prestations »).
+ */
+export function getSettingsHome(
+  customSiteKey: string | null | undefined,
+  onboardingIntent?: string | null,
+): { main: SettingsHomeEntry[]; account: SettingsHomeEntry[] } {
+  const main: SettingsHomeEntry[] = []
+  const account: SettingsHomeEntry[] = []
+  const tabHref = (tab: string) => `/admin/parametres?tab=${tab}`
+
+  for (const c of getVisibleSettingsCategories(customSiteKey, onboardingIntent)) {
+    if (c.id === "account") {
+      for (const t of c.subTabs) account.push({ id: t.value, label: t.label, href: tabHref(t.value) })
+    } else {
+      main.push({ id: c.id, label: c.label, href: tabHref(c.subTabs[0].value) })
+    }
+  }
+
+  if (customSiteKey !== "spirit-acs") {
+    // Juste après « Mon entreprise ».
+    main.splice(1, 0, { id: "services", label: "Mes prestations et prix", href: "/admin/prestations" })
+  }
+  // Abonnement : avant l'assistance.
+  const support = account.findIndex((e) => e.id === "support")
+  account.splice(support < 0 ? account.length : support, 0, {
+    id: "subscription",
+    label: "Abonnement",
+    href: "/admin/abonnement",
+  })
+
+  return { main, account }
+}
+
+/**
+ * Anciennes adresses dont le contenu a changé d'onglet. Seul cas : l'acompte,
+ * autrefois un bloc de `planning`. Renvoie null si l'adresse reste valable.
+ */
+export function legacySettingsRedirect(params: { tab?: string; bloc?: string; tenant?: string }): string | null {
+  if (params.tab !== "planning" || params.bloc !== "reglage-acompte") return null
+  return withTenant("/admin/parametres?tab=deposit&bloc=reglage-acompte", params.tenant ?? null)
 }

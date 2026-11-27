@@ -22,7 +22,7 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail" },
   { label: "Congés et fermetures", tab: "timeoff", words: "conges vacances fermeture absence repos indisponibilite" },
   { label: "Créneaux et délai de réservation", tab: "planning", bloc: "reglage-creneaux", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
-  { label: "Acompte", tab: "planning", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
+  { label: "Acompte", tab: "deposit", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
   { label: "Mode vacances", tab: "planning", bloc: "reglage-vacances", words: "vacances pause fermer reservations message" },
   { label: "Atelier ou à domicile", tab: "travel", words: "lieu atelier domicile mobile adresse intervention zone" },
   { label: "Frais de déplacement", tab: "travel", bloc: "reglage-frais-deplacement", words: "deplacement frais kilometres km distance maximale rayon prix aller retour" },
@@ -54,9 +54,9 @@ const SCREEN_SEARCH = [
   {
     label: "Mes prestations",
     href: "/admin/prestations",
-    category: "Mon activité",
-    tabLabel: "Prestations et prix",
-    words: "prix tarifs tarif prestation prestations forfaits services duree",
+    category: "Mes prestations et prix",
+    tabLabel: "Mes prestations et prix",
+    words: "prix tarifs tarif prestation prestations forfaits services duree gabarits vehicules",
     hiddenFor: "spirit-acs",
   },
 ] as const
@@ -118,8 +118,8 @@ export function searchSettings(
     const category = findCategoryByTab(entry.tab, customSiteKey, onboardingIntent)
     if (!category) continue
     const tabLabel = category.subTabs.find((t) => t.value === entry.tab)?.label ?? ""
-    // Un bloc précis ne se cherche pas par le nom de son onglet (« Planning & acompte »
-    // ferait sortir Créneaux et Mode vacances quand on tape « acompte »).
+    // Un bloc précis ne se cherche pas par le nom de son onglet (« Créneaux » ferait
+    // sortir Mode vacances quand on tape « creneaux »).
     if (!matches(`${entry.label} ${entry.bloc ? "" : tabLabel} ${entry.words}`)) continue
     out.push({
       label: entry.label,

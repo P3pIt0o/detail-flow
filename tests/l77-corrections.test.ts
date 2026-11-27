@@ -266,7 +266,7 @@ describe("L77 — libellé des résultats et écrans", () => {
 
   it("« catégorie · onglet »", () => {
     const [acompte] = searchSettings("acompte")
-    expect(settingsResultContext(acompte)).toBe("Réservations · Planning & acompte")
+    expect(settingsResultContext(acompte)).toBe("Paiements et factures · Acompte")
     expect(read("components/admin/settings/settings-search.tsx")).toContain("settingsResultContext(r)")
   })
 
