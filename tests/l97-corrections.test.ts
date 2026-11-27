@@ -131,6 +131,27 @@ describe("L97 — recherche complétée", () => {
   })
 })
 
+describe("L97 — textes repris après la revue", () => {
+  it("paiements : plus de renvoi à l'onglet disparu « Planning & acompte »", () => {
+    const src = read("components/admin/settings/payments-settings.tsx")
+    expect(src).not.toMatch(/Planning & acompte|onglet Planning/)
+    expect(src.match(/Paiements et factures, onglet Acompte/g)).toHaveLength(3)
+  })
+  it("notifications hors formule : la formule est nommée, lue dans PLAN_MATRIX", () => {
+    const src = read("components/admin/settings/notifications-settings.tsx")
+    expect(src).not.toContain("offre supérieure")
+    expect(src).toContain("minimalPlanName(feature)")
+    expect(src).toContain("Disponible avec ${plan}")
+    expect(src).toContain('<LockedBanner feature="email_reminders" />')
+    expect(src).toContain('<LockedBanner feature="review_requests" />')
+  })
+  it("champ de recherche : le texte de la maquette", () => {
+    expect(read("components/admin/settings/settings-search.tsx")).toContain(
+      'placeholder="Rechercher : acompte, horaires, SMS…"',
+    )
+  })
+})
+
 describe("L97 — les actions des écrans déplacés écrivent chez le seul tenant connecté", () => {
   beforeEach(() => {
     h.wheres.length = 0
