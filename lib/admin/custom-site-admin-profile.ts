@@ -54,6 +54,11 @@ export function getCustomSiteAdminProfile(customSiteKey: string | null | undefin
   return PROFILES.get(customSiteKey ?? "") ?? EMPTY_PROFILE
 }
 
+/** Phrase invitant à partager son lien : rien quand le partage est masqué. */
+export function visibleShareHint(customSiteKey: string | null | undefined, hint: string | undefined): string | undefined {
+  return getCustomSiteAdminProfile(customSiteKey).hideShareActions ? undefined : hint
+}
+
 export function isAdminRouteHidden(customSiteKey: string | null | undefined, route: string): boolean {
   return getCustomSiteAdminProfile(customSiteKey).hiddenRoutes.some((h) => h.route === route)
 }

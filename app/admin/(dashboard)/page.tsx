@@ -47,6 +47,7 @@ import { OnboardingPanel } from "@/components/admin/onboarding-panel"
 import { StartFlowCard } from "@/components/admin/start-flow-card"
 import { SpiritDashboardRequests, type SpiritActionItem } from "@/components/admin/spirit-dashboard-requests"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
+import { visibleShareHint } from "@/lib/admin/custom-site-admin-profile"
 import { humanReservationUrl, humanSiteUrl } from "@/lib/admin/public-link"
 import { withTenant } from "@/lib/tenant-link"
 import { requireCompanyMember, getCompanyOwnerName } from "@/lib/admin"
@@ -532,6 +533,7 @@ export default async function DashboardPage({
   // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
   const laterUpcoming = laterList
   const noLater = noLaterBookingsText(todayList.length, recentVisits.length)
+  const noLaterHint = visibleShareHint(company.customSiteKey, noLater.hint)
   const todayTotal = todayTotalCents(todayList)
   const todayYmd = todayInTimezone(company.timezone)
 
@@ -608,8 +610,8 @@ export default async function DashboardPage({
         {laterUpcoming.length === 0 ? (
           <div className="py-8 text-center">
             <p className="text-sm font-medium text-foreground">{noLater.title}</p>
-            {noLater.hint && (
-              <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">{noLater.hint}</p>
+            {noLaterHint && (
+              <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">{noLaterHint}</p>
             )}
           </div>
         ) : (

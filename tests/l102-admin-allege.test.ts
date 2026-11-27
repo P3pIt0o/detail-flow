@@ -9,14 +9,18 @@ import {
   getCustomSiteAdminProfile,
   isAdminRouteHidden,
   isSettingsTabHidden,
+  visibleShareHint,
 } from "@/lib/admin/custom-site-admin-profile"
+import { AdminShell } from "@/components/admin/admin-shell"
+import { noLaterBookingsText } from "@/lib/admin/queries"
 import { buildAdminNav, buildMainNav, buildPlusGroups } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { ALL_SETTINGS_TABS, findCategoryByTab, getVisibleSettingsCategories, SETTINGS_CATEGORIES } from "@/lib/admin/settings-nav"
 import { searchSettings } from "@/lib/admin/settings-search"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
 
-const { redirectMock, memberMock } = vi.hoisted(() => ({
+const { redirectMock, memberMock, pathnameMock } = vi.hoisted(() => ({
+  pathnameMock: vi.fn(() => "/admin"),
   redirectMock: vi.fn((_url: string) => {
     throw new Error("NEXT_REDIRECT")
   }),
@@ -28,7 +32,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("NEXT_NOT_FOUND")
   },
   useRouter: () => ({ refresh: () => {}, push: () => {} }),
-  usePathname: () => "/admin",
+  usePathname: pathnameMock,
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock("@/lib/admin", () => ({
@@ -227,6 +231,41 @@ describe("L102 — après relecture : textes d'aide exacts", () => {
       }
     }
     expect(searchSettings("site", "cleanyzer").map((r) => r.label)).toContain("Contenu du site")
+  })
+})
+
+describe("L102 — plus aucune invitation à partager", () => {
+  const hint = noLaterBookingsText(0, 0).hint
+
+  it("tableau de bord vide : pas de « Partagez votre lien » pour Cleanyzer, inchangé ailleurs", () => {
+    expect(hint).toContain("Partagez votre lien")
+    expect(visibleShareHint("cleanyzer", hint)).toBeUndefined()
+    for (const key of OTHERS) expect(visibleShareHint(key, hint)).toBe(hint)
+    const src = read("app/admin/(dashboard)/page.tsx")
+    expect(src).toMatch(/visibleShareHint\(company\.customSiteKey, noLater\.hint\)/)
+    expect(src).not.toMatch(/\{noLater\.hint\b/)
+  })
+
+  const shell = (hideShareActions: boolean, pathname: string) => {
+    pathnameMock.mockReturnValue(pathname)
+    const props = {
+      brandName: "DetailFlow",
+      companyName: "Demo",
+      adminName: "Alex",
+      mainNav: [],
+      groups: [],
+      publicUrl: "https://www.cleanyzer.fr",
+      hideShareActions,
+    }
+    return renderToStaticMarkup(createElement(AdminShell, props as unknown as Parameters<typeof AdminShell>[0], null))
+  }
+
+  it.each(["/admin", "/admin/plus"])("en-tête et « Plus » (%s) : copie du lien masquée seulement si demandé", (path) => {
+    const hidden = shell(true, path)
+    expect(hidden).not.toContain("Copier mon lien")
+    expect(hidden).toContain("Voir mon site")
+    expect(hidden).toContain('href="https://www.cleanyzer.fr"')
+    expect(shell(false, path)).toContain("Copier mon lien")
   })
 })
 

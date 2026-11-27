@@ -255,7 +255,7 @@ export function AdminShell({
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
           >
             <ExternalLink className="size-4" aria-hidden="true" />
             Voir mon site
