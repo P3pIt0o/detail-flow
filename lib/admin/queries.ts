@@ -1,7 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions, invoices, clients, productPurchases, payments } from "@/lib/db/schema"
-import { and, count, desc, eq, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
+import { and, count, desc, eq, gt, gte, inArray, lte, or, sql, sum } from "drizzle-orm"
 import { requireAdminCompanyId } from "@/lib/admin/admin-company"
 import { computeMonthlyFinancials, COLLECTED_STATUSES, type PaymentRow } from "@/lib/admin/financials"
 import { normalizeEmail, normalizePhone } from "@/lib/admin/client-crm"
@@ -253,6 +253,138 @@ export async function getUpcomingBookingsDetailed(
     .orderBy(bookings.date, bookings.startTime)
     .limit(limit)
 
+  return withServicesAndVehicles(rows)
+}
+
+type BookingSummaryRow = Omit<UpcomingBookingDetailed, "services" | "vehicles">
+
+const bookingSummaryColumns = {
+  id: bookings.id,
+  reference: bookings.reference,
+  customerName: bookings.customerName,
+  date: bookings.date,
+  startTime: bookings.startTime,
+  status: bookings.status,
+  totalCents: bookings.totalCents,
+  address: bookings.address,
+  customerPhone: bookings.customerPhone,
+}
+
+/** L77 : statuts comptés dans « Aujourd'hui » (les annulés sont exclus). */
+export const TODAY_BOOKING_STATUSES = ["confirmed", "pending_deposit", "completed"] as const
+
+/** Date du jour (AAAA-MM-JJ) dans le fuseau de l'entreprise. */
+export function todayInTimezone(timezone: string | null | undefined, now = new Date()): string {
+  try {
+    return now.toLocaleDateString("en-CA", { timeZone: timezone || "Europe/Paris" })
+  } catch {
+    // Fuseau stocké invalide : on ne casse jamais l'accueil.
+    return now.toLocaleDateString("en-CA", { timeZone: "Europe/Paris" })
+  }
+}
+
+/** Plafond défensif de la liste « Aujourd'hui ». */
+export const TODAY_BOOKINGS_MAX = 100
+
+/** Total prévu du jour, en centimes : les rendez-vous annulés ne comptent jamais. */
+/**
+ * Date d'une visite telle que la maquette : « aujourd'hui », « hier », sinon
+ * « lun. 23 nov. » (année ajoutée seulement si elle diffère). Dates AAAA-MM-JJ.
+ */
+export function visitDateLabel(date: string, todayYmd: string): string {
+  const day = (ymd: string) => new Date(`${ymd}T00:00:00Z`)
+  const daysAgo = Math.round((day(todayYmd).getTime() - day(date).getTime()) / 86_400_000)
+  if (daysAgo === 0) return "aujourd'hui"
+  if (daysAgo === 1) return "hier"
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: date.slice(0, 4) === todayYmd.slice(0, 4) ? undefined : "numeric",
+    timeZone: "UTC",
+  }).format(day(date))
+}
+
+/**
+ * Message de « Prochains rendez-vous » quand la liste est vide : « premiers
+ * rendez-vous » seulement si rien aujourd'hui et aucune visite passée.
+ */
+export function noLaterBookingsText(todayCount: number, visitCount: number): { title: string; hint?: string } {
+  if (todayCount > 0 || visitCount > 0) return { title: "Aucun rendez-vous les jours suivants." }
+  return {
+    title: "Aucun rendez-vous à venir.",
+    hint: "Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.",
+  }
+}
+
+export function todayTotalCents(list: { status: string; totalCents: number }[]): number {
+  return list
+    .filter((b) => (TODAY_BOOKING_STATUSES as readonly string[]).includes(b.status))
+    .reduce((acc, b) => acc + (Number.isFinite(b.totalCents) ? b.totalCents : 0), 0)
+}
+
+/**
+ * L77 — Rendez-vous du jour (fuseau de l'entreprise), tous ceux non annulés,
+ * triés par heure. `companyId` résolu côté serveur par l'appelant.
+ */
+export async function getTodayBookings(
+  companyId: number,
+  timezone?: string | null,
+): Promise<UpcomingBookingDetailed[]> {
+  const today = todayInTimezone(timezone)
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, companyId),
+        eq(bookings.date, today),
+        inArray(bookings.status, [...TODAY_BOOKING_STATUSES]),
+      ),
+    )
+    .orderBy(bookings.startTime)
+    .limit(TODAY_BOOKINGS_MAX)
+  return withServicesAndVehicles(rows)
+}
+
+/**
+ * L77 — Prochains rendez-vous : jours SUIVANTS seulement (fuseau de l'entreprise),
+ * pour que la liste reste remplie même quand le jour est chargé.
+ */
+export async function getLaterBookings(
+  companyId: number,
+  timezone?: string | null,
+  limit = 5,
+): Promise<UpcomingBookingDetailed[]> {
+  const today = todayInTimezone(timezone)
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.companyId, companyId),
+        gt(bookings.date, today),
+        inArray(bookings.status, ["confirmed", "pending_deposit"]),
+      ),
+    )
+    .orderBy(bookings.date, bookings.startTime)
+    .limit(limit)
+  return withServicesAndVehicles(rows)
+}
+
+/** L77 — Dernières visites : 5 derniers rendez-vous terminés de l'entreprise. */
+export async function getRecentVisits(companyId: number, limit = 5): Promise<UpcomingBookingDetailed[]> {
+  const rows = await db
+    .select(bookingSummaryColumns)
+    .from(bookings)
+    .where(and(eq(bookings.companyId, companyId), eq(bookings.status, "completed")))
+    .orderBy(desc(bookings.date), desc(bookings.startTime))
+    .limit(limit)
+  return withServicesAndVehicles(rows)
+}
+
+/** Ajoute prestations et véhicules distincts (lignes des seules réservations reçues). */
+async function withServicesAndVehicles(rows: BookingSummaryRow[]): Promise<UpcomingBookingDetailed[]> {
   if (rows.length === 0) return []
 
   const ids = rows.map((r) => r.id)

@@ -1,7 +1,7 @@
 import type React from "react"
 import { requireCompanyMember } from "@/lib/admin"
 import { AdminShell } from "@/components/admin/admin-shell"
-import { buildAdminNavGroups, buildMobilePrimaryNav } from "@/lib/admin/nav"
+import { buildMainNav, buildPlusGroups, canExportData } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
@@ -37,17 +37,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     customSiteKey: ctx.tenant.customSiteKey,
   })
 
-  // Navigation GROUPÉE + barre mobile — mêmes routes, mêmes règles d'éligibilité
-  // (Spirit ACS, parcours web) : seule la présentation change.
+  // Entrées principales + rubriques de « Plus » — mêmes routes, mêmes règles
+  // d'éligibilité (Spirit ACS, parcours web) : seule la présentation change.
   // Mode de distribution PERSISTÉ du tenant authentifié (jamais un slug client).
   const bookingDistributionMode = await getBookingDistributionMode(ctx.tenant.id)
   const navOpts = {
     intent: onboardingIntent,
     customSiteKey: ctx.tenant.customSiteKey ?? null,
     bookingDistributionMode,
+    canExport: canExportData(ctx),
   }
-  const groups = buildAdminNavGroups(navOpts)
-  const primaryMobile = buildMobilePrimaryNav(navOpts)
+  const mainNav = buildMainNav()
+  const groups = buildPlusGroups(navOpts)
 
   // Meilleur lien PUBLIC réel (jamais d'URL technique) résolu côté serveur.
   const publicLink = resolvePublicLink({
@@ -77,8 +78,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       companyName={ctx.tenant.name || siteConfig.brand.name}
       adminName={ctx.user.name || ctx.user.email}
       isSuperAdmin={ctx.isSuperAdmin}
+      mainNav={mainNav}
       groups={groups}
-      primaryMobile={primaryMobile}
       publicUrl={resolveSiteLinkUrl(bookingDistributionMode, publicLink?.url ?? null)}
     >
       {children}

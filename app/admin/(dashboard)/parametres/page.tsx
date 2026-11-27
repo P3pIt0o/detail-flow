@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
 import { getSettings, getBusinessHours, getTimeOff, getServices } from "@/lib/booking/queries"
 import { getFullSettings } from "@/lib/invoice/queries"
 import { BusinessContact } from "@/components/admin/settings/business-contact"
@@ -58,6 +59,8 @@ import { monthlyIncludedSms } from "@/lib/sms/config"
 import { SMS_DEFAULT_TEMPLATE } from "@/lib/sms/config"
 import { canUseFeature } from "@/lib/licensing/enforce"
 import { SettingsCategoryGrid } from "@/components/admin/settings/settings-category-grid"
+import { SettingsSearch } from "@/components/admin/settings/settings-search"
+import { SettingsHighlight } from "@/components/admin/settings/settings-highlight"
 import { findCategoryByTab, getVisibleSettingsCategories } from "@/lib/admin/settings-nav"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { withTenant } from "@/lib/tenant-link"
@@ -79,6 +82,7 @@ export default async function ParametresPage({
 }) {
   const { tenant, role, isSuperAdmin } = await requireCompanyMember()
   // `tab` (historique) => sous-section ; `tenant` (URL) => isolation en aperçu.
+  // `bloc` (recherche) est lu côté navigateur par SettingsHighlight.
   const { tab, tenant: tenantParam, sms_session } = await searchParams
   const smsSession = typeof sms_session === "string" && sms_session.startsWith("cs_") ? sms_session : null
 
@@ -240,6 +244,12 @@ export default async function ParametresPage({
         </p>
       </div>
 
+      <SettingsSearch
+        tenantParam={tenantParam ?? null}
+        customSiteKey={tenant.customSiteKey ?? null}
+        onboardingIntent={dashboardIntent}
+      />
+
       {!activeCategory ? (
         <>
           {onlineBooking ? (
@@ -274,7 +284,9 @@ export default async function ParametresPage({
             </div>
           </div>
 
-          <Tabs defaultValue={activeTab} className="w-full">
+          {/* Onglet piloté par l'adresse : un résultat de recherche cliqué depuis
+              cette page change toujours d'onglet, même après un clic sur une pastille. */}
+          <SettingsTabs defaultTab={activeTab} tabs={visibleSubTabs.map((t) => t.value)} className="w-full">
             {/* Navigation secondaire légère, uniquement si plusieurs sous-sections.
                 Les pastilles passent à la ligne : aucune barre coupée sur mobile. */}
             {visibleSubTabs.length > 1 && (
@@ -290,11 +302,13 @@ export default async function ParametresPage({
             {/* ENTREPRISE */}
             {activeCategory.id === "entreprise" && (
               <TabsContent value="business" className="mt-6">
-                <BusinessContact
-                  businessName={settings.businessName ?? ""}
-                  businessEmail={settings.businessEmail ?? ""}
-                  businessPhone={settings.businessPhone ?? ""}
-                />
+                <div id="reglage-business">
+                  <BusinessContact
+                    businessName={settings.businessName ?? ""}
+                    businessEmail={settings.businessEmail ?? ""}
+                    businessPhone={settings.businessPhone ?? ""}
+                  />
+                </div>
               </TabsContent>
             )}
 
@@ -302,12 +316,17 @@ export default async function ParametresPage({
             {activeCategory.id === "reservations" && (
               <>
                 <TabsContent value="hours" className="mt-6">
-                  <HoursSettings hours={hours} />
+                  <div id="reglage-hours">
+                    <HoursSettings hours={hours} />
+                  </div>
                 </TabsContent>
                 <TabsContent value="timeoff" className="mt-6">
-                  <TimeOffSettings periods={timeOff} />
+                  <div id="reglage-timeoff">
+                    <TimeOffSettings periods={timeOff} />
+                  </div>
                 </TabsContent>
                 <TabsContent value="planning" className="mt-6">
+                  <div id="reglage-planning">
                   <PlanningSettings
                     maxVehiclesPerDay={settings.maxVehiclesPerDay}
                     slotIntervalMin={settings.slotIntervalMin}
@@ -320,8 +339,10 @@ export default async function ParametresPage({
                     vacationMode={settings.vacationMode}
                     vacationMessage={settings.vacationMessage ?? ""}
                   />
+                  </div>
                 </TabsContent>
                 <TabsContent value="travel" className="mt-6">
+                  <div id="reglage-travel">
                   <LocationSettings
                     initial={locationConfig ?? DEFAULT_LOCATION_CONFIG}
                     initialLabels={storedLocationLabels((tenant.siteContent as { locationLabels?: unknown } | null)?.locationLabels)}
@@ -335,6 +356,7 @@ export default async function ParametresPage({
                       hasCoords: Boolean(settings.businessLat && settings.businessLng),
                     }}
                   />
+                  </div>
                 </TabsContent>
               </>
             )}
@@ -343,6 +365,7 @@ export default async function ParametresPage({
             {activeCategory.id === "site" && (
               <>
                 <TabsContent value="site" className="mt-6">
+                  <div id="reglage-site">
                   {isSpiritSite ? (
                     <>
                       <div className="mb-6 rounded-2xl border border-border bg-muted/30 p-4">
@@ -411,38 +434,47 @@ export default async function ParametresPage({
                       </div>
                     </>
                   )}
+                  </div>
                 </TabsContent>
                 {!isSpiritSite && (
                   <TabsContent value="appearance" className="mt-6">
-                    <AppearanceSettings
-                      brandPrimary={tenant.brandPrimary ?? null}
-                      brandSecondary={tenant.brandSecondary ?? null}
-                    />
+                    <div id="reglage-appearance">
+                      <AppearanceSettings
+                        brandPrimary={tenant.brandPrimary ?? null}
+                        brandSecondary={tenant.brandSecondary ?? null}
+                      />
+                    </div>
                   </TabsContent>
                 )}
-                <TabsContent value="gallery" className="mt-6 space-y-10">
-                  <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
-                  <div className="border-t border-border pt-8">
-                    <PhotoGallerySettings items={photoGalleryItems} slug={tenant.slug} companyId={tenant.id} />
+                <TabsContent value="gallery" className="mt-6">
+                  <div id="reglage-gallery" className="space-y-10">
+                    <GallerySettings items={galleryItems} slug={tenant.slug} companyId={tenant.id} />
+                    <div className="border-t border-border pt-8">
+                      <PhotoGallerySettings items={photoGalleryItems} slug={tenant.slug} companyId={tenant.id} />
+                    </div>
                   </div>
                 </TabsContent>
                 <TabsContent value="reviews" className="mt-6">
-                  <ReviewsSourceSettings
-                    items={reviewItems}
-                    initialSource={reviewsSourceConfig.source}
-                    initialPreview={googlePlacePreview}
-                  />
+                  <div id="reglage-reviews">
+                    <ReviewsSourceSettings
+                      items={reviewItems}
+                      initialSource={reviewsSourceConfig.source}
+                      initialPreview={googlePlacePreview}
+                    />
+                  </div>
                 </TabsContent>
                 {!isSpiritSite && (
                   <TabsContent value="custom-requests" className="mt-6">
-                    <CustomRequestsSettings
-                      config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)}
-                      requestPageUrl={
-                        dashboardIntent === "booking_only"
-                          ? tenantPublicPathUrl("/demande", tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
-                          : null
-                      }
-                    />
+                    <div id="reglage-custom-requests">
+                      <CustomRequestsSettings
+                        config={resolveCustomRequestsConfig((tenant.siteContent as { customRequests?: unknown } | null)?.customRequests)}
+                        requestPageUrl={
+                          dashboardIntent === "booking_only"
+                            ? tenantPublicPathUrl("/demande", tenant.slug, process.env.NEXT_PUBLIC_ROOT_DOMAIN)
+                            : null
+                        }
+                      />
+                    </div>
                   </TabsContent>
                 )}
               </>
@@ -452,6 +484,7 @@ export default async function ParametresPage({
             {activeCategory.id === "billing" && (
               <>
                 <TabsContent value="payments" className="mt-6">
+                  <div id="reglage-payments">
                   <PaymentsSettings
                     connected={paymentConfig.connected}
                     chargesEnabled={paymentConfig.chargesEnabled}
@@ -468,8 +501,10 @@ export default async function ParametresPage({
                           : "non configuré"
                     }
                   />
+                  </div>
                 </TabsContent>
-                <TabsContent value="invoicing" className="mt-6 space-y-6">
+                <TabsContent value="invoicing" className="mt-6">
+                  <div id="reglage-invoicing" className="space-y-6">
                   {/* Carte d'avancement de la configuration de facturation, calculée à
                       partir des données RÉELLES du profil (aucune case cochée à la main). */}
                   <BillingSetupCard data={billingSetup} />
@@ -505,9 +540,12 @@ export default async function ParametresPage({
                     sellerCountry={(tenant.country ?? "FR").toUpperCase()}
                     sellerVatStatus={fullSettings?.vatStatus ?? "unknown"}
                   />
+                  </div>
                 </TabsContent>
                 <TabsContent value="promo" className="mt-6">
-                  <PromoSettings codes={promoCodesList} services={promoServiceOptions} />
+                  <div id="reglage-promo">
+                    <PromoSettings codes={promoCodesList} services={promoServiceOptions} />
+                  </div>
                 </TabsContent>
               </>
             )}
@@ -515,6 +553,7 @@ export default async function ParametresPage({
             {/* COMMUNICATIONS */}
             {activeCategory.id === "communications" && (
               <TabsContent value="sms" className="mt-6">
+                <div id="reglage-sms">
                 <SmsSettings
                   featureEnabled={smsFeatureEnabled}
                   balance={smsBalance.balance}
@@ -528,10 +567,12 @@ export default async function ParametresPage({
                   revolutUrl={revolutUrl}
                   revolutQrSrc={revolutQrSrc}
                 />
+                </div>
               </TabsContent>
             )}
             {activeCategory.id === "communications" && (
               <TabsContent value="notifications" className="mt-6">
+                <div id="reglage-notifications">
                 <NotificationsSettings
                   canReminders={canEmailReminders}
                   canReviews={canReviewRequests}
@@ -545,6 +586,7 @@ export default async function ParametresPage({
                   reviewRequestLink={lotDSettings.reviewRequestLink}
                   resolvedReviewLink={resolvedReviewLink}
                 />
+                </div>
               </TabsContent>
             )}
 
@@ -552,10 +594,12 @@ export default async function ParametresPage({
             {activeCategory.id === "account" && (
               <>
                 <TabsContent value="security" className="mt-6">
-                  <SecuritySettings />
+                  <div id="reglage-security">
+                    <SecuritySettings />
+                  </div>
                 </TabsContent>
                 <TabsContent value="data" className="mt-6">
-                  <div className="max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-6">
+                  <div id="reglage-data" className="max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-6">
                     <div>
                       <h2 className="text-lg font-semibold">Vos données vous appartiennent</h2>
                       <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
@@ -573,11 +617,14 @@ export default async function ParametresPage({
                   </div>
                 </TabsContent>
                 <TabsContent value="support" className="mt-6">
-                  <SupportForm />
+                  <div id="reglage-support">
+                    <SupportForm />
+                  </div>
                 </TabsContent>
               </>
             )}
-          </Tabs>
+          </SettingsTabs>
+          <SettingsHighlight />
         </div>
       )}
     </div>
