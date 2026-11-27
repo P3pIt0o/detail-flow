@@ -142,7 +142,7 @@ export default async function DashboardPage({
   // le bénéfice (profitability_analysis). Les visites (business_stats) et les
   // KPI ne sont pas calculés inutilement quand aucune feature ne les autorise.
   const needStats = canStats || canProfit
-  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits, laterList] = await Promise.all([
+  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits, laterList, locationConfig] = await Promise.all([
     needStats ? getDashboardStats(companyId) : Promise.resolve(null),
     getUpcomingBookingsDetailed(isSpirit ? 8 : 5),
     getDashboardWeek(),
@@ -155,6 +155,7 @@ export default async function DashboardPage({
     isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getRecentVisits(companyId),
     // « Prochains » = jours suivants seulement, lus à part pour rester remplis un jour chargé.
     isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getLaterBookings(companyId, company.timezone),
+    getLocationConfig(companyId),
   ])
 
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
@@ -332,7 +333,8 @@ export default async function DashboardPage({
     )
 
   // « Itinéraire » : inutile pour un detailer qui travaille uniquement en atelier.
-  const directions = showDirections(await getLocationConfig(companyId))
+  // Le lien n'apparaît en plus que si le rendez-vous a une adresse exploitable.
+  const directions = showDirections(locationConfig)
 
   // Ligne « prochain rendez-vous » réutilisée par les deux dispositions et, pour
   // Spirit, par « Aujourd'hui » comme par « Prochains rendez-vous ». Une seule
@@ -574,7 +576,7 @@ export default async function DashboardPage({
           <div>
             <h2 className="text-sm font-semibold text-foreground">Aujourd&apos;hui</h2>
             <p className="text-xs text-muted-foreground">
-              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} prévus` : ""}
+              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} au total` : ""}
             </p>
           </div>
           <Link href={href("/admin/calendrier")} className="text-xs font-medium text-primary hover:underline">

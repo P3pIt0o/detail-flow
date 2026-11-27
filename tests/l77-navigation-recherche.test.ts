@@ -10,6 +10,8 @@ import {
   settingsSearchHref,
 } from "@/lib/admin/settings-search"
 import { withTenant } from "@/lib/tenant-link"
+import { DEFAULT_LOCATION_CONFIG, resolveLocationType, toPublicLocation } from "@/lib/booking/location-shared"
+import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
@@ -165,7 +167,30 @@ describe("L77 — « Itinéraire » sur l'accueil", () => {
   it("l'accueil lit le réglage du tenant authentifié", () => {
     const page = read("app/admin/(dashboard)/page.tsx")
     expect(page).toContain("getLocationConfig(companyId)")
-    expect(page).toContain("showDirections(")
+    expect(page).toContain("showDirections(locationConfig)")
+    // Lu en parallèle avec les autres données de l'accueil, pas en série.
+    expect(page).not.toContain("await getLocationConfig(")
+  })
+
+  it("jamais configuré : le tunnel demande l'adresse du client, l'itinéraire vers cette adresse reste utile", () => {
+    // Réglage par défaut = déplacement : la réservation enregistre l'adresse d'intervention du client.
+    const loc = toPublicLocation(DEFAULT_LOCATION_CONFIG)
+    expect(loc.mobile).toBe(true)
+    expect(resolveLocationType(loc, null)).toBe("client")
+    expect(showDirections(DEFAULT_LOCATION_CONFIG)).toBe(true)
+  })
+
+  it("jamais configuré, rendez-vous sans adresse : aucun lien « Itinéraire »", () => {
+    expect(buildMapsDirectionsUrl(null)).toBeNull()
+    expect(buildMapsDirectionsUrl("")).toBeNull()
+    const page = read("app/admin/(dashboard)/page.tsx")
+    expect(page).toContain("directions ? buildMapsDirectionsUrl(b.address) : null")
+  })
+
+  it("le total du jour est libellé « au total » (il inclut les rendez-vous terminés)", () => {
+    const page = read("app/admin/(dashboard)/page.tsx")
+    expect(page).toContain("au total`")
+    expect(page).not.toContain("prévus`")
   })
 
   it("« Plus » résout le tenant côté serveur", () => {
