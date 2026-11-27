@@ -1,0 +1,26 @@
+# L87 — Facturation : Factur-X raccordé aux vraies factures (reprise de L8 sur le main actuel)
+
+Risque : critique. Lot délégué par Clément (27/11 : « terminer DetailFlow, la facturation »). Fiche de référence : `docs/lots/L8-facturx.md` (constat du 16/10).
+
+## Contexte
+Le travail Factur-X est dans 6 branches `feat/facturx-*` (la plus avancée : `feat/facturx-integration-c4`, 13/10), toutes sur l'**ancien historique**
+de main (réécrit le 24/11) : **ne jamais fusionner ces branches**. On reporte le code utile sur main à jour.
+
+## À faire
+1. Audit court (dans le plan) : ce que c4 contient vs les autres branches, base, dépendances (`@stafyniaksacha/facturx`, `pdf-lib`), et ce qui a changé
+   dans `lib/invoice/` sur main depuis le 13/10. Un seul modèle de facture (décision du 11/10), droits logo par formule conservés.
+2. Reporter sur main les fichiers de c4 (`lib/invoice/facturx/*`, `facturx-*.ts`, `public/facturx-assets/`, tests `tests/facturx-*.test.ts`),
+   adaptés au code actuel, sans dupliquer `calc.ts` / `tax-treatment.ts`.
+3. Factures et avoirs : PDF/A-3b + XML EN16931 embarqué ; vérification d'éligibilité avant génération (codes d'inéligibilité de c4) ; si non
+   éligible, **PDF classique + message clair au pro** (ce qui manque + où le compléter : SIREN, TVA, adresse…) ; aucune donnée légale inventée.
+4. Activation progressive inchangée : `FACTURX_INVOICES_ENABLED` + `FACTURX_PILOT_COMPANY_IDS` (documentés dans `.env.example`, désactivé par défaut).
+5. Tenants : génération et téléchargement d'une facture filtrés par `companyId` (test tenant B ≠ tenant A).
+6. Hors périmètre (à signaler dans le rapport, ne pas coder) : transmission via une plateforme agréée (réforme de la facturation électronique) — choix du
+   prestataire = décision de Clément.
+
+## Réussite
+Tests facturx verts (XML conforme au schéma, montants = facture, avoirs liés à la facture d'origine, repli PDF), aucune régression `tests/invoice-*`.
+Aperçu : `.lot-state/L87.apercu.html` (facture PDF + message « facture électronique impossible : il manque… »).
+
+## Délégation de Clément (26/11)
+Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.
