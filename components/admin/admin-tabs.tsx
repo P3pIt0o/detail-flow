@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
  * dépasse, et l'onglet actif est ramené en vue (ouverture, recherche, changement d'onglet).
  */
 
-const FADE_PX = 24
+const FADE_PX = 28
 /** Onglet actif reconnu quel que soit le type de barre (Base UI, boutons role=tab, liens). */
 const ACTIVE_SELECTOR = '[aria-selected="true"], [aria-current="page"]'
 
@@ -60,9 +60,15 @@ export function TabScroller({ children, className }: { children: ReactNode; clas
     setFade((prev) => (prev.left === next.left && prev.right === next.right ? prev : next))
   }, [])
 
+  const lastActive = useRef<HTMLElement | null>(null)
+
   const revealActive = useCallback((smooth: boolean) => {
     const el = ref.current
-    const active = el?.querySelector<HTMLElement>(ACTIVE_SELECTOR)
+    const active = el?.querySelector<HTMLElement>(ACTIVE_SELECTOR) ?? null
+    // Ne défile que si l'onglet actif a vraiment changé (un simple re-rendu ne doit pas
+    // contrarier un glissement du doigt en cours).
+    if (smooth && active === lastActive.current) return
+    lastActive.current = active
     if (!el || !active) return
     const box = el.getBoundingClientRect()
     const r = active.getBoundingClientRect()
@@ -94,7 +100,8 @@ export function TabScroller({ children, className }: { children: ReactNode; clas
       ref={ref}
       data-slot="tab-scroller"
       className={cn(
-        "max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        // -my-1 py-1 : laisse la place à l'anneau de focus et à l'ombre sans changer la mise en page.
+        "-my-1 max-w-full overflow-x-auto overflow-y-hidden py-1 overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
       )}
       style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
@@ -122,7 +129,7 @@ export function AdminTabsTrigger({ className, ...props }: ComponentProps<typeof 
   return (
     <TabsTrigger
       className={cn(
-        "h-auto min-h-11 flex-auto shrink-0 px-3 whitespace-nowrap sm:flex-none",
+        "h-auto min-h-11 flex-auto shrink-0 px-2 whitespace-nowrap sm:px-3 sm:flex-none",
         "data-active:border-transparent data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm",
         "dark:data-active:border-transparent dark:data-active:bg-primary dark:data-active:text-primary-foreground",
         className,

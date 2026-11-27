@@ -94,29 +94,29 @@ export function LeadsFilters() {
       </div>
 
       <TabScroller>
-      <div className="flex w-max min-w-full flex-nowrap gap-2 pb-1" role="tablist" aria-label="Filtrer par statut">
-        {STATUS_TABS.map((tab) => {
-          const selected = currentTab === tab.key
-          return (
-            <button
-              key={tab.key || "all"}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              disabled={pending}
-              onClick={() => selectTab(tab.key)}
-              className={cn(
-                "inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
+        <div className="flex w-max min-w-full flex-nowrap gap-2 pb-1" role="tablist" aria-label="Filtrer par statut">
+          {STATUS_TABS.map((tab) => {
+            const selected = currentTab === tab.key
+            return (
+              <button
+                key={tab.key || "all"}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                disabled={pending}
+                onClick={() => selectTab(tab.key)}
+                className={cn(
+                  "inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </TabScroller>
 
       <div className="flex items-center gap-2">

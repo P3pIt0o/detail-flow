@@ -57,6 +57,19 @@ describe("rendu du composant commun", () => {
     expect(trigger).toContain("data-active:text-primary-foreground")
   })
 
+  it("marges latérales de 8 px sur mobile (maquette : 4 onglets tiennent à 360 px), 12 px dès sm", () => {
+    const trigger = classOf(html, "tabs-trigger")
+    expect(trigger).toContain("px-2")
+    expect(trigger).toContain("sm:px-3")
+    expect(trigger).not.toContain("px-3")
+  })
+
+  it("le conteneur laisse la place verticale à l'anneau de focus (pas de rognage)", () => {
+    const scroller = classOf(html, "tab-scroller")
+    expect(scroller).toContain("py-1")
+    expect(scroller).toContain("-my-1")
+  })
+
   it("la liste est dans un conteneur à défilement horizontal", () => {
     const scroller = classOf(html, "tab-scroller")
     expect(scroller).toContain("overflow-x-auto")
@@ -149,16 +162,19 @@ describe("calcul du fondu", () => {
     expect(fadeMask({ left: true, right: false })).toMatch(/^linear-gradient\(90deg, transparent, #000 \d+px\)$/)
     expect(fadeMask({ left: true, right: true })).toContain("transparent, #000")
   })
+  it("fondu de 28 px comme la maquette validée", () => {
+    expect(fadeMask({ left: true, right: false })).toBe("linear-gradient(90deg, transparent, #000 28px)")
+  })
 })
 
 describe("retour en vue de l'onglet actif", () => {
   const view = { scrollLeft: 100, clientWidth: 300 }
   it("onglet caché à gauche : on défile vers la gauche (jamais sous 0)", () => {
-    expect(scrollTargetFor(view, { left: 50, width: 80 })).toBe(50 - 24)
+    expect(scrollTargetFor(view, { left: 50, width: 80 })).toBe(50 - 28)
     expect(scrollTargetFor(view, { left: 10, width: 80 })).toBe(0)
   })
   it("onglet caché à droite : on défile juste assez pour le montrer", () => {
-    expect(scrollTargetFor(view, { left: 380, width: 100 })).toBe(380 + 100 + 24 - 300)
+    expect(scrollTargetFor(view, { left: 380, width: 100 })).toBe(380 + 100 + 28 - 300)
   })
   it("onglet déjà visible : aucun défilement", () => {
     expect(scrollTargetFor(view, { left: 150, width: 100 })).toBeNull()
