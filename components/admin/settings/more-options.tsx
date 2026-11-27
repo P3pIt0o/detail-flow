@@ -22,7 +22,9 @@ export function MoreOptions({ hint, children }: { hint: string; children: ReactN
  * barre de navigation), à sa place à partir de `sm`. `fixed` et non `sticky` :
  * le `<main>` de l'admin coupe le débordement, `sticky` n'y tiendrait pas.
  */
-export function StickySaveBar({ children }: { children: ReactNode }) {
+export function StickySaveBar({ children, pinned = true }: { children: ReactNode; pinned?: boolean }) {
+  // `pinned={false}` : bouton à sa place, quand l'écran porte un autre formulaire.
+  if (!pinned) return <div className="flex flex-wrap items-center gap-3">{children}</div>
   return (
     <>
       {/* Réserve la place de la barre fixe : le dernier champ reste accessible. */}

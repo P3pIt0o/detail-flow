@@ -1,5 +1,7 @@
+import { hasDepositRule, resolvePaymentPlan } from "@/lib/booking/v2"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import type { FeatureKey } from "@/lib/licensing/types"
+import type { PaymentMode } from "@/lib/payments/mode"
 import { COMMERCIAL_PLANS } from "@/lib/pricing/plans"
 
 /**
@@ -24,6 +26,9 @@ export type SettingsStatusInput = {
   paymentsEnabled: boolean
   /** Le compte de paiement peut encaisser. */
   paymentsReady: boolean
+  paymentMode: PaymentMode
+  /** La formule inclut les paiements en ligne. */
+  onlinePaymentsAllowed: boolean
   billingComplete: boolean
   smsAllowed: boolean
   smsEnabled: boolean
@@ -53,6 +58,22 @@ function depositLabel(type: string, value: number): string {
     return `Acompte de ${euros} € demandé`
   }
   return "Aucun acompte demandé"
+}
+
+/** Ce que le client doit régler : même règle que la page de réservation. */
+function paymentLabel(input: SettingsStatusInput): string {
+  const plan = resolvePaymentPlan({
+    paymentsReady: input.onlinePaymentsAllowed && input.paymentsEnabled && input.paymentsReady,
+    mode: input.paymentMode,
+    depositType: input.depositType,
+    depositValue: input.depositValue,
+  })
+  const full = "Paiement intégral demandé en ligne"
+  if (plan === "online_full") return full
+  if (plan === "choice") {
+    return hasDepositRule(input.depositType, input.depositValue) ? "Acompte ou totalité au choix du client" : full
+  }
+  return depositLabel(input.depositType, input.depositValue)
 }
 
 export function buildSettingsStatus(
@@ -94,7 +115,7 @@ export function buildSettingsStatus(
 
   const accountMissing = !spirit && input.paymentsEnabled && !input.paymentsReady
   const billing = [
-    spirit ? "" : depositLabel(input.depositType, input.depositValue),
+    spirit ? "" : paymentLabel(input),
     input.billingComplete ? "facturation prête" : "facturation à compléter",
     accountMissing ? "compte de paiement à terminer" : "",
   ]

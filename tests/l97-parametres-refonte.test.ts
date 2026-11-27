@@ -160,6 +160,8 @@ const OK: SettingsStatusInput = {
   depositValue: 30,
   paymentsEnabled: false,
   paymentsReady: false,
+  paymentMode: "deposit",
+  onlinePaymentsAllowed: true,
   billingComplete: true,
   smsAllowed: true,
   smsEnabled: true,

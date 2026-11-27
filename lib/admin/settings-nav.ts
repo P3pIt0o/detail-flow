@@ -204,6 +204,29 @@ export function findCategoryByTab(
   )
 }
 
+/**
+ * Raccourcis de « Mon entreprise » vers le SIREN/TVA et les logos, réglés dans
+ * d'autres écrans. Même masquage tenant que les onglets visés.
+ */
+export function getBusinessLinks(
+  customSiteKey: string | null | undefined,
+  onboardingIntent?: string | null,
+): { label: string; href: string }[] {
+  const link = (label: string, tab: string, bloc: string) => ({
+    label,
+    href: `/admin/parametres?tab=${tab}&bloc=${bloc}`,
+  })
+  const links = [
+    link("SIREN, statut et TVA (factures)", "invoicing", "reglage-invoicing"),
+    link("Logo des factures", "invoicing", "reglage-logo-factures"),
+  ]
+  // Logo du site : sans effet sur Spirit, et vitrine masquée pour booking_only.
+  if (customSiteKey !== "spirit-acs" && findCategoryByTab("site", customSiteKey, onboardingIntent)) {
+    links.push(link("Logo de votre site", "site", "reglage-logo-site"))
+  }
+  return links
+}
+
 export type SettingsHomeEntry = {
   id: string
   label: string

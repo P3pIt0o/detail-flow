@@ -54,10 +54,15 @@ export function PlanningSettings(props: Props) {
   const [vacPending, startVacTransition] = useTransition()
   const [vacMsg, setVacMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
 
+  // Dernier état vacances enregistré : le bouton du bas ne doit pas l'oublier.
+  const [savedVacation, setSavedVacation] = useState({ mode: props.vacationMode, message: props.vacationMessage })
+  const vacationChanged = vacationMode !== savedVacation.mode || vacationMessage !== savedVacation.message
+
   function saveVacation() {
     setVacMsg(null)
     startVacTransition(async () => {
       const r = await saveVacationMode({ vacationMode, vacationMessage })
+      if (r.ok) setSavedVacation({ mode: vacationMode, message: vacationMessage })
       setVacMsg(
         r.ok
           ? { type: "ok", text: "Mode vacances mis à jour." }
@@ -84,11 +89,14 @@ export function PlanningSettings(props: Props) {
               bufferMin: Number(buffer) || 0,
               minNoticeHours: Number(notice) || 0,
             })
-      setMsg(
-        r.ok
-          ? { type: "ok", text: "Paramètres enregistrés." }
-          : { type: "err", text: r.error ?? "Erreur" },
-      )
+      let failed = r.ok ? null : (r.error ?? "Erreur")
+      if (!failed && props.section === "planning" && vacationChanged) {
+        const v = await saveVacationMode({ vacationMode, vacationMessage })
+        if (v.ok) setSavedVacation({ mode: vacationMode, message: vacationMessage })
+        else failed = v.error ?? "Erreur"
+        setVacMsg(null)
+      }
+      setMsg(failed ? { type: "err", text: failed } : { type: "ok", text: "Paramètres enregistrés." })
     })
   }
 

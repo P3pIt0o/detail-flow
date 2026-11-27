@@ -230,6 +230,8 @@ describe("L77 — un bloc par réglage", () => {
       "components/admin/settings/site-branding.tsx",
       "components/admin/settings/invoicing-settings.tsx",
       "components/admin/settings/location-settings.tsx",
+      // Bloc « Lien et QR code », posé par la page elle-même (L97).
+      "app/admin/(dashboard)/parametres/page.tsx",
     ]
       .map(read)
       .join("\n")

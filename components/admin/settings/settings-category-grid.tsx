@@ -63,12 +63,15 @@ export function SettingsCategoryGrid({
         <h2 id="settings-account-title" className="text-sm font-medium text-muted-foreground">
           Mon compte
         </h2>
-        <ul className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+        {/* Lignes sur téléphone, une ligne compacte « A · B · C » sur ordinateur. */}
+        <ul className="sm:flex sm:flex-wrap sm:items-center">
           {account.map((entry) => (
-            <li key={entry.id}>
-              <Link href={withTenant(entry.href, tenantParam)} className={rowClass}>
+            <li key={entry.id} className="sm:after:px-2 sm:after:text-muted-foreground sm:after:content-['·'] sm:last:after:content-none sm:flex sm:items-center">
+              <Link href={withTenant(entry.href, tenantParam)} className={`${rowClass} sm:min-h-11 sm:border-b-0`}>
                 <span className="flex-1 text-base text-foreground">{entry.label}</span>
-                <Chevron />
+                <span className="sm:hidden">
+                  <Chevron />
+                </span>
               </Link>
             </li>
           ))}

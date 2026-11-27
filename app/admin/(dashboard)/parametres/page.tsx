@@ -67,6 +67,7 @@ import { SettingsSearch } from "@/components/admin/settings/settings-search"
 import { SettingsHighlight } from "@/components/admin/settings/settings-highlight"
 import {
   findCategoryByTab,
+  getBusinessLinks,
   getSettingsHome,
   getVisibleSettingsCategories,
   legacySettingsRedirect,
@@ -210,6 +211,7 @@ export default async function ParametresPage({
 
   // Config paiements du tenant (commission résolue côté serveur : override → global).
   const paymentConfig = await getTenantPaymentConfig(tenant.id)
+  const canOnlinePayments = await canUseFeature(tenant.id, "online_payments")
 
   // Réservation en ligne : uniquement pour les tenants en mode widget, à partir
   // du tenant authentifié (NULL / link => rien ne change).
@@ -262,6 +264,8 @@ export default async function ParametresPage({
     depositValue: settings.depositValue,
     paymentsEnabled: paymentConfig.paymentsEnabled,
     paymentsReady: paymentConfig.chargesEnabled,
+    paymentMode: paymentConfig.paymentMode,
+    onlinePaymentsAllowed: canOnlinePayments,
     billingComplete: billingSetup.allMandatoryDone,
     smsAllowed: smsFeatureEnabled,
     smsEnabled: settings.smsRemindersEnabled,
@@ -341,7 +345,7 @@ export default async function ParametresPage({
           </div>
 
           {activeCategory.id === "site" && reservationUrl ? (
-            <section aria-label="Lien et QR code" className="max-w-2xl space-y-3 border-b border-border pb-6">
+            <section id="reglage-lien" aria-label="Lien et QR code" className="max-w-2xl space-y-3 border-b border-border pb-6">
               <h3 className="text-base font-semibold text-foreground">Votre lien de réservation</h3>
               <p className="text-sm text-muted-foreground text-pretty">
                 Vos clients réservent depuis ce lien ou en scannant le QR code.
@@ -377,6 +381,19 @@ export default async function ParametresPage({
                       businessPhone={settings.businessPhone ?? ""}
                     />
                   </div>
+                  {/* Logo et SIREN/TVA se règlent là où ils servent : liens directs. */}
+                  <ul className="mt-8 max-w-2xl border-t border-border">
+                    {getBusinessLinks(tenant.customSiteKey, dashboardIntent).map((l) => (
+                      <li key={l.href}>
+                        <Link
+                          href={withTenant(l.href, tenantParam ?? null)}
+                          className="flex min-h-11 items-center border-b border-border py-2 text-sm font-medium text-foreground hover:text-primary"
+                        >
+                          {l.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </TabsContent>
                 {!isSpiritSite && (
                   <TabsContent value="travel" className="mt-6">

@@ -19,7 +19,8 @@ export type SettingsSearchEntry = {
 
 export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Nom et coordonnées", tab: "business", words: "nom entreprise societe telephone mobile email e-mail mail contact" },
-  { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail" },
+  { label: "Horaires d'ouverture", tab: "hours", words: "horaires heures jours semaine ouverture disponibilites travail heures de debut fixes" },
+  { label: "Lien et QR code", tab: "site", bloc: "reglage-lien", words: "lien qr code reservation partager adresse", standardOnly: true },
   { label: "Congés et fermetures", tab: "timeoff", words: "conges vacances fermeture absence repos indisponibilite" },
   { label: "Créneaux et délai de réservation", tab: "planning", bloc: "reglage-creneaux", words: "creneaux planning capacite vehicules par jour intervalle delai preavis pause rendez-vous" },
   { label: "Acompte", tab: "deposit", bloc: "reglage-acompte", words: "acompte acomptes arrhes avance pourcentage paiement reservation" },
@@ -58,6 +59,14 @@ const SCREEN_SEARCH = [
     tabLabel: "Mes prestations et prix",
     words: "prix tarifs tarif prestation prestations forfaits services duree gabarits vehicules",
     hiddenFor: "spirit-acs",
+  },
+  {
+    label: "Abonnement",
+    href: "/admin/abonnement",
+    category: "Mon compte",
+    tabLabel: "Abonnement",
+    words: "abonnement formule detailflow resilier changer",
+    hiddenFor: null,
   },
 ] as const
 
@@ -109,7 +118,7 @@ export function searchSettings(
   const out: SettingsSearchResult[] = []
   // Les écrans d'abord : « prix » doit mener à Mes prestations avant les frais.
   for (const screen of SCREEN_SEARCH) {
-    if (customSiteKey === screen.hiddenFor) continue
+    if (screen.hiddenFor && customSiteKey === screen.hiddenFor) continue
     if (!matches(`${screen.label} ${screen.words}`)) continue
     out.push({ label: screen.label, href: screen.href, category: screen.category, tabLabel: screen.tabLabel })
   }

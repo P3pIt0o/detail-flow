@@ -85,30 +85,38 @@ export function InvoicingSettings(props: Props) {
     }
   }
 
+  const payload = {
+    invoiceCompanyAddress: companyAddress,
+    invoiceSiret: siret,
+    invoiceIban: iban,
+    invoiceBic: bic,
+    vatEnabled,
+    vatRate,
+    vatExemptNote,
+    invoicePrefix: prefix,
+    invoiceDueDays: Number.parseInt(dueDays, 10) || 0,
+    invoiceFooterNote: footerNote,
+    invoiceLegalMentions: legalMentions,
+    invoiceEmailSubject: emailSubject,
+    invoiceEmailBody: emailBody,
+    invoiceLogoPathname: logoPathname,
+  }
+  const snapshot = JSON.stringify(payload)
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot)
+  // La barre ne se fixe que si CE formulaire est modifié : le profil vendeur,
+  // au-dessus, a son propre bouton.
+  const dirty = snapshot !== savedSnapshot
+
   function save() {
     setError(null)
     setNotice(null)
     startTransition(async () => {
-      const res = await saveInvoicingSettings({
-        invoiceCompanyAddress: companyAddress,
-        invoiceSiret: siret,
-        invoiceIban: iban,
-        invoiceBic: bic,
-        vatEnabled,
-        vatRate,
-        vatExemptNote,
-        invoicePrefix: prefix,
-        invoiceDueDays: Number.parseInt(dueDays, 10) || 0,
-        invoiceFooterNote: footerNote,
-        invoiceLegalMentions: legalMentions,
-        invoiceEmailSubject: emailSubject,
-        invoiceEmailBody: emailBody,
-        invoiceLogoPathname: logoPathname,
-      })
+      const res = await saveInvoicingSettings(payload)
       if (!res.ok) {
         setError(res.error || "Erreur lors de l'enregistrement.")
         return
       }
+      setSavedSnapshot(snapshot)
       setNotice("Paramètres de facturation enregistrés.")
       router.refresh()
     })
@@ -394,7 +402,7 @@ export function InvoicingSettings(props: Props) {
         <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">{notice}</div>
       )}
 
-      <StickySaveBar>
+      <StickySaveBar pinned={dirty || pending}>
         <Button onClick={save} disabled={pending} className="w-full sm:w-auto">
           {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Enregistrer la facturation
