@@ -131,7 +131,6 @@ export function SpiritBookCta({ tenantSlug }: { tenantSlug: string }) {
   return (
     <div className="mt-10 rounded-sm bg-[var(--spirit-navy)] p-6 text-white sm:p-8">
       <h2 className="spirit-title text-xl font-semibold text-white sm:text-2xl">Un projet pour votre véhicule ?</h2>
-      <p className="mt-2 text-white/75">Décrivez votre véhicule et la prestation souhaitée.</p>
       <Link href={withTenant(SPIRIT_BOOK_PATH, tenantSlug)} className={`mt-5 ${BTN}`}>
         {SPIRIT_BOOK_LABEL}
       </Link>

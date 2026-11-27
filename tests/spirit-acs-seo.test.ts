@@ -647,6 +647,16 @@ describe("L85 — pages zone et ville : textes", async () => {
     expect(z.SPIRIT_BOOK_PATH).toBe("/#demande-devis")
   })
 
+  it("encart final : titre puis bouton seulement, comme la maquette validée", async () => {
+    const { createElement } = await import("react")
+    const { renderToStaticMarkup } = await import("react-dom/server")
+    const z = await import("@/components/custom-sites/spirit-acs/zone-page")
+    const html = renderToStaticMarkup(createElement(z.SpiritBookCta, { tenantSlug: "spirit-acs" }))
+    expect(html).toContain("Un projet pour votre véhicule ?")
+    expect(html).toContain("Réserver une prestation")
+    expect(html).not.toMatch(/<p[\s>]/)
+  })
+
   it("pied de page et section zone renvoient vers les pages", () => {
     const footer = read(`${SPIRIT}/spirit-footer.tsx`)
     expect(footer).toMatch(/Nous intervenons à/)
