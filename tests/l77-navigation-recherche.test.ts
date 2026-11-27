@@ -187,10 +187,10 @@ describe("L77 — « Itinéraire » sur l'accueil", () => {
     expect(page).toContain("directions ? buildMapsDirectionsUrl(b.address) : null")
   })
 
-  it("le total du jour est libellé « au total » (il inclut les rendez-vous terminés)", () => {
+  it("le total du jour reprend le libellé « prévus » de la maquette validée", () => {
     const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain("au total`")
-    expect(page).not.toContain("prévus`")
+    expect(page).toContain("prévus`")
+    expect(page).not.toContain("au total`")
   })
 
   it("« Plus » résout le tenant côté serveur", () => {

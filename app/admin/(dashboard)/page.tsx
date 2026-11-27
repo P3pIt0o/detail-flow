@@ -576,7 +576,7 @@ export default async function DashboardPage({
           <div>
             <h2 className="text-sm font-semibold text-foreground">Aujourd&apos;hui</h2>
             <p className="text-xs text-muted-foreground">
-              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} au total` : ""}
+              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} prévus` : ""}
             </p>
           </div>
           <Link href={href("/admin/calendrier")} className="text-xs font-medium text-primary hover:underline">

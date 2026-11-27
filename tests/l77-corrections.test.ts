@@ -192,10 +192,10 @@ describe("L77 — accueil : rendez-vous du jour et dernières visites", () => {
     expect(todayInTimezone("Pas/UnFuseau", lateUtc)).toBe("2026-03-11")
   })
 
-  it("le bouton (+) n'annonce pas d'écran d'encaissement inexistant", () => {
+  it("le bouton (+) reprend le libellé de la maquette validée", () => {
     const bar = read("components/admin/mobile-tab-bar.tsx")
-    expect(bar).toContain("Factures et devis")
-    expect(bar).not.toContain("Factures / encaisser")
+    expect(bar).toContain("Factures / encaisser")
+    expect(bar).not.toContain("Factures et devis")
   })
 
   it("l'accueil standard utilise companyId issu de requireCompanyMember()", () => {
