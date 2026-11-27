@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs"
 import { analyzeTiers, formatEuros, previewPromotion, type ItemRef, type Promotion, type TierWarning } from "@/lib/booking/promotions"
 import {
   KIND_LABEL,
@@ -72,11 +73,11 @@ export function OffersManager({ lists, canEdit, timeZone, services, options }: P
   }
   return (
     <Tabs defaultValue="offers" className="w-full">
-      <TabsList className="flex-wrap">
-        <TabsTrigger value="offers">Offres</TabsTrigger>
-        <TabsTrigger value="equivalences">Équivalences</TabsTrigger>
-        <TabsTrigger value="upsells">Compléments suggérés</TabsTrigger>
-      </TabsList>
+      <AdminTabsList>
+        <AdminTabsTrigger value="offers">Offres</AdminTabsTrigger>
+        <AdminTabsTrigger value="equivalences">Équivalences</AdminTabsTrigger>
+        <AdminTabsTrigger value="upsells">Compléments suggérés</AdminTabsTrigger>
+      </AdminTabsList>
       <TabsContent value="offers" className="mt-6">
         <OffersTab lists={lists} canEdit={canEdit} timeZone={timeZone} services={services} options={options} />
       </TabsContent>
