@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { getCustomSiteAdminProfile, isSettingsTabHidden } from "@/lib/admin/custom-site-admin-profile"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +25,6 @@ import { AppearanceSettings } from "@/components/admin/settings/appearance-setti
 import { LocationSettings } from "@/components/admin/settings/location-settings"
 import { getLocationConfig, locationColumnsExist } from "@/lib/booking/location"
 import { DEFAULT_LOCATION_CONFIG, describeLocation, sanitizeLocationLabels } from "@/lib/booking/location-shared"
-import { redirect } from "next/navigation"
 import { LinkActions, LinkDisplay } from "@/components/admin/booking-hub/link-actions"
 import { humanReservationUrl } from "@/lib/admin/public-link"
 import { buildSettingsStatus } from "@/lib/admin/settings-status"
@@ -104,6 +105,11 @@ export default async function ParametresPage({
   // standard, libellés de boutons Hero, sections « Pourquoi nous choisir » et
   // intro « Prestations » non rendues) et les modules non utilisés (Réservations,
   // Paiements en ligne, Codes promo). Les autres tenants restent inchangés.
+  // L102 : un onglet masqué par le profil du site sur mesure renvoie à l'accueil.
+  if (isSettingsTabHidden(tenant.customSiteKey, tab)) {
+    redirect(withTenant("/admin/parametres", tenantParam ?? null))
+  }
+  const adminProfile = getCustomSiteAdminProfile(tenant.customSiteKey)
   const isSpiritSite = tenant.customSiteKey === "spirit-acs"
   // Éditeur « Textes du site » réservé aux administrateurs (OWNER/ADMIN) ou au
   // super-admin plateforme. Un EMPLOYEE voit un message, sans faire échouer la
@@ -216,6 +222,7 @@ export default async function ParametresPage({
   // du tenant authentifié (NULL / link => rien ne change).
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN
   const onlineBooking =
+    !adminProfile.hideShareActions &&
     resolveDashboardPrimaryMode(await getBookingDistributionMode(tenant.id)) === "widget"
       ? buildWidgetPrimaryAction({
           slug: tenant.slug,
@@ -290,8 +297,10 @@ export default async function ParametresPage({
     vacationMessage: settings.vacationMessage ?? "",
   }
 
-  // Lien et QR code de la page de réservation (Spirit ACS fonctionne sur devis).
-  const reservationUrl = isSpiritSite ? null : humanReservationUrl(tenant.slug, rootDomain)
+  // Lien et QR code de la page de réservation (Spirit ACS fonctionne sur devis ;
+  // L116 : masqués aussi quand le profil du site sur mesure masque le partage).
+  const reservationUrl =
+    isSpiritSite || adminProfile.hideShareActions ? null : humanReservationUrl(tenant.slug, rootDomain)
 
   return (
     <div className="space-y-6">
@@ -469,7 +478,15 @@ export default async function ParametresPage({
                     </>
                   ) : (
                     <>
+                      {adminProfile.hideStandardSiteContent ? (
+                        <p className="mb-6 rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground text-pretty">
+                          Votre site est sur mesure : seuls les réglages qu&apos;il utilise sont affichés ici. Le logo et
+                          les réseaux sociaux servent aussi à Google.
+                        </p>
+                      ) : null}
                       <SiteBranding
+                        hideHeroCard={adminProfile.hideStandardSiteContent}
+                        customSiteWording={adminProfile.hideStandardSiteContent}
                         logoPathname={tenant.logoUrl ?? null}
                         cgv={tenant.cgv ?? ""}
                         socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
@@ -481,18 +498,22 @@ export default async function ParametresPage({
                           heroCtaSecondary: tenant.heroCtaSecondary ?? "",
                         }}
                       />
-                      <div className="mt-10 border-t border-border pt-8">
-                        <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
-                        <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
-                      </div>
-                      <div className="mt-10 border-t border-border pt-8">
-                        <SectionOrderSettings
-                          items={resolveSectionOrder(tenant.siteContent).map((key) => ({
-                            key,
-                            label: HOME_SECTION_LABELS[key],
-                          }))}
-                        />
-                      </div>
+                      {adminProfile.hideStandardSiteContent ? null : (
+                        <>
+                          <div className="mt-10 border-t border-border pt-8">
+                            <h2 className="mb-1 text-lg font-semibold text-foreground">Autres sections du site</h2>
+                            <PublicSiteContent content={resolveSiteContent(tenant.siteContent)} />
+                          </div>
+                          <div className="mt-10 border-t border-border pt-8">
+                            <SectionOrderSettings
+                              items={resolveSectionOrder(tenant.siteContent).map((key) => ({
+                                key,
+                                label: HOME_SECTION_LABELS[key],
+                              }))}
+                            />
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                   </div>
@@ -503,6 +524,7 @@ export default async function ParametresPage({
                       <AppearanceSettings
                         brandPrimary={tenant.brandPrimary ?? null}
                         brandSecondary={tenant.brandSecondary ?? null}
+                        customSiteWording={adminProfile.hideStandardSiteContent}
                       />
                     </div>
                   </TabsContent>

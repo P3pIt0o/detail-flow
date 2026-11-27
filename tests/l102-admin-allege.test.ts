@@ -18,6 +18,7 @@ import { resolvePublicLink } from "@/lib/admin/public-link"
 import { ALL_SETTINGS_TABS, findCategoryByTab, getVisibleSettingsCategories, SETTINGS_CATEGORIES } from "@/lib/admin/settings-nav"
 import { searchSettings } from "@/lib/admin/settings-search"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
+import { buildTodayModel } from "@/lib/admin/today"
 
 const { redirectMock, memberMock, pathnameMock } = vi.hoisted(() => ({
   pathnameMock: vi.fn(() => "/admin"),
@@ -43,6 +44,51 @@ vi.mock("@/lib/admin", () => ({
 vi.mock("server-only", () => ({}))
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+/** Accueil « Aujourd'hui » d'une journée vide, pour la clé donnée. */
+const today = (customSiteKey: string | null, hasBooking = true) =>
+  buildTodayModel(
+    {
+      today: "2026-11-27",
+      settings: {
+        businessName: "Demo",
+        businessPhone: "",
+        businessAddress: "",
+        billingConfirmed: true,
+        mobileEnabled: true,
+        workshopEnabled: false,
+        workshopAddress: "",
+        workshopPostalCode: "",
+        workshopCity: "",
+        hasBaseLocation: true,
+        vatEnabled: false,
+      },
+      serviceCount: 1,
+      vehicleTypeCount: 1,
+      openDayCount: 5,
+      publishedPage: true,
+      hasBooking,
+      todayBookings: [],
+      nextBooking: null,
+      lapsed: null,
+      pendingDeposit: 0,
+      requests: { newCount: 0, acceptedCount: 0, quoteSentCount: 0, firstActionId: null },
+      unpaid: { count: 0, cents: 0, currencies: [], firstId: null },
+      subscriptionRequests: 0,
+      cancellationRequests: 0,
+      leadsDue: 0,
+      figures: null,
+    },
+    {
+      href: (p) => p,
+      intent: null,
+      customSiteKey,
+      distributionMode: null,
+      siteTextComplete: true,
+      paymentsEnabled: false,
+      shareUrl: "https://www.detailflow.fr/reserver",
+    },
+  )
 
 const HIDDEN_ROUTES = ["/admin/page-publique", "/admin/ma-reservation", "/admin/site-personnalise"]
 const OTHERS = [null, "spirit-acs", "rozan", "justclean"]
@@ -241,9 +287,9 @@ describe("L102 — plus aucune invitation à partager", () => {
     expect(hint).toContain("Partagez votre lien")
     expect(visibleShareHint("cleanyzer", hint)).toBeUndefined()
     for (const key of OTHERS) expect(visibleShareHint(key, hint)).toBe(hint)
-    const src = read("app/admin/(dashboard)/page.tsx")
-    expect(src).toMatch(/visibleShareHint\(company\.customSiteKey, noLater\.hint\)/)
-    expect(src).not.toMatch(/\{noLater\.hint\b/)
+    // L116 : accueil « Aujourd'hui » (L96), journée vide.
+    expect(today("cleanyzer").suggestion).toBeNull()
+    for (const key of OTHERS) expect(today(key).suggestion, String(key)).toEqual({ kind: "share" })
   })
 
   const shell = (hideShareActions: boolean, pathname: string) => {
@@ -338,6 +384,9 @@ describe("L102 — câblage des pages", () => {
   })
 
   it("tableau de bord : étapes calculées avec la clé du tenant", () => {
-    expect(read("app/admin/(dashboard)/page.tsx")).toMatch(/company\.customSiteKey,?\s*\)/)
+    expect(read("app/admin/(dashboard)/page.tsx")).toMatch(/customSiteKey: company\.customSiteKey,/)
+    const keys = (key: string | null) => today(key, false).setup?.steps.map((s) => s.key)
+    expect(keys("cleanyzer")).not.toContain("share")
+    expect(keys("rozan")).toContain("share")
   })
 })
