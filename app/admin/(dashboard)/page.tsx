@@ -115,7 +115,7 @@ export default async function DashboardPage({
     hasAvailability: obHours.some((h) => h.isOpen),
     publicSiteComplete: (nonEmpty(company.heroTitle) || nonEmpty(company.heroSubtitle)) && nonEmpty(obSettings.businessPhone),
     hasBooking: obBookingCount > 0,
-  })
+  }, company.customSiteKey)
   // Réécrit les liens relatifs en liens tenant-safe (jamais de companyId client).
   const onboardingData = { ...onboarding, steps: onboarding.steps.map((s) => ({ ...s, href: href(s.href) })) }
 

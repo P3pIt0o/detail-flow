@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react"
+import { isSettingsTabHidden } from "@/lib/admin/custom-site-admin-profile"
 
 /**
  * Organisation des Paramètres en 6 catégories.
@@ -174,7 +175,11 @@ export function getVisibleSettingsCategories(
     )
   }
 
-  return SETTINGS_CATEGORIES
+  // L102 : sous-onglets masqués par le profil du site sur mesure (profil vide => liste intacte).
+  return SETTINGS_CATEGORIES.map((c) => ({
+    ...c,
+    subTabs: c.subTabs.filter((t) => !isSettingsTabHidden(customSiteKey, t.value)),
+  })).filter((c) => c.subTabs.length > 0)
 }
 
 /**
