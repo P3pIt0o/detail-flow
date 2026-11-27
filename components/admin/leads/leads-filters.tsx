@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TabScroller } from "@/components/admin/admin-tabs"
 import { LEAD_SOURCE_LABELS, LEAD_SOURCES } from "@/lib/leads/model"
 
 /**
@@ -92,7 +93,8 @@ export function LeadsFilters() {
         />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Filtrer par statut">
+      <TabScroller>
+      <div className="flex w-max min-w-full flex-nowrap gap-2 pb-1" role="tablist" aria-label="Filtrer par statut">
         {STATUS_TABS.map((tab) => {
           const selected = currentTab === tab.key
           return (
@@ -104,7 +106,7 @@ export function LeadsFilters() {
               disabled={pending}
               onClick={() => selectTab(tab.key)}
               className={cn(
-                "inline-flex min-h-9 shrink-0 items-center rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors",
+                "inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors",
                 selected
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -115,6 +117,7 @@ export function LeadsFilters() {
           )
         })}
       </div>
+      </TabScroller>
 
       <div className="flex items-center gap-2">
         <label htmlFor="source-filter" className="text-xs font-medium text-muted-foreground">
