@@ -1,6 +1,7 @@
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 import { usesLegacyBookingWizard } from "@/lib/company/publication-shared"
 import { findCategoryByTab } from "@/lib/admin/settings-nav"
+import { isAdminRouteHidden } from "@/lib/admin/custom-site-admin-profile"
 
 /**
  * Construction du menu admin — SOURCE DE VÉRITÉ pure (sans I/O, sans JSX).
@@ -81,7 +82,8 @@ export function buildAdminNav(opts: {
   /** `companies.bookingDistributionMode` : "widget" masque « Page publique » (la route reste servie). */
   bookingDistributionMode?: string | null
 }): AdminNavItem[] {
-  const nav = baseAdminNav(opts)
+  // L102 : pages masquées par le profil du site sur mesure.
+  const nav = baseAdminNav(opts).filter((item) => !isAdminRouteHidden(opts.customSiteKey, item.href))
   if (opts.bookingDistributionMode === "widget") {
     return nav.filter((item) => item.href !== "/admin/page-publique")
   }
