@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
+import { createElement, type ReactElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { describe, expect, it, vi } from "vitest"
+import { AppearanceSettings } from "@/components/admin/settings/appearance-settings"
+import { SiteBranding } from "@/components/admin/settings/site-branding"
 import {
   getCustomSiteAdminProfile,
   isAdminRouteHidden,
@@ -11,6 +15,28 @@ import { resolvePublicLink } from "@/lib/admin/public-link"
 import { ALL_SETTINGS_TABS, findCategoryByTab, getVisibleSettingsCategories, SETTINGS_CATEGORIES } from "@/lib/admin/settings-nav"
 import { searchSettings } from "@/lib/admin/settings-search"
 import { computeOnboardingSteps } from "@/lib/onboarding/steps"
+
+const { redirectMock, memberMock } = vi.hoisted(() => ({
+  redirectMock: vi.fn((_url: string) => {
+    throw new Error("NEXT_REDIRECT")
+  }),
+  memberMock: vi.fn(),
+}))
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND")
+  },
+  useRouter: () => ({ refresh: () => {}, push: () => {} }),
+  usePathname: () => "/admin",
+  useSearchParams: () => new URLSearchParams(),
+}))
+vi.mock("@/lib/admin", () => ({
+  requireCompanyMember: memberMock,
+  requireAdminCompanyId: vi.fn(async () => 1),
+  requireAdmin: memberMock,
+}))
+vi.mock("server-only", () => ({}))
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
@@ -155,6 +181,89 @@ describe("L102 — les autres tenants ne changent pas (tenant B ≠ A)", () => {
       expect(src, file).toMatch(/requireCompanyMember\(\)/)
       expect(src, file).toMatch(/(getCustomSiteAdminProfile|isAdminRouteHidden|isSettingsTabHidden)\([^)]*(ctx\.tenant|tenant|company)\.customSiteKey/)
     }
+  })
+})
+
+describe("L102 — après relecture : textes d'aide exacts", () => {
+  const html = (el: ReactElement) => renderToStaticMarkup(el).replace(/&#x27;/g, "'")
+  const branding = (customSiteWording: boolean) =>
+    html(
+      createElement(SiteBranding, {
+        logoPathname: null,
+        cgv: "",
+        hero: { heroTitle: "", heroHighlight: "", heroSubtitle: "", heroCtaPrimary: "", heroCtaSecondary: "" },
+        customSiteWording,
+      }),
+    )
+  const appearance = (customSiteWording: boolean) =>
+    html(createElement(AppearanceSettings, { brandPrimary: null, brandSecondary: null, customSiteWording }))
+
+  it("logo, réseaux et couleurs : textes adaptés au site sur mesure", () => {
+    const b = branding(true)
+    expect(b).toContain("Transmis à Google. Il ne change pas le logo de votre site sur mesure")
+    expect(b).toContain("Ces liens sont transmis à Google. Ils ne changent pas les liens affichés sur votre site sur mesure.")
+    expect(b).not.toContain("pied de page")
+    const a = appearance(true)
+    expect(a).toContain("Ces couleurs ne changent pas votre site sur mesure.")
+    expect(a).toContain("confirmation, de gestion de rendez-vous et de paiement")
+    expect(a).not.toContain("immédiatement à votre site")
+  })
+
+  it("les autres entreprises gardent les textes actuels", () => {
+    const b = branding(false)
+    expect(b).toContain("Affiché dans l'en-tête et le pied de page de votre site")
+    expect(b).toContain("ils s'afficheront dans le pied de page de votre")
+    expect(b).not.toContain("sur mesure")
+    const a = appearance(false)
+    expect(a).toContain("Ces couleurs s'appliquent immédiatement à votre site après enregistrement.")
+    expect(a).not.toContain("sur mesure")
+  })
+
+  it("recherche « titre » / « présentation » : plus de « Contenu du site » pour Cleanyzer seulement", () => {
+    for (const q of ["titre", "texte presentation", "présentation"]) {
+      expect(searchSettings(q, "cleanyzer").map((r) => r.label), q).not.toContain("Contenu du site")
+      for (const key of [null, "rozan", "justclean"]) {
+        expect(searchSettings(q, key).map((r) => r.label), `${q} ${key}`).toContain("Contenu du site")
+      }
+    }
+    expect(searchSettings("site", "cleanyzer").map((r) => r.label)).toContain("Contenu du site")
+  })
+})
+
+describe("L102 — redirections (pages exécutées)", () => {
+  const pages = [
+    ["ma-reservation", () => import("@/app/admin/(dashboard)/ma-reservation/page")],
+    ["site-personnalise", () => import("@/app/admin/(dashboard)/site-personnalise/page")],
+    ["page-publique", () => import("@/app/admin/page-publique/page")],
+  ] as const
+
+  // Le premier accès authentifié donne la clé ; la suite de la page n'est pas exécutée ici.
+  const run = async (load: () => Promise<{ default: unknown }>, customSiteKey: string | null) => {
+    redirectMock.mockClear()
+    memberMock.mockReset()
+    const tenant = { id: 1, slug: "demo", customSiteKey, status: "ACTIVE", onboardingIntent: null }
+    memberMock.mockResolvedValue({ tenant, company: tenant, companyId: 1, role: "OWNER", isSuperAdmin: false })
+    const Page = (await load()).default as (p: unknown) => Promise<unknown>
+    await Page({ searchParams: Promise.resolve({ tenant: "demo" }) }).catch(() => {})
+    return redirectMock.mock.calls.map(([url]) => String(url))
+  }
+
+  it.each(pages)("%s : Cleanyzer renvoyé aux paramètres (aperçu conservé)", async (_name, load) => {
+    expect(await run(load, "cleanyzer")).toEqual(["/admin/parametres?tenant=demo"])
+    expect(memberMock).toHaveBeenCalled()
+  })
+
+  it.each(pages)("%s : tenant standard jamais renvoyé aux paramètres", async (_name, load) => {
+    expect((await run(load, null)).filter((u) => u.startsWith("/admin/parametres"))).toEqual([])
+  })
+
+  it("?tab=gallery : Cleanyzer renvoyé aux paramètres", async () => {
+    const load = () => import("@/app/admin/(dashboard)/parametres/page")
+    redirectMock.mockClear()
+    memberMock.mockResolvedValue({ tenant: { id: 1, customSiteKey: "cleanyzer" }, role: "OWNER", isSuperAdmin: false })
+    const Page = (await load()).default as (p: unknown) => Promise<unknown>
+    await expect(Page({ searchParams: Promise.resolve({ tab: "gallery" }) })).rejects.toThrow("NEXT_REDIRECT")
+    expect(redirectMock.mock.calls).toEqual([["/admin/parametres"]])
   })
 })
 

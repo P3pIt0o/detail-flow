@@ -424,6 +424,7 @@ export default async function ParametresPage({
                       ) : null}
                       <SiteBranding
                         hideHeroCard={adminProfile.hideStandardSiteContent}
+                        customSiteWording={adminProfile.hideStandardSiteContent}
                         logoPathname={tenant.logoUrl ?? null}
                         cgv={tenant.cgv ?? ""}
                         socialLinks={(tenant.socialLinks as Record<string, string> | null) ?? null}
@@ -461,6 +462,7 @@ export default async function ParametresPage({
                       <AppearanceSettings
                         brandPrimary={tenant.brandPrimary ?? null}
                         brandSecondary={tenant.brandSecondary ?? null}
+                        customSiteWording={adminProfile.hideStandardSiteContent}
                       />
                     </div>
                   </TabsContent>
