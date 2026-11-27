@@ -699,11 +699,33 @@ describe("L85 — prix « dès » (affichage et JSON-LD Service)", async () => {
 
   it("prix « dès » affiché = plus petit montant du code, toujours suivi du nom de la formule", () => {
     const start = o.spiritStartingPrice(c.getSpiritService("nettoyage-automobile")!)
-    expect(start).toEqual({ priceCents: 7500, label: "Entretien régulier — Citadine" })
-    const label = o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-automobile")!)
-    expect(label.startsWith("dès 75")).toBe(true)
-    expect(label.endsWith(" · Entretien régulier — Citadine")).toBe(true)
+    expect(start).toMatchObject({ priceCents: 7500, label: "Entretien régulier — Citadine" })
     expect(o.spiritStartingPrice(c.getSpiritService("nettoyage-textile")!)?.label).toBe("À partir de 5 chaises")
+  })
+
+  const plain = (s: string) => s.replace(/[  ]/g, " ")
+  const render = async () => {
+    const { createElement } = await import("react")
+    const { renderToStaticMarkup } = await import("react-dom/server")
+    const z = await import("@/components/custom-sites/spirit-acs/zone-page")
+    const html = renderToStaticMarkup(createElement(z.SpiritPriceList, { tenantSlug: "spirit-acs" }))
+    return plain(html.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " "))
+  }
+
+  it("textile : le prix de 15 € est affiché « par chaise »", async () => {
+    const label = plain(o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-textile")!))
+    expect(label).toBe("dès 15,00 € par chaise · À partir de 5 chaises")
+    expect(await render()).toContain("dès 15,00 € par chaise · À partir de 5 chaises")
+  })
+
+  it("entretien : 75 € est affiché par mois, nettoyage ponctuel sur devis", async () => {
+    const expected = "dès 75,00 € par mois · Entretien régulier — Citadine, mensuel ; nettoyage ponctuel sur devis"
+    expect(plain(o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-automobile")!))).toBe(expected)
+    expect(await render()).toContain(expected)
+  })
+
+  it("la liste des prix précise le coût du déplacement textile", async () => {
+    expect(await render()).toContain(c.SPIRIT_ZONE_TEXTILE_NOTE)
   })
 
   it("la page prestation émet le JSON-LD Service", () => {

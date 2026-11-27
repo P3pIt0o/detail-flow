@@ -31,18 +31,34 @@ export function spiritPricedFormulas(service: Pick<ServiceContent, "formules">):
  */
 export function spiritStartingPrice(
   service: Pick<ServiceContent, "formules">,
-): { priceCents: number; label: string } | null {
+): { priceCents: number; label: string; unit?: string; condition?: string } | null {
   const priced = spiritPricedFormulas(service)
   if (priced.length === 0) return null
   const min = priced.reduce((a, b) => (b.priceCents < a.priceCents ? b : a))
-  return { priceCents: min.priceCents, label: min.label }
+  return {
+    priceCents: min.priceCents,
+    label: min.label,
+    ...(min.priceUnit ? { unit: min.priceUnit } : {}),
+    ...(min.startingCondition ? { condition: min.startingCondition } : {}),
+  }
 }
 
-/** Libellé affiché : « dès 75 € · Entretien régulier — Citadine », ou « Sur devis ». */
-export function spiritStartingPriceLabel(service: Pick<ServiceContent, "formules">): string {
+/** Les deux parties du prix « dès » : montant avec son unité, puis formule et conditions. */
+export function spiritStartingPriceParts(
+  service: Pick<ServiceContent, "formules">,
+): { amount: string; detail: string } | null {
   const start = spiritStartingPrice(service)
-  if (!start) return "Sur devis"
-  return `dès ${formatPrice(start.priceCents)} · ${start.label}`
+  if (!start) return null
+  return {
+    amount: `dès ${formatPrice(start.priceCents)}${start.unit ? ` ${start.unit}` : ""}`,
+    detail: `${start.label}${start.condition ?? ""}`,
+  }
+}
+
+/** Libellé complet : « dès 15,00 € par chaise · À partir de 5 chaises », ou « Sur devis ». */
+export function spiritStartingPriceLabel(service: Pick<ServiceContent, "formules">): string {
+  const parts = spiritStartingPriceParts(service)
+  return parts ? `${parts.amount} · ${parts.detail}` : "Sur devis"
 }
 
 /** Une `Offer` Schema.org par formule chiffrée (montant en euros = centimes / 100). */

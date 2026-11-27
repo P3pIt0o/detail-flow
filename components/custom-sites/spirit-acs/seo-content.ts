@@ -179,7 +179,7 @@ export const SPIRIT_ZONE_SLUG = "zone-intervention"
 export const SPIRIT_ZONE_PAGE = {
   metaTitle: "Zone d'intervention autour de Lagny-sur-Marne | Spirit ACS",
   metaDescription:
-    "Découvrez les 14 communes desservies par Spirit ACS autour de Lagny-sur-Marne, dans le secteur de Marne-la-Vallée, avec les prestations et tarifs de départ.",
+    `Découvrez les ${SPIRIT_CITIES.length} communes desservies par Spirit ACS autour de Lagny-sur-Marne, dans le secteur de Marne-la-Vallée, avec les prestations et tarifs de départ.`,
   h1: "Zone d'intervention de Spirit ACS",
   intro:
     "Basé à Lagny-sur-Marne, Spirit ACS se déplace à domicile ou sur votre lieu de travail, pour les prestations compatibles, dans le secteur de Marne-la-Vallée.",
@@ -370,6 +370,10 @@ export type ServiceFormula = {
   priceKind: PriceKind
   /** Précision courte et factuelle (optionnelle). */
   note?: string
+  /** Unité du montant (« par mois », « par chaise »), affichée avec le prix « dès ». */
+  priceUnit?: string
+  /** Condition affichée après le nom de la formule dans la liste des prix « dès ». */
+  startingCondition?: string
 }
 
 /** Modes de conversion connus (cf. lib/public-site/types.ts). Copié localement
@@ -498,7 +502,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
     // récurrent sont distincts des prestations ponctuelles : les notes précisent
     // mensuel/trimestriel pour ne jamais mélanger les prix (§7 du cahier des charges).
     formules: [
-      { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €." },
+      { label: "Entretien régulier — Citadine", priceCents: 7500, priceKind: "exact", note: "Mensuel 75 € · Trimestriel 95 €.", priceUnit: "par mois", startingCondition: ", mensuel ; nettoyage ponctuel sur devis" },
       { label: "Entretien régulier — Berline / Sportive", priceCents: 8000, priceKind: "exact", note: "Mensuel 80 € · Trimestriel 100 €." },
       { label: "Entretien régulier — SUV", priceCents: 9000, priceKind: "exact", note: "Mensuel 90 € · Trimestriel 110 €." },
       { label: "Entretien régulier — Monospace 5 places", priceCents: 10000, priceKind: "exact", note: "Mensuel 100 € · Trimestriel 130 €." },
@@ -900,7 +904,7 @@ export const SPIRIT_SERVICES: ServiceContent[] = [
       { label: "Canapé 5 places ou canapé d'angle", priceCents: 12000, priceKind: "exact" },
       { label: "Fauteuil", priceCents: 5000, priceKind: "exact" },
       { label: "Chaise", priceCents: 2000, priceKind: "exact" },
-      { label: "À partir de 5 chaises", priceCents: 1500, priceKind: "from", note: "15 € par chaise." },
+      { label: "À partir de 5 chaises", priceCents: 1500, priceKind: "from", note: "15 € par chaise.", priceUnit: "par chaise" },
       { label: "Nettoyage cuir", priceCents: 5000, priceKind: "exact", note: "Hydratation du cuir en complément : sur devis." },
     ],
     priceCaveat:

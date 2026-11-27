@@ -13,7 +13,6 @@
 import Link from "next/link"
 import type { CustomSitePublicData } from "@/lib/custom-sites/types"
 import { withTenant } from "@/lib/tenant-link"
-import { formatPrice } from "@/lib/format"
 import { buildBreadcrumbJsonLd } from "@/lib/seo/structured-data"
 import { tenantCanonical } from "@/lib/seo/tenant-seo.server"
 import { Reveal } from "@/components/ui/reveal"
@@ -25,10 +24,11 @@ import {
   SPIRIT_SERVICES,
   SPIRIT_ZONE_PAGE,
   SPIRIT_ZONE_PATH,
+  SPIRIT_ZONE_TEXTILE_NOTE,
   spiritCityPageFor,
   spiritCityPath,
 } from "./seo-content"
-import { spiritStartingPrice } from "./service-offers"
+import { spiritStartingPriceParts } from "./service-offers"
 
 /** Libellé du bouton de réservation (D2 : mène au formulaire de l'accueil). */
 export const SPIRIT_BOOK_LABEL = "Réserver une prestation"
@@ -93,7 +93,7 @@ export function SpiritPriceList({ tenantSlug }: { tenantSlug: string }) {
     <>
       <ul className="mt-4 divide-y divide-black/5 rounded-sm bg-[var(--spirit-paper-2)] ring-1 ring-black/5">
         {SPIRIT_SERVICES.map((s) => {
-          const start = spiritStartingPrice(s)
+          const price = spiritStartingPriceParts(s)
           return (
             <li key={s.slug}>
               <Link
@@ -102,12 +102,12 @@ export function SpiritPriceList({ tenantSlug }: { tenantSlug: string }) {
               >
                 <span className="font-medium text-[color:var(--spirit-ink)]">{s.cardTitle}</span>
                 <span className="sm:text-right">
-                  {start ? (
+                  {price ? (
                     <>
                       <span className="whitespace-nowrap font-semibold text-[color:var(--spirit-teal)]">
-                        dès {formatPrice(start.priceCents)}
+                        {price.amount}
                       </span>{" "}
-                      <span className="text-sm text-[color:var(--spirit-muted)]">· {start.label}</span>
+                      <span className="text-sm text-[color:var(--spirit-muted)]">· {price.detail}</span>
                     </>
                   ) : (
                     <span className="font-semibold text-[color:var(--spirit-teal)]">Sur devis</span>
@@ -121,6 +121,7 @@ export function SpiritPriceList({ tenantSlug }: { tenantSlug: string }) {
       <p className="mt-3 text-sm text-[color:var(--spirit-muted)]">
         Le tarif final dépend du véhicule et de la prestation. Certaines prestations sont sur devis.
       </p>
+      <p className="mt-1 text-sm text-[color:var(--spirit-muted)]">{SPIRIT_ZONE_TEXTILE_NOTE}</p>
     </>
   )
 }
