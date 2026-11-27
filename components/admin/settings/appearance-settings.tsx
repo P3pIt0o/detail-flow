@@ -20,8 +20,6 @@ type Props = {
   brandPrimary: string | null
   /** Couleur secondaire enregistrée (hex) ou null. */
   brandSecondary: string | null
-  /** Site sur mesure à couleurs fixes : le texte d'aide dit où ces couleurs servent. */
-  customSiteWording?: boolean
 }
 
 /**
@@ -30,7 +28,7 @@ type Props = {
  * donc CGV et logo sont préservés). La réinitialisation efface les couleurs
  * personnalisées : le site public retombe alors sur le thème par défaut.
  */
-export function AppearanceSettings({ brandPrimary, brandSecondary, customSiteWording = false }: Props) {
+export function AppearanceSettings({ brandPrimary, brandSecondary }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -82,9 +80,8 @@ export function AppearanceSettings({ brandPrimary, brandSecondary, customSiteWor
       <div className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Couleurs de marque</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
-          {customSiteWording
-            ? "Ces couleurs ne changent pas votre site sur mesure. Elles servent aux pages de confirmation, de gestion de rendez-vous et de paiement."
-            : "Personnalisez la couleur principale (boutons, liens, éléments actifs) et la couleur secondaire de votre site public. Ces couleurs s'appliquent immédiatement à votre site après enregistrement."}
+          Personnalisez la couleur principale (boutons, liens, éléments actifs) et la couleur secondaire de votre site
+          public. Ces couleurs s&apos;appliquent immédiatement à votre site après enregistrement.
         </p>
 
         <div className="grid gap-5 sm:grid-cols-2">

@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import { redirect } from "next/navigation"
-import { isAdminRouteHidden } from "@/lib/admin/custom-site-admin-profile"
 import { ExternalLink, Info } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { withTenant } from "@/lib/tenant-link"
@@ -32,11 +30,6 @@ export default async function MaReservationPage({
   const { tenant } = await requireCompanyMember()
   const { tenant: tenantParam } = await searchParams
   const href = (path: string) => withTenant(path, tenantParam ?? null)
-
-  // L102 : page masquée pour ce site sur mesure.
-  if (isAdminRouteHidden(tenant.customSiteKey, "/admin/ma-reservation")) {
-    redirect(withTenant("/admin/parametres", tenantParam ?? null))
-  }
 
   if (tenant.customSiteKey === "spirit-acs") {
     return (

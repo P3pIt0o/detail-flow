@@ -3,7 +3,6 @@ import { requireCompanyMember } from "@/lib/admin"
 import { AdminShell } from "@/components/admin/admin-shell"
 import { buildMainNav, buildPlusGroups, canExportData } from "@/lib/admin/nav"
 import { resolvePublicLink } from "@/lib/admin/public-link"
-import { getCustomSiteAdminProfile } from "@/lib/admin/custom-site-admin-profile"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { siteConfig } from "@/config/site"
 import {
@@ -63,10 +62,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Action principale : widget si bookingDistributionMode = "widget", sinon
   // comportement inchangé. Tout est résolu depuis le tenant serveur.
   let widgetAction: WidgetPrimaryAction | null = null
-  // L102 : site sur mesure sans bouton de partage ; « Voir mon site » ouvre son
-  // domaine, y compris en mode widget.
-  const { hideShareActions } = getCustomSiteAdminProfile(ctx.tenant.customSiteKey)
-  if (!hideShareActions && resolveDashboardPrimaryMode(bookingDistributionMode) === "widget") {
+  if (resolveDashboardPrimaryMode(bookingDistributionMode) === "widget") {
     widgetAction = buildWidgetPrimaryAction({
       slug: ctx.tenant.slug,
       active: isBookingLinkAccessible(ctx.tenant.status, await getPublicationFlags(ctx.tenant.id)),
@@ -84,12 +80,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       isSuperAdmin={ctx.isSuperAdmin}
       mainNav={mainNav}
       groups={groups}
-      hideShareActions={hideShareActions}
-      publicUrl={
-        hideShareActions
-          ? (publicLink?.url ?? null)
-          : resolveSiteLinkUrl(bookingDistributionMode, publicLink?.url ?? null)
-      }
+      publicUrl={resolveSiteLinkUrl(bookingDistributionMode, publicLink?.url ?? null)}
     >
       {children}
     </AdminShell>

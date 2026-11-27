@@ -11,8 +11,6 @@
  * côté page serveur (withTenant) pour préserver l'isolation multi-tenant.
  */
 
-import { getCustomSiteAdminProfile } from "@/lib/admin/custom-site-admin-profile"
-
 export type OnboardingStepKey =
   | "company"
   | "billing"
@@ -59,12 +57,8 @@ export type OnboardingSignals = {
  * Construit la liste des étapes d'onboarding à partir des signaux réels.
  * L'ordre est stable et pensé pour un accompagnement progressif.
  */
-export function computeOnboardingSteps(
-  signals: OnboardingSignals,
-  /** Clé de site sur mesure du tenant authentifié : son profil peut retirer des étapes. */
-  customSiteKey?: string | null,
-): OnboardingResult {
-  const allSteps: OnboardingStep[] = [
+export function computeOnboardingSteps(signals: OnboardingSignals): OnboardingResult {
+  const steps: OnboardingStep[] = [
     {
       key: "company",
       title: "Compléter mon entreprise",
@@ -108,8 +102,6 @@ export function computeOnboardingSteps(
       href: "/admin/reservations",
     },
   ]
-  const hidden = getCustomSiteAdminProfile(customSiteKey).hiddenOnboardingSteps
-  const steps = allSteps.filter((s) => !hidden.some((h) => h.step === s.key))
 
   const total = steps.length
   const doneCount = steps.filter((s) => s.done).length

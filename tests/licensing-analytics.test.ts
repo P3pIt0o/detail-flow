@@ -142,34 +142,45 @@ describe("2B lot 3 — structurel : chemins serveur gatés", () => {
     expect(src).not.toContain("notFound(")
   })
 
+  // L96 : l'écran Spirit vit dans son fichier ; l'accueil standard lit tout en une requête.
+  const SPIRIT = "app/admin/(dashboard)/spirit-dashboard-home.tsx"
+  const PAGE = "app/admin/(dashboard)/page.tsx"
+
   it("le dashboard gate business_stats et profitability_analysis séparément", () => {
-    const src = read("app/admin/(dashboard)/page.tsx")
+    const src = read(SPIRIT)
     expect(src).toContain('canUseFeature(companyId, "business_stats")')
     expect(src).toContain('canUseFeature(companyId, "profitability_analysis")')
     // Décisions distinctes (deux variables), pas de plan en dur.
     expect(src).toContain("canStats")
     expect(src).toContain("canProfit")
-    expect(src).not.toMatch(/plan\s*===\s*["']/)
+    const page = read(PAGE)
+    expect(page).toContain('canUseFeature(companyId, "business_stats")')
+    // L'accueil standard n'affiche plus aucune donnée de rentabilité.
+    expect(page + read("lib/admin/today-query.ts")).not.toMatch(/productPurchases|product_purchases|monthResultCents/)
+    for (const code of [src, page]) expect(code).not.toMatch(/plan\s*===\s*["']/)
   })
 
   it("le dashboard ne calcule pas les stats premium quand aucune feature ne les expose", () => {
-    const src = read("app/admin/(dashboard)/page.tsx")
+    const src = read(SPIRIT)
     // getDashboardStats et getVisitStats sont conditionnels.
     expect(src).toContain("needStats ? getDashboardStats(companyId) : Promise.resolve(null)")
     expect(src).toContain("canStats ? getVisitStats() : Promise.resolve(null)")
+    // Accueil standard : chiffres et visites absents de la requête sans le droit (test PGlite l96-requete).
+    expect(read("lib/admin/today-query.ts")).toContain("const figures = o.canStats")
+    // Statistiques : le graphique des visites suit le même droit.
+    expect(read("app/admin/(dashboard)/analyse/page.tsx")).toContain(
+      "businessStats ? getVisitStats(companyId) : Promise.resolve(null)",
+    )
   })
 
   it("les blocs OPÉRATIONNELS du dashboard restent non gatés (semaine, prochains RDV, alerte acompte)", () => {
-    const src = read("app/admin/(dashboard)/page.tsx")
-    // Ces lectures sont hors de toute condition de feature.
-    // Le limit dépend du tenant (Spirit sépare aujourd'hui/prochains) mais la
-    // lecture reste hors de toute condition de feature premium.
-    expect(src).toContain("getUpcomingBookingsDetailed(isSpirit ? 8 : 5)")
+    const src = read(SPIRIT)
+    expect(src).toContain("getUpcomingBookingsDetailed(8)")
     expect(src).toContain("getDashboardWeek()")
-    // Le compteur d'acompte est OPÉRATIONNEL et toujours chargé.
-    expect(src).toContain("getPendingDepositCount(companyId)")
-    // L'alerte s'appuie sur ce compteur, pas sur les stats premium.
-    expect(src).toContain("pendingDepositCount > 0")
+    // Accueil standard : journée, prochain rendez-vous et acomptes lus hors de toute condition de feature.
+    const query = read("lib/admin/today-query.ts")
+    for (const key of ["'todayBookings'", "'nextBooking'", "'pendingDeposit'"]) expect(query).toContain(key)
+    expect(read(PAGE)).toContain("loadTodayData(companyId,")
   })
 
   it("le compteur d'acompte opérationnel est isolé de getDashboardStats", () => {

@@ -1,7 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { redirect } from "next/navigation"
-import { isAdminRouteHidden } from "@/lib/admin/custom-site-admin-profile"
 import { CalendarCheck, Globe, Info } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { getPublicPageConfigRow } from "@/lib/public-page/config"
@@ -42,11 +40,6 @@ export default async function PagePubliquePage({
   const ctx = await requireCompanyMember()
   const { tenant } = ctx
   const { tenant: tenantParam } = await searchParams
-
-  // L102 : page masquée pour ce site sur mesure.
-  if (isAdminRouteHidden(tenant.customSiteKey, "/admin/page-publique")) {
-    redirect(withTenant("/admin/parametres", tenantParam ?? null))
-  }
 
   // Garde booking_only : le professionnel a déjà son site ; DetailFlow ne
   // fournit que le moteur de réservation. La route reste servie (aucune donnée

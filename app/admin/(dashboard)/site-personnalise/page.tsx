@@ -1,7 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { redirect } from "next/navigation"
-import { isAdminRouteHidden } from "@/lib/admin/custom-site-admin-profile"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { withTenant } from "@/lib/tenant-link"
@@ -22,11 +20,6 @@ export default async function CustomWebsitePage({
   const { tenant } = await searchParams
   const { user, tenant: company } = await requireCompanyMember()
   const backHref = withTenant("/admin", tenant ?? null)
-
-  // L102 : page masquée pour ce site sur mesure.
-  if (isAdminRouteHidden(company.customSiteKey, "/admin/site-personnalise")) {
-    redirect(withTenant("/admin/parametres", tenant ?? null))
-  }
 
   return (
     <div className="mx-auto max-w-2xl">

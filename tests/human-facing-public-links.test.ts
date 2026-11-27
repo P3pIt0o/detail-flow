@@ -56,8 +56,10 @@ describe("syl-net-auto : mêmes URLs partout, jamais /p/", () => {
 
   it("les pages Admin passent les helpers centraux (dashboard, Ma réservation)", () => {
     const dash = stripComments(read("app/admin/(dashboard)/page.tsx"))
-    expect(dash).toMatch(/reservationUrl=\{humanReservationUrl\(company\.slug, rootDomain\)\}/)
-    expect(dash).toMatch(/pageUrl=\{humanSiteUrl\(company\.slug, rootDomain\)\}/)
+    // L96 : le lien à partager de l'accueil vient des mêmes helpers.
+    expect(dash).toMatch(/reservationUrl = humanReservationUrl\(company\.slug, rootDomain\)/)
+    expect(dash).toMatch(/pageUrl = humanSiteUrl\(company\.slug, rootDomain\)/)
+    expect(dash).toMatch(/shareUrl: [^\n]*\? reservationUrl : pageUrl/)
     expect(stripComments(read("app/admin/(dashboard)/ma-reservation/page.tsx"))).toMatch(/humanReservationUrl\(tenant\.slug, rootDomain\)/)
   })
 })
@@ -86,6 +88,9 @@ describe("garde anti-régression : pas de /p/<slug> dans les liens HUMAN-FACING"
     "lib/admin/primary-action.ts",
     "lib/super-admin/public-presentation.ts",
     "app/admin/(dashboard)/page.tsx",
+    "app/admin/(dashboard)/spirit-dashboard-home.tsx",
+    "lib/admin/today.ts",
+    "components/admin/today/share-link.tsx",
     "app/admin/(dashboard)/layout.tsx",
     "app/admin/(dashboard)/ma-reservation/page.tsx",
     "components/admin/start-flow-card.tsx",
