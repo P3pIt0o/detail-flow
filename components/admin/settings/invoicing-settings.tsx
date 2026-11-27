@@ -116,7 +116,7 @@ export function InvoicingSettings(props: Props) {
   return (
     <div className="space-y-6">
       {/* Logo */}
-      <div className={cardClass}>
+      <div id="reglage-logo-factures" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo des factures</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Affiché en haut de vos factures PDF (PNG ou JPG, max 2 Mo). Il est indépendant du logo du
@@ -207,7 +207,7 @@ export function InvoicingSettings(props: Props) {
       </div>
 
       {/* TVA */}
-      <div className={cardClass}>
+      <div id="reglage-tva" className={cardClass}>
         <h2 className="mb-4 text-base font-semibold text-foreground">TVA</h2>
         <label className="flex items-center gap-3">
           <input

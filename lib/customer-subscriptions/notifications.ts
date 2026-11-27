@@ -161,12 +161,12 @@ async function resolveRecipient(db: Executor, row: OutboxRow) {
 
 export type DrainResult = { sent: number; failed: number; skipped: number }
 
-export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailSender, now: Date, opts: { limit?: number; emailsAllowed?: boolean } = {}): Promise<DrainResult> {
+export async function drainCustomerSubscriptionOutbox(db: Executor, send: EmailSender, now: Date, opts: { limit?: number; emailsAllowed?: boolean; companyId?: number } = {}): Promise<DrainResult> {
   const out: DrainResult = { sent: 0, failed: 0, skipped: 0 }
   const allowed = process.env.VERCEL_ENV === "preview"
     ? customerEmailsAllowed() && opts.emailsAllowed !== false
     : opts.emailsAllowed ?? customerEmailsAllowed()
-  const claimed = await claimDueEmails(db, now, opts.limit ?? 50)
+  const claimed = await claimDueEmails(db, now, opts.limit ?? 50, opts.companyId)
   for (const row of claimed) {
     try {
       const r = await resolveRecipient(db, row)

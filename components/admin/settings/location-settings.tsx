@@ -217,7 +217,11 @@ export function LocationSettings({
         </section>
       )}
 
-      {config.mobileEnabled && <TravelSettings {...travel} />}
+      {config.mobileEnabled && (
+        <div id="reglage-frais-deplacement">
+          <TravelSettings {...travel} />
+        </div>
+      )}
     </div>
   )
 }

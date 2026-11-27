@@ -38,7 +38,7 @@ export default async function PaiementRetourPage({
   const paid = info.paid
 
   return (
-    <section className="min-h-[70vh] bg-background py-16">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-lg px-4 text-center">
         <div
           className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${

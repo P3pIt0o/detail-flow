@@ -1,5 +1,6 @@
 import type { OnboardingIntentValue } from "@/lib/onboarding/intent"
 import { usesLegacyBookingWizard } from "@/lib/company/publication-shared"
+import { findCategoryByTab } from "@/lib/admin/settings-nav"
 
 /**
  * Construction du menu admin — SOURCE DE VÉRITÉ pure (sans I/O, sans JSX).
@@ -216,32 +217,101 @@ export function buildAdminNavGroups(opts: {
   return groups
 }
 
-/** Ordre de priorité des entrées de la barre mobile (routes réellement présentes). */
-const MOBILE_PRIMARY_ORDER = [
-  "/admin",
-  "/admin/calendrier",
-  "/admin/reservations",
-  "/admin/demandes",
-  "/admin/clients",
-] as const
+/* ------------------------------------------------------------------------- */
+/*  L77 — navigation « Aujourd'hui · Agenda · (+) · Clients · Plus ».         */
+/*  Les liens métier viennent toujours de `buildAdminNav` (mêmes règles).     */
+/* ------------------------------------------------------------------------- */
 
-/**
- * Entrées PRINCIPALES de la barre de navigation mobile (max 4), sélectionnées
- * parmi celles réellement disponibles pour ce tenant/parcours. Le 5ᵉ emplacement
- * de la barre est réservé au bouton « Plus » (géré par le shell).
- */
-export function buildMobilePrimaryNav(opts: {
+export type MainNavIcon = AdminNavIcon | "today" | "more" | "export" | "reviews"
+
+export type MainNavItem = { href: string; label: string; icon: MainNavIcon }
+
+export type PlusItem = MainNavItem & {
+  hint?: string
+  /** Téléchargement de fichier : lien classique, jamais de navigation client. */
+  download?: boolean
+}
+
+export type PlusGroup = { id: "activite" | "connaitre" | "reglages"; label: string; items: PlusItem[] }
+
+/** Entrées principales (barre mobile et haut du menu ordinateur), communes à tous. */
+export function buildMainNav(): MainNavItem[] {
+  return [
+    { href: "/admin", label: "Aujourd'hui", icon: "today" },
+    { href: "/admin/calendrier", label: "Agenda", icon: "calendar" },
+    { href: "/admin/clients", label: "Clients", icon: "clients" },
+    { href: "/admin/plus", label: "Plus", icon: "more" },
+  ]
+}
+
+/** Rubriques de la page « Plus » (reprises telles quelles par le menu ordinateur). */
+export function buildPlusGroups(opts: {
   intent: OnboardingIntentValue | null
   customSiteKey: string | null
   bookingDistributionMode?: string | null
-}): AdminNavItem[] {
-  const flat = buildAdminNav(opts).map(withDisplayLabel)
-  const byHref = new Map(flat.map((i) => [i.href, i] as const))
-  const primary: AdminNavItem[] = []
-  for (const href of MOBILE_PRIMARY_ORDER) {
+  /** Droit d'export lu côté serveur (OWNER/ADMIN/super-admin, comme la route `/admin/export`). Défaut : oui. */
+  canExport?: boolean
+}): PlusGroup[] {
+  const byHref = new Map(buildAdminNav(opts).map((i) => [i.href, i] as const))
+  const fromNav = (href: string, label?: string, hint?: string): PlusItem[] => {
     const item = byHref.get(href)
-    if (item) primary.push(item)
-    if (primary.length === 4) break
+    return item ? [{ ...item, label: label ?? item.label, hint }] : []
   }
-  return primary
+  const settingsTab = (tab: string, label: string, icon: MainNavIcon): PlusItem[] =>
+    findCategoryByTab(tab, opts.customSiteKey, opts.intent)
+      ? [{ href: `/admin/parametres?tab=${tab}`, label, icon }]
+      : []
+
+  const groups: PlusGroup[] = [
+    {
+      id: "activite",
+      label: "Mon activité",
+      items: [
+        ...fromNav("/admin/prestations", "Mes prestations", "Vos prestations et leurs prix"),
+        ...fromNav("/admin/produits"),
+        ...fromNav("/admin/factures", "Devis & factures"),
+        ...(opts.canExport === false
+          ? []
+          : [{ href: "/admin/export", label: "Export de vos données", icon: "export" as const, download: true }]),
+        ...fromNav("/admin/reservations", "Tous les rendez-vous"),
+        ...fromNav("/admin/analyse", "Statistiques"),
+        ...fromNav("/admin/demandes", "Demandes spéciales"),
+        ...fromNav("/admin/leads"),
+        ...fromNav("/admin/abonnements-clients"),
+      ],
+    },
+    {
+      id: "connaitre",
+      label: "Me faire connaître",
+      items: [
+        ...fromNav(webNavItem(opts.intent).href),
+        ...fromNav("/admin/offres"),
+        ...settingsTab("reviews", "Avis clients", "reviews"),
+        // Un tenant au site 100 % personnalisé l'a déjà : pas de proposition en double.
+        ...(opts.customSiteKey
+          ? []
+          : [{ href: "/admin/site-personnalise", label: "Site personnalisé", icon: "web" as const }]),
+      ],
+    },
+    {
+      id: "reglages",
+      label: "Réglages",
+      items: [
+        ...settingsTab("payments", "Paiements en ligne", "billing"),
+        ...fromNav("/admin/parametres", "Tous les réglages"),
+        ...fromNav("/admin/abonnement"),
+      ],
+    },
+  ]
+  return groups.filter((g) => g.items.length > 0)
+}
+
+/** Même règle que la route `/admin/export` (qui garde son 403). */
+export function canExportData(ctx: { role: string | null | undefined; isSuperAdmin?: boolean }): boolean {
+  return ctx.role === "OWNER" || ctx.role === "ADMIN" || Boolean(ctx.isSuperAdmin)
+}
+
+/** « Itinéraire » : seulement pour un detailer qui se déplace (réglage « Lieu »). */
+export function showDirections(config: { mobileEnabled: boolean }): boolean {
+  return config.mobileEnabled
 }

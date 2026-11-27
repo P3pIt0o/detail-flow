@@ -14,14 +14,24 @@ import {
   Inbox,
   Info,
   Activity,
+  ChevronRight,
 } from "lucide-react"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
+import { getLocationConfig } from "@/lib/booking/location"
+import { showDirections } from "@/lib/admin/nav"
 import {
   getDashboardStats,
   getUpcomingBookingsDetailed,
   getDashboardWeek,
   getPendingDepositCount,
   getBookingCount,
+  getTodayBookings,
+  getRecentVisits,
+  getLaterBookings,
+  todayTotalCents,
+  todayInTimezone,
+  visitDateLabel,
+  noLaterBookingsText,
   type UpcomingBookingDetailed,
 } from "@/lib/admin/queries"
 import { listCustomRequests } from "@/lib/custom-requests-queries"
@@ -136,15 +146,20 @@ export default async function DashboardPage({
   // le bénéfice (profitability_analysis). Les visites (business_stats) et les
   // KPI ne sont pas calculés inutilement quand aucune feature ne les autorise.
   const needStats = canStats || canProfit
-  const [stats, upcoming, week, requests, visitStats, pendingDepositCount] = await Promise.all([
+  const [stats, upcoming, week, requests, visitStats, pendingDepositCount, todayList, recentVisits, laterList, locationConfig] = await Promise.all([
     needStats ? getDashboardStats(companyId) : Promise.resolve(null),
-    // Spirit sépare « aujourd'hui » et « prochains » : on charge un peu plus large.
     getUpcomingBookingsDetailed(isSpirit ? 8 : 5),
     getDashboardWeek(),
     listCustomRequests(),
     canStats ? getVisitStats() : Promise.resolve(null),
     // Compteur OPÉRATIONNEL (alerte), toujours chargé — indépendant du premium.
     getPendingDepositCount(companyId),
+    // L77 — accueil standard : rendez-vous du jour + dernières visites (opérationnel, non gaté).
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getTodayBookings(companyId, company.timezone),
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getRecentVisits(companyId),
+    // « Prochains » = jours suivants seulement, lus à part pour rester remplis un jour chargé.
+    isSpirit ? Promise.resolve([] as UpcomingBookingDetailed[]) : getLaterBookings(companyId, company.timezone),
+    getLocationConfig(companyId),
   ])
 
   // Demandes "à traiter" = reçues (new) ou proposition envoyée en attente de réponse.
@@ -321,11 +336,15 @@ export default async function DashboardPage({
       </div>
     )
 
+  // « Itinéraire » : inutile pour un detailer qui travaille uniquement en atelier.
+  // Le lien n'apparaît en plus que si le rendez-vous a une adresse exploitable.
+  const directions = showDirections(locationConfig)
+
   // Ligne « prochain rendez-vous » réutilisée par les deux dispositions et, pour
   // Spirit, par « Aujourd'hui » comme par « Prochains rendez-vous ». Une seule
   // source de vérité pour le rendu d'un rendez-vous.
   const renderUpcoming = (b: UpcomingBookingDetailed) => {
-    const mapsUrl = buildMapsDirectionsUrl(b.address)
+    const mapsUrl = directions ? buildMapsDirectionsUrl(b.address) : null
     return (
       <li key={b.id} className="flex items-start justify-between gap-3 py-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -510,6 +529,12 @@ export default async function DashboardPage({
     )
   }
 
+  // L77 — « Aujourd'hui » dans le fuseau de l'entreprise ; « Prochains » = jours suivants.
+  const laterUpcoming = laterList
+  const noLater = noLaterBookingsText(todayList.length, recentVisits.length)
+  const todayTotal = todayTotalCents(todayList)
+  const todayYmd = todayInTimezone(company.timezone)
+
   /* ------------------------------------------------------------------ */
   /*  Disposition STANDARD — inchangée pour tous les autres tenants.    */
   /* ------------------------------------------------------------------ */
@@ -550,7 +575,28 @@ export default async function DashboardPage({
         </section>
       )}
 
-      {/* 2. AUJOURD'HUI / PROCHAINS RENDEZ-VOUS — NIVEAU 2, cœur opérationnel. */}
+      {/* 2. AUJOURD'HUI — NIVEAU 2, cœur opérationnel : tous les rendez-vous du
+          jour (fuseau de l'entreprise), leur nombre et le total prévu. */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Aujourd&apos;hui</h2>
+            <p className="text-xs text-muted-foreground">
+              {todayList.length} rendez-vous{todayList.length > 0 ? ` · ${formatPrice(todayTotal)} prévus` : ""}
+            </p>
+          </div>
+          <Link href={href("/admin/calendrier")} className="text-xs font-medium text-primary hover:underline">
+            Agenda
+          </Link>
+        </div>
+        {todayList.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Aucun rendez-vous aujourd&apos;hui.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border">{todayList.map(renderUpcoming)}</ul>
+        )}
+      </section>
+
+      {/* Prochains rendez-vous : uniquement les jours suivants. */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Prochains rendez-vous</h2>
@@ -559,17 +605,42 @@ export default async function DashboardPage({
           </Link>
         </div>
 
-        {upcoming.length === 0 ? (
+        {laterUpcoming.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-sm font-medium text-foreground">Aucun rendez-vous à venir.</p>
-            <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">
-              Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.
-            </p>
+            <p className="text-sm font-medium text-foreground">{noLater.title}</p>
+            {noLater.hint && (
+              <p className="mx-auto mt-1 max-w-xs text-xs text-muted-foreground text-pretty">{noLater.hint}</p>
+            )}
           </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">{upcoming.map(renderUpcoming)}</ul>
+          <ul className="flex flex-col divide-y divide-border">{laterUpcoming.map(renderUpcoming)}</ul>
         )}
       </section>
+
+      {/* Dernières visites : 5 derniers rendez-vous terminés (clic → fiche). */}
+      {recentVisits.length > 0 && (
+        <section className="mt-6 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Dernières visites</h2>
+          <ul className="flex flex-col divide-y divide-border">
+            {recentVisits.map((v) => (
+              <li key={v.id}>
+                <Link
+                  href={href(`/admin/reservations/${v.id}`)}
+                  className="flex min-h-11 items-center justify-between gap-3 py-2.5 transition-colors hover:text-primary"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {[v.vehicles.join(", "), v.customerName].filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                    {visitDateLabel(v.date, todayYmd)}
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Aperçu de la semaine (planning). */}
       <div className="mt-6">

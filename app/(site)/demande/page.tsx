@@ -33,7 +33,7 @@ export default async function DemandePage({
 
   // L59 : coquille et thème néon si le site publié du tenant est Cleanyzer ; sinon rendu inchangé.
   return clzNeonPage(
-    <section className="min-h-[70vh] bg-background py-16">
+    <section className="min-h-[70vh] bg-background pb-16 pt-24 md:pt-28">
       <div className="mx-auto max-w-2xl px-4">
         <div className="text-center">
           <h1 className="text-balance font-serif text-3xl font-bold text-foreground sm:text-4xl">{texts.title}</h1>

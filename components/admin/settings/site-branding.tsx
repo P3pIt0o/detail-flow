@@ -278,7 +278,7 @@ export function SiteBranding({
       {/* Logo du site public — masqué pour les sites à shell personnalisé (Spirit),
           qui utilisent leur propre logo intégré et n'exploitent pas ce réglage. */}
       {!simplified && (
-      <div className={cardClass}>
+      <div id="reglage-logo-site" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo du site public</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Affiché dans l&apos;en-tête et le pied de page de votre site (PNG, JPG ou SVG, max 2 Mo). Sans logo, le nom de
@@ -325,7 +325,7 @@ export function SiteBranding({
       )}
 
       {/* CGV */}
-      <div className={cardClass}>
+      <div id="reglage-cgv" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Conditions Générales de Vente</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Ce texte est publié sur la page <code className="text-foreground">/cgv</code> de votre site. Laissez vide si
@@ -345,7 +345,7 @@ export function SiteBranding({
       </div>
 
       {/* Réseaux sociaux (point 16) */}
-      <div className={cardClass}>
+      <div id="reglage-reseaux" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Réseaux sociaux</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
           Ajoutez les liens vers vos réseaux : ils s&apos;afficheront dans le pied de page de votre
