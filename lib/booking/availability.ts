@@ -36,16 +36,38 @@ export type AvailabilityResult = {
   slots: string[]
 }
 
+type AvailabilityBase = [
+  Awaited<ReturnType<typeof getSettings>>,
+  Awaited<ReturnType<typeof getBusinessHours>>,
+  Awaited<ReturnType<typeof getTimeOff>>,
+]
+
+/**
+ * L84 — contexte d'UNE recherche (un seul professionnel, une seule requête) : réglages,
+ * horaires et congés lus une seule fois, à la première date réellement calculée.
+ * Ne jamais le conserver ni le partager entre recherches ou entre professionnels.
+ */
+export type AvailabilityContext = { load: () => Promise<AvailabilityBase> }
+
+export function createAvailabilityContext(): AvailabilityContext {
+  let base: Promise<AvailabilityBase> | null = null
+  return {
+    load: () => (base ??= Promise.all([getSettings(), getBusinessHours(), getTimeOff()])),
+  }
+}
+
 /**
  * Calcule les créneaux disponibles pour une date.
  * @param dateStr  Date au format "YYYY-MM-DD".
  * @param durationMin Durée totale de la prestation (véhicules + options).
  * @param vehicleCount Nombre de véhicules demandés (capacité journalière).
+ * @param context Facultatif (L84) : réglages/horaires/congés partagés au sein d'une seule recherche.
  */
 export async function getAvailability(
   dateStr: string,
   durationMin: number,
   vehicleCount = 1,
+  context?: AvailabilityContext,
 ): Promise<AvailabilityResult> {
   const empty = (reason: AvailabilityResult["reason"]): AvailabilityResult => ({
     date: dateStr,
@@ -56,10 +78,8 @@ export async function getAvailability(
 
   if (!durationMin || durationMin <= 0) return empty("no_duration")
 
-  const [settings, hours, timeOffRanges, existing, alreadyBooked] = await Promise.all([
-    getSettings(),
-    getBusinessHours(),
-    getTimeOff(),
+  const [[settings, hours, timeOffRanges], existing, alreadyBooked] = await Promise.all([
+    context ? context.load() : Promise.all([getSettings(), getBusinessHours(), getTimeOff()]),
     getActiveBookingsForDate(dateStr),
     countVehiclesForDate(dateStr),
   ])

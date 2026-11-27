@@ -60,6 +60,35 @@ export async function isBookingRateLimited(
  */
 export const PROMO_RATE_LIMIT_ID = "booking-promo"
 
+/**
+ * L84 — limite de la RECHERCHE PUBLIQUE de première date (findFirstAvailableDateAction).
+ * Règle Vercel Firewall dédiée, à créer à la main : `SEARCH_RATE_LIMIT_ID` (seuil choisi
+ * à la création, aucun seuil dans le code). Clé = pro résolu côté serveur + IP. Le quota de
+ * `booking-create` n'est pas consommé. Limite indisponible : on laisse passer, y compris en
+ * production (comme `booking-promo`).
+ */
+export const SEARCH_RATE_LIMIT_ID = "booking-search"
+
+type KeyedFirewallCheck = (
+  id: string,
+  opts: { headers: Headers; rateLimitKey?: string },
+) => Promise<{ rateLimited: boolean; error?: string }>
+
+export async function isSearchRateLimited(
+  headers: Headers,
+  tenantId: number | string,
+  deps: { check?: KeyedFirewallCheck } = {},
+): Promise<boolean> {
+  const check = deps.check ?? (checkRateLimit as unknown as KeyedFirewallCheck)
+  const ip = headers.get("x-real-ip")?.trim() || "inconnue"
+  try {
+    const { rateLimited, error } = await check(SEARCH_RATE_LIMIT_ID, { headers, rateLimitKey: `${tenantId}|${ip}` })
+    return rateLimited === true || error === "blocked"
+  } catch {
+    return false
+  }
+}
+
 export async function isPromoRateLimited(headers: Headers, deps: { check?: FirewallCheck } = {}): Promise<boolean> {
   const check = deps.check ?? (checkRateLimit as unknown as FirewallCheck)
   try {

@@ -11,6 +11,9 @@ export const SEARCH_MAX_DAYS = 180
 /** Taille d'un paquet de jours examinés (une fenêtre de l'écran). */
 export const SEARCH_PACK_DAYS = 14
 
+/** L84 — message affiché quand la recherche est refusée par la limite `booking-search`. */
+export const SEARCH_RATE_LIMITED_MESSAGE = "Trop de demandes, réessayez dans un instant."
+
 /** Jours examinés en parallèle au maximum. */
 export const SEARCH_CONCURRENCY = 4
 
