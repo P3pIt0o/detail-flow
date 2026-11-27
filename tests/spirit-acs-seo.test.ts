@@ -714,14 +714,32 @@ describe("L85 — prix « dès » (affichage et JSON-LD Service)", async () => {
 
   it("textile : le prix de 15 € est affiché « par chaise »", async () => {
     const label = plain(o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-textile")!))
-    expect(label).toBe("dès 15,00 € par chaise · À partir de 5 chaises")
-    expect(await render()).toContain("dès 15,00 € par chaise · À partir de 5 chaises")
+    expect(label).toBe("dès 15 € par chaise · À partir de 5 chaises")
+    expect(await render()).toContain("dès 15 € par chaise · À partir de 5 chaises")
   })
 
   it("entretien : 75 € est affiché par mois, nettoyage ponctuel sur devis", async () => {
-    const expected = "dès 75,00 € par mois · Entretien régulier — Citadine, mensuel ; nettoyage ponctuel sur devis"
+    const expected = "dès 75 € par mois · Entretien régulier — Citadine, mensuel ; nettoyage ponctuel sur devis"
     expect(plain(o.spiritStartingPriceLabel(c.getSpiritService("nettoyage-automobile")!))).toBe(expected)
     expect(await render()).toContain(expected)
+  })
+
+  it("liste des prix : les montants ronds n'ont pas de décimales, les autres les gardent", () => {
+    const label = (priceCents: number) =>
+      plain(o.spiritStartingPriceLabel({ formules: [{ label: "F", priceCents, priceKind: "from" }] }))
+    expect(label(29900)).toBe("dès 299 € · F")
+    expect(label(1550)).toBe("dès 15,50 € · F")
+    expect(label(100000)).toBe("dès 1 000 € · F")
+  })
+
+  it("JSON-LD : un prix avec unité la publie (unitText), les autres n'en ont pas", () => {
+    const unitTexts = (slug: string) =>
+      (o.spiritServiceOffers(c.getSpiritService(slug)!) as Array<{ priceSpecification: { unitText?: string } }>).map(
+        (x) => x.priceSpecification.unitText,
+      )
+    expect(unitTexts("nettoyage-textile")).toContain("par chaise")
+    expect(unitTexts("nettoyage-automobile")).toContain("par mois")
+    expect(unitTexts("protection-ppf")).toEqual([undefined])
   })
 
   it("la liste des prix précise le coût du déplacement textile", async () => {

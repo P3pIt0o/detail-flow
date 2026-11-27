@@ -49,13 +49,15 @@ export function spiritStartingPriceParts(
 ): { amount: string; detail: string } | null {
   const start = spiritStartingPrice(service)
   if (!start) return null
+  // Aperçu validé : « dès 75 € » dans cette liste, sans « ,00 » sur les montants ronds.
+  const price = formatPrice(start.priceCents).replace(/,00(?=\D*$)/, "")
   return {
-    amount: `dès ${formatPrice(start.priceCents)}${start.unit ? ` ${start.unit}` : ""}`,
+    amount: `dès ${price}${start.unit ? ` ${start.unit}` : ""}`,
     detail: `${start.label}${start.condition ?? ""}`,
   }
 }
 
-/** Libellé complet : « dès 15,00 € par chaise · À partir de 5 chaises », ou « Sur devis ». */
+/** Libellé complet : « dès 15 € par chaise · À partir de 5 chaises », ou « Sur devis ». */
 export function spiritStartingPriceLabel(service: Pick<ServiceContent, "formules">): string {
   const parts = spiritStartingPriceParts(service)
   return parts ? `${parts.amount} · ${parts.detail}` : "Sur devis"
@@ -72,6 +74,7 @@ export function spiritServiceOffers(service: Pick<ServiceContent, "formules">): 
       "@type": "PriceSpecification",
       minPrice: f.priceCents / 100,
       priceCurrency: "EUR",
+      ...(f.priceUnit ? { unitText: f.priceUnit } : {}),
     },
   }))
 }
