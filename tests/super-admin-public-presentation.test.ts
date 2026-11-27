@@ -108,10 +108,10 @@ describe("Super Admin — présentation publique contextuelle", () => {
 })
 
 describe("Espace admin — réglages adaptés au produit", () => {
-  it("booking_only → « Site public » réduite aux Demandes spéciales (réglages de vitrine masqués)", () => {
+  it("booking_only → « Site public » réduite aux Demandes spéciales et à la carte digitale (vitrine masquée)", () => {
     const cats = getVisibleSettingsCategories(null, "booking_only")
-    // L44 : la catégorie site ne garde que le sous-onglet custom-requests.
-    expect(cats.find((c) => c.id === "site")?.subTabs.map((t) => t.value)).toEqual(["custom-requests"])
+    // L44 + L45 : la catégorie site ne garde que les outils à partager.
+    expect(cats.find((c) => c.id === "site")?.subTabs.map((t) => t.value)).toEqual(["custom-requests", "digital-card"])
     // Les modules métier communs restent présents (aucune capacité retirée).
     expect(cats.some((c) => c.id === "reservations")).toBe(true)
     expect(cats.some((c) => c.id === "billing")).toBe(true)

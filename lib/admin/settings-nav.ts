@@ -64,6 +64,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { value: "gallery", label: "Galerie" },
       { value: "reviews", label: "Avis" },
       { value: "custom-requests", label: "Demandes spéciales" },
+      { value: "digital-card", label: "Carte digitale" },
     ],
   },
   {
@@ -139,6 +140,12 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
 }
 
 /**
+ * Seuls onglets de « Site public » conservés en `booking_only` : outils utiles même sans
+ * vitrine DetailFlow (page /demande, carte digitale à partager).
+ */
+const BOOKING_ONLY_SITE_TABS = new Set(["custom-requests", "digital-card"])
+
+/**
  * Catégories visibles pour un tenant.
  *
  * - Standard (`customSiteKey` nul/autre, intention nulle) : liste complète
@@ -146,8 +153,8 @@ const SPIRIT_ACS_TAB_LABELS: Record<string, string> = {
  * - Spirit ACS : sous-onglets masqués retirés, et toute catégorie devenue vide
  *   (ex. « Réservations ») disparaît de la grille.
  * - `booking_only` : le professionnel a déjà son site ; DetailFlow ne fournit
- *   que le moteur de réservation. La catégorie « Site public » est réduite au
- *   seul sous-onglet « Demandes spéciales » (lien /demande à poser sur son site) ;
+ *   que le moteur de réservation. La catégorie « Site public » est réduite aux
+ *   sous-onglets de BOOKING_ONLY_SITE_TABS ;
  *   contenu, apparence, galerie et avis (réglages de VITRINE) restent masqués.
  *   Aucune donnée n'est supprimée, aucune route n'est retirée.
  *
@@ -168,9 +175,9 @@ export function getVisibleSettingsCategories(
   }
 
   if (onboardingIntent === "booking_only") {
-    // Widget : seule la page /demande est utile (lien à poser sur son propre site).
+    // Widget : seuls les outils à partager sont utiles (page /demande, carte digitale).
     return SETTINGS_CATEGORIES.map((c) =>
-      c.id === "site" ? { ...c, subTabs: c.subTabs.filter((t) => t.value === "custom-requests") } : c,
+      c.id === "site" ? { ...c, subTabs: c.subTabs.filter((t) => BOOKING_ONLY_SITE_TABS.has(t.value)) } : c,
     )
   }
 
