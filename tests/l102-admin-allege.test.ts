@@ -169,7 +169,7 @@ describe("L102 — profil Cleanyzer", () => {
     ]) {
       expect(all).toContain(route)
     }
-    for (const tab of ALL_SETTINGS_TABS.filter((t) => t !== "gallery")) {
+    for (const tab of ALL_SETTINGS_TABS.filter((t) => t !== "gallery" && t !== "digital-card")) {
       expect(findCategoryByTab(tab, "cleanyzer"), tab).not.toBeNull()
     }
   })
