@@ -348,3 +348,146 @@ describe("L115 — e-mail client et webhook en avance", () => {
     expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 700 })
   })
 })
+
+/* Boucle de correction 1 (revue sécurité @8c5b247) */
+
+const insertRefundRow = async (s: Seed, opts: { key: string; amountCents: number; status: string; ageMinutes: number; error?: string }) => {
+  await pg.query(
+    `INSERT INTO refunds ("companyId","paymentId","bookingId",provider,"amountCents",reason,status,"idempotencyKey",meta,"createdAt","updatedAt")
+     VALUES ($1,$2,$3,'stripe',$4,'Annulation client',$5,$6,$7::jsonb, now() - ($8 || ' minutes')::interval, now() - ($8 || ' minutes')::interval)`,
+    [s.companyId, s.paymentId, s.bookingId, opts.amountCents, opts.status, opts.key, JSON.stringify(opts.error ? { error: opts.error } : {}), String(opts.ageMinutes)],
+  )
+}
+
+const fullRows = async (paymentId: number) =>
+  (await pg.query<{ status: string; amountCents: number; reason: string; externalRefundId: string | null; idempotencyKey: string | null }>(
+    `SELECT status, "amountCents", reason, "externalRefundId", "idempotencyKey" FROM refunds WHERE "paymentId" = $1 ORDER BY id`,
+    [paymentId],
+  )).rows
+
+describe("L115 — sécu 1 : remboursement Dashboard Stripe de même montant pendant la demande", () => {
+  it("le remboursement externe adopté par erreur reçoit sa propre ligne ; aucun montant perdu", async () => {
+    const s = await seed(3000)
+    const k = key()
+    stripe.impl = async (call) => {
+      // Pendant l'appel DetailFlow, un remboursement externe de 1000 arrive par webhook.
+      await applyStripeRefundEvent({
+        externalRefundId: "re_dash_inflight",
+        paymentIntentId: s.pi,
+        providerStatus: "succeeded",
+        amountCents: call.amountCents ?? null,
+        connectedAccountId: s.account,
+      })
+      return { externalRefundId: "re_ours_1", providerStatus: "succeeded" }
+    }
+    expect(await ask(s, 1000, k)).toMatchObject({ ok: true, status: "succeeded" })
+    const rows = await fullRows(s.paymentId)
+    expect(rows).toHaveLength(2)
+    expect(rows.find((r) => r.externalRefundId === "re_ours_1")).toMatchObject({ idempotencyKey: k, reason: "Annulation client", status: "succeeded" })
+    expect(rows.find((r) => r.externalRefundId === "re_dash_inflight")).toMatchObject({ idempotencyKey: null, status: "succeeded", amountCents: 1000 })
+    expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 2000 })
+    // Le reste remboursable tient compte des DEUX remboursements réels.
+    expect((await getBookingRefundInfo(s.bookingId, s.companyId)).payments[0].refundableCents).toBe(1000)
+    expect(await ask(s, 1001)).toEqual({ ok: false, error: "exceeds_refundable" })
+  })
+
+  it("webhook externe puis webhook du nôtre avant la réponse Stripe : deux lignes, identifiants justes", async () => {
+    const s = await seed(3000)
+    const k = key()
+    stripe.impl = async (call) => {
+      for (const id of ["re_dash_2", "re_ours_2"]) {
+        await applyStripeRefundEvent({
+          externalRefundId: id,
+          paymentIntentId: s.pi,
+          providerStatus: "succeeded",
+          amountCents: call.amountCents ?? null,
+          connectedAccountId: s.account,
+        })
+      }
+      return { externalRefundId: "re_ours_2", providerStatus: "succeeded" }
+    }
+    expect(await ask(s, 1000, k)).toMatchObject({ ok: true, status: "succeeded" })
+    const rows = await fullRows(s.paymentId)
+    expect(rows).toHaveLength(2)
+    expect(rows.find((r) => r.externalRefundId === "re_ours_2")).toMatchObject({ idempotencyKey: k, reason: "Annulation client" })
+    expect(rows.find((r) => r.externalRefundId === "re_dash_2")).toMatchObject({ idempotencyKey: null })
+    expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 2000 })
+  })
+})
+
+describe("L115 — sécu 2 : demande restée « requested » sans réponse Stripe", () => {
+  it("même clé, ligne récente : doublon, aucun appel Stripe", async () => {
+    const s = await seed(3000)
+    const k = key()
+    await insertRefundRow(s, { key: k, amountCents: 1000, status: "requested", ageMinutes: 1 })
+    expect(await ask(s, 1000, k)).toMatchObject({ ok: true, duplicate: true })
+    expect(stripe.calls).toHaveLength(0)
+  })
+
+  it("même clé, ligne orpheline de plus de 10 min : l'appel Stripe est rejoué avec la même clé", async () => {
+    const s = await seed(3000)
+    const k = key()
+    await insertRefundRow(s, { key: k, amountCents: 3000, status: "requested", ageMinutes: 15 })
+    expect(await ask(s, 3000, k)).toMatchObject({ ok: true, status: "succeeded" })
+    expect(stripe.calls.map((c) => [c.idempotencyKey, c.amountCents])).toEqual([[k, 3000]])
+    expect(await fullRows(s.paymentId)).toHaveLength(1)
+    expect(await payment(s.paymentId)).toEqual({ status: "refunded", refundedAmountCents: 3000 })
+  })
+
+  it("ligne orpheline de plus de 24 h (autre clé) : ne réserve plus le montant", async () => {
+    const s = await seed(3000)
+    await insertRefundRow(s, { key: key(), amountCents: 3000, status: "requested", ageMinutes: 25 * 60 })
+    expect(await ask(s, 3000)).toMatchObject({ ok: true, status: "succeeded" })
+    const rows = await fullRows(s.paymentId)
+    expect(rows.map((r) => r.status)).toEqual(["failed", "succeeded"])
+  })
+})
+
+describe("L115 — sécu 3 : rejeu de la même clé limité dans le temps et à la même réservation", () => {
+  it("erreur temporaire vieille de plus de 23 h : rejeu refusé, aucun appel Stripe", async () => {
+    const s = await seed(3000)
+    const k = key()
+    await insertRefundRow(s, { key: k, amountCents: 1000, status: "failed", ageMinutes: 23 * 60 + 5, error: "temporary" })
+    expect(await ask(s, 1000, k)).toEqual({ ok: false, error: "retry_expired" })
+    expect(stripe.calls).toHaveLength(0)
+  })
+
+  it("orpheline « requested » vieille de plus de 23 h avec la même clé : rejeu refusé", async () => {
+    const s = await seed(3000)
+    const k = key()
+    await insertRefundRow(s, { key: k, amountCents: 1000, status: "requested", ageMinutes: 23 * 60 + 5 })
+    expect(await ask(s, 1000, k)).toEqual({ ok: false, error: "retry_expired" })
+    expect(stripe.calls).toHaveLength(0)
+  })
+
+  it("même clé réutilisée sur une autre réservation : refusé, aucun appel Stripe", async () => {
+    const s = await seed(3000)
+    const k = key()
+    await insertRefundRow(s, { key: k, amountCents: 1000, status: "failed", ageMinutes: 1, error: "temporary" })
+    const b2 = await pg.query<{ id: number }>(`INSERT INTO bookings ("companyId") VALUES ($1) RETURNING id`, [s.companyId])
+    const r = await requestRefund({
+      bookingId: b2.rows[0].id,
+      paymentId: s.paymentId,
+      companyId: s.companyId,
+      amountCents: 1000,
+      reason: "x",
+      initiatedByUserId: "u-owner",
+      idempotencyKey: k,
+    })
+    expect(r).toEqual({ ok: false, error: "retry_amount_mismatch" })
+    expect(stripe.calls).toHaveLength(0)
+  })
+})
+
+describe("L115 — commission DetailFlow (revue métier)", () => {
+  it("commission > 0 : restitution demandée ; commission 0 : non demandée", async () => {
+    const withFee = await seed(3000)
+    await pg.query(`UPDATE payments SET "platformFeeAmountCents" = 90 WHERE id = $1`, [withFee.paymentId])
+    await ask(withFee, 1000)
+    const noFee = await seed(3000)
+    await ask(noFee, 1000)
+    const calls = stripe.calls as { refundApplicationFee?: boolean }[]
+    expect(calls[0].refundApplicationFee).toBe(true)
+    expect(calls[1].refundApplicationFee).toBe(false)
+  })
+})

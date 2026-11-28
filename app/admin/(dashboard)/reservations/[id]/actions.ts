@@ -371,7 +371,9 @@ const REFUND_ERROR_FR: Record<string, string> = {
   // de solde par défaut).
   insufficient_funds:
     "Remboursement impossible pour l'instant : le solde de votre compte de paiement est insuffisant. Réessayez après votre prochain encaissement.",
-  retry_amount_mismatch: "Le montant a changé depuis la tentative précédente. Fermez la fenêtre puis recommencez.",
+  retry_amount_mismatch: "Le montant a changé, veuillez valider à nouveau.",
+  retry_expired:
+    "La tentative précédente date de plus de 23 heures. Vérifiez l'historique des remboursements, puis validez à nouveau si besoin.",
   already_refunded_stripe: "Ce paiement a déjà été remboursé côté Stripe.",
   amount_too_large: "Le montant dépasse ce qui peut être remboursé pour ce paiement.",
   no_application_fee: "Aucune commission à rembourser sur ce paiement.",
