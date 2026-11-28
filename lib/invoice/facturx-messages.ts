@@ -95,7 +95,7 @@ export function describeFacturXErrors(errors: readonly FacturXError[]): FacturXN
   }
 
   // Ordre stable : paramètres du pro, puis brouillon, puis support.
-  const rank: Record<FacturXFixPlace, number> = { settings: 0, draft: 1, support: 2 }
+  const rank: Record<FacturXFixPlace, number> = { billing_profile: 0, draft: 1, support: 2 }
   items.sort((a, b) => rank[a.where] - rank[b.where])
   return { kind: "missing", items }
 }
