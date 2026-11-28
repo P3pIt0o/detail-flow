@@ -1,9 +1,11 @@
 /**
  * Génération du PDF de facture avec @react-pdf/renderer.
  * Runtime Node uniquement (voir la route qui l'appelle).
- * Police intégrée Helvetica pour éviter tout téléchargement de font.
+ * Police Helvetica (standard) par défaut ; Lato incorporée pour Factur-X.
  */
+import { resolve } from "node:path"
 import {
+  Font,
   Document,
   Page,
   Text,
@@ -28,19 +30,46 @@ const INK = "#0f172a"
 const MUTED = "#64748b"
 const LINE = "#e2e8f0"
 
-const s = StyleSheet.create({
-  page: { padding: 40, fontSize: 10, color: INK, fontFamily: "Helvetica", lineHeight: 1.5 },
+/**
+ * Polices : Helvetica (standard PDF, non incorporée) pour le PDF classique ;
+ * Lato incorporée pour le PDF Factur-X (PDF/A-3 exige des polices embarquées).
+ * Même mise en page dans les deux cas.
+ */
+type FontSet = { regular: Record<string, string | number>; bold: Record<string, string | number> }
+const HELVETICA: FontSet = { regular: { fontFamily: "Helvetica" }, bold: { fontFamily: "Helvetica-Bold" } }
+const FACTURX_FONT_FAMILY = "FacturXLato"
+const LATO: FontSet = {
+  regular: { fontFamily: FACTURX_FONT_FAMILY, fontWeight: 400 },
+  bold: { fontFamily: FACTURX_FONT_FAMILY, fontWeight: 700 },
+}
+
+let latoRegistered = false
+function registerFacturXFonts() {
+  if (latoRegistered) return
+  const assets = resolve(process.cwd(), "public/facturx-assets")
+  Font.register({
+    family: FACTURX_FONT_FAMILY,
+    fonts: [
+      { src: resolve(assets, "Lato-Regular.ttf"), fontWeight: 400 },
+      { src: resolve(assets, "Lato-Bold.ttf"), fontWeight: 700 },
+    ],
+  })
+  latoRegistered = true
+}
+
+const createStyles = (f: FontSet) => StyleSheet.create({
+  page: { padding: 40, fontSize: 10, color: INK, ...f.regular, lineHeight: 1.5 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 },
   logo: { width: 120, maxHeight: 56, objectFit: "contain" },
-  issuerName: { fontSize: 16, fontFamily: "Helvetica-Bold", color: INK },
+  issuerName: { fontSize: 16, ...f.bold, color: INK },
   muted: { color: MUTED },
   right: { textAlign: "right" },
-  invoiceTitle: { fontSize: 22, fontFamily: "Helvetica-Bold", color: BRAND },
+  invoiceTitle: { fontSize: 22, ...f.bold, color: BRAND },
   block: { marginBottom: 18 },
   twoCol: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
   col: { width: "48%" },
   sectionLabel: { fontSize: 8, textTransform: "uppercase", color: MUTED, marginBottom: 4, letterSpacing: 0.5 },
-  strong: { fontFamily: "Helvetica-Bold" },
+  strong: { ...f.bold },
   table: { marginTop: 8 },
   th: {
     flexDirection: "row",
@@ -64,7 +93,7 @@ const s = StyleSheet.create({
     marginTop: 4,
     paddingTop: 5,
   },
-  grandText: { fontSize: 12, fontFamily: "Helvetica-Bold" },
+  grandText: { fontSize: 12, ...f.bold },
   balanceBox: {
     marginTop: 6,
     backgroundColor: "#eff6ff",
@@ -89,15 +118,21 @@ const s = StyleSheet.create({
   payInfo: { marginTop: 18, fontSize: 9 },
 })
 
+const STYLES_CLASSIC = createStyles(HELVETICA)
+let stylesFacturX: ReturnType<typeof createStyles> | null = null
+
 export type InvoicePdfData = {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
   logoDataUrl?: string | null
   // Référence de la facture d'origine (avoirs uniquement).
   originalRef?: { number: string | null; issueDate: string | null } | null
+  // Police incorporée (Lato) : réservé au PDF Factur-X. Défaut : Helvetica.
+  embeddedFonts?: boolean
 }
 
-function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePdfData) {
+function InvoiceDocument({ invoice, items, logoDataUrl, originalRef, embeddedFonts }: InvoicePdfData) {
+  const s = embeddedFonts ? (stylesFacturX ??= createStyles(LATO)) : STYLES_CLASSIC
   const isCredit = isCreditNote(invoice.documentType)
   const vehicle = [invoice.vehicleBrand, invoice.vehicleModel].filter(Boolean).join(" ") || invoice.vehicleTypeName || ""
   // Tous les montants du PDF utilisent la devise SNAPSHOTÉE de la facture.
@@ -331,5 +366,6 @@ function InvoiceDocument({ invoice, items, logoDataUrl, originalRef }: InvoicePd
 }
 
 export async function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
+  if (data.embeddedFonts) registerFacturXFonts()
   return renderToBuffer(<InvoiceDocument {...data} />)
 }

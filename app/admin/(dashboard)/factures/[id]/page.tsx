@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
 import { getInvoiceDetail } from "@/lib/invoice/queries"
+import { buildFacturXNotice } from "@/lib/invoice/facturx-messages"
 import { InvoiceEditor } from "@/components/admin/invoice-editor"
 import { InvoiceView } from "@/components/admin/invoice-view"
 import { withTenant } from "@/lib/tenant-link"
@@ -19,14 +20,29 @@ export default async function InvoiceDetailPage({
   searchParams: Promise<{ tenant?: string }>
 }) {
   // Garde d'auth/tenant (l'accès à la facture est scopé companyId dans getInvoiceDetail).
-  await requireCompanyMember()
+  const ctx = await requireCompanyMember()
+  const companyId = ctx.tenant.id
   const { id } = await params
   const { tenant } = await searchParams
   const numId = Number(id)
   if (!Number.isInteger(numId)) notFound()
 
-  const data = await getInvoiceDetail(numId)
+  const data = await getInvoiceDetail(numId, companyId)
   if (!data) notFound()
+
+  // Message Factur-X (pilotes uniquement), calculé côté serveur sur la facture
+  // déjà filtrée par le tenant du membre connecté.
+  const facturxNotice =
+    data.invoice.status === "draft"
+      ? null
+      : buildFacturXNotice({
+          companyId,
+          invoice: data.invoice,
+          items: data.items,
+          originalRef: data.originalInvoice
+            ? { number: data.originalInvoice.number, issueDate: data.originalInvoice.issueDate }
+            : null,
+        })
 
   return (
     <div className="space-y-6">
@@ -48,6 +64,7 @@ export default async function InvoiceDetailPage({
           creditNotes={data.creditNotes}
           creditSummary={data.creditSummary}
           originalInvoice={data.originalInvoice}
+          facturxNotice={facturxNotice}
         />
       )}
     </div>

@@ -36,6 +36,7 @@ import type {
   InvoiceEventRow,
   CreditSummary,
 } from "@/lib/invoice/queries"
+import type { FacturXNotice } from "@/lib/invoice/facturx-messages"
 
 const cardClass = "rounded-2xl border border-border bg-card p-5"
 const rowClass = "flex items-center justify-between py-1 text-sm"
@@ -48,6 +49,7 @@ export function InvoiceView({
   creditNotes = [],
   creditSummary = null,
   originalInvoice = null,
+  facturxNotice = null,
 }: {
   invoice: InvoiceRow
   items: InvoiceItemRow[]
@@ -56,6 +58,8 @@ export function InvoiceView({
   creditNotes?: InvoiceRow[]
   creditSummary?: CreditSummary | null
   originalInvoice?: InvoiceRow | null
+  // Calculé côté serveur, pilotes Factur-X uniquement (null sinon).
+  facturxNotice?: FacturXNotice | null
 }) {
   const isCredit = invoice.documentType === "credit_note"
   // Une facture (non avoir) émise/payée et non intégralement créditée est
@@ -273,6 +277,52 @@ export function InvoiceView({
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{identityWarning}</span>
+        </div>
+      )}
+
+      {/* Factur-X (pilotes) : facture émise qui ne peut pas sortir en facture
+          électronique. Visible du pro seulement, ne bloque rien. */}
+      {facturxNotice && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          {facturxNotice.kind === "credit_note_settlement" ? (
+            <div>
+              <p>
+                <strong>Facture électronique impossible pour cet avoir.</strong> La façon d&apos;indiquer son
+                règlement n&apos;est pas encore définie dans DetailFlow. Le PDF classique reste disponible.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p>
+                <strong>Facture électronique impossible : il manque des informations.</strong> Le PDF classique
+                reste disponible.
+              </p>
+              <ul className="my-1.5 list-disc pl-5">
+                {facturxNotice.items.map((item) => (
+                  <li key={item.label}>
+                    {item.label} —{" "}
+                    {item.where === "settings" ? (
+                      <Link
+                        href={withTenant("/admin/parametres?tab=invoicing", tenantParam)}
+                        className="underline"
+                      >
+                        Paramètres → Facturation
+                      </Link>
+                    ) : item.where === "draft" ? (
+                      "à renseigner sur le brouillon avant émission"
+                    ) : (
+                      "contactez le support DetailFlow"
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Cette facture est déjà émise : ses informations sont figées. Complétez-les pour vos prochaines
+                factures.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
