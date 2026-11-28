@@ -22,5 +22,8 @@ de main (réécrit le 24/11) : **ne jamais fusionner ces branches**. On reporte 
 Tests facturx verts (XML conforme au schéma, montants = facture, avoirs liés à la facture d'origine, repli PDF), aucune régression `tests/invoice-*`.
 Aperçu : `.lot-state/L87.apercu.html` (facture PDF + message « facture électronique impossible : il manque… »).
 
-## Délégation de Clément (26/11)
-Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.
+## Décision (28/11/2026, 13 h 20 — Clément : « je te fais confiance, fais les meilleurs choix »)
+- **`pdf-lib` est accepté**, en version figée `1.17.1`, pour produire le PDF/A-3 et y joindre le XML. Le script d'Apollon l'ajoute à `package.json`
+  et au lockfile sur la branche du lot avant ta passe. Ne l'ajoute pas toi-même.
+- **`@stafyniaksacha/facturx` est refusé** : paquet peu suivi, inadapté à des factures. Le XML CII (profil EN 16931) est écrit dans le code
+  (`lib/invoice/`), avec un test de validation (structure et règles principales). Ne pas redemander.
