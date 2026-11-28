@@ -15,7 +15,8 @@ const LEGACY_TABS = [
 ]
 
 // Onglets AJOUTÉS (LOT D). Additifs : ne remplacent aucun onglet historique.
-const NEW_TABS = ["notifications"]
+// L97 : l'acompte a son propre onglet.
+const NEW_TABS = ["notifications", "deposit"]
 
 // Ensemble attendu = historiques + nouveaux (aucun autre onglet orphelin).
 const EXPECTED_TABS = [...LEGACY_TABS, ...NEW_TABS]
@@ -101,7 +102,7 @@ describe("masquage Paramètres — Spirit ACS uniquement", () => {
     expect(getVisibleSettingsCategories("autre-tenant")).toEqual(SETTINGS_CATEGORIES)
   })
 
-  it("Spirit : la catégorie « Réservations » disparaît entièrement (tous ses onglets masqués)", () => {
+  it("Spirit : la catégorie « Mes disponibilités » disparaît entièrement (tous ses onglets masqués)", () => {
     const cats = getVisibleSettingsCategories(SPIRIT)
     expect(cats.find((c) => c.id === "reservations")).toBeUndefined()
   })

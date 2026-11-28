@@ -209,7 +209,10 @@ const read = (p: string) => readFileSync(join(ROOT, p), "utf8")
 
 describe("Encaissé — câblage serveur (isolation & source)", () => {
   const queries = read("lib/admin/queries.ts")
-  const page = read("app/admin/(dashboard)/page.tsx")
+  // L96 : écran Spirit déplacé à part ; accueil standard = today.ts + today-query.ts.
+  const spirit = read("app/admin/(dashboard)/spirit-dashboard-home.tsx")
+  const today = read("lib/admin/today.ts")
+  const todayQuery = read("lib/admin/today-query.ts")
 
   it("la lecture des paiements est scopée par companyId (isolation tenant)", () => {
     expect(queries).toContain("eq(payments.companyId, cid)")
@@ -229,10 +232,17 @@ describe("Encaissé — câblage serveur (isolation & source)", () => {
   })
 
   it("le dashboard distingue clairement « CA facturé » et « Encaissé »", () => {
-    expect(page).toContain("CA facturé ce mois")
-    expect(page).toContain("Encaissé ce mois")
-    expect(page).toContain("stats.collectedNetCents")
-    // L'ancien libellé ambigu « CA du mois » a disparu du dashboard produit.
-    expect(page).not.toContain('label: "CA du mois"')
+    for (const src of [spirit, today]) {
+      expect(src).toContain("CA facturé ce mois")
+      expect(src).toContain("Encaissé ce mois")
+      // L'ancien libellé ambigu « CA du mois » a disparu du dashboard produit.
+      expect(src).not.toContain('label: "CA du mois"')
+    }
+    expect(spirit).toContain("stats.collectedNetCents")
+    // Accueil standard : mêmes définitions partagées (CA net des avoirs, encaissé par le helper PUR).
+    expect(today).toContain("computeMonthlyFinancials({")
+    expect(todayQuery).toContain("revenueDocumentFilter(cid)")
+    expect(todayQuery).toContain("excludeCancelledOrDeletedBooking(cid)")
+    expect(todayQuery).toContain("COLLECTED_STATUSES")
   })
 })

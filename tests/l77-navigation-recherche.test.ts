@@ -101,13 +101,13 @@ describe("L77 — page « Plus »", () => {
 describe("L77 — recherche des réglages", () => {
   it("« horaires » mène au réglage Horaires d'ouverture", () => {
     const [first] = searchSettings("horaires")
-    expect(first).toMatchObject({ label: "Horaires d'ouverture", tab: "hours", category: "Réservations" })
+    expect(first).toMatchObject({ label: "Horaires d'ouverture", tab: "hours", category: "Mes disponibilités" })
     expect(settingsSearchHref("hours")).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
     expect(first.href).toBe("/admin/parametres?tab=hours&bloc=reglage-hours")
   })
 
   it.each([
-    ["acompte", "planning"],
+    ["acompte", "deposit"],
     ["conges", "timeoff"],
     ["Congés", "timeoff"],
     ["SMS", "sms"],
@@ -165,7 +165,9 @@ describe("L77 — « Itinéraire » sur l'accueil", () => {
   })
 
   it("l'accueil lit le réglage du tenant authentifié", () => {
-    const page = read("app/admin/(dashboard)/page.tsx")
+    // L96 : accueil standard = requête groupée filtrée par entreprise ; Spirit garde sa lecture.
+    expect(read("lib/admin/today-query.ts")).toContain('from settings s where s."companyId" = ${cid}')
+    const page = read("app/admin/(dashboard)/spirit-dashboard-home.tsx")
     expect(page).toContain("getLocationConfig(companyId)")
     expect(page).toContain("showDirections(locationConfig)")
     // Lu en parallèle avec les autres données de l'accueil, pas en série.
@@ -183,14 +185,10 @@ describe("L77 — « Itinéraire » sur l'accueil", () => {
   it("jamais configuré, rendez-vous sans adresse : aucun lien « Itinéraire »", () => {
     expect(buildMapsDirectionsUrl(null)).toBeNull()
     expect(buildMapsDirectionsUrl("")).toBeNull()
-    const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain("directions ? buildMapsDirectionsUrl(b.address) : null")
-  })
-
-  it("le total du jour reprend le libellé « prévus » de la maquette validée", () => {
-    const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain("prévus`")
-    expect(page).not.toContain("au total`")
+    expect(read("app/admin/(dashboard)/spirit-dashboard-home.tsx")).toContain(
+      "directions ? buildMapsDirectionsUrl(b.address) : null",
+    )
+    expect(read("lib/admin/today.ts")).toContain("address ? buildMapsDirectionsUrl(address) : null")
   })
 
   it("« Plus » résout le tenant côté serveur", () => {

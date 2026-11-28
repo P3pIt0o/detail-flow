@@ -17,6 +17,8 @@ import { canUseFeature } from "@/lib/licensing/enforce"
 import { formatMoney } from "@/lib/format"
 import { resolveAnalyseAccess } from "@/lib/analytics/access"
 import { loadAnalyseData } from "@/lib/analytics/business"
+import { getVisitStats } from "@/lib/analytics/queries"
+import { DashboardAnalytics } from "@/components/admin/dashboard-analytics"
 import { parsePeriod, PERIOD_LABELS, type AnalysePeriod } from "@/lib/analytics/periods"
 import { AnalyseKpi } from "@/components/admin/analyse/analyse-kpi"
 import { AnalyseLocked } from "@/components/admin/analyse/analyse-locked"
@@ -94,7 +96,11 @@ export default async function AnalysePage({
     )
   }
 
-  const data = await loadAnalyseData(companyId, period, access)
+  const [data, visitStats] = await Promise.all([
+    loadAnalyseData(companyId, period, access),
+    // L96 : graphique des visites (déplacé depuis l'accueil), droit `business_stats`.
+    businessStats ? getVisitStats(companyId) : Promise.resolve(null),
+  ])
   const { essentials, profitability: profit, advanced: adv, financial } = data
 
   // Devises d'affichage résolues côté serveur (jamais de € codé en dur). Les
@@ -249,6 +255,8 @@ export default async function AnalysePage({
           </div>
         </>
       ) : null}
+
+      {visitStats ? <DashboardAnalytics stats={visitStats} /> : null}
 
       {profit ? (
         <Section

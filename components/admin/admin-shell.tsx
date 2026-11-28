@@ -242,7 +242,15 @@ export function AdminShell({
         <p className="hidden truncate text-xs text-muted-foreground sm:block">Votre activité aujourd&apos;hui</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        {widgetAction ? <WidgetActionButton action={widgetAction} /> : <CopyLinkButton url={publicUrl} />}
+        {widgetAction ? (
+          <WidgetActionButton action={widgetAction} />
+        ) : (
+          // L96 : sur mobile, l'accueil « Aujourd'hui » n'affiche pas « Copier mon lien »
+          // (le partage est dans l'écran lui-même quand il est utile).
+          <div className="max-lg:group-has-[[data-today-home]]/shell:hidden">
+            <CopyLinkButton url={publicUrl} />
+          </div>
+        )}
         {publicUrl ? (
           <a
             href={publicUrl}
@@ -297,7 +305,7 @@ export function AdminShell({
     ) : null
 
   return (
-    <div className="flex min-h-svh bg-background">
+    <div className="group/shell flex min-h-svh bg-background">
       {desktopSidebar}
       <div className="flex min-w-0 flex-1 flex-col">
         {header}

@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { MessageSquare, AlertTriangle } from "lucide-react"
+import { MoreOptions, StickySaveBar } from "@/components/admin/settings/more-options"
+import { minimalPlanName } from "@/lib/admin/settings-status"
 import {
   saveSmsReminderSettings,
   createRechargeRequest,
@@ -48,6 +50,7 @@ export function SmsSettings(props: Props) {
   // Défaut true : aucun changement de comportement quand la prop n'est pas fournie (LEGACY).
   const featureEnabled = props.featureEnabled !== false
   const locked = !featureEnabled
+  const requiredPlan = minimalPlanName("sms")
   const [enabled, setEnabled] = useState(props.enabled)
   const [offset, setOffset] = useState<24 | 48>(props.offsetHours === 48 ? 48 : 24)
   const [template, setTemplate] = useState(props.template || props.defaultTemplate)
@@ -76,6 +79,7 @@ export function SmsSettings(props: Props) {
           <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
             <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
             Cette fonctionnalité n&apos;est pas incluse dans votre licence.
+            {requiredPlan ? ` Disponible avec ${requiredPlan}.` : null}
           </p>
         </Card>
       ) : null}
@@ -201,31 +205,35 @@ export function SmsSettings(props: Props) {
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="sms-template" className="text-sm font-medium">
-            Message envoyé
-          </Label>
-          <Textarea
-            id="sms-template"
-            value={template}
-            onChange={(e) => setTemplate(e.target.value)}
-            rows={3}
-            className="mt-2"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Variables disponibles : {"{prenom}"}, {"{entreprise}"}, {"{date}"}, {"{heure}"}.
-          </p>
-        </div>
+        <MoreOptions hint="message envoyé">
+          <div>
+            <Label htmlFor="sms-template" className="text-sm font-medium">
+              Message envoyé
+            </Label>
+            <Textarea
+              id="sms-template"
+              value={template}
+              onChange={(e) => setTemplate(e.target.value)}
+              rows={3}
+              className="mt-2"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Le texte que reçoit votre client. Variables disponibles : {"{prenom}"}, {"{entreprise}"}, {"{date}"},{" "}
+              {"{heure}"}.
+            </p>
+          </div>
+        </MoreOptions>
 
-        {msg ? (
-          <p className={`text-sm ${msg.type === "ok" ? "text-primary" : "text-destructive"}`}>{msg.text}</p>
-        ) : null}
-
-        <div>
-          <Button onClick={save} disabled={pending}>
+        <StickySaveBar>
+          <Button onClick={save} disabled={pending} className="w-full sm:w-auto">
             {pending ? "Enregistrement…" : "Enregistrer"}
           </Button>
-        </div>
+          {msg ? (
+            <span role="status" className={`text-sm ${msg.type === "ok" ? "text-primary" : "text-destructive"}`}>
+              {msg.text}
+            </span>
+          ) : null}
+        </StickySaveBar>
 
         <p className="border-t border-border pt-4 text-xs text-muted-foreground text-pretty">
           Les SMS sont facturés par notre opérateur. Les crédits achetés permettent de couvrir leur envoi depuis

@@ -159,10 +159,8 @@ describe("L77 — accueil : rendez-vous du jour et dernières visites", () => {
     ]
     expect((await getLaterBookings(TENANT_A, "Europe/Paris")).map((b) => b.id).sort()).toEqual([200, 201])
     expect((await getLaterBookings(TENANT_B, "Europe/Paris")).map((b) => b.id)).toEqual([300])
-    const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain("getLaterBookings(companyId, company.timezone)")
-    // Contrat de licensing-analytics : la lecture historique reste hors de toute condition premium.
-    expect(page).toContain("getUpcomingBookingsDetailed(isSpirit ? 8 : 5)")
+    // L96 : l'accueil standard lit le prochain rendez-vous des jours suivants dans sa requête groupée.
+    expect(read("lib/admin/today-query.ts")).toContain('where "companyId" = ${cid} and date > ${today}::date')
   })
 
   it("aucun rendez-vous : liste vide et total à 0", async () => {
@@ -202,10 +200,9 @@ describe("L77 — accueil : rendez-vous du jour et dernières visites", () => {
 
   it("l'accueil standard utilise companyId issu de requireCompanyMember()", () => {
     const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain("getTodayBookings(companyId, company.timezone)")
-    expect(page).toContain("getRecentVisits(companyId)")
-    expect(page).toContain("Dernières visites")
-    expect(page).toContain("/admin/reservations/${v.id}")
+    expect(page).toContain("const { tenant: company, user, isSuperAdmin } = await requireCompanyMember()")
+    expect(page).toContain("const companyId = company.id")
+    expect(page).toContain("loadTodayData(companyId, { timezone: company.timezone")
   })
 })
 
@@ -230,6 +227,8 @@ describe("L77 — un bloc par réglage", () => {
       "components/admin/settings/site-branding.tsx",
       "components/admin/settings/invoicing-settings.tsx",
       "components/admin/settings/location-settings.tsx",
+      // Bloc « Lien et QR code », posé par la page elle-même (L97).
+      "app/admin/(dashboard)/parametres/page.tsx",
     ]
       .map(read)
       .join("\n")
@@ -258,15 +257,11 @@ describe("L77 — libellé des résultats et écrans", () => {
     expect(visitDateLabel("2026-11-23", "2026-11-27")).toBe("lun. 23 nov.")
     expect(visitDateLabel("2025-12-31", "2026-01-01")).toBe("hier")
     expect(visitDateLabel("2025-11-24", "2026-11-27")).toBe("lun. 24 nov. 2025")
-    const page = read("app/admin/(dashboard)/page.tsx")
-    expect(page).toContain('[v.vehicles.join(", "), v.customerName].filter(Boolean).join(" · ")')
-    expect(page).toContain("visitDateLabel(v.date, todayYmd)")
-    expect(page).toContain("<ChevronRight")
   })
 
   it("« catégorie · onglet »", () => {
     const [acompte] = searchSettings("acompte")
-    expect(settingsResultContext(acompte)).toBe("Réservations · Planning & acompte")
+    expect(settingsResultContext(acompte)).toBe("Paiements et factures · Acompte")
     expect(read("components/admin/settings/settings-search.tsx")).toContain("settingsResultContext(r)")
   })
 
@@ -287,9 +282,6 @@ describe("L77 — textes et ordre (3e relecture)", () => {
       title: "Aucun rendez-vous à venir.",
       hint: "Partagez votre lien de réservation pour recevoir vos premiers rendez-vous.",
     })
-    expect(read("app/admin/(dashboard)/page.tsx")).toContain(
-      "noLaterBookingsText(todayList.length, recentVisits.length)",
-    )
   })
 
   it("« Plus » : seul « Mes prestations » a un sous-titre, comme sur la maquette", () => {

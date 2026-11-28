@@ -114,7 +114,7 @@ export async function getBookingSetupStatus(companyId: number): Promise<BookingS
       // Payer le jour du rendez-vous est un choix valide : jamais bloquant.
       ready: true,
       todo: "Choisir votre mode de paiement",
-      href: "/admin/parametres?tab=planning",
+      href: "/admin/parametres?tab=deposit",
     },
   ]
 

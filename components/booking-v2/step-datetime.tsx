@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { formatKm } from "@/lib/format"
 import { dateWindow, formatNextAvailability, formatPriceCompact, formatSlotLabel, groupSlots, nextOffset, prevOffset, windowOffsetFor } from "@/lib/booking/v2"
 import { computeTravelAction, findFirstAvailableDateAction, getAvailabilityRangeAction } from "@/app/(site)/reservation/actions"
+import { SEARCH_RATE_LIMITED_MESSAGE } from "@/lib/booking/first-available"
 import { TRAVEL_ERRORS } from "@/components/booking/step-contact"
 import type { TravelResult } from "@/lib/booking/types"
 import { SectionLabel, bv2InputClass, bv2LabelClass } from "./step-header"
@@ -107,6 +108,10 @@ export function StepDateTime({
   const [searchedKey, setSearchedKey] = useState<string | null>(null)
   const [searchFailed, setSearchFailed] = useState(false)
   const [nextDate, setNextDate] = useState<string | null>(null)
+  // L84 : recherche refusée par la limite anti-abus (jamais confondue avec « aucune disponibilité »).
+  const [refused, setRefused] = useState(false)
+  // Identifiant de cette ouverture de l'étape, placé dans la clé SWR : chaque ouverture a sa propre recherche.
+  const [openId] = useState(() => Math.random().toString(36).slice(2))
   const searchDone = searchedKey === paramsKey
 
   const dates = dateWindow(new Date(), offset, WINDOW_DAYS)
@@ -122,7 +127,8 @@ export function StepDateTime({
   // L73 : fenêtre initiale vide → une seule recherche serveur (plafond 180 j) par ouverture.
   const needsSearch = !searchDone && offset === 0 && durationMin > 0 && !isLoading && !error && data !== undefined && !firstAvailable
   const { data: found, error: searchError } = useSWR(
-    needsSearch ? ["bv2-first-available", durationMin, vehicleCount] : null,
+    // Sans `openId`, SWR ne relance pas une recherche encore en vol et peut resservir un ancien refus.
+    needsSearch ? ["bv2-first-available", openId, durationMin, vehicleCount] : null,
     () => findFirstAvailableDateAction(durationMin, vehicleCount),
     { revalidateOnFocus: false },
   )
@@ -130,19 +136,26 @@ export function StepDateTime({
     // Durée ou nombre de véhicules modifié : l'ancien résultat n'est plus valable.
     setNextDate(null)
     setSearchFailed(false)
+    setRefused(false)
   }, [paramsKey])
   useEffect(() => {
     if (!needsSearch || (found === undefined && !searchError)) return
+    const result = searchError ? null : (found ?? null)
     setSearchedKey(paramsKey)
     setSearchFailed(Boolean(searchError))
-    if (found) {
-      setOffset(windowOffsetFor(new Date(), found))
-      setPickedDate(found)
-      setNextDate(found)
+    if (result && typeof result === "object") {
+      setRefused(true)
+      return
+    }
+    setRefused(false)
+    if (result) {
+      setOffset(windowOffsetFor(new Date(), result))
+      setPickedDate(result)
+      setNextDate(result)
     }
   }, [needsSearch, found, searchError, paramsKey])
   const searching = needsSearch && found === undefined && !searchError
-  const nothingFound = searchDone && !searchFailed && !nextDate && !firstAvailable && !isLoading && !error
+  const nothingFound = searchDone && !searchFailed && !nextDate && !firstAvailable && !isLoading && !error && !refused
   // Date affichée : choix explicite si visible dans la fenêtre, sinon 1re date disponible (clic évité).
   const activeDate = pickedDate && byDate.has(pickedDate) ? pickedDate : firstAvailable
   const activeDay = activeDate ? byDate.get(activeDate) : undefined
@@ -389,9 +402,9 @@ export function StepDateTime({
           </p>
         ) : error || searchFailed ? (
           <p className="mt-5 text-sm text-destructive">Impossible de charger les disponibilités. Réessayez.</p>
-        ) : !activeDate ? (
+        ) : !activeDate || (refused && offset === 0 && !activeDay?.slots.length) ? (
           <p className="mt-5 rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-            {nothingFound ? "Aucune disponibilité pour le moment." : "Aucun créneau disponible sur ces dates. Consultez les dates suivantes."}
+            {refused && offset === 0 ? SEARCH_RATE_LIMITED_MESSAGE : nothingFound ? "Aucune disponibilité pour le moment." : "Aucun créneau disponible sur ces dates. Consultez les dates suivantes."}
           </p>
         ) : (
           <>

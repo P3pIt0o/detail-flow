@@ -26,7 +26,7 @@ import { buildQuote, computeDeposit } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
 import { validatePromoCode, consumePromoCode, normalizePromoCode, type PromoInvalidReason } from "@/lib/promo/service"
 import type { AppliedPromo } from "@/lib/booking/types"
-import { getAvailability, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
+import { getAvailability, createAvailabilityContext, timeToMinutes, minutesToTime } from "@/lib/booking/availability"
 import { createFirstAvailableCache, isValidSearch } from "@/lib/booking/first-available"
 import { getExternalBusyForDate } from "@/lib/calendar-sync/store"
 import type { BookingSelection, TravelResult } from "@/lib/booking/types"
@@ -37,7 +37,7 @@ import { recordBookingCompleted } from "@/lib/analytics/queries"
 import { getCompanyPaymentConfig } from "@/lib/payments/queries"
 import { willRequireOnlinePayment } from "@/lib/payments/mode"
 import { canUseFeature } from "@/lib/licensing/enforce"
-import { isBookingRateLimited, isPromoRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
+import { isBookingRateLimited, isPromoRateLimited, isSearchRateLimited, BOOKING_RATE_LIMITED_MESSAGE } from "@/lib/booking/rate-limit"
 import { getPromotionData, loadPromotionData, setBookingPromotionSnapshot } from "@/lib/booking/promotions-store"
 import {
   MAX_BOOKING_LINES,
@@ -248,12 +248,24 @@ export async function getAvailabilityRangeAction(dates: string[], durationMin: n
  */
 const firstAvailableCache = createFirstAvailableCache()
 
-export async function findFirstAvailableDateAction(durationMin: number, vehicleCount: number): Promise<string | null> {
+export async function findFirstAvailableDateAction(
+  durationMin: number,
+  vehicleCount: number,
+): Promise<string | null | { rateLimited: true }> {
   if (!isValidSearch(durationMin, vehicleCount)) return null
-  // Tenant de la requête publique (jamais fourni par le client) : sert de clé à la mémoire courte.
+  // Tenant de la requête publique (jamais fourni par le client) : sert de clé à la limite et à la mémoire courte.
   const tenant = await resolvePublicRequestTenant()
   if (!tenant) return null
-  return firstAvailableCache.run(String(tenant.id), { from: new Date(), durationMin, vehicleCount, getDay: getAvailability })
+  // L84 : limite vérifiée à chaque appel, avant la mémoire courte et toute lecture.
+  if (await isSearchRateLimited(await headers(), tenant.id)) return { rateLimited: true }
+  // Contexte propre à CETTE recherche : réglages, horaires et congés lus une seule fois.
+  const context = createAvailabilityContext()
+  return firstAvailableCache.run(String(tenant.id), {
+    from: new Date(),
+    durationMin,
+    vehicleCount,
+    getDay: (date, duration, count) => getAvailability(date, duration, count, context),
+  })
 }
 
 /* -------------------------------------------------------------------------- */

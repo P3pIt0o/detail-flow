@@ -32,7 +32,7 @@ export function SettingsSearch({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setQ("")}
-          placeholder="Rechercher un réglage"
+          placeholder="Rechercher : acompte, horaires, SMS…"
           className="h-12 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
       </label>
