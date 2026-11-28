@@ -38,6 +38,7 @@ export const SETTINGS_SEARCH: SettingsSearchEntry[] = [
   { label: "Galerie de photos", tab: "gallery", words: "galerie photos images realisations avant apres vehicules" },
   { label: "Avis des clients", tab: "reviews", words: "avis google etoiles temoignages notes" },
   { label: "Demandes spéciales", tab: "custom-requests", words: "demandes speciales devis sur mesure formulaire" },
+  { label: "Carte digitale", tab: "digital-card", words: "carte digitale visite qr code vcard contact partage", standardOnly: true },
   { label: "Paiements en ligne", tab: "payments", words: "paiement carte bancaire stripe encaisser encaissement commission virement" },
   { label: "Factures et mentions légales", tab: "invoicing", words: "facture facturation devis siret iban bic mentions legales echeance" },
   { label: "Logo des factures", tab: "invoicing", bloc: "reglage-logo-factures", words: "logo facture factures devis image" },

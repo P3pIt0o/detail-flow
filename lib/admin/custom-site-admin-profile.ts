@@ -39,7 +39,10 @@ const CLEANYZER_PROFILE: CustomSiteAdminProfile = {
     { route: "/admin/ma-reservation", reason: "Lien, QR code et widget : la réservation est déjà sur son site." },
     { route: "/admin/site-personnalise", reason: "Il a déjà son site sur mesure." },
   ],
-  hiddenSettingsTabs: [{ tab: "gallery", reason: "La galerie de la page standard n'est jamais lue par son site." }],
+  hiddenSettingsTabs: [
+    { tab: "gallery", reason: "La galerie de la page standard n'est jamais lue par son site." },
+    { tab: "digital-card", reason: "Carte digitale : lien et QR code à partager, masqués comme les autres partages." },
+  ],
   hiddenOnboardingSteps: [{ step: "publicSite", reason: "Demande un texte que son site n'affiche jamais." }],
   // Partage et widget : le site est terminé, la réservation y est déjà intégrée.
   hideShareActions: true,
