@@ -126,7 +126,7 @@ export async function getServices(companyId?: number) {
     .select()
     .from(services)
     .where(and(eq(services.companyId, cid), eq(services.visible, true)))
-    .orderBy(asc(services.sortOrder))
+    .orderBy(asc(services.sortOrder), asc(services.id))
   // Badge « Mise en avant » (LOT C) : fusionné à part, tolérant au schéma absent.
   return attachServiceHighlights(cid, rows)
 }

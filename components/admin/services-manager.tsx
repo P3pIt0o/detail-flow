@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useTransition, useRef } from "react"
+import { useState, useTransition, useRef, useOptimistic } from "react"
 import Image from "next/image"
 import { upload } from "@vercel/blob/client"
-import { Pencil, Plus, Trash2, EyeOff, Upload, Loader2 } from "lucide-react"
+import { Pencil, Plus, Trash2, EyeOff, Upload, Loader2, ArrowUp, ArrowDown } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { formatPrice, formatDuration } from "@/lib/format"
-import { saveService, deleteService } from "@/app/admin/(dashboard)/prestations/actions"
+import { saveService, deleteService, reorderServices } from "@/app/admin/(dashboard)/prestations/actions"
 import { resolveServiceImageSrc, serviceImagePrefix } from "@/lib/service-image"
 import { ServiceHighlightBadge } from "@/components/service-highlight-badge"
 import { HIGHLIGHT_SELECT_OPTIONS, HIGHLIGHT_LABEL_MAX, type HighlightKind } from "@/lib/services/highlight"
@@ -49,6 +49,26 @@ export function ServicesManager({
 }) {
   const [editing, setEditing] = useState<Service | null>(null)
   const [open, setOpen] = useState(false)
+  // Ordre affiché tout de suite ; revient à celui du serveur si l'enregistrement échoue.
+  const [ordered, setOrdered] = useOptimistic(services)
+  const [saving, startSaving] = useTransition()
+  const [orderError, setOrderError] = useState<string | null>(null)
+
+  function move(index: number, direction: -1 | 1) {
+    const next = [...ordered]
+    const target = index + direction
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setOrderError(null)
+    startSaving(async () => {
+      setOrdered(next)
+      try {
+        const res = await reorderServices(next.map((s) => s.id))
+        if (!res.ok) setOrderError(res.error ?? "L'ordre n'a pas été enregistré.")
+      } catch {
+        setOrderError("L'ordre n'a pas été enregistré. Réessayez.")
+      }
+    })
+  }
 
   function openNew() {
     setEditing(null)
@@ -67,16 +87,27 @@ export function ServicesManager({
         </Button>
       </div>
 
+      {ordered.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          L&apos;ordre ici est celui de votre page de réservation.
+        </p>
+      )}
+      {orderError && (
+        <p role="alert" className="text-sm text-destructive">
+          {orderError}
+        </p>
+      )}
+
       <div className="space-y-2">
-        {services.length === 0 ? (
+        {ordered.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Aucune prestation. Créez-en une pour commencer.
           </p>
         ) : (
-          services.map((s) => (
+          ordered.map((s, index) => (
             <div
               key={s.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3"
+              className="flex flex-col gap-2 rounded-lg border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -92,7 +123,27 @@ export function ServicesManager({
                   À partir de {formatPrice(s.basePriceCents)} · {formatDuration(s.durationMin)}
                 </p>
               </div>
-              <div className="flex shrink-0 gap-1">
+              <div className="flex shrink-0 items-center justify-end gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11"
+                  aria-label={`Monter ${s.name}`}
+                  disabled={saving || index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-11"
+                  aria-label={`Descendre ${s.name}`}
+                  disabled={saving || index === ordered.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => openEdit(s)} aria-label="Modifier">
                   <Pencil className="h-4 w-4" />
                 </Button>
