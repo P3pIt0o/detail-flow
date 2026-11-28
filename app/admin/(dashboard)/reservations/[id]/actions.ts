@@ -27,11 +27,12 @@ import { db } from "@/lib/db"
 import { bookings, bookingItems, bookingItemOptions } from "@/lib/db/schema"
 import { requireCompanyMember, requireCompanyRole } from "@/lib/admin"
 import { requestRefund } from "@/lib/payments/refunds"
+import { isRetryableRefundFailure } from "@/lib/payments/refund-logic"
 import { getSettings, getActiveBookingsForDate, countVehiclesForDate } from "@/lib/booking/queries"
 import { buildQuote } from "@/lib/booking/pricing"
 import { computeTravel } from "@/lib/booking/travel"
 import { timeToMinutes, minutesToTime } from "@/lib/booking/availability"
-import { sendBookingUpdatedEmail } from "@/lib/email/notifications"
+import { sendBookingUpdatedEmail, sendRefundConfirmationEmail } from "@/lib/email/notifications"
 import type { BookingSelection } from "@/lib/booking/types"
 
 export type UpdateBookingVehicle = {
@@ -345,18 +346,19 @@ export type RefundActionInput = {
   bookingId: number
   paymentId: number
   amountCents: number
-  reason: string
+  /** Motif FACULTATIF (L115). */
+  reason?: string
   /** Clé d'idempotence STABLE générée par le client à l'ouverture du dialog. */
   idempotencyKey: string
 }
 
 export type RefundActionResult =
   | { ok: true; status: string; duplicate?: boolean }
-  | { ok: false; error: string }
+  /** `sameKey` : résultat inconnu (réseau) → réessayer avec la MÊME clé. */
+  | { ok: false; error: string; sameKey: boolean }
 
 /** Messages FR simples (professionnels du detailing, pas des juristes). */
 const REFUND_ERROR_FR: Record<string, string> = {
-  reason_required: "Le motif du remboursement est obligatoire.",
   invalid_amount: "Le montant à rembourser est invalide.",
   payment_not_refundable: "Ce paiement ne peut pas être remboursé.",
   already_refunded: "Ce paiement est déjà intégralement remboursé.",
@@ -368,7 +370,10 @@ const REFUND_ERROR_FR: Record<string, string> = {
   // Messages basés sur le CODE réellement renvoyé par Stripe (jamais un message
   // de solde par défaut).
   insufficient_funds:
-    "Solde Stripe insuffisant sur le compte connecté pour effectuer ce remboursement. Réessayez une fois le solde suffisant.",
+    "Remboursement impossible pour l'instant : le solde de votre compte de paiement est insuffisant. Réessayez après votre prochain encaissement.",
+  retry_amount_mismatch: "Le montant a changé, veuillez valider à nouveau.",
+  retry_expired:
+    "La tentative précédente date de plus de 23 heures. Vérifiez l'historique des remboursements, puis validez à nouveau si besoin.",
   already_refunded_stripe: "Ce paiement a déjà été remboursé côté Stripe.",
   amount_too_large: "Le montant dépasse ce qui peut être remboursé pour ce paiement.",
   no_application_fee: "Aucune commission à rembourser sur ce paiement.",
@@ -383,10 +388,7 @@ export async function refundPaymentAction(input: RefundActionInput): Promise<Ref
   const companyId = tenant.id
 
   if (!Number.isInteger(input.bookingId) || !Number.isInteger(input.paymentId)) {
-    return { ok: false, error: "Réservation ou paiement invalide." }
-  }
-  if (!input.reason || input.reason.trim().length === 0) {
-    return { ok: false, error: REFUND_ERROR_FR.reason_required }
+    return { ok: false, error: "Réservation ou paiement invalide.", sameKey: false }
   }
 
   const res = await requestRefund({
@@ -394,13 +396,28 @@ export async function refundPaymentAction(input: RefundActionInput): Promise<Ref
     paymentId: input.paymentId,
     companyId,
     amountCents: input.amountCents,
-    reason: input.reason,
+    reason: typeof input.reason === "string" ? input.reason : "",
     initiatedByUserId: user.id,
     idempotencyKey: input.idempotencyKey,
   })
 
   if (!res.ok) {
-    return { ok: false, error: REFUND_ERROR_FR[res.error] ?? REFUND_ERROR_FR.internal_error }
+    return {
+      ok: false,
+      error: REFUND_ERROR_FR[res.error] ?? REFUND_ERROR_FR.internal_error,
+      sameKey: isRetryableRefundFailure(res.error),
+    }
+  }
+
+  // L115 : Stripe a confirmé tout de suite → e-mail au client maintenant
+  // (claim atomique : le webhook ne le renverra pas). Non bloquant.
+  if (res.status === "succeeded" && !res.duplicate) {
+    try {
+      await sendRefundConfirmationEmail(res.refundId, companyId)
+    } catch (e) {
+      // Le remboursement est fait : un souci d'e-mail ne doit jamais l'annuler.
+      console.log("[v0] refundPaymentAction: e-mail non envoyé:", e instanceof Error ? e.message : e)
+    }
   }
 
   revalidatePath(`/admin/reservations/${input.bookingId}`)

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { formatPrice } from "@/lib/format"
+import { refundDialogVisibility } from "@/lib/payments/refund-logic"
 import { refundPaymentAction } from "@/app/admin/(dashboard)/reservations/[id]/actions"
 
 /** Ligne de remboursement affichée dans l'historique (données déjà masquées). */
@@ -34,7 +35,7 @@ export type RefundablePaymentView = {
 const STATUS_FR: Record<string, string> = {
   requested: "Demandé",
   pending: "En attente",
-  succeeded: "Effectué",
+  succeeded: "Remboursé",
   failed: "Échoué",
   canceled: "Annulé",
 }
@@ -71,29 +72,44 @@ export function RefundPaymentDialog({
   const [mode, setMode] = useState<"full" | "partial">("full")
   const [amountStr, setAmountStr] = useState("")
   const [reason, setReason] = useState("")
-  const [confirmChecked, setConfirmChecked] = useState(false)
+  // L115 : deux étapes (saisie puis écran de confirmation).
+  const [step, setStep] = useState<"form" | "confirm">("form")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // Incrémenté après un refus net : force une NOUVELLE clé pour le prochain essai.
+  const [keyNonce, setKeyNonce] = useState(0)
 
   // Clé d'idempotence STABLE pour la tentative courante (régénérée à chaque
-  // ouverture / changement de paiement). Un double clic réutilise la même clé.
+  // ouverture / changement de paiement / refus net). Un double clic ou un nouvel
+  // essai après erreur réseau réutilise la même clé (jamais deux remboursements).
   const idempotencyKey = useMemo(() => {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
     return `${bookingId}-${paymentId}-${Date.now()}-${Math.random().toString(36).slice(2)}`
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, paymentId])
+  }, [open, paymentId, keyNonce])
 
   const maxRefundable = selected?.refundableCents ?? 0
   const amountCents = mode === "full" ? maxRefundable : Math.round(Number(amountStr.replace(",", ".")) * 100)
   const amountValid =
     Number.isFinite(amountCents) && amountCents > 0 && amountCents <= maxRefundable && maxRefundable > 0
-  const canSubmit = Boolean(selected) && amountValid && reason.trim().length > 0 && confirmChecked && !pending
+  const canContinue = Boolean(selected) && amountValid && !pending
+  // Montant figé au passage à l'écran de confirmation (le rafraîchissement
+  // après succès ne doit pas le changer).
+  const [confirmedCents, setConfirmedCents] = useState(0)
+  const canSubmit = Boolean(selected) && step === "confirm" && confirmedCents > 0 && !pending && !success
+
+  function goConfirm() {
+    if (!canContinue) return
+    setConfirmedCents(amountCents)
+    setError(null)
+    setStep("confirm")
+  }
 
   function reset() {
     setMode("full")
     setAmountStr("")
     setReason("")
-    setConfirmChecked(false)
+    setStep("form")
     setError(null)
     setSuccess(null)
   }
@@ -111,12 +127,14 @@ export function RefundPaymentDialog({
       const res = await refundPaymentAction({
         bookingId,
         paymentId: selected.paymentId,
-        amountCents,
-        reason: reason.trim(),
+        amountCents: confirmedCents,
+        reason: reason.trim() || undefined,
         idempotencyKey,
       })
       if (!res.ok) {
         setError(res.error)
+        // Refus net : nouvel essai = nouvelle clé. Erreur réseau : même clé.
+        if (!res.sameKey) setKeyNonce((n) => n + 1)
         return
       }
       const label =
@@ -124,30 +142,48 @@ export function RefundPaymentDialog({
           ? "Remboursement effectué."
           : "Remboursement en cours de traitement. La confirmation définitive arrivera automatiquement."
       setSuccess(res.duplicate ? "Ce remboursement a déjà été enregistré." : label)
-      setConfirmChecked(false)
       router.refresh()
     })
   }
 
-  // Aucun paiement du tout : ne rien afficher.
-  if (payments.length === 0) return null
+  // Aucun paiement du tout : ne rien afficher. Plus rien de remboursable :
+  // la fenêtre reste montée (message de succès conservé), seul le bouton disparaît.
+  const visibility = refundDialogVisibility(payments)
+  if (!visibility.render) return null
 
   const hasRefundable = refundable.length > 0
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
-        <RotateCcw className="mr-1.5 h-4 w-4" />
-        Rembourser un paiement
-      </Button>
+      {visibility.showTrigger && (
+        <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
+          <RotateCcw className="mr-1.5 h-4 w-4" />
+          Rembourser un paiement
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Rembourser un paiement</DialogTitle>
+            <DialogTitle>{step === "confirm" ? "Confirmer le remboursement" : "Rembourser un paiement"}</DialogTitle>
           </DialogHeader>
 
-          {!hasRefundable ? (
+          {step === "confirm" && selected ? (
+            <div className="space-y-4">
+              <p className="text-base text-foreground text-pretty">
+                Le client sera remboursé de <strong>{formatPrice(confirmedCents)}</strong>. Les frais Stripe ne sont pas
+                rendus.
+              </p>
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span>
+                  Cette action ne peut pas être annulée. Le délai d&apos;apparition dépend de la banque du client.
+                </span>
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              {success && <p className="text-sm text-primary">{success}</p>}
+            </div>
+          ) : !hasRefundable ? (
             <p className="py-4 text-sm text-muted-foreground">
               Aucun montant n&apos;est remboursable pour cette réservation (paiement déjà intégralement remboursé ou
               non encaissé).
@@ -242,9 +278,9 @@ export function RefundPaymentDialog({
                     </div>
                   )}
 
-                  {/* Motif obligatoire */}
+                  {/* Motif facultatif (L115) */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="refund-reason">Motif (obligatoire)</Label>
+                    <Label htmlFor="refund-reason">Motif (facultatif)</Label>
                     <Textarea
                       id="refund-reason"
                       rows={2}
@@ -254,29 +290,6 @@ export function RefundPaymentDialog({
                     />
                   </div>
 
-                  {/* Avertissement */}
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <span>
-                      Le remboursement de <strong>{formatPrice(amountValid ? amountCents : 0)}</strong> sera effectué sur
-                      le moyen de paiement du client. Le délai d&apos;apparition dépend de sa banque. Cette action ne
-                      peut pas être annulée.
-                    </span>
-                  </div>
-
-                  {/* Double confirmation */}
-                  <label className="flex items-start gap-2 text-sm text-foreground">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4"
-                      checked={confirmChecked}
-                      onChange={(e) => setConfirmChecked(e.target.checked)}
-                    />
-                    <span>Je confirme vouloir rembourser ce montant.</span>
-                  </label>
-
-                  {error && <p className="text-sm text-destructive">{error}</p>}
-                  {success && <p className="text-sm text-primary">{success}</p>}
                 </>
               )}
 
@@ -303,13 +316,34 @@ export function RefundPaymentDialog({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
-              Fermer
-            </Button>
-            {hasRefundable && (
-              <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-                {pending ? "Traitement…" : "Confirmer le remboursement"}
-              </Button>
+            {step === "confirm" && !success ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setStep("form")
+                    setError(null)
+                  }}
+                  disabled={pending}
+                >
+                  Retour
+                </Button>
+                <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
+                  {pending ? "Traitement…" : `Rembourser ${formatPrice(confirmedCents)}`}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
+                  Fermer
+                </Button>
+                {hasRefundable && step === "form" && (
+                  <Button type="button" onClick={goConfirm} disabled={!canContinue}>
+                    Continuer
+                  </Button>
+                )}
+              </>
             )}
           </DialogFooter>
         </DialogContent>

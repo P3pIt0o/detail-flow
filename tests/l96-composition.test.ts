@@ -135,9 +135,11 @@ describe("compte qui démarre", () => {
   })
 
   it("parcours « réservation seule », widget et site sur mesure : pas d'étape « page en ligne »", () => {
-    for (const c of [ctx({ intent: "booking_only" }), ctx({ distributionMode: "widget" }), ctx({ intent: "custom_website" }), ctx({ customSiteKey: "cleanyzer" })]) {
+    for (const c of [ctx({ intent: "booking_only" }), ctx({ distributionMode: "widget" }), ctx({ intent: "custom_website" }), ctx({ customSiteKey: "rozan" })]) {
       expect(buildTodayModel(fresh, c).setup?.steps.map((s) => s.key)).toEqual(["company", "service", "hours", "share"])
     }
+    // L116 : Cleanyzer n'a pas non plus l'étape de partage.
+    expect(buildTodayModel(fresh, ctx({ customSiteKey: "cleanyzer" })).setup?.steps.map((s) => s.key)).toEqual(["company", "service", "hours"])
   })
 
   it("la liste disparaît quand tout est fait (première vraie réservation reçue)", () => {

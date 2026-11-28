@@ -6,6 +6,7 @@
  * « À traiter » et chiffres. Un bloc sans contenu est absent (jamais vide).
  */
 
+import { getCustomSiteAdminProfile } from "@/lib/admin/custom-site-admin-profile"
 import { computeMonthlyFinancials, type PaymentRow } from "@/lib/admin/financials"
 import { isWorkshopAddressComplete } from "@/lib/booking/location-shared"
 import { buildMapsDirectionsUrl } from "@/lib/notifications/maps"
@@ -228,7 +229,10 @@ function setupSteps(data: TodayData, ctx: TodayContext): SetupStep[] {
     })
   }
 
-  steps.push({ key: "share", title: "Partager votre lien", done: data.hasBooking, href: null })
+  // L116 : pas d'invitation à partager quand le profil du site sur mesure la masque.
+  if (!getCustomSiteAdminProfile(ctx.customSiteKey).hideShareActions) {
+    steps.push({ key: "share", title: "Partager votre lien", done: data.hasBooking, href: null })
+  }
   return steps
 }
 
@@ -290,7 +294,10 @@ function suggestion(data: TodayData, ctx: TodayContext, hasUpcoming: boolean): S
     }
   }
   // Après une journée travaillée, proposer de la bloquer n'a pas de sens.
-  if (!hasUpcoming || data.todayBookings.length > 0) return { kind: "share" }
+  if (!hasUpcoming || data.todayBookings.length > 0) {
+    // L116 : partage masqué => suggestion retirée, sans remplacement.
+    return getCustomSiteAdminProfile(ctx.customSiteKey).hideShareActions ? null : { kind: "share" }
+  }
   return { kind: "block", href: ctx.href("/admin/parametres?tab=timeoff") }
 }
 
@@ -399,7 +406,8 @@ export function buildTodayModel(data: TodayData, ctx: TodayContext): TodayModel 
   const dayModel = list.length > 0 ? { next, list } : null
 
   // Compte qui démarre sans aucun rendez-vous : seule la liste d'étapes a du sens.
-  const idle = !next && (list.length > 0 || data.hasBooking || data.nextBooking !== null)
+  // L116 : sans étape restante (partage masqué), « Rien aujourd'hui » plutôt qu'un écran vide.
+  const idle = !next && (setup === null || list.length > 0 || data.nextBooking !== null)
 
   const stats = data.figures ? figures(data.figures, ctx) : { figures: null, visits: null }
   const date = fr(data.today, { weekday: "long", day: "numeric", month: "long" })
