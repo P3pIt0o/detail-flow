@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { withTenant } from "@/lib/tenant-link"
+import { getCustomSiteAdminProfile, isSettingsTabHidden } from "@/lib/admin/custom-site-admin-profile"
 
 /**
  * Organisation des Paramètres (L97) : « Mes prestations et prix » (écran à part)
@@ -182,7 +183,12 @@ export function getVisibleSettingsCategories(
     )
   }
 
-  return SETTINGS_CATEGORIES
+  // L102 : sous-onglets masqués par le profil du site sur mesure (profil vide => liste intacte).
+  if (getCustomSiteAdminProfile(customSiteKey).hiddenSettingsTabs.length === 0) return SETTINGS_CATEGORIES
+  return SETTINGS_CATEGORIES.map((c) => ({
+    ...c,
+    subTabs: c.subTabs.filter((t) => !isSettingsTabHidden(customSiteKey, t.value)),
+  })).filter((c) => c.subTabs.length > 0)
 }
 
 /**
