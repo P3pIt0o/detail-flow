@@ -10,7 +10,7 @@ import { checkFacturXReadiness } from "./facturx-eligibility"
 import { toFacturXInput } from "./facturx-adapter"
 
 /** Où le pro complète l'information manquante. */
-export type FacturXFixPlace = "settings" | "draft" | "support"
+export type FacturXFixPlace = "billing_profile" | "draft" | "support"
 
 export type FacturXNoticeItem = { label: string; where: FacturXFixPlace }
 
@@ -70,7 +70,7 @@ export function describeFacturXErrors(errors: readonly FacturXError[]): FacturXN
       continue
     }
     if (e.code === "TAX_DATA_CONFLICT") {
-      push("Le régime de TVA ne correspond pas aux montants ou aux numéros de TVA", "settings")
+      push("Le régime de TVA ne correspond pas aux montants ou aux numéros de TVA", "billing_profile")
       continue
     }
     if (e.code === "ORIGINAL_INVOICE_REFERENCE_MISSING") {
@@ -83,7 +83,7 @@ export function describeFacturXErrors(errors: readonly FacturXError[]): FacturXN
     }
     const settings = SETTINGS_FIELDS[e.field]
     if (settings) {
-      push(settings, "settings")
+      push(settings, "billing_profile")
       continue
     }
     const draft = DRAFT_FIELDS[e.field] ?? (e.field.startsWith("items[") ? "Une ligne de facture" : null)

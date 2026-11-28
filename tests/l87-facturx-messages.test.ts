@@ -32,13 +32,16 @@ describe("L87 — message Factur-X", () => {
   it("dit quoi manque et où le compléter (paramètres / brouillon)", () => {
     pilot()
     const bad = { ...invoice, issuerVatNumber: null, customerCountry: null } as InvoiceRow
-    expect(buildFacturXNotice({ companyId: 77, invoice: bad, items })).toEqual({
-      kind: "missing",
-      items: [
-        { label: "Votre numéro de TVA", where: "settings" },
+    const notice = buildFacturXNotice({ companyId: 77, invoice: bad, items })
+    expect(notice?.kind).toBe("missing")
+    const got = notice && notice.kind === "missing" ? notice.items : []
+    expect(got).toHaveLength(2)
+    expect(got).toEqual(
+      expect.arrayContaining([
+        { label: "Votre numéro de TVA", where: "billing_profile" },
         { label: "Le pays du client", where: "draft" },
-      ],
-    })
+      ]),
+    )
   })
 
   it("brouillon ou facture annulée : aucun message", () => {

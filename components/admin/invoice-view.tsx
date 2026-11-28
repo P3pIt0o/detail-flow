@@ -302,7 +302,7 @@ export function InvoiceView({
                 {facturxNotice.items.map((item) => (
                   <li key={item.label}>
                     {item.label} —{" "}
-                    {item.where === "settings" ? (
+                    {item.where === "billing_profile" ? (
                       <Link
                         href={withTenant("/admin/parametres?tab=invoicing", tenantParam)}
                         className="underline"
