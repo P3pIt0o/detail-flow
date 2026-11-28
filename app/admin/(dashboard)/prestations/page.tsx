@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { requireCompanyMember } from "@/lib/admin"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs"
 import {
   getAdminServices,
   getAdminVehicleTypes,
@@ -34,12 +35,12 @@ export default async function PrestationsAdminPage() {
       </div>
 
       <Tabs defaultValue="services" className="w-full">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="services">Prestations</TabsTrigger>
-          <TabsTrigger value="matrix">Grille tarifaire</TabsTrigger>
-          <TabsTrigger value="vehicles">Types de véhicules</TabsTrigger>
-          <TabsTrigger value="options">Options</TabsTrigger>
-        </TabsList>
+        <AdminTabsList>
+          <AdminTabsTrigger value="services">Prestations</AdminTabsTrigger>
+          <AdminTabsTrigger value="matrix">Tarifs</AdminTabsTrigger>
+          <AdminTabsTrigger value="vehicles">Véhicules</AdminTabsTrigger>
+          <AdminTabsTrigger value="options">Options</AdminTabsTrigger>
+        </AdminTabsList>
 
         <TabsContent value="services" className="mt-6">
           <ServicesManager services={services} companyId={tenant.id} slug={tenant.slug} />

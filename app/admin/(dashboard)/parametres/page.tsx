@@ -4,7 +4,8 @@ import { redirect } from "next/navigation"
 import { getCustomSiteAdminProfile, isSettingsTabHidden } from "@/lib/admin/custom-site-admin-profile"
 import { ArrowLeft } from "lucide-react"
 import { requireCompanyMember } from "@/lib/admin"
-import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabsContent } from "@/components/ui/tabs"
+import { AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs"
 import { SettingsTabs } from "@/components/admin/settings/settings-tabs"
 import { getSettings, getBusinessHours, getTimeOff, getServices } from "@/lib/booking/queries"
 import { getFullSettings } from "@/lib/invoice/queries"
@@ -352,15 +353,15 @@ export default async function ParametresPage({
               cette page change toujours d'onglet, même après un clic sur une pastille. */}
           <SettingsTabs defaultTab={activeTab} tabs={visibleSubTabs.map((t) => t.value)} className="w-full">
             {/* Navigation secondaire légère, uniquement si plusieurs sous-sections.
-                Les pastilles passent à la ligne : aucune barre coupée sur mobile. */}
+                Une seule ligne : on glisse au doigt, l'onglet actif est ramené en vue (L113). */}
             {visibleSubTabs.length > 1 && (
-              <TabsList className="flex h-auto flex-wrap justify-start gap-1 p-1">
+              <AdminTabsList>
                 {visibleSubTabs.map((t) => (
-                  <TabsTrigger key={t.value} value={t.value} className="flex-none px-3 py-1.5">
+                  <AdminTabsTrigger key={t.value} value={t.value}>
                     {t.label}
-                  </TabsTrigger>
+                  </AdminTabsTrigger>
                 ))}
-              </TabsList>
+              </AdminTabsList>
             )}
 
             {/* ENTREPRISE */}
