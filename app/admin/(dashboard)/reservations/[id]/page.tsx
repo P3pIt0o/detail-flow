@@ -8,7 +8,7 @@ import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceByBookingId } from "@/lib/invoice/queries"
 import { getServices, getVehicleTypes, getOptions } from "@/lib/booking/queries"
 import { getBookingRefundInfo } from "@/lib/payments/refunds"
-import { paymentRefundStatusLabel } from "@/lib/payments/refund-logic"
+import { paymentRefundStatusLabel, refundDialogVisibility } from "@/lib/payments/refund-logic"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
@@ -56,9 +56,10 @@ export default async function ReservationDetailPage({
   // document légal. Affichée si une facture existe ET qu'un remboursement a été
   // enregistré sur la réservation.
   const hasAnyRefund = refundablePayments.some((p) => p.refunds.length > 0)
-  // L115 : le bouton disparaît quand plus rien n'est remboursable, mais le
-  // statut et l'historique restent visibles dans « Paiement en ligne ».
-  const hasRefundableAmount = refundablePayments.some((p) => p.refundableCents > 0)
+  // L115 : le bouton disparaît quand plus rien n'est remboursable (géré dans
+  // la fenêtre), mais la fenêtre reste rendue pour garder son message de
+  // confirmation ; statut et historique restent visibles dans « Paiement en ligne ».
+  const refundDialog = refundDialogVisibility(refundablePayments)
   const suggestCreditNote = Boolean(existingInvoice) && hasAnyRefund
 
   return (
@@ -100,7 +101,7 @@ export default async function ReservationDetailPage({
             bookingStatus={booking.status}
             existingInvoiceId={existingInvoice?.id ?? null}
           />
-          {canRefund && hasRefundableAmount && (
+          {canRefund && refundDialog.render && (
             <RefundPaymentDialog bookingId={booking.id} payments={refundablePayments} />
           )}
           <BookingStatusActions bookingId={booking.id} status={booking.status as BookingStatus} />
@@ -237,8 +238,6 @@ export default async function ReservationDetailPage({
               <div className="space-y-4">
                 {refundablePayments.map((p) => {
                   const label = paymentRefundStatusLabel(p.status)
-                  // L115 (revue métier) : demande partie chez Stripe, pas encore confirmée.
-                  const inProgress = p.refunds.some((r) => r.status === "requested" || r.status === "pending")
                   return (
                     <div key={p.paymentId} className="space-y-2">
                       <dl className="space-y-2 text-sm">
@@ -259,13 +258,6 @@ export default async function ReservationDetailPage({
                           }
                         >
                           {label}
-                        </span>
-                      )}
-                      {inProgress && (
-                        <span
-                          className={`${label ? "ml-2 " : ""}inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground`}
-                        >
-                          Remboursement en cours
                         </span>
                       )}
                     </div>

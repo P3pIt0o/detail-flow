@@ -57,6 +57,22 @@ export function paymentRefundStatusLabel(paymentStatus: string): string | null {
 }
 
 /**
+ * Affichage de la fenêtre de remboursement (L115, revue métier) : la fenêtre
+ * reste rendue tant qu'un paiement est affiché, pour qu'un remboursement total
+ * garde son message de confirmation après le rafraîchissement de la page ;
+ * seul le bouton déclencheur disparaît quand plus rien n'est remboursable.
+ */
+export function refundDialogVisibility(payments: readonly { refundableCents: number }[]): {
+  render: boolean
+  showTrigger: boolean
+} {
+  return {
+    render: payments.length > 0,
+    showTrigger: payments.some((p) => p.refundableCents > 0),
+  }
+}
+
+/**
  * Échecs dont le résultat chez Stripe est INCONNU (réseau, limite, requête
  * concurrente) : on rejoue avec la MÊME clé d'idempotence (Stripe renverra le
  * remboursement s'il a déjà été créé). Tout autre échec est un refus net :

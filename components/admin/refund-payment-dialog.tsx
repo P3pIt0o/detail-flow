@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { formatPrice } from "@/lib/format"
+import { refundDialogVisibility } from "@/lib/payments/refund-logic"
 import { refundPaymentAction } from "@/app/admin/(dashboard)/reservations/[id]/actions"
 
 /** Ligne de remboursement affichée dans l'historique (données déjà masquées). */
@@ -145,17 +146,21 @@ export function RefundPaymentDialog({
     })
   }
 
-  // Aucun paiement du tout : ne rien afficher.
-  if (payments.length === 0) return null
+  // Aucun paiement du tout : ne rien afficher. Plus rien de remboursable :
+  // la fenêtre reste montée (message de succès conservé), seul le bouton disparaît.
+  const visibility = refundDialogVisibility(payments)
+  if (!visibility.render) return null
 
   const hasRefundable = refundable.length > 0
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
-        <RotateCcw className="mr-1.5 h-4 w-4" />
-        Rembourser un paiement
-      </Button>
+      {visibility.showTrigger && (
+        <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
+          <RotateCcw className="mr-1.5 h-4 w-4" />
+          Rembourser un paiement
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
