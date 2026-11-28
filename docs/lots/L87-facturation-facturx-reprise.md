@@ -27,3 +27,6 @@ Aperçu : `.lot-state/L87.apercu.html` (facture PDF + message « facture électr
   et au lockfile sur la branche du lot avant ta passe. Ne l'ajoute pas toi-même.
 - **`@stafyniaksacha/facturx` est refusé** : paquet peu suivi, inadapté à des factures. Le XML CII (profil EN 16931) est écrit dans le code
   (`lib/invoice/`), avec un test de validation (structure et règles principales). Ne pas redemander.
+
+## Délégation de Clément (26/11)
+Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.
