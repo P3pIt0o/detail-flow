@@ -237,6 +237,8 @@ export default async function ReservationDetailPage({
               <div className="space-y-4">
                 {refundablePayments.map((p) => {
                   const label = paymentRefundStatusLabel(p.status)
+                  // L115 (revue métier) : demande partie chez Stripe, pas encore confirmée.
+                  const inProgress = p.refunds.some((r) => r.status === "requested" || r.status === "pending")
                   return (
                     <div key={p.paymentId} className="space-y-2">
                       <dl className="space-y-2 text-sm">
@@ -257,6 +259,13 @@ export default async function ReservationDetailPage({
                           }
                         >
                           {label}
+                        </span>
+                      )}
+                      {inProgress && (
+                        <span
+                          className={`${label ? "ml-2 " : ""}inline-flex rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground`}
+                        >
+                          Remboursement en cours
                         </span>
                       )}
                     </div>

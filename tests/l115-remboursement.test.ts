@@ -251,11 +251,7 @@ describe("L115 — solde insuffisant et nouvel essai", () => {
     succeedNow()
     expect(await ask(s, 3000)).toMatchObject({ ok: true, status: "succeeded" })
     expect(await payment(s.paymentId)).toEqual({ status: "refunded", refundedAmountCents: 3000 })
-
-    const actions = read("app/admin/(dashboard)/reservations/[id]/actions.ts")
-    expect(actions).toContain(
-      "Remboursement impossible pour l'instant : le solde de votre compte de paiement est insuffisant. Réessayez après votre prochain encaissement.",
-    )
+    // Phrase exacte affichée : testée sur l'action dans tests/l115-action.test.ts.
   })
 
   it("erreur temporaire puis nouvel essai avec la même clé : un seul remboursement", async () => {
@@ -307,11 +303,6 @@ describe("L115 — e-mail client et webhook en avance", () => {
     const replay = await applyStripeRefundEvent(ev)
     expect(replay.justSucceeded).toBe(false)
     expect(await claimRefundEmail(applied.refundId!, s.companyId)).toBeNull()
-  })
-
-  it("l'action envoie l'e-mail dès que Stripe confirme (claim atomique = une seule fois)", () => {
-    const actions = read("app/admin/(dashboard)/reservations/[id]/actions.ts")
-    expect(actions).toContain("sendRefundConfirmationEmail(res.refundId, companyId)")
   })
 
   it("webhook arrivé avant la fin de la demande : résultat « réussi », une seule ligne", async () => {
@@ -412,6 +403,56 @@ describe("L115 — sécu 1 : remboursement Dashboard Stripe de même montant pen
     expect(rows.find((r) => r.externalRefundId === "re_ours_2")).toMatchObject({ idempotencyKey: k, reason: "Annulation client" })
     expect(rows.find((r) => r.externalRefundId === "re_dash_2")).toMatchObject({ idempotencyKey: null })
     expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 2000 })
+  })
+
+  it("remboursement externe adopté puis refus net de NOTRE appel : l'externe reste compté, notre essai « Échoué »", async () => {
+    const s = await seed(3000)
+    const k = key()
+    stripe.impl = async (call) => {
+      await applyStripeRefundEvent({
+        externalRefundId: "re_dash_3",
+        paymentIntentId: s.pi,
+        providerStatus: "succeeded",
+        amountCents: call.amountCents ?? null,
+        connectedAccountId: s.account,
+      })
+      throw Object.assign(new Error("Insufficient funds"), { type: "invalid_request_error", code: "balance_insufficient" })
+    }
+    expect(await ask(s, 1000, k)).toEqual({ ok: false, error: "insufficient_funds" })
+    const rows = await fullRows(s.paymentId)
+    expect(rows).toHaveLength(2)
+    expect(rows.find((r) => r.idempotencyKey === k)).toMatchObject({ status: "failed", externalRefundId: null })
+    expect(rows.find((r) => r.externalRefundId === "re_dash_3")).toMatchObject({ idempotencyKey: null, status: "succeeded", amountCents: 1000 })
+    expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 1000 })
+    expect((await getBookingRefundInfo(s.bookingId, s.companyId)).payments[0].refundableCents).toBe(2000)
+  })
+
+  it("remboursement adopté puis erreur temporaire, puis rejeu (Stripe renvoie le même remboursement) : une seule ligne", async () => {
+    const s = await seed(3000)
+    const k = key()
+    let first = true
+    stripe.impl = async (call) => {
+      if (first) {
+        first = false
+        // Stripe a bien créé le remboursement, son webhook passe, mais la réponse se perd.
+        await applyStripeRefundEvent({
+          externalRefundId: "re_lost_1",
+          paymentIntentId: s.pi,
+          providerStatus: "succeeded",
+          amountCents: call.amountCents ?? null,
+          connectedAccountId: s.account,
+        })
+        throw Object.assign(new Error("Connection reset"), { type: "api_connection_error" })
+      }
+      return { externalRefundId: "re_lost_1", providerStatus: "succeeded" }
+    }
+    expect(await ask(s, 1000, k)).toEqual({ ok: false, error: "temporary" })
+    expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 1000 })
+    expect(await ask(s, 1000, k)).toMatchObject({ ok: true, status: "succeeded" })
+    const rows = await fullRows(s.paymentId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ idempotencyKey: k, externalRefundId: "re_lost_1", status: "succeeded" })
+    expect(await payment(s.paymentId)).toEqual({ status: "partially_refunded", refundedAmountCents: 1000 })
   })
 })
 

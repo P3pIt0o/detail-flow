@@ -605,15 +605,71 @@ async function markRefundFailed(
     const stripeInfo = Object.fromEntries(Object.entries(safe).filter(([, v]) => v != null))
     if (Object.keys(stripeInfo).length > 0) payload.stripe = stripeInfo
   }
-  await db
-    .update(refunds)
-    .set({
-      status: "failed",
-      failedAt: new Date(),
-      updatedAt: new Date(),
-      meta: sql`coalesce(${refunds.meta}, '{}'::jsonb) || ${JSON.stringify(payload)}::jsonb`,
-    })
-    .where(and(eq(refunds.id, refundId), eq(refunds.companyId, companyId)))
+  const affectsAggregate = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        externalRefundId: refunds.externalRefundId,
+        status: refunds.status,
+        paymentId: refunds.paymentId,
+        bookingId: refunds.bookingId,
+        amountCents: refunds.amountCents,
+        succeededAt: refunds.succeededAt,
+        failedAt: refunds.failedAt,
+        canceledAt: refunds.canceledAt,
+        emailClient: sql<string | null>`${refunds.meta}->>'emailClient'`,
+      })
+      .from(refunds)
+      .where(and(eq(refunds.id, refundId), eq(refunds.companyId, companyId)))
+      .limit(1)
+      .for("update")
+    if (!row) return null
+
+    // L115 (revue sécurité) : pendant l'appel, un webhook a rattaché un
+    // remboursement Stripe RÉEL à cette ligne (même montant). Il ne faut jamais
+    // le passer en « Échoué » : son montant ne serait plus compté.
+    if (row.externalRefundId) {
+      // Résultat inconnu (réseau…) : c'est très probablement NOTRE remboursement
+      // (Stripe l'a créé, la réponse s'est perdue). On garde l'état du webhook.
+      if (isRetryableRefundFailure(code)) return null
+      // Refus net : Stripe n'a rien créé pour nous → le remboursement rattaché est
+      // externe (ex. Dashboard Stripe). Il reçoit sa propre ligne ; la nôtre devient
+      // « Échoué » sans identifiant Stripe.
+      await tx
+        .update(refunds)
+        .set({ externalRefundId: null })
+        .where(and(eq(refunds.id, refundId), eq(refunds.companyId, companyId)))
+      await tx.insert(refunds).values({
+        companyId,
+        paymentId: row.paymentId,
+        bookingId: row.bookingId,
+        provider: "stripe",
+        amountCents: row.amountCents,
+        reason: EXTERNAL_REFUND_REASON,
+        externalRefundId: row.externalRefundId,
+        status: row.status,
+        succeededAt: row.succeededAt,
+        failedAt: row.failedAt,
+        canceledAt: row.canceledAt,
+        meta: row.emailClient ? { emailClient: row.emailClient } : {},
+      })
+    }
+
+    await tx
+      .update(refunds)
+      .set({
+        status: "failed",
+        failedAt: new Date(),
+        succeededAt: null,
+        canceledAt: null,
+        updatedAt: new Date(),
+        meta: row.externalRefundId
+          ? sql`(coalesce(${refunds.meta}, '{}'::jsonb) - 'emailClient') || ${JSON.stringify(payload)}::jsonb`
+          : sql`coalesce(${refunds.meta}, '{}'::jsonb) || ${JSON.stringify(payload)}::jsonb`,
+      })
+      .where(and(eq(refunds.id, refundId), eq(refunds.companyId, companyId)))
+    return row.externalRefundId ? row.paymentId : null
+  })
+  if (affectsAggregate != null) await reconcilePaymentRefundAggregate(affectsAggregate, companyId)
 }
 
 /* -------------------------------------------------------------------------- */
