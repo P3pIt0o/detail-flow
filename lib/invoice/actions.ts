@@ -1134,13 +1134,14 @@ export async function sendInvoiceEmail(invoiceId: number): Promise<ActionResult>
   const businessName = inv.issuerName || s?.businessName || tenant.name || "DetailFlow"
 
   // Génération du PDF (import différé : dépendances Node-only).
-  const { renderInvoicePdf } = await import("@/lib/invoice/pdf")
+  // Factur-X pour les seuls pilotes et factures éligibles ; sinon PDF classique.
+  const { renderInvoicePdfSafe } = await import("@/lib/invoice/facturx-invoice")
   const { getLogoDataUrl } = await import("@/lib/invoice/logo")
   const { invoiceEmail } = await import("@/lib/email/templates")
   const { sendEmail } = await import("@/lib/email/send")
 
   const logoDataUrl = await getLogoDataUrl(inv.issuerLogoPathname)
-  const pdf = await renderInvoicePdf({ invoice: inv, items, logoDataUrl, originalRef })
+  const pdf = await renderInvoicePdfSafe({ companyId, invoice: inv, items, logoDataUrl, originalRef })
 
   const { subject, html } = invoiceEmail({
     customerName: inv.customerName,
