@@ -27,8 +27,62 @@ export const RESERVING_REFUND_STATUSES: readonly RefundStatus[] = [
 /** Statuts d'un paiement sur lequel un remboursement est envisageable. */
 export const REFUNDABLE_PAYMENT_STATUSES = ["paid", "partially_refunded"] as const
 
+/**
+ * Statuts d'un paiement affichés dans le bloc « Paiement en ligne » de la fiche
+ * réservation (L115) : les remboursables + `refunded`, pour qu'un paiement
+ * remboursé en totalité reste lisible (statut + historique).
+ */
+export const VISIBLE_REFUND_PAYMENT_STATUSES = [...REFUNDABLE_PAYMENT_STATUSES, "refunded"] as const
+
+/**
+ * Motif enregistré quand le detailer n'en saisit pas (L115 : motif facultatif).
+ * La colonne `refunds.reason` reste NOT NULL (1 à 500 caractères) : aucune
+ * migration, on y range ce libellé neutre.
+ */
+export const DEFAULT_REFUND_REASON = "Sans motif"
+/** Motif des remboursements créés hors DetailFlow (Dashboard Stripe). */
+export const EXTERNAL_REFUND_REASON = "Remboursé depuis Stripe"
+
+/** Motif à stocker : saisi (nettoyé, ≤ 500) ou libellé par défaut. */
+export function normalizeRefundReason(reason: string | null | undefined): string {
+  const r = (reason ?? "").trim().slice(0, 500)
+  return r.length > 0 ? r : DEFAULT_REFUND_REASON
+}
+
+/** Libellé du statut de remboursement d'un PAIEMENT (fiche réservation). */
+export function paymentRefundStatusLabel(paymentStatus: string): string | null {
+  if (paymentStatus === "refunded") return "Remboursé"
+  if (paymentStatus === "partially_refunded") return "Remboursé partiellement"
+  return null
+}
+
+/**
+ * Affichage de la fenêtre de remboursement (L115, revue métier) : la fenêtre
+ * reste rendue tant qu'un paiement est affiché, pour qu'un remboursement total
+ * garde son message de confirmation après le rafraîchissement de la page ;
+ * seul le bouton déclencheur disparaît quand plus rien n'est remboursable.
+ */
+export function refundDialogVisibility(payments: readonly { refundableCents: number }[]): {
+  render: boolean
+  showTrigger: boolean
+} {
+  return {
+    render: payments.length > 0,
+    showTrigger: payments.some((p) => p.refundableCents > 0),
+  }
+}
+
+/**
+ * Échecs dont le résultat chez Stripe est INCONNU (réseau, limite, requête
+ * concurrente) : on rejoue avec la MÊME clé d'idempotence (Stripe renverra le
+ * remboursement s'il a déjà été créé). Tout autre échec est un refus net :
+ * le navigateur doit générer une nouvelle clé pour un nouvel essai.
+ */
+export function isRetryableRefundFailure(code: string | null | undefined): boolean {
+  return code === "temporary" || code === "idempotency_conflict"
+}
+
 export type RefundValidationError =
-  | "reason_required"
   | "invalid_amount"
   | "payment_not_refundable"
   | "already_refunded"
@@ -63,10 +117,7 @@ export function validateRefundRequest(input: {
 }): RefundValidationResult {
   const { paymentStatus, grossAmountCents, reservedCents, amountCents } = input
 
-  // Motif OBLIGATOIRE (jamais de donnée bancaire/personnelle attendue ici).
-  if (!input.reason || input.reason.trim().length === 0) {
-    return { ok: false, error: "reason_required" }
-  }
+  // Motif FACULTATIF (L115) : `input.reason` n'est pas contrôlé ici.
   // Paiement réellement encaissable/remboursable.
   if (!(REFUNDABLE_PAYMENT_STATUSES as readonly string[]).includes(paymentStatus)) {
     return { ok: false, error: "payment_not_refundable" }
