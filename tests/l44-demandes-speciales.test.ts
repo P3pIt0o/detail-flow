@@ -40,10 +40,10 @@ beforeEach(() => {
 })
 
 describe("C1 — navigation booking_only", () => {
-  it("catégorie « Ma page de réservation » réduite au seul onglet custom-requests", () => {
+  it("catégorie « Ma page de réservation » réduite à custom-requests et à la carte digitale (L45)", () => {
     const site = getVisibleSettingsCategories(null, "booking_only").find((c) => c.id === "site")
     expect(site?.label).toBe("Ma page de réservation")
-    expect(site?.subTabs.map((t) => t.value)).toEqual(["custom-requests"])
+    expect(site?.subTabs.map((t) => t.value)).toEqual(["custom-requests", "digital-card"])
     expect(findCategoryByTab("custom-requests", null, "booking_only")?.id).toBe("site")
     for (const tab of ["site", "appearance", "gallery", "reviews"]) {
       expect(findCategoryByTab(tab, null, "booking_only")).toBeNull()

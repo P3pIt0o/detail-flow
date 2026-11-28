@@ -15,8 +15,8 @@ const LEGACY_TABS = [
 ]
 
 // Onglets AJOUTÉS (LOT D). Additifs : ne remplacent aucun onglet historique.
-// L97 : l'acompte a son propre onglet.
-const NEW_TABS = ["notifications", "deposit"]
+// L97 : l'acompte a son propre onglet. L86 : la carte digitale aussi.
+const NEW_TABS = ["notifications", "deposit", "digital-card"]
 
 // Ensemble attendu = historiques + nouveaux (aucun autre onglet orphelin).
 const EXPECTED_TABS = [...LEGACY_TABS, ...NEW_TABS]
