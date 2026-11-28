@@ -17,6 +17,7 @@ import {
 } from "@/lib/service-image"
 import { normalizeHighlight } from "@/lib/services/highlight"
 import { serviceHighlightColumnsExist, writeServiceHighlight } from "@/lib/services/highlight-store"
+import { nextServiceSortOrder, reorderCompanyServices } from "@/lib/services/reorder"
 
 export type ActionResult = {
   ok: boolean
@@ -247,6 +248,7 @@ export async function saveService(input: {
         ...values,
         companyId: tenant.id,
         slug: slugify(input.name),
+        sortOrder: await nextServiceSortOrder(tenant.id),
       })
       .returning({ id: services.id })
 
@@ -267,6 +269,22 @@ export async function saveService(input: {
   return {
     ok: true,
   }
+}
+
+/** Enregistre l'ordre des prestations (liste complète des ids, dans l'ordre voulu). */
+export async function reorderServices(
+  ids: number[],
+): Promise<ActionResult> {
+  const { tenant } = await requireCompanyMember()
+
+  const saved = await reorderCompanyServices(tenant.id, ids)
+
+  // Aussi en cas de refus : l'écran admin recharge la liste à jour.
+  revalidate()
+
+  return saved
+    ? { ok: true }
+    : { ok: false, error: "La liste des prestations a changé. Réessayez." }
 }
 
 export async function deleteService(
