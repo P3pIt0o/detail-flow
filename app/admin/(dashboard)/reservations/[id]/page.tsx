@@ -8,6 +8,7 @@ import { getBookingDetail } from "@/lib/admin/queries"
 import { getInvoiceByBookingId } from "@/lib/invoice/queries"
 import { getServices, getVehicleTypes, getOptions } from "@/lib/booking/queries"
 import { getBookingRefundInfo } from "@/lib/payments/refunds"
+import { paymentRefundStatusLabel } from "@/lib/payments/refund-logic"
 import { StatusBadge } from "@/components/admin/status-badge"
 import { BookingStatusActions } from "@/components/admin/booking-status-actions"
 import { InvoiceButton } from "@/components/admin/invoice-button"
@@ -55,6 +56,9 @@ export default async function ReservationDetailPage({
   // document légal. Affichée si une facture existe ET qu'un remboursement a été
   // enregistré sur la réservation.
   const hasAnyRefund = refundablePayments.some((p) => p.refunds.length > 0)
+  // L115 : le bouton disparaît quand plus rien n'est remboursable, mais le
+  // statut et l'historique restent visibles dans « Paiement en ligne ».
+  const hasRefundableAmount = refundablePayments.some((p) => p.refundableCents > 0)
   const suggestCreditNote = Boolean(existingInvoice) && hasAnyRefund
 
   return (
@@ -96,7 +100,7 @@ export default async function ReservationDetailPage({
             bookingStatus={booking.status}
             existingInvoiceId={existingInvoice?.id ?? null}
           />
-          {canRefund && refundablePayments.length > 0 && (
+          {canRefund && hasRefundableAmount && (
             <RefundPaymentDialog bookingId={booking.id} payments={refundablePayments} />
           )}
           <BookingStatusActions bookingId={booking.id} status={booking.status as BookingStatus} />
@@ -223,6 +227,44 @@ export default async function ReservationDetailPage({
               </p>
             )}
           </section>
+
+          {/* Paiement en ligne (L115) : statut de remboursement, OWNER/ADMIN */}
+          {canRefund && refundablePayments.length > 0 && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Paiement en ligne
+              </h2>
+              <div className="space-y-4">
+                {refundablePayments.map((p) => {
+                  const label = paymentRefundStatusLabel(p.status)
+                  return (
+                    <div key={p.paymentId} className="space-y-2">
+                      <dl className="space-y-2 text-sm">
+                        <Line
+                          label={p.type === "deposit" ? "Acompte" : "Paiement intégral"}
+                          value={formatPrice(p.grossAmountCents)}
+                        />
+                        {p.refundedAmountCents > 0 && (
+                          <Line label="Remboursé" value={formatPrice(p.refundedAmountCents)} />
+                        )}
+                      </dl>
+                      {label && (
+                        <span
+                          className={
+                            p.status === "refunded"
+                              ? "inline-flex rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground"
+                              : "inline-flex rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300"
+                          }
+                        >
+                          {label}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>

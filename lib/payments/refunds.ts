@@ -1,7 +1,7 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { payments, refunds, companies } from "@/lib/db/schema"
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { getPaymentProvider } from "./providers"
 import {
   validateRefundRequest,
@@ -10,6 +10,10 @@ import {
   computePaymentRefundAggregate,
   RESERVING_REFUND_STATUSES,
   REFUNDABLE_PAYMENT_STATUSES,
+  VISIBLE_REFUND_PAYMENT_STATUSES,
+  normalizeRefundReason,
+  isRetryableRefundFailure,
+  EXTERNAL_REFUND_REASON,
   shouldRefundApplicationFee,
   extractSafeStripeError,
   classifyStripeRefundError,
@@ -102,7 +106,9 @@ export async function getBookingRefundInfo(
       and(
         eq(payments.bookingId, bookingId),
         eq(payments.companyId, companyId),
-        inArray(payments.status, [...REFUNDABLE_PAYMENT_STATUSES]),
+        // L115 : `refunded` inclus pour qu'un paiement remboursé en totalité
+        // reste visible (statut + historique) ; il n'est plus remboursable.
+        inArray(payments.status, [...VISIBLE_REFUND_PAYMENT_STATUSES]),
       ),
     )
     .orderBy(desc(payments.createdAt))
@@ -130,7 +136,9 @@ export async function getBookingRefundInfo(
       paidAt: p.paidAt,
       refundedAmountCents: p.refundedAmountCents,
       reservedCents,
-      refundableCents: refundableCents({ grossAmountCents: p.grossAmountCents, reservedCents }),
+      refundableCents: (REFUNDABLE_PAYMENT_STATUSES as readonly string[]).includes(p.status)
+        ? refundableCents({ grossAmountCents: p.grossAmountCents, reservedCents })
+        : 0,
       refunds: rowsForPay.map((r) => ({
         id: r.id,
         amountCents: r.amountCents,
@@ -184,16 +192,38 @@ export async function requestRefund(input: {
 
   // 1) Réservation ATOMIQUE de la ligne de remboursement (transaction + verrou).
   let refundRowId: number
+  let claimedAmountCents: number
   try {
-    const claimed = await db.transaction(async (tx) => {
+    const claimed = await db.transaction(async (tx): Promise<Claim> => {
       // Idempotence création : si la clé existe déjà, on renvoie la ligne (aucun
       // second remboursement, même sur double clic ou double soumission).
       const [existing] = await tx
-        .select({ id: refunds.id, status: refunds.status })
+        .select({
+          id: refunds.id,
+          status: refunds.status,
+          paymentId: refunds.paymentId,
+          amountCents: refunds.amountCents,
+          error: sql<string | null>`${refunds.meta}->>'error'`,
+        })
         .from(refunds)
         .where(and(eq(refunds.idempotencyKey, idempotencyKey), eq(refunds.companyId, companyId)))
         .limit(1)
-      if (existing) return { id: existing.id, status: existing.status as RefundStatus, duplicate: true }
+        .for("update")
+      if (existing) {
+        if (existing.status !== "failed" && existing.status !== "canceled") {
+          return { kind: "duplicate", id: existing.id, status: existing.status as RefundStatus }
+        }
+        // L115 : une tentative échouée n'est JAMAIS « déjà enregistrée ».
+        // Refus net → on renvoie la même erreur (le navigateur change de clé).
+        const code = existing.error ?? "stripe_error"
+        if (existing.status === "canceled" || !isRetryableRefundFailure(code)) {
+          return { kind: "failed", error: code }
+        }
+        // Résultat inconnu (réseau…) → on rejoue le MÊME appel, même montant.
+        if (existing.paymentId !== paymentId || existing.amountCents !== amountCents) {
+          return { kind: "failed", error: "retry_amount_mismatch" }
+        }
+      }
 
       // Verrou de ligne sur le paiement : sérialise les demandes concurrentes.
       const [pay] = await tx
@@ -212,7 +242,13 @@ export async function requestRefund(input: {
       const [agg] = await tx
         .select({ reserved: sql<number>`coalesce(sum(${refunds.amountCents}), 0)` })
         .from(refunds)
-        .where(and(eq(refunds.paymentId, paymentId), inArray(refunds.status, [...RESERVING_REFUND_STATUSES])))
+        .where(
+          and(
+            eq(refunds.paymentId, paymentId),
+            eq(refunds.companyId, companyId),
+            inArray(refunds.status, [...RESERVING_REFUND_STATUSES]),
+          ),
+        )
       const reservedCents = Number(agg?.reserved ?? 0)
 
       const validation = validateRefundRequest({
@@ -224,6 +260,16 @@ export async function requestRefund(input: {
       })
       if (!validation.ok) throw new RefundError(validation.error)
 
+      if (existing) {
+        // Nouvel essai après erreur temporaire : la ligne redevient `requested`
+        // (elle réserve de nouveau le montant) ; même clé envoyée à Stripe.
+        await tx
+          .update(refunds)
+          .set({ status: "requested", failedAt: null, updatedAt: new Date() })
+          .where(and(eq(refunds.id, existing.id), eq(refunds.companyId, companyId)))
+        return { kind: "claimed", id: existing.id, amountCents: validation.amountCents }
+      }
+
       const [inserted] = await tx
         .insert(refunds)
         .values({
@@ -232,19 +278,21 @@ export async function requestRefund(input: {
           bookingId,
           provider: "stripe",
           amountCents: validation.amountCents,
-          reason: reason.trim().slice(0, 500),
+          reason: normalizeRefundReason(reason),
           status: "requested",
           initiatedByUserId,
           idempotencyKey,
         })
         .returning({ id: refunds.id })
-      return { id: inserted.id, status: "requested" as RefundStatus, duplicate: false }
+      return { kind: "claimed", id: inserted.id, amountCents: validation.amountCents }
     })
 
-    if (claimed.duplicate) {
+    if (claimed.kind === "duplicate") {
       return { ok: true, refundId: claimed.id, status: claimed.status, duplicate: true }
     }
+    if (claimed.kind === "failed") return { ok: false, error: claimed.error }
     refundRowId = claimed.id
+    claimedAmountCents = claimed.amountCents
   } catch (e) {
     if (e instanceof RefundError) return { ok: false, error: e.code }
     // Violation d'unicité (course sur la clé d'idempotence) → traiter en doublon.
@@ -277,7 +325,7 @@ export async function requestRefund(input: {
 
   const provider = getPaymentProvider("stripe")
   if (!ctx?.stripeAccountId || !ctx.paymentIntentId || !provider) {
-    await markRefundFailed(refundRowId, "missing_stripe_context")
+    await markRefundFailed(refundRowId, companyId, "missing_stripe_context")
     return { ok: false, error: "missing_stripe_context" }
   }
 
@@ -286,28 +334,13 @@ export async function requestRefund(input: {
   // requête (cause de l'échec observé). Aucune commission inventée.
   const refundApplicationFee = shouldRefundApplicationFee(ctx.applicationFeeCents)
 
+  let res: Awaited<ReturnType<typeof provider.refundPayment>>
   try {
-    const res = await provider.refundPayment(ctx.paymentIntentId, ctx.stripeAccountId, {
-      amountCents,
+    res = await provider.refundPayment(ctx.paymentIntentId, ctx.stripeAccountId, {
+      amountCents: claimedAmountCents,
       idempotencyKey,
       refundApplicationFee,
     })
-    const status = mapStripeRefundStatus(res.providerStatus)
-    await db
-      .update(refunds)
-      .set({
-        externalRefundId: res.externalRefundId,
-        status,
-        updatedAt: new Date(),
-        ...(status === "succeeded" ? { succeededAt: new Date() } : {}),
-      })
-      .where(eq(refunds.id, refundRowId))
-
-    // Si Stripe confirme déjà "succeeded", on réconcilie l'agrégat tout de suite
-    // (idempotent : le webhook fera le même recompute sans double comptage).
-    if (status === "succeeded") await reconcilePaymentRefundAggregate(paymentId, companyId)
-
-    return { ok: true, refundId: refundRowId, status }
   } catch (e) {
     // Erreur Stripe → on extrait des champs SÛRS (type/code/decline_code/
     // requestId, jamais de donnée sensible) et on classe vers un code applicatif
@@ -316,10 +349,45 @@ export async function requestRefund(input: {
     const rawMessage = e instanceof Error ? e.message : String(e)
     const code = classifyStripeRefundError(safe, rawMessage)
     console.log("[v0] requestRefund: échec Stripe:", { code, ...safe })
-    await markRefundFailed(refundRowId, code, safe)
+    await markRefundFailed(refundRowId, companyId, code, safe)
     return { ok: false, error: code }
   }
+
+  // 3) Stripe a ACCEPTÉ le remboursement : à partir d'ici, plus jamais « Échoué ».
+  //    Le webhook a pu passer avant nous (L115) : on ne rétrograde jamais un
+  //    statut déjà final posé par lui ; on renvoie le statut réellement en base.
+  const providerStatus = mapStripeRefundStatus(res.providerStatus)
+  try {
+    await db
+      .update(refunds)
+      .set({
+        externalRefundId: res.externalRefundId,
+        status: sql`CASE WHEN ${refunds.status} IN ('requested', 'pending') THEN ${providerStatus} ELSE ${refunds.status} END`,
+        updatedAt: new Date(),
+        ...(providerStatus === "succeeded" ? { succeededAt: sql`coalesce(${refunds.succeededAt}, now())` } : {}),
+      })
+      .where(and(eq(refunds.id, refundRowId), eq(refunds.companyId, companyId)))
+
+    // Recompute idempotent (le webhook fera le même sans double comptage).
+    await reconcilePaymentRefundAggregate(paymentId, companyId)
+
+    const [row] = await db
+      .select({ status: refunds.status })
+      .from(refunds)
+      .where(and(eq(refunds.id, refundRowId), eq(refunds.companyId, companyId)))
+      .limit(1)
+    return { ok: true, refundId: refundRowId, status: (row?.status as RefundStatus) ?? providerStatus }
+  } catch (e) {
+    // Écriture locale ratée APRÈS le succès Stripe : le webhook réconciliera.
+    console.log("[v0] requestRefund: mise à jour locale après Stripe:", e instanceof Error ? e.message : e)
+    return { ok: true, refundId: refundRowId, status: providerStatus }
+  }
 }
+
+type Claim =
+  | { kind: "claimed"; id: number; amountCents: number }
+  | { kind: "duplicate"; id: number; status: RefundStatus }
+  | { kind: "failed"; error: string }
 
 class RefundError extends Error {
   constructor(public code: string) {
@@ -327,7 +395,12 @@ class RefundError extends Error {
   }
 }
 
-async function markRefundFailed(refundId: number, code: string, safe?: SafeStripeError): Promise<void> {
+async function markRefundFailed(
+  refundId: number,
+  companyId: number,
+  code: string,
+  safe?: SafeStripeError,
+): Promise<void> {
   // On stocke le code applicatif ET, si disponibles, les champs Stripe SÛRS
   // (type/code/decline_code/requestId). Jamais uniquement "stripe_error", et
   // jamais de donnée sensible (clé API, carte, e-mail, identité).
@@ -344,7 +417,7 @@ async function markRefundFailed(refundId: number, code: string, safe?: SafeStrip
       updatedAt: new Date(),
       meta: sql`coalesce(${refunds.meta}, '{}'::jsonb) || ${JSON.stringify(payload)}::jsonb`,
     })
-    .where(eq(refunds.id, refundId))
+    .where(and(eq(refunds.id, refundId), eq(refunds.companyId, companyId)))
 }
 
 /* -------------------------------------------------------------------------- */
@@ -370,7 +443,9 @@ export async function reconcilePaymentRefundAggregate(paymentId: number, company
     const [agg] = await tx
       .select({ succeeded: sql<number>`coalesce(sum(${refunds.amountCents}), 0)` })
       .from(refunds)
-      .where(and(eq(refunds.paymentId, paymentId), eq(refunds.status, "succeeded")))
+      .where(
+        and(eq(refunds.paymentId, paymentId), eq(refunds.companyId, companyId), eq(refunds.status, "succeeded")),
+      )
     const succeededRefundCents = Number(agg?.succeeded ?? 0)
 
     const next = computePaymentRefundAggregate({ grossAmountCents: pay.gross, succeededRefundCents })
@@ -453,49 +528,91 @@ export async function applyStripeRefundEvent(input: {
   const status = mapStripeRefundStatus(input.providerStatus)
 
   // 3) Rapprocher/insérer la ligne de remboursement (idempotent par externalId).
+  const tenantId = companyId
   const justSucceeded = await db.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ id: refunds.id, status: refunds.status })
+      .select({ id: refunds.id, emailClient: sql<string | null>`${refunds.meta}->>'emailClient'` })
       .from(refunds)
-      .where(and(eq(refunds.provider, "stripe"), eq(refunds.externalRefundId, input.externalRefundId)))
+      .where(
+        and(
+          eq(refunds.provider, "stripe"),
+          eq(refunds.externalRefundId, input.externalRefundId),
+          eq(refunds.companyId, tenantId),
+        ),
+      )
       .limit(1)
+      .for("update")
 
+    // L115 : webhook arrivé AVANT la fin de la demande DetailFlow → la ligne
+    // existe déjà (`requested`, sans id Stripe). On la complète au lieu d'en
+    // créer une seconde (sinon la demande finissait en « Échoué »).
+    const own = existing
+      ? null
+      : input.amountCents != null && input.amountCents > 0
+        ? (
+            await tx
+              .select({ id: refunds.id, emailClient: sql<string | null>`${refunds.meta}->>'emailClient'` })
+              .from(refunds)
+              .where(
+                and(
+                  eq(refunds.companyId, tenantId),
+                  eq(refunds.paymentId, pay.id),
+                  eq(refunds.provider, "stripe"),
+                  isNull(refunds.externalRefundId),
+                  eq(refunds.amountCents, input.amountCents),
+                  sql`(${refunds.status} IN ('requested', 'pending') OR (${refunds.status} = 'failed' AND ${refunds.meta}->>'error' IN ('temporary', 'idempotency_conflict')))`,
+                ),
+              )
+              .orderBy(asc(refunds.createdAt))
+              .limit(1)
+              .for("update")
+          )[0] ?? null
+        : null
+
+    const target = existing ?? own
     let refundId: number
-    let wasSucceeded = false
-    if (existing) {
-      refundId = existing.id
-      wasSucceeded = existing.status === "succeeded"
+    let emailClient: string | null = null
+    if (target) {
+      refundId = target.id
+      emailClient = target.emailClient
       await tx
         .update(refunds)
         .set({
+          ...(own ? { externalRefundId: input.externalRefundId } : {}),
           status,
           updatedAt: new Date(),
           ...(status === "succeeded" ? { succeededAt: new Date() } : {}),
           ...(status === "failed" ? { failedAt: new Date() } : {}),
           ...(status === "canceled" ? { canceledAt: new Date() } : {}),
         })
-        .where(eq(refunds.id, existing.id))
+        .where(and(eq(refunds.id, target.id), eq(refunds.companyId, tenantId)))
     } else {
       // Remboursement initié hors DetailFlow (ex. Dashboard Stripe) : on le
       // matérialise pour rester la source de vérité, avec le montant Stripe.
+      // Motif NOT NULL en base → libellé fixe (avant L115 : insertion en échec).
       const [ins] = await tx
         .insert(refunds)
         .values({
-          companyId: companyId!,
+          companyId: tenantId,
           paymentId: pay.id,
           bookingId: pay.bookingId,
           provider: "stripe",
           externalRefundId: input.externalRefundId,
           amountCents: input.amountCents ?? 0,
           status,
-          reason: null,
+          reason: EXTERNAL_REFUND_REASON,
           ...(status === "succeeded" ? { succeededAt: new Date() } : {}),
         })
         .returning({ id: refunds.id })
       refundId = ins.id
     }
 
-    return { refundId, justSucceeded: status === "succeeded" && !wasSucceeded }
+    // L115 : « à envoyer » tant que l'e-mail n'a pas été réclamé (et non plus
+    // « vient de passer à succeeded ») : quand Stripe confirme dès la demande,
+    // la ligne est déjà `succeeded` et le client ne recevait rien. Le claim
+    // atomique de claimRefundEmail garantit un seul envoi.
+    const emailDone = emailClient === "sent" || emailClient === "sending" || emailClient === "invalid"
+    return { refundId, justSucceeded: status === "succeeded" && !emailDone }
   })
 
   // 4) Recompute idempotent de l'agrégat (déduit « Encaissé » à refundedAt).

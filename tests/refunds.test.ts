@@ -66,10 +66,10 @@ describe("refund-logic — validation d'une demande", () => {
     })
   })
 
-  it("motif obligatoire", () => {
+  it("motif facultatif (L115)", () => {
     expect(validateRefundRequest({ ...base, amountCents: 100, reason: "  " })).toEqual({
-      ok: false,
-      error: "reason_required",
+      ok: true,
+      amountCents: 100,
     })
   })
 
@@ -432,7 +432,7 @@ describe("observabilité — champs Stripe SÛRS uniquement (jamais de donnée s
     const src = read("lib/payments/refunds.ts")
     expect(src).toContain("extractSafeStripeError(e)")
     expect(src).toContain("classifyStripeRefundError(safe, rawMessage)")
-    expect(src).toContain("markRefundFailed(refundRowId, code, safe)")
+    expect(src).toContain("markRefundFailed(refundRowId, companyId, code, safe)")
     // markRefundFailed sérialise les champs sûrs sous meta.stripe.
     expect(src).toContain("payload.stripe = stripeInfo")
   })
