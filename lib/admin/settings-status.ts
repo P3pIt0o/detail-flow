@@ -1,3 +1,4 @@
+import { getCustomSiteAdminProfile } from "@/lib/admin/custom-site-admin-profile"
 import { hasDepositRule, resolvePaymentPlan } from "@/lib/booking/v2"
 import { PLAN_MATRIX } from "@/lib/licensing/registry"
 import type { FeatureKey } from "@/lib/licensing/types"
@@ -109,7 +110,9 @@ export function buildSettingsStatus(
       ? "Textes du site, galerie et avis"
       : input.onboardingIntent === "booking_only"
         ? "Demandes spéciales et lien"
-        : "Contenu, apparence, lien et QR code",
+        : getCustomSiteAdminProfile(input.customSiteKey).hideShareActions
+          ? "Contenu et apparence"
+          : "Contenu, apparence, lien et QR code",
     attention: false,
   }
 

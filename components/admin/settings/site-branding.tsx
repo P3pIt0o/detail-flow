@@ -49,6 +49,11 @@ type Props = {
    * « Textes du site ». Par défaut `false` : les autres tenants sont inchangés.
    */
   hideHeroCard?: boolean
+  /**
+   * Site sur mesure qui n'affiche ni ce logo ni ces liens : les textes d'aide
+   * disent à quoi ils servent vraiment. Aucun réglage ne change.
+   */
+  customSiteWording?: boolean
 }
 
 export function SiteBranding({
@@ -58,6 +63,7 @@ export function SiteBranding({
   hero,
   simplified = false,
   hideHeroCard = false,
+  customSiteWording = false,
 }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -281,8 +287,9 @@ export function SiteBranding({
       <div id="reglage-logo-site" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Logo du site public</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
-          Affiché dans l&apos;en-tête et le pied de page de votre site (PNG, JPG ou SVG, max 2 Mo). Sans logo, le nom de
-          votre entreprise s&apos;affiche à la place.
+          {customSiteWording
+            ? "Transmis à Google. Il ne change pas le logo de votre site sur mesure (PNG, JPG ou SVG, max 2 Mo)."
+            : "Affiché dans l'en-tête et le pied de page de votre site (PNG, JPG ou SVG, max 2 Mo). Sans logo, le nom de votre entreprise s'affiche à la place."}
         </p>
         <div className="flex items-center gap-4">
           <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-lg border border-border bg-background">
@@ -348,8 +355,9 @@ export function SiteBranding({
       <div id="reglage-reseaux" className={cardClass}>
         <h2 className="mb-1 text-base font-semibold text-foreground">Réseaux sociaux</h2>
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
-          Ajoutez les liens vers vos réseaux : ils s&apos;afficheront dans le pied de page de votre
-          site. Laissez vide pour masquer une plateforme.
+          {customSiteWording
+            ? "Ces liens sont transmis à Google. Ils ne changent pas les liens affichés sur votre site sur mesure."
+            : "Ajoutez les liens vers vos réseaux : ils s'afficheront dans le pied de page de votre site. Laissez vide pour masquer une plateforme."}
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           {SOCIAL_KEYS.map((key) => (

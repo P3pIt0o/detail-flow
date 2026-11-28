@@ -28,9 +28,12 @@ export function AdminShell({
   groups,
   publicUrl,
   widgetAction = null,
+  hideShareActions = false,
   children,
 }: {
   widgetAction?: WidgetPrimaryAction | null
+  /** L102 : ni copie du lien ni widget ; seul « Voir mon site » reste, en toutes lettres. */
+  hideShareActions?: boolean
   brandName: string
   companyName: string
   adminName: string
@@ -242,7 +245,7 @@ export function AdminShell({
         <p className="hidden truncate text-xs text-muted-foreground sm:block">Votre activité aujourd&apos;hui</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        {widgetAction ? (
+        {hideShareActions ? null : widgetAction ? (
           <WidgetActionButton action={widgetAction} />
         ) : (
           // L96 : sur mobile, l'accueil « Aujourd'hui » n'affiche pas « Copier mon lien »
@@ -251,7 +254,17 @@ export function AdminShell({
             <CopyLinkButton url={publicUrl} />
           </div>
         )}
-        {publicUrl ? (
+        {publicUrl && hideShareActions ? (
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+            Voir mon site
+          </a>
+        ) : publicUrl ? (
           <a
             href={publicUrl}
             target="_blank"
@@ -275,7 +288,7 @@ export function AdminShell({
   const mobileAccount =
     pathname === "/admin/plus" ? (
       <div className="mt-4 flex flex-col gap-2 lg:hidden">
-        {widgetAction ? (
+        {hideShareActions ? null : widgetAction ? (
           <WidgetActionButton action={widgetAction} className="w-full" />
         ) : (
           <CopyLinkButton url={publicUrl} className="w-full" />
@@ -284,6 +297,9 @@ export function AdminShell({
           <a href={publicUrl} target="_blank" rel="noopener noreferrer" className={mobileRowClass}>
             <ExternalLink className="size-5 shrink-0" aria-hidden="true" />
             Voir mon site
+            {hideShareActions ? (
+              <span className="truncate text-xs text-muted-foreground">· {publicUrl.replace(/^https:\/\//, "")}</span>
+            ) : null}
           </a>
         ) : null}
         {isSuperAdmin &&
