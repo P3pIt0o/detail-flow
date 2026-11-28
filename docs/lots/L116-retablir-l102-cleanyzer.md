@@ -26,3 +26,6 @@ réservation » (Copier mon lien, QR code, WhatsApp).
 ## Hors périmètre
 Aucune autre modification du tableau de bord ni des paramètres. Ne rien changer au comportement des detailers sans site sur mesure.
 Aucune décision de Clément nécessaire : tout est déjà décidé par L102, L96 et L97.
+
+## Délégation de Clément (26/11)
+Si une décision métier manque, ne t arrête pas : prends l option la plus logique et la plus prudente (celle que tu proposerais), écris-la dans ton rapport sous « Décisions prises par délégation », et continue jusqu au bout. Seules exceptions : n invente jamais un prix, un montant, un taux, une commission, une remise ou une durée d essai (reprends une valeur existante). Clément relit avant de fusionner.
