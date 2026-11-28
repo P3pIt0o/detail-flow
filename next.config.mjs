@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["@react-pdf/renderer", "@stafyniaksacha/facturx", "pdf-lib"],
+  serverExternalPackages: ["@react-pdf/renderer", "pdf-lib"],
   /**
    * Factur-X : polices Lato et profil couleur lus sur disque au moment de la
    * génération (route PDF et envoi par e-mail depuis la page facture). On les

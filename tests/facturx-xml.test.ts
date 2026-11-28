@@ -905,17 +905,261 @@ describe("17. mêmes montants DB / PDF / XML", () => {
   })
 })
 
-describe("Validation externe Factur-X EN16931", () => {
-  it("valide le XML avec XSD et Schematron", async () => {
-    const { check } = await import("@stafyniaksacha/facturx")
-    const xml = xmlOf(buildFacturXXml({
-      invoice: frInvoice(),
-      items: ITEMS,
-    }))
-    const result = await check({ xml, schematron: true })
-    console.log("VALIDATION EXTERNE :", JSON.stringify(result))
-    expect(result.valid).toBe(true)
-    expect(result.schematronValid).toBe(true)
+/* -------------------------------------------------------------------------- */
+/*  Validation interne (structure CII + règles principales EN 16931).          */
+/*  Le paquet de validation externe est refusé (décision 28/11) : ce bloc ne    */
+/*  remplace PAS le XSD/Schematron officiels, à passer sur Preview.             */
+/* -------------------------------------------------------------------------- */
+
+type XNode = { name: string; attrs: Record<string, string>; children: XNode[]; text: string }
+
+/** Mini-analyseur XML strict : lève une erreur si le document est mal formé. */
+function parseXml(xml: string): XNode {
+  const body = xml.replace(/^<\?xml[^?]*\?>\s*/, "")
+  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+="[^"<]*")*)\s*(\/?)>|([^<]+)/g
+  const stack: XNode[] = []
+  let root: XNode | null = null
+  let pos = 0
+  for (const m of body.matchAll(re)) {
+    if (m.index !== pos) throw new Error(`XML mal formé près de ${pos}`)
+    pos = m.index + m[0].length
+    const [, close, name, rawAttrs, selfClose, txt] = m
+    if (txt !== undefined) {
+      if (/&(?!(amp|lt|gt|quot|apos);)/.test(txt)) throw new Error("Entité non échappée")
+      if (stack.length) stack[stack.length - 1].text += txt
+      else if (txt.trim()) throw new Error("Texte hors racine")
+      continue
+    }
+    if (close) {
+      const open = stack.pop()
+      if (!open || open.name !== name) throw new Error(`Balise fermante inattendue ${name}`)
+      continue
+    }
+    const attrs: Record<string, string> = {}
+    for (const a of rawAttrs.matchAll(/([\w:.-]+)="([^"]*)"/g)) attrs[a[1]] = a[2]
+    const node: XNode = { name, attrs, children: [], text: "" }
+    if (stack.length) stack[stack.length - 1].children.push(node)
+    else if (root) throw new Error("Plusieurs racines")
+    else root = node
+    if (!selfClose) stack.push(node)
+  }
+  if (pos !== body.length || stack.length || !root) throw new Error("XML incomplet")
+  return root
+}
+
+const kid = (n: XNode, name: string) => n.children.find((c) => c.name === name)
+const kids = (n: XNode, name: string) => n.children.filter((c) => c.name === name)
+const path = (n: XNode, ...names: string[]): XNode | undefined =>
+  names.reduce<XNode | undefined>((acc, name) => (acc ? kid(acc, name) : undefined), n)
+const cents = (n: XNode | undefined) => {
+  if (!n || !/^-?\d+\.\d{2}$/.test(n.text)) throw new Error(`Montant invalide : ${n?.name}=${n?.text}`)
+  return Math.round(Number(n.text) * 100)
+}
+
+/** Ordre des séquences XSD CII D16B pour les conteneurs émis par DetailFlow. */
+const XSD_SEQUENCES: Record<string, string[]> = {
+  "rsm:CrossIndustryInvoice": ["rsm:ExchangedDocumentContext", "rsm:ExchangedDocument", "rsm:SupplyChainTradeTransaction"],
+  "rsm:ExchangedDocument": ["ram:ID", "ram:TypeCode", "ram:IssueDateTime", "ram:IncludedNote"],
+  "rsm:SupplyChainTradeTransaction": [
+    "ram:IncludedSupplyChainTradeLineItem",
+    "ram:ApplicableHeaderTradeAgreement",
+    "ram:ApplicableHeaderTradeDelivery",
+    "ram:ApplicableHeaderTradeSettlement",
+  ],
+  "ram:IncludedSupplyChainTradeLineItem": [
+    "ram:AssociatedDocumentLineDocument",
+    "ram:SpecifiedTradeProduct",
+    "ram:SpecifiedLineTradeAgreement",
+    "ram:SpecifiedLineTradeDelivery",
+    "ram:SpecifiedLineTradeSettlement",
+  ],
+  "ram:ApplicableHeaderTradeAgreement": ["ram:SellerTradeParty", "ram:BuyerTradeParty"],
+  "ram:SellerTradeParty": [
+    "ram:Name",
+    "ram:SpecifiedLegalOrganization",
+    "ram:PostalTradeAddress",
+    "ram:URIUniversalCommunication",
+    "ram:SpecifiedTaxRegistration",
+  ],
+  "ram:ApplicableHeaderTradeSettlement": [
+    "ram:InvoiceCurrencyCode",
+    "ram:SpecifiedTradeSettlementPaymentMeans",
+    "ram:ApplicableTradeTax",
+    "ram:SpecifiedTradeAllowanceCharge",
+    "ram:SpecifiedTradePaymentTerms",
+    "ram:SpecifiedTradeSettlementHeaderMonetarySummation",
+    "ram:InvoiceReferencedDocument",
+  ],
+  "ram:ApplicableTradeTax": [
+    "ram:CalculatedAmount",
+    "ram:TypeCode",
+    "ram:ExemptionReason",
+    "ram:BasisAmount",
+    "ram:CategoryCode",
+    "ram:RateApplicablePercent",
+  ],
+  "ram:SpecifiedTradeSettlementHeaderMonetarySummation": [
+    "ram:LineTotalAmount",
+    "ram:ChargeTotalAmount",
+    "ram:AllowanceTotalAmount",
+    "ram:TaxBasisTotalAmount",
+    "ram:TaxTotalAmount",
+    "ram:GrandTotalAmount",
+    "ram:TotalPrepaidAmount",
+    "ram:DuePayableAmount",
+  ],
+}
+XSD_SEQUENCES["ram:BuyerTradeParty"] = XSD_SEQUENCES["ram:SellerTradeParty"]
+
+function validateCii(xml: string): string[] {
+  const errs: string[] = []
+  const root = parseXml(xml)
+
+  // Racine et espaces de noms CII D16B.
+  if (root.name !== "rsm:CrossIndustryInvoice") errs.push("racine")
+  const ns = {
+    "xmlns:rsm": "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100",
+    "xmlns:ram": "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100",
+    "xmlns:udt": "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100",
+    "xmlns:qdt": "urn:un:unece:uncefact:data:standard:QualifiedDataType:100",
+  }
+  for (const [k, v] of Object.entries(ns)) if (root.attrs[k] !== v) errs.push(`namespace ${k}`)
+
+  // Ordre XSD : chaque enfant connu, dans l'ordre de la séquence.
+  const walk = (n: XNode) => {
+    const seq = XSD_SEQUENCES[n.name]
+    if (seq) {
+      let last = -1
+      for (const c of n.children) {
+        const i = seq.indexOf(c.name)
+        if (i < 0) errs.push(`${c.name} inattendu dans ${n.name}`)
+        else if (i < last) errs.push(`${c.name} hors ordre dans ${n.name}`)
+        else last = i
+      }
+    }
+    n.children.forEach(walk)
+  }
+  walk(root)
+
+  // Champs obligatoires EN 16931 (BR-01 … BR-13).
+  const guideline = path(root, "rsm:ExchangedDocumentContext", "ram:GuidelineSpecifiedDocumentContextParameter", "ram:ID")
+  if (guideline?.text !== "urn:cen.eu:en16931:2017") errs.push("BR-01 profil")
+  const doc = kid(root, "rsm:ExchangedDocument")!
+  if (!kid(doc, "ram:ID")?.text) errs.push("BR-02 numéro")
+  const issue = path(doc, "ram:IssueDateTime", "udt:DateTimeString")
+  if (!issue || issue.attrs.format !== "102" || !/^\d{8}$/.test(issue.text)) errs.push("BR-03 date")
+  if (!["380", "381"].includes(kid(doc, "ram:TypeCode")?.text ?? "")) errs.push("BR-04 type")
+
+  const tx = kid(root, "rsm:SupplyChainTradeTransaction")!
+  const agreement = kid(tx, "ram:ApplicableHeaderTradeAgreement")!
+  for (const [p, rule] of [["ram:SellerTradeParty", "BR-06/BR-09"], ["ram:BuyerTradeParty", "BR-07/BR-11"]] as const) {
+    const party = kid(agreement, p)
+    if (!party || !kid(party, "ram:Name")?.text) errs.push(`${rule} nom`)
+    if (!party || !/^[A-Z]{2}$/.test(path(party, "ram:PostalTradeAddress", "ram:CountryID")?.text ?? "")) errs.push(`${rule} pays`)
+  }
+
+  const settlement = kid(tx, "ram:ApplicableHeaderTradeSettlement")!
+  const currency = kid(settlement, "ram:InvoiceCurrencyCode")?.text ?? ""
+  if (!/^[A-Z]{3}$/.test(currency)) errs.push("BR-05 devise")
+
+  // Lignes (BR-16, BR-21 … BR-26) et total des lignes (BR-CO-10).
+  const lines = kids(tx, "ram:IncludedSupplyChainTradeLineItem")
+  if (!lines.length) errs.push("BR-16 aucune ligne")
+  let sumLines = 0
+  for (const line of lines) {
+    if (!path(line, "ram:AssociatedDocumentLineDocument", "ram:LineID")?.text) errs.push("BR-21 ligne")
+    const qty = Number(path(line, "ram:SpecifiedLineTradeDelivery", "ram:BilledQuantity")?.text)
+    const price = cents(path(line, "ram:SpecifiedLineTradeAgreement", "ram:NetPriceProductTradePrice", "ram:ChargeAmount"))
+    const net = cents(path(line, "ram:SpecifiedLineTradeSettlement", "ram:SpecifiedTradeSettlementLineMonetarySummation", "ram:LineTotalAmount"))
+    if (!path(line, "ram:SpecifiedTradeProduct", "ram:Name")?.text) errs.push("BR-25 désignation")
+    if (!path(line, "ram:SpecifiedLineTradeSettlement", "ram:ApplicableTradeTax", "ram:CategoryCode")?.text) errs.push("BR-CO-04 TVA ligne")
+    if (Math.round(qty * price) !== net) errs.push("montant de ligne ≠ quantité × prix")
+    sumLines += net
+  }
+
+  const sum = kid(settlement, "ram:SpecifiedTradeSettlementHeaderMonetarySummation")!
+  const lineTotal = cents(kid(sum, "ram:LineTotalAmount"))
+  const charges = cents(kid(sum, "ram:ChargeTotalAmount"))
+  const allowances = cents(kid(sum, "ram:AllowanceTotalAmount"))
+  const basis = cents(kid(sum, "ram:TaxBasisTotalAmount"))
+  const taxNode = kid(sum, "ram:TaxTotalAmount")
+  const tax = cents(taxNode)
+  const grand = cents(kid(sum, "ram:GrandTotalAmount"))
+  const prepaid = cents(kid(sum, "ram:TotalPrepaidAmount"))
+  const due = cents(kid(sum, "ram:DuePayableAmount"))
+  if (taxNode?.attrs.currencyID !== currency) errs.push("BR-CO-14 devise de la TVA")
+  if (sumLines !== lineTotal) errs.push("BR-CO-10")
+  if (lineTotal - allowances + charges !== basis) errs.push("BR-CO-13")
+  if (basis + tax !== grand) errs.push("BR-CO-15")
+  if (grand - prepaid !== due) errs.push("BR-CO-16")
+
+  // Ventilation TVA (BR-CO-17/18) : somme des bases et des taxes = totaux.
+  const vat = kids(settlement, "ram:ApplicableTradeTax")
+  if (!vat.length) errs.push("BR-CO-18 ventilation absente")
+  const vatBasis = vat.reduce((s, v) => s + cents(kid(v, "ram:BasisAmount")), 0)
+  const vatTax = vat.reduce((s, v) => s + cents(kid(v, "ram:CalculatedAmount")), 0)
+  if (vatBasis !== basis) errs.push("ventilation : base ≠ total HT")
+  if (vatTax !== tax) errs.push("ventilation : TVA ≠ total TVA")
+  for (const v of vat) {
+    if (!["S", "Z", "E", "AE", "K", "G", "O", "L", "M"].includes(kid(v, "ram:CategoryCode")?.text ?? "")) errs.push("catégorie TVA")
+  }
+
+  // Échéance (BR-CO-25) et avoir rattaché.
+  if (due > 0 && !path(settlement, "ram:SpecifiedTradePaymentTerms", "ram:DueDateDateTime", "udt:DateTimeString")) errs.push("BR-CO-25")
+  if (kid(doc, "ram:TypeCode")?.text === "381" && !path(settlement, "ram:InvoiceReferencedDocument", "ram:IssuerAssignedID")?.text) {
+    errs.push("avoir sans référence d'origine")
+  }
+  return errs
+}
+
+describe("Validation interne Factur-X EN 16931 (structure et règles principales)", () => {
+  const cases: [string, BuildFacturXXmlResult][] = [
+    ["facture standard", buildFacturXXml({ invoice: frInvoice(), items: ITEMS })],
+    [
+      "facture avec remise",
+      buildFacturXXml({
+        invoice: frInvoice({ discountCents: 1_000, netCents: 14_000, vatCents: 2_800, totalCents: 16_800, balanceCents: 13_800 }),
+        items: ITEMS,
+      }),
+    ],
+    [
+      "avoir synthétique lié (échéance artificielle)",
+      buildFacturXXml({
+        invoice: frInvoice({
+          number: "AVO-2026-0003",
+          documentType: "credit_note",
+          originalInvoiceId: 42,
+          creditReason: "Prestation non réalisée",
+          itemsTotalCents: 10_000,
+          netCents: 10_000,
+          vatCents: 2_000,
+          totalCents: 12_000,
+          depositCents: 0,
+          paidCents: 0,
+          balanceCents: 0,
+          dueDate: "2026-10-24",
+        }),
+        items: [ITEMS[0]],
+        originalInvoice: { number: "FAC-2026-0042", issueDate: "2026-10-01" },
+      }),
+    ],
+  ]
+
+  it.each(cases)("%s : XML bien formé, ordre XSD, règles BR respectées", (_label, result) => {
+    expect(validateCii(xmlOf(result))).toEqual([])
+  })
+
+  it("le validateur détecte bien les écarts (contrôle du contrôle)", () => {
+    const xml = xmlOf(cases[0][1])
+    expect(() => parseXml(xml.replace("</rsm:ExchangedDocument>", ""))).toThrow()
+    expect(validateCii(xml.replace("<ram:GrandTotalAmount>180.00", "<ram:GrandTotalAmount>181.00"))).toEqual(
+      expect.arrayContaining(["BR-CO-15"]),
+    )
+    const swapped = xml.replace(
+      /(<ram:ApplicableHeaderTradeDelivery[\s\S]*?<\/ram:ApplicableHeaderTradeDelivery>)(\s*)(<ram:ApplicableHeaderTradeSettlement>[\s\S]*<\/ram:ApplicableHeaderTradeSettlement>)/,
+      "$3$2$1",
+    )
+    expect(validateCii(swapped).some((e) => e.includes("hors ordre"))).toBe(true)
   })
 })
 
@@ -924,9 +1168,7 @@ describe("Lot B - PDF Factur-X de test", () => {
     const { createElement } = await import("react")
     const { Document, Page, Text, Font, renderToBuffer } =
       await import("@react-pdf/renderer")
-    const { extract } =
-      await import("@stafyniaksacha/facturx")
-    const { embedFacturXXmlInPdf } =
+    const { embedFacturXXmlInPdf, extractFacturXXml } =
       await import("@/lib/invoice/facturx-pdfa")
 
     const xml = xmlOf(buildFacturXXml({
@@ -960,11 +1202,7 @@ describe("Lot B - PDF Factur-X de test", () => {
       sourcePdf: source,
       xml,
     })
-    const extracted = await extract({ pdf })
-
     expect(Buffer.from(pdf).subarray(0, 5).toString()).toBe("%PDF-")
-
-    expect(Buffer.from(extracted.xml).toString("utf8").trim().replace(/^<\?xml version="1\.0" encoding="utf-8"\?>/, '<?xml version="1.0" encoding="UTF-8"?>'))
-      .toBe(xml.trim())
+    expect(await extractFacturXXml(pdf)).toBe(xml)
   }, 30000)
 })

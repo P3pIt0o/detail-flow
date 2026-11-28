@@ -22,7 +22,7 @@ async function renderFacturXPdf(data: InvoicePdfData, input: BuildFacturXXmlInpu
   const source = await renderInvoicePdf({ ...data, embeddedFonts: true })
 
   const { embedFacturXXmlInPdf } = await import("./facturx-pdfa")
-  return embedFacturXXmlInPdf({ sourcePdf: source, xml: xml.xml })
+  return embedFacturXXmlInPdf({ sourcePdf: source, xml: xml.xml, title: input.invoice.number ?? "Facture" })
 }
 
 /**

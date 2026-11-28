@@ -39,17 +39,18 @@ describe("L87 — PDF Factur-X final", () => {
     expect(warn).not.toHaveBeenCalled()
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-")
 
-    const { extract } = await import("@stafyniaksacha/facturx")
-    const extracted = await extract({ pdf })
+    const { extractFacturXXml } = await import("@/lib/invoice/facturx-pdfa")
     const expected = buildFacturXXml({ ...input, originalInvoice: null })
     if (!expected.ok) throw new Error("fixture invalide")
-    const normalize = (x: string) => x.trim().replace(/^<\?xml[^>]*\?>/i, "")
-    expect(normalize(Buffer.from(extracted.xml).toString("utf8"))).toBe(normalize(expected.xml))
+    expect(await extractFacturXXml(pdf)).toBe(expected.xml)
 
     const { PDFDocument, PDFName, PDFDict, PDFArray } = await import("pdf-lib")
     const doc = await PDFDocument.load(pdf)
     const intents = doc.catalog.lookup(PDFName.of("OutputIntents"), PDFArray)
     expect(intents.size()).toBeGreaterThan(0)
+    expect(doc.catalog.lookup(PDFName.of("AF"), PDFArray).size()).toBe(1)
+    expect(doc.getTitle()).toBe(input.invoice.number)
+    expect(doc.context.trailerInfo.ID).toBeDefined()
 
     // Polices : toutes incorporées (FontFile2), aucune Helvetica standard.
     const fonts: string[] = []
