@@ -55,6 +55,7 @@ vi.mock("@/lib/tenant", () => ({
   resolvePublicRequestTenant: async () => h.current,
   tenantAcceptsBookings: (t: T) => t.status !== "SUSPENDED" && t.bookingMode !== "DISABLED",
 }))
+vi.mock("@/lib/licensing/enforce", () => ({ canUseFeature: async () => true }))
 vi.mock("@/lib/public-contact", () => ({
   getPublicContact: async () => CONTACTS[(h.current as { id: number }).id],
 }))

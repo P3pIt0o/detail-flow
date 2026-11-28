@@ -28,7 +28,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     siteName: data.name,
     imageUrl: image ?? "",
-    icons: image ? { icon: image, apple: image } : undefined,
+    // Sans logo : listes vides, pour ne pas hériter des icônes DetailFlow.
+    icons: image ? { icon: image, apple: image } : { icon: [], apple: [] },
     robots: noindex.robots,
     neutralizePlatformTags: true,
   })

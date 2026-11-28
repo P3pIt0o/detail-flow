@@ -233,12 +233,7 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
                 style={{ ...layer, background: shadeHex(background, 0.55), transform: `translateZ(${-i * 0.6}px)` }}
               />
             ))}
-            <div style={{ ...layer, background: cardFaceBackground({ background, accent, style: cardStyle }), boxShadow: "inset 0 0 0 1px rgba(255,255,255,.10)" }}>
-              <div
-                aria-hidden="true"
-                style={{ ...layer, background: "repeating-linear-gradient(135deg, currentColor 0 1px, transparent 1px 9px)", opacity: 0.06 }}
-              />
-            </div>
+            <div style={{ ...layer, background: cardFaceBackground({ background, accent, style: cardStyle }), boxShadow: "inset 0 0 0 1px rgba(255,255,255,.10)" }} />
             <div
               className="absolute flex items-center justify-center bg-white font-extrabold text-slate-900"
               style={{
@@ -259,11 +254,6 @@ export function TiltCard({ name, line, logoSrc, background, accent, cardStyle }:
                 initials(name)
               )}
             </div>
-            <div
-              aria-hidden="true"
-              className="absolute"
-              style={{ right: "7%", top: "12%", width: "11%", height: "4px", borderRadius: "2px", background: accent, transform: "translateZ(8px)" }}
-            />
             <p
               className="absolute m-0 truncate font-bold tracking-tight"
               style={{ left: "7%", right: "7%", bottom: line ? "22%" : "14%", fontSize: "6.6cqw", transform: "translateZ(16px)", textShadow: "0 2px 6px rgba(0,0,0,.25)" }}

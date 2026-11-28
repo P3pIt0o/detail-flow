@@ -55,6 +55,7 @@ describe("L86 métadonnées de /carte", () => {
     const meta = (await generateMetadata()) as Record<string, any>
 
     expect(meta.openGraph.images).toEqual([])
+    expect(meta.icons).toEqual({ icon: [], apple: [] })
     expect(meta.twitter.images).toEqual([])
     expect(meta.description).toContain("Bravo Clean")
     expect(JSON.stringify(meta)).not.toContain("alpha")

@@ -9,6 +9,9 @@ import { humanReservationUrl, humanSiteUrl } from "@/lib/admin/public-link"
 import { tenantPublicPathUrl } from "@/lib/tenant-shared"
 import { resolveDashboardIntent } from "@/lib/onboarding/intent"
 import { resolveSiteContent } from "@/lib/site-content"
+import { canUseFeature } from "@/lib/licensing/enforce"
+import { isOnlineBookingOpen } from "@/lib/booking/online-booking-access"
+import { usesLegacyBookingWizard } from "@/lib/company/publication-shared"
 import {
   buildCardActions,
   buildVCard,
@@ -49,6 +52,12 @@ export async function loadPublicDigitalCard(): Promise<PublicDigitalCard | null>
   const intent = resolveDashboardIntent({ persisted: tenant.onboardingIntent, customSiteKey: tenant.customSiteKey })
   // Adresse publiée seulement pour un atelier complet : un detailer mobile ne publie pas son domicile.
   const workshop = location.workshopEnabled && isWorkshopAddressComplete(location) ? location : null
+  // Même règle que `/reservation` : licence vérifiée, sauf tunnels historiques.
+  const canBook =
+    !isSpirit &&
+    tenantAcceptsBookings(tenant) &&
+    (usesLegacyBookingWizard(tenant.customSiteKey) ||
+      isOnlineBookingOpen(tenant, await canUseFeature(tenant.id, "online_booking")))
   const name = contact.name ?? tenant.name
   const line = cardLine(resolveSiteContent(tenant.siteContent).footer.tagline, contact.city)
   const website = contact.website ?? (intent === "booking_only" ? null : humanSiteUrl(tenant.slug, root))
@@ -60,7 +69,7 @@ export async function loadPublicDigitalCard(): Promise<PublicDigitalCard | null>
     logoSrc: tenant.logoUrl ? `/api/company-logo?company=${encodeURIComponent(tenant.slug)}` : null,
     card,
     actions: buildCardActions({
-      reservationUrl: tenantAcceptsBookings(tenant) && !isSpirit ? humanReservationUrl(tenant.slug, root) : null,
+      reservationUrl: canBook ? humanReservationUrl(tenant.slug, root) : null,
       phone: contact.phone,
       address: workshop ? formatWorkshopAddress(workshop) : null,
       reviewLink,
