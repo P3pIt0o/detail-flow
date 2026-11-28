@@ -15,6 +15,7 @@ Seule exception : l'acompte (voir en bas).
 | `?tab=gallery` | Site public › Galerie | Ma page de réservation › Galerie |
 | `?tab=reviews` | Site public › Avis | Ma page de réservation › Avis |
 | `?tab=custom-requests` | Site public › Demandes spéciales | Ma page de réservation › Demandes spéciales |
+| `?tab=digital-card` | Site public › Carte digitale (L86) | Ma page de réservation › Carte digitale |
 | `?tab=deposit` | Réservations › Planning & acompte (bloc acompte) | Paiements et factures › Acompte |
 | `?tab=payments` | Paiements et facturation › Paiements | Paiements et factures › Paiements |
 | `?tab=invoicing` | Paiements et facturation › Facturation | Paiements et factures › Facturation |
@@ -42,4 +43,4 @@ gabarits de véhicules compris) et « Abonnement » (`/admin/abonnement`).
 ## Tenants
 
 Spirit ACS : disponibilités, lieu, acompte, paiements, codes promo, apparence et demandes spéciales restent masqués.
-`booking_only` : « Ma page de réservation » ne garde que les demandes spéciales (plus le lien et le QR code).
+`booking_only` : « Ma page de réservation » ne garde que les demandes spéciales et la carte digitale (plus le lien et le QR code).

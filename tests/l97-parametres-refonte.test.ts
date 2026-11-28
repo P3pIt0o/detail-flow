@@ -28,6 +28,7 @@ const MOVES: [tab: string, categoryId: string, categoryLabel: string][] = [
   ["gallery", "site", "Ma page de réservation"],
   ["reviews", "site", "Ma page de réservation"],
   ["custom-requests", "site", "Ma page de réservation"],
+  ["digital-card", "site", "Ma page de réservation"],
   ["deposit", "billing", "Paiements et factures"],
   ["payments", "billing", "Paiements et factures"],
   ["invoicing", "billing", "Paiements et factures"],
@@ -126,11 +127,11 @@ describe("L97 — accueil : 6 entrées + Mon compte", () => {
     expect(home.main.find((e) => e.id === "billing")?.href).toBe("/admin/parametres?tab=invoicing")
   })
 
-  it("booking_only : page de réservation réduite aux demandes spéciales", () => {
+  it("booking_only : page de réservation réduite aux demandes spéciales et à la carte digitale", () => {
     const home = getSettingsHome(null, "booking_only")
     expect(labels(home)).toHaveLength(6)
     expect(home.main.find((e) => e.id === "site")?.href).toBe("/admin/parametres?tab=custom-requests")
-    expect(getVisibleSettingsCategories(null, "booking_only").find((c) => c.id === "site")?.subTabs).toHaveLength(1)
+    expect(getVisibleSettingsCategories(null, "booking_only").find((c) => c.id === "site")?.subTabs).toHaveLength(2)
   })
 })
 
