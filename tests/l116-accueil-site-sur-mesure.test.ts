@@ -1,14 +1,26 @@
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
+import DashboardLayout from "@/app/admin/(dashboard)/layout"
+import { AdminShell } from "@/components/admin/admin-shell"
 import { TodayScreen } from "@/components/admin/today/today-screen"
 import { buildSettingsStatus, type SettingsStatusInput } from "@/lib/admin/settings-status"
 import { searchSettings } from "@/lib/admin/settings-search"
 import { buildTodayModel, type TodayContext, type TodayData } from "@/lib/admin/today"
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }))
-vi.mock("@/app/admin/(dashboard)/reservations/actions", () => ({ updateBookingStatus: vi.fn() }))
-vi.mock("@/app/admin/(dashboard)/factures/actions", () => ({ createInvoiceFromBooking: vi.fn() }))
+const { memberMock } = vi.hoisted(() => ({ memberMock: vi.fn() }))
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {}, push: () => {} }),
+  usePathname: () => "/admin",
+  useSearchParams: () => new URLSearchParams(),
+}))
+vi.mock("@/app/admin/(dashboard)/actions", () => ({ updateBookingStatus: vi.fn() }))
+vi.mock("@/lib/invoice/actions", () => ({ createInvoiceFromBooking: vi.fn() }))
+vi.mock("@/lib/admin", () => ({ requireCompanyMember: memberMock }))
+vi.mock("@/lib/company/booking-distribution", () => ({ getBookingDistributionMode: vi.fn(async () => "widget") }))
+vi.mock("@/lib/company/publication", () => ({
+  getPublicationFlags: vi.fn(async () => ({ bookingLinkEnabled: true })),
+}))
 vi.mock("server-only", () => ({}))
 
 /** L116 — sur « Aujourd'hui » et dans les paramètres, un site sur mesure n'a plus d'invitation à partager. */
@@ -112,6 +124,62 @@ describe("L116 — accueil « Aujourd'hui »", () => {
     expect(buildTodayModel(data({ lapsed }), ctx("cleanyzer")).suggestion?.kind).toBe("relaunch")
     const next = { date: "2026-12-03", startTime: "09:00" }
     expect(buildTodayModel(data({ nextBooking: next }), ctx("cleanyzer")).suggestion?.kind).toBe("block")
+  })
+})
+
+describe("L116 — en-tête : « Intégrer la réservation »", () => {
+  const header = (hideShareActions: boolean) =>
+    renderToStaticMarkup(
+      createElement(
+        AdminShell,
+        {
+          brandName: "DetailFlow",
+          companyName: "Demo",
+          adminName: "Alex",
+          mainNav: [],
+          groups: [],
+          publicUrl: "https://www.cleanyzer.fr",
+          hideShareActions,
+          widgetAction: { active: true, scriptSnippet: "<script></script>", bookingUrl: "https://x.fr/reservation" },
+        } as unknown as Parameters<typeof AdminShell>[0],
+        null,
+      ),
+    )
+
+  it("absent pour un site sur mesure, même avec une action widget ; « Voir mon site » à la place", () => {
+    const html = header(true)
+    expect(html).not.toContain("Intégrer la réservation")
+    expect(html).toContain("Voir mon site")
+    expect(header(false)).toContain("Intégrer la réservation")
+  })
+
+  /** Exécute le layout authentifié (mode widget) et rend les propriétés passées à l'en-tête. */
+  const layoutProps = async (customSiteKey: string | null) => {
+    const slug = customSiteKey ?? "demo"
+    const tenant = { id: 1, slug, name: "Demo", customSiteKey, status: "ACTIVE", onboardingIntent: null }
+    memberMock.mockResolvedValue({
+      tenant, company: tenant, companyId: 1, role: "OWNER", isSuperAdmin: false,
+      user: { name: "Alex", email: "alex@example.com" },
+    })
+    const el = (await DashboardLayout({ children: null })) as unknown as {
+      props: { widgetAction: unknown; hideShareActions: boolean; publicUrl: string | null }
+    }
+    return el.props
+  }
+
+  it("layout en mode widget : aucune action d'intégration pour Cleanyzer", async () => {
+    const props = await layoutProps("cleanyzer")
+    expect(props.widgetAction).toBeNull()
+    expect(props.hideShareActions).toBe(true)
+    expect(props.publicUrl).toBe("https://www.cleanyzer.fr")
+  })
+
+  it("layout en mode widget : tenant B (autre detailer) garde l'intégration", async () => {
+    for (const key of [null, "rozan", "justclean"]) {
+      const props = await layoutProps(key)
+      expect(props.widgetAction, String(key)).not.toBeNull()
+      expect(props.hideShareActions).toBe(false)
+    }
   })
 })
 
